@@ -13,12 +13,20 @@ Ollama provider uses this module.
 from __future__ import annotations
 
 import json
+import os
+import queue
+import threading
 import urllib.error
 import urllib.request
-import os
-from typing import Any, Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
-from ._openai_compat import ProviderHTTPError
+from ._openai_compat import (
+    ProviderCancelled,
+    ProviderHTTPError,
+    _budget_explicit_bridge,
+    _poll_interval,
+)
 
 # Sized by MEASUREMENT on the 15.7GB reference box (2026-07-26), not by the
 # model's 32k max: the runner needs weights (~5GB) PLUS a context-scaled
@@ -233,6 +241,28 @@ def native_chat(
     return _adapt_message(message)
 
 
+def _native_stream_deltas(resp: Any, url: str) -> Iterator[str]:
+    """Decode native Ollama newline-delimited stream frames."""
+    for raw in resp:
+        if not raw or not raw.strip():
+            continue
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ProviderHTTPError(
+                f"invalid streaming frame from {url}: {exc}") from exc
+        if payload.get("error"):
+            raise ProviderHTTPError(
+                f"Ollama stream error from {url}: {payload.get('error')}")
+        message = payload.get("message")
+        if isinstance(message, dict):
+            content = message.get("content")
+            if isinstance(content, str) and content:
+                yield content
+        if payload.get("done"):
+            break
+
+
 def native_chat_stream(
     *,
     host: str,
@@ -246,13 +276,24 @@ def native_chat_stream(
     keep_alive: str | None = None,
     timeout_s: float = 300.0,
     temperature: float = 0.0,
+    cancelled: Callable[[], bool] | None = None,
+    poll_interval_s: float | None = None,
 ) -> Iterator[str]:
     """Yield native Ollama text deltas from ONE ``/api/chat`` request.
 
-    Ollama streams newline-delimited JSON.  The response context is owned by
-    this generator, so closing/cancelling the consumer closes the HTTP response;
-    there is no daemon warm-up thread that can outlive the chat turn.  Residency
-    refresh is carried by ``keep_alive`` on this same authorized transport.
+    Without ``cancelled`` this remains the historical direct blocking generator.
+    With a probe, the worker owns the socket and the caller owns a small event
+    queue. A cancellation that arrives after the response exists closes that
+    response and raises the shared typed :class:`ProviderCancelled`; the same
+    request is never replayed. If cancellation happens while ``urlopen`` itself
+    is still blocked, stdlib exposes no portable response handle yet, so the
+    daemon worker can only be abandoned until that open returns. This mirrors
+    the OpenAI-compatible transport's honest residual rather than inventing a
+    hidden deadline.
+
+    ``poll_interval_s`` bounds cancellation-observation latency only. It never
+    replaces or shortens ``timeout_s``. Residency refresh remains carried by
+    ``keep_alive`` on this same authorized transport.
     """
     body = _native_chat_body(
         model=model, messages=messages, stream=True, tools=tools,
@@ -260,31 +301,91 @@ def native_chat_stream(
         think=think, keep_alive=keep_alive, temperature=temperature,
     )
     url, request = _native_request(host, body)
+
+    if cancelled is None:
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+                yield from _native_stream_deltas(resp, url)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:500]
+            raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
+        except TimeoutError as exc:
+            raise ProviderHTTPError(
+                f"request to {url} timed out after {timeout_s:g}s") from exc
+        return
+
+    interval = _poll_interval(poll_interval_s)
+    if cancelled():
+        raise ProviderCancelled("cancelled before native Ollama stream opened a connection")
+
+    events: queue.Queue[tuple[str, Any]] = queue.Queue()
+    stop_requested = threading.Event()
+    response_lock = threading.Lock()
+    response_box: dict[str, Any] = {}
+    adopt_budget_mark = _budget_explicit_bridge()
+
+    def _close_active_response() -> None:
+        with response_lock:
+            response = response_box.get("response")
+        if response is not None:
+            try:
+                response.close()
+            except Exception:  # noqa: BLE001 - cancellation remains terminal
+                pass
+
+    def _produce() -> None:
+        adopt_budget_mark()
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+                with response_lock:
+                    response_box["response"] = resp
+                if stop_requested.is_set():
+                    return
+                for piece in _native_stream_deltas(resp, url):
+                    if stop_requested.is_set():
+                        return
+                    events.put(("delta", piece))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:500]
+            events.put(("error", ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}")))
+        except urllib.error.URLError as exc:
+            events.put(("error", ProviderHTTPError(f"cannot reach {url}: {exc.reason}")))
+        except TimeoutError as exc:
+            events.put(("error", ProviderHTTPError(
+                f"request to {url} timed out after {timeout_s:g}s")))
+        except BaseException as exc:  # noqa: BLE001 - preserve legacy stream failures
+            events.put(("error", exc))
+        finally:
+            with response_lock:
+                response_box.pop("response", None)
+            events.put(("done", None))
+
+    threading.Thread(
+        target=_produce,
+        name="daedalus-ollama-native-stream",
+        daemon=True,
+    ).start()
+
     try:
-        with urllib.request.urlopen(request, timeout=timeout_s) as resp:
-            for raw in resp:
-                if not raw or not raw.strip():
-                    continue
-                try:
-                    payload = json.loads(raw.decode("utf-8"))
-                except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-                    raise ProviderHTTPError(
-                        f"invalid streaming frame from {url}: {exc}") from exc
-                if payload.get("error"):
-                    raise ProviderHTTPError(
-                        f"Ollama stream error from {url}: {payload.get('error')}")
-                message = payload.get("message")
-                if isinstance(message, dict):
-                    content = message.get("content")
-                    if isinstance(content, str) and content:
-                        yield content
-                if payload.get("done"):
-                    break
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
-    except TimeoutError as exc:
-        raise ProviderHTTPError(
-            f"request to {url} timed out after {timeout_s:g}s") from exc
+        while True:
+            if cancelled():
+                stop_requested.set()
+                _close_active_response()
+                raise ProviderCancelled("cancelled while native Ollama stream was in flight")
+            try:
+                kind, value = events.get(timeout=interval)
+            except queue.Empty:
+                continue
+            if kind == "delta":
+                yield value
+            elif kind == "error":
+                raise value
+            elif kind == "done":
+                return
+            else:  # pragma: no cover - private producer emits a closed vocabulary
+                raise RuntimeError(f"unknown native Ollama stream event: {kind}")
+    finally:
+        stop_requested.set()
+        _close_active_response()
