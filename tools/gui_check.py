@@ -23,7 +23,9 @@ killed in a ``finally`` on every path including failure and including
 ``KeyboardInterrupt``. The non-loopback opt-in environment variables are
 scrubbed from the child's environment rather than merely left unset, so an
 ambient ``DAEDALUS_WEB_ALLOW_REMOTE_CLIENTS`` cannot turn an acceptance run into
-a network service.
+a network service. Server output is captured in a temporary file rather than an
+undrained PIPE, so a verbose real-server acceptance run cannot deadlock when an
+OS pipe buffer fills.
 
     python tools/gui_check.py                     # against this checkout
     python tools/gui_check.py --json              # machine-readable receipt
@@ -202,7 +204,7 @@ def _wait_ready(port: int, proc: subprocess.Popen) -> tuple[bool, str, str]:
     return False, "", f"no answer within {READINESS_S:.0f}s: {last}"
 
 
-def _drain(proc: subprocess.Popen) -> str:
+def _drain(proc: subprocess.Popen, output_file) -> str:
     """Whatever the dead server said. The traceback is the whole diagnosis."""
     if proc.poll() is None:
         proc.kill()
@@ -211,7 +213,9 @@ def _drain(proc: subprocess.Popen) -> str:
         except Exception:
             pass
     try:
-        return (proc.stdout.read() or "") if proc.stdout is not None else ""
+        output_file.flush()
+        output_file.seek(0)
+        return output_file.read().decode("utf-8", "replace")
     except Exception:
         return ""
 
@@ -229,30 +233,35 @@ SERVER_ENTRIES = (
 
 
 def _start_server(repo_root: Path, port: int, verbose: bool):
-    """(proc, body, entry_label, documented_entry_error).
+    """(proc, body, entry_label, documented_entry_error, output_file).
 
     ``documented_entry_error`` is non-empty when ``daedalus web`` itself could
-    not start; the caller must FAIL on it.
+    not start; the caller must FAIL on it. Output is file-backed rather than a
+    PIPE: nobody needs to drain it while the browser suite is running, and a
+    chatty server therefore cannot stop serving because a pipe buffer filled.
     """
     documented_error = ""
     for label, argv in SERVER_ENTRIES:
+        output_file = tempfile.TemporaryFile(mode="w+b")
         try:
             proc = subprocess.Popen(
                 [PY, *argv, "--port", str(port)], cwd=str(repo_root),
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                encoding="utf-8", errors="replace", env=_child_env(repo_root))
+                stdout=output_file, stderr=subprocess.STDOUT,
+                env=_child_env(repo_root))
         except OSError as exc:
+            output_file.close()
             documented_error = documented_error or f"{label} could not be spawned: {exc}"
             continue
         ready, body, why = _wait_ready(port, proc)
         if ready:
-            return proc, body, label, documented_error
-        tail = _drain(proc).strip().replace("\n", " | ")[-700:]
+            return proc, body, label, documented_error, output_file
+        tail = _drain(proc, output_file).strip().replace("\n", " | ")[-700:]
+        output_file.close()
         if not documented_error:
             documented_error = f"{label} did not come up: {why}. Server said: {tail}"
         if verbose:
             print(f"  [!!] {label} did not come up -- {why}")
-    return None, "", "", documented_error or "no server entry point came up"
+    return None, "", "", documented_error or "no server entry point came up", None
 
 
 # --------------------------------------------------------------------------- #
@@ -345,10 +354,13 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
     work = Path(tempfile.mkdtemp(prefix="daedalus-gui-"))
     report_path = work / "report.json"
     proc = None
+    server_output = None
     try:
         if verbose:
             print(f"  serving {repo_root} on http://127.0.0.1:{port} (loopback only)")
-        proc, body, entry, documented_error = _start_server(repo_root, port, verbose)
+        proc, body, entry, documented_error, server_output = _start_server(
+            repo_root, port, verbose
+        )
         info["server_entry"] = entry or "(none started)"
         if documented_error:
             info["documented_entry_error"] = documented_error
@@ -460,6 +472,11 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
             proc.kill()
             try:
                 proc.wait(timeout=20)
+            except Exception:
+                pass
+        if server_output is not None:
+            try:
+                server_output.close()
             except Exception:
                 pass
         shutil.rmtree(work, ignore_errors=True)
