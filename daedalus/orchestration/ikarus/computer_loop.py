@@ -31,6 +31,7 @@ from ...schemas import ContractProvenance, ResourceBudget
 from ...spine.durability import open_gate0_spine_writer
 from ...spine.envelope import canonical_sha
 from ...spine.ledger import SpineLedger
+from ...sensitivity import secret_floor_rule
 
 MISSION_KIND = "ikarus.computer.mission"
 STEP_KIND = "ikarus.computer.step"
@@ -47,6 +48,10 @@ _STALL_OBSERVATIONS = 3
 _MAX_PLANS_PER_STEP = 4
 _READ_TOOLS = frozenset({"file.list", "file.read", "vision.inspect", "vision.match",
                          "vision.changes", "vision.ocr", "desktop.observe", "browser.read"})
+# The planner providers the policy admits (kernel/policy/computer.py) and the two that
+# stay on this machine. Choosing any other one sends observations to a vendor (G1-IKARUS-43).
+_PLANNER_PROVIDERS = frozenset({"ollama_http", "ollama", "claude_code_cli", "codex_cli", "deepseek"})
+_LOCAL_PLANNERS = frozenset({"ollama_http", "ollama"})
 
 
 class ComputerLoopRefused(RuntimeError):
@@ -543,6 +548,12 @@ def _computer_events_admitted(
                     if remaining <= 0:
                         state, summary = "timeout", "The mission timeout elapsed before the next planner call."
                         break
+                # G1-IKARUS-43: nothing past the secret floor reaches any planner, local or
+                # remote. The per-observation check below attributes a hit to its step; this
+                # whole-prompt check covers the objective, plan, context and directive too.
+                if secret_floor_rule("computer-prompt.json", prompt):
+                    state, summary = "blocked", "The planner prompt was withheld by the secret floor; no planner call was made."
+                    break
                 prompt_chars = len(prompt)
                 prompt_chars_max = max(prompt_chars_max, prompt_chars)
                 window_exceeded = (planner_window is not None
@@ -563,7 +574,6 @@ def _computer_events_admitted(
                     ledger.mark_failed(proposal_intent.id, f"{type(exc).__name__}: provider call failed")
                     checkpoint()
                     raise
-                from ...sensitivity import secret_floor_rule
                 response_text = response if isinstance(response, str) else json.dumps(response, ensure_ascii=False, allow_nan=False)
                 withheld = bool(secret_floor_rule("computer-proposal.json", response_text))
                 proposal_artifact = store_canonical_json(artifact_root, {
@@ -710,6 +720,17 @@ def _computer_events_admitted(
                     raise
                 history.append({"step": step, "tool": tool, "outcome": outcome,
                                 "artifact": result_artifact.to_dict()})
+                # G1-IKARUS-43: the observation is retained as local evidence above; it must
+                # not enter a planner prompt. Scanned per observation so a hit names its step.
+                withheld_observation = secret_floor_rule(
+                    f"computer-observation-{step:04d}.json",
+                    json.dumps(outcome, ensure_ascii=False, allow_nan=False))
+                history[-1]["withheld_from_planner"] = bool(withheld_observation)
+                if withheld_observation:
+                    state, summary = "blocked", (
+                        f"The observation of step {step} was withheld by the secret floor ({withheld_observation}); "
+                        "no planner saw it and no further planner call was made.")
+                    break
                 plans_since_tool_step = 0  # an executed tool step renews the plan budget
                 yield "progress", {"mission_id": mission_id, "phase": "observed", "step": step,
                                    "tool": tool, "ok": outcome["ok"], "state": outcome.get("state")}
@@ -786,9 +807,7 @@ def _chat_report(report: Mapping[str, Any]) -> str:
         lines.extend(["", f"`{step['tool']}`", "", "```json", text, "```"])
     planner = report.get("planner")
     if isinstance(planner, dict):
-        model = f" ({planner['model']})" if planner.get("model") else ""
-        left = "ja" if planner.get("remote_context") is True else "nein"
-        lines.extend(["", f"Planner: {planner.get('provider')}{model} · Kontext hat den Rechner verlassen: {left}"])
+        lines.extend(["", _planner_line(planner)])
     overflow = report.get("prompt_overflow_calls")
     if isinstance(overflow, int) and overflow > 0:
         lines.extend(["", f"Hinweis: {overflow} Planner-Aufruf(e) überschritten das geschätzte Kontextfenster des "
@@ -798,6 +817,22 @@ def _chat_report(report: Mapping[str, Any]) -> str:
     if report.get("mission_id"):
         lines.extend(["", f"Mission: `{report['mission_id']}`"])
     return "\n".join(lines)
+
+
+def _planner_line(planner: Mapping[str, Any]) -> str:
+    """The one sentence that names the proposing model and whether context left the machine."""
+    model = f" ({planner['model']})" if planner.get("model") else ""
+    left = "ja" if planner.get("remote_context") is True else "nein"
+    return f"Planner: {planner.get('provider')}{model} · Kontext hat den Rechner verlassen: {left}"
+
+
+def _remote_planner_warning(provider: str, model: str | None) -> str:
+    target = " ".join(part for part in (provider, model) if part)
+    return (f"Planner `{provider}` ist ein entfernter Dienst: Beobachtungstexte dieser Missionen (Seiteninhalte, "
+            "Dateiinhalte, OCR-Text) verlassen dann den Rechner und gehen an den Anbieter. Die Secret-Floor prüft "
+            "jede Beobachtung vorher und blockiert die Mission bei einem Treffer; sie ersetzt keine Freigabe. "
+            f"Bestätige ausdrücklich mit `/computer planner {target} confirm-remote`. Die Bestätigung gilt nur "
+            "für diesen einen Befehl und wird nicht gespeichert.")
 
 
 def watcher_projection(authority_root: str | Path, *, now: float | None = None) -> dict[str, Any]:
@@ -887,6 +922,46 @@ def conversation_events(project: str | None, message: str, *,
                 assistant="Gespeicherte Computeraufträge. Offene Einträge können noch laufen oder unterbrochen sein.\n\n```json\n"
                           + json.dumps(result, ensure_ascii=False, indent=2) + "\n```",
                 computer={"tasks": result})
+            return
+        if verb.casefold() == "planner":
+            # G1-IKARUS-43: an explicit owner choice through the same compare-and-replace path
+            # as /computer configure. A remote provider needs a transient, per-command
+            # confirmation that is never persisted (plan section 4.1 widening); choosing the
+            # local planner narrows and needs none.
+            from ...runtimes.computer import computer_status
+            from ...interfaces.computer_configuration import configure_computer
+            words = argument.split()
+            confirm = "confirm-remote" in words
+            words = [word for word in words if word != "confirm-remote"]
+            if not 1 <= len(words) <= 2:
+                raise ComputerLoopRefused("Use /computer planner <ollama_http|codex_cli|claude_code_cli|deepseek> [model] [confirm-remote]")
+            provider, model = words[0], (words[1] if len(words) == 2 else None)
+            if provider not in _PLANNER_PROVIDERS:
+                raise ComputerLoopRefused("unknown planner provider; choose one of " + ", ".join(sorted(_PLANNER_PROVIDERS)))
+            remote = provider not in _LOCAL_PLANNERS
+            caps = computer_status(root)
+            current, digest = caps.get("configuration"), caps.get("policy_sha256")
+            if not isinstance(current, dict) or not digest:
+                raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
+            facts = {"provider": provider, "model": model, "remote_context": remote}
+            if remote and not confirm:
+                yield "final", core.envelope(
+                    project, intent="computer", shell="hand", provider_used="deterministic",
+                    assistant=_remote_planner_warning(provider, model) + "\n\nNichts wurde geändert.",
+                    computer={"planner_change": "confirmation_required", "planner": facts,
+                              "expected_policy_sha256": digest})
+                return
+            payload = dict(current)
+            payload.update({"planner_provider": provider, "planner_model": model, "allow_remote_context": remote})
+            configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=digest)
+            summary = (f"Planner-Konfiguration gespeichert (Policy `{configured.get('policy_sha256')}`).\n\n"
+                       + _planner_line(facts))
+            if remote:
+                summary += ("\n\nJeder Missionsbericht trägt diese Zeile; die Secret-Floor blockiert eine Mission, "
+                            "deren Beobachtung sie auslöst, bevor ein Prompt gebaut wird.")
+            yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
+                                         assistant=summary,
+                                         computer={**configured, "planner_change": "applied", "planner": facts})
             return
         if verb.casefold() in {"queue", "every", "cancel"}:
             from ...kairos.scheduler import KairosScheduler
@@ -1000,6 +1075,11 @@ def conversation_events(project: str | None, message: str, *,
                 for key, prefix in (("browser_limits", "browser."), ("desktop_validation", "desktop.")):
                     if caps.get(key) and any(tool["name"].startswith(prefix) for tool in caps.get("tools", [])):
                         summary += f"\n\n{key.replace('_', ' ')}: {caps[key]}"
+            configuration = caps.get("configuration")
+            if isinstance(configuration, dict) and "planner_provider" in configuration:
+                summary += "\n\n" + _planner_line({"provider": configuration.get("planner_provider"),
+                                                   "model": configuration.get("planner_model"),
+                                                   "remote_context": configuration.get("allow_remote_context") is True})
             if caps.get("configuration") and caps.get("policy_sha256"):
                 editable = {"expected_policy_sha256": caps["policy_sha256"], "policy": caps["configuration"]}
                 summary += ("\n\nCurrent configuration. Edit this complete JSON and submit it after `/computer configure `.\n\n```json\n"
@@ -1013,7 +1093,8 @@ def conversation_events(project: str | None, message: str, *,
                         "`/computer forget <note_id>`, `/computer skill <directory|off>`, "
                         "`/computer queue <task>`, `/computer every <30m> <count> <task>`, "
                         "`/computer cancel <schedule_id>`, `/computer tasks`, `/computer task <mission_id>`, "
-                        "`/computer schedule <ISO8601> <task>`, `/computer scheduled`, `/computer run-due`.")
+                        "`/computer schedule <ISO8601> <task>`, `/computer scheduled`, `/computer run-due`, "
+                        "`/computer planner <provider> [model] [confirm-remote]`.")
             yield "final", core.envelope(project, intent="computer", shell="hand", assistant=summary,
                                          provider_used="deterministic", computer={"capabilities": caps})
             return

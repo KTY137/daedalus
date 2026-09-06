@@ -194,18 +194,18 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "353 tracked files" in message  # re-measured 2026-09-06 after G1-IKARUS-32..35 and 42
+    assert "354 tracked files" in message  # re-measured 2026-09-06 after G1-IKARUS-32..35, 42, 43
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 350,
+        "assigned_artifacts": 351,
         "legacy_artifacts": 204,
-        "packet_artifacts": 352,
-        "packet_ids": 287,
-        "post_index_artifacts": 148,
+        "packet_artifacts": 353,
+        "packet_ids": 288,
+        "post_index_artifacts": 149,
         "registry_artifacts": 1,
-        "tracked_files": 353,
+        "tracked_files": 354,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -275,6 +275,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-IKARUS-34",
         "G1-IKARUS-35",
         "G1-IKARUS-42",
+        "G1-IKARUS-43",
         "G1-SELF-00",
         "G1-SELF-01",
         "G1-TESTS-01",
