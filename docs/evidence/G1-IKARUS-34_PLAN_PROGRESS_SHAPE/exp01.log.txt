@@ -1,16 +1,16 @@
-killswitch: SwitchState(running=True, reason='armed', path='<SCRATCH>\\control\\killswitch', token='RUN')
-configured: True
-policy: 6f9242500fba9c00fc8924b39ff3198da788373471cf9d65f29285e81f6b9c66 | source_sha256: bc81ad31790c7c02ee570d9a48efe65ee3d054ff3751399692e40bc9e9cb6679
-RUN 1 v1 computer-loop-exp01-v1-r1: state=stalled finished=False calls=9 tool_steps=4 elapsed=229.1s | Three consecutive identical read observations established no progress.
-RUN 2 v2 computer-loop-exp01-v2-r1: state=stalled finished=False calls=8 tool_steps=2 elapsed=154.6s | 4 consecutive advisory plans proposed no tool step; the plan budget for one step is exhausted.
-RUN 3 v1 computer-loop-exp01-v1-r2: state=stalled finished=False calls=6 tool_steps=2 elapsed=109.3s | Three consecutive identical advisory plans established no progress.
-RUN 4 v2 computer-loop-exp01-v2-r2: state=stalled finished=False calls=10 tool_steps=3 elapsed=219.5s | 4 consecutive advisory plans proposed no tool step; the plan budget for one step is exhausted.
-RUN 5 v1 computer-loop-exp01-v1-r3: state=stalled finished=False calls=6 tool_steps=2 elapsed=112.7s | Three consecutive identical advisory plans established no progress.
-RUN 6 v2 computer-loop-exp01-v2-r3: state=stalled finished=False calls=7 tool_steps=2 elapsed=121.7s | Three consecutive identical advisory plans established no progress.
-RUN 7 v1 computer-loop-exp01-v1-r4: state=stalled finished=False calls=7 tool_steps=3 elapsed=158.8s | Three consecutive identical advisory plans established no progress.
-RUN 8 v2 computer-loop-exp01-v2-r4: state=stalled finished=False calls=6 tool_steps=4 elapsed=147.9s | Three consecutive identical read observations established no progress.
-RUN 9 v1 computer-loop-exp01-v1-r5: state=stalled finished=False calls=7 tool_steps=3 elapsed=166.4s | Three consecutive identical advisory plans established no progress.
-RUN 10 v2 computer-loop-exp01-v2-r5: state=stalled finished=False calls=7 tool_steps=2 elapsed=159.5s | Three consecutive identical advisory plans established no progress.
-SUMMARY v1: finished 0/5; states ['stalled', 'stalled', 'stalled', 'stalled', 'stalled']; calls [9, 6, 6, 7, 7]; tool_steps [4, 2, 2, 3, 3]
-SUMMARY v2: finished 0/5; states ['stalled', 'stalled', 'stalled', 'stalled', 'stalled']; calls [8, 10, 7, 6, 7]; tool_steps [2, 3, 2, 4, 2]
-DONE
+killswitch: SwitchState(running=True, reason='armed', path='<SCRATCH>\\control\\killswitch', token='RUN')
+configured: True
+policy: 6f9242500fba9c00fc8924b39ff3198da788373471cf9d65f29285e81f6b9c66 | source_sha256: bc81ad31790c7c02ee570d9a48efe65ee3d054ff3751399692e40bc9e9cb6679
+RUN 1 v1 computer-loop-exp01-v1-r1: state=stalled finished=False calls=9 tool_steps=4 elapsed=229.1s | Three consecutive identical read observations established no progress.
+RUN 2 v2 computer-loop-exp01-v2-r1: state=stalled finished=False calls=8 tool_steps=2 elapsed=154.6s | 4 consecutive advisory plans proposed no tool step; the plan budget for one step is exhausted.
+RUN 3 v1 computer-loop-exp01-v1-r2: state=stalled finished=False calls=6 tool_steps=2 elapsed=109.3s | Three consecutive identical advisory plans established no progress.
+RUN 4 v2 computer-loop-exp01-v2-r2: state=stalled finished=False calls=10 tool_steps=3 elapsed=219.5s | 4 consecutive advisory plans proposed no tool step; the plan budget for one step is exhausted.
+RUN 5 v1 computer-loop-exp01-v1-r3: state=stalled finished=False calls=6 tool_steps=2 elapsed=112.7s | Three consecutive identical advisory plans established no progress.
+RUN 6 v2 computer-loop-exp01-v2-r3: state=stalled finished=False calls=7 tool_steps=2 elapsed=121.7s | Three consecutive identical advisory plans established no progress.
+RUN 7 v1 computer-loop-exp01-v1-r4: state=stalled finished=False calls=7 tool_steps=3 elapsed=158.8s | Three consecutive identical advisory plans established no progress.
+RUN 8 v2 computer-loop-exp01-v2-r4: state=stalled finished=False calls=6 tool_steps=4 elapsed=147.9s | Three consecutive identical read observations established no progress.
+RUN 9 v1 computer-loop-exp01-v1-r5: state=stalled finished=False calls=7 tool_steps=3 elapsed=166.4s | Three consecutive identical advisory plans established no progress.
+RUN 10 v2 computer-loop-exp01-v2-r5: state=stalled finished=False calls=7 tool_steps=2 elapsed=159.5s | Three consecutive identical advisory plans established no progress.
+SUMMARY v1: finished 0/5; states ['stalled', 'stalled', 'stalled', 'stalled', 'stalled']; calls [9, 6, 6, 7, 7]; tool_steps [4, 2, 2, 3, 3]
+SUMMARY v2: finished 0/5; states ['stalled', 'stalled', 'stalled', 'stalled', 'stalled']; calls [8, 10, 7, 6, 7]; tool_steps [2, 3, 2, 4, 2]
+DONE
