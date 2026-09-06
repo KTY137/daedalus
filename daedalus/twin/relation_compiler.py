@@ -82,6 +82,15 @@ class CompiledRelationBlocks(Generic[T]):
             if type(value) is not int or value < 0:
                 raise ValueError(f"{name} must be a non-negative integer")
 
+        if isinstance(self.blocks, (str, bytes, Mapping)) or not isinstance(
+            self.blocks, Sequence
+        ):
+            raise ValueError("blocks must be a bounded sequence")
+        if len(self.blocks) > MAX_COMPILED_RELATIONS:
+            raise ValueError(
+                f"compiled block count exceeds limit {MAX_COMPILED_RELATIONS}"
+            )
+
         names: set[str] = set()
         ordered: list[tuple[str, TypedRelationBlock[T]]] = []
         for name, block in tuple(self.blocks):
