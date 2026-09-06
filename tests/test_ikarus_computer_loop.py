@@ -832,3 +832,51 @@ def test_scheduled_and_queue_replies_state_the_watcher(monkeypatch):
     queued = list(loop.conversation_events("fixture", "/computer queue read the page"))[-1][1]
     assert "Watcher: aktiv" in queued["assistant"] and "PID 77" in queued["assistant"]
     assert queued["computer"]["watcher"]["ticks_this_root"] is True
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-42: the report says how big each prompt was and whether it exceeded the
+# planner's estimated context window (Momus 2026-09-06: measure before compacting)
+# --------------------------------------------------------------------------
+
+class LongTextService(Service):
+    def __init__(self, chars, **kwargs):
+        super().__init__(result={"ok": True, "state": "verified", "result": {"text": "x" * chars}, "evidence": {}}, **kwargs)
+
+
+def test_report_and_proposal_artifacts_carry_prompt_size_and_the_planner_window(isolated, monkeypatch):
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "6144")
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger,
+                                    propose=planner(READ, DONE), mission_id="prompt-size")
+    assert result["planner_context_tokens"] == 6144
+    assert result["context_estimate"] == "chars/4"
+    assert result["prompt_overflow_calls"] == 0
+    assert result["prompt_chars_max"] > 500
+    artifacts = (root / "control" / "ikarus-computer-artifacts").glob("*.json")
+    proposals = [json.loads(path.read_text()) for path in artifacts if '"ikarus-computer-proposal/1"' in path.read_text()]
+    assert sorted(a["prompt_chars"] for a in proposals) and all(a["context_window_exceeded_estimate"] is False for a in proposals)
+    assert max(a["prompt_chars"] for a in proposals) == result["prompt_chars_max"]
+
+
+def test_an_observation_larger_than_the_window_is_counted_and_said(isolated, monkeypatch):
+    """A browser.read may return 20,000 characters and a file.read up to max_file_bytes; the
+    7B planner runs at num_ctx 6144. The loop cannot widen the window, it says when the prompt
+    exceeded the estimate instead of letting the provider truncate silently."""
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "6144")
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=LongTextService(30_000), ledger=ledger,
+                                    propose=planner(READ, DONE))
+    assert result["state"] == "completed"
+    assert result["prompt_overflow_calls"] == 1, "the second prompt carries the 30,000-character observation"
+    assert result["prompt_chars_max"] > 30_000
+    text = loop._chat_report(result)
+    assert "1 Planner-Aufruf(e)" in text and "6144" in text and "Anfang des Prompts" in text
+    assert "Planner-Aufruf(e)" not in loop._chat_report({**result, "prompt_overflow_calls": 0})
+
+
+def test_a_remote_planner_has_no_estimated_window(isolated, monkeypatch):
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=RemoteService(), ledger=ledger, propose=planner(READ, DONE))
+    assert result["planner_context_tokens"] is None and result["prompt_overflow_calls"] is None
+    assert "Planner-Aufruf(e)" not in loop._chat_report(result)
