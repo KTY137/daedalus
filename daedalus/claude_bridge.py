@@ -70,9 +70,10 @@ class ClaudeSealedInvocationBundle:
     half-bundle. ``ClaudeCLIProvider`` and the sealed broker remain the authority
     boundary and re-verify every member before an effect can start.
 
-    Exact-type checking in :func:`ask_claude` is intentional. A duck-typed
-    object with property accessors is caller-controlled code; the bridge should
-    refuse it before reading any security-critical member.
+    Exact-type checks are intentional. Duck-typed authority members can execute
+    caller-controlled property access before the sealed broker sees them, so the
+    bridge rejects substituted member objects while constructing the immutable
+    bundle and refuses a duck-typed bundle in :func:`ask_claude`.
     """
 
     runtime_authorization: "RuntimeBoundEffectAuthorization"
@@ -86,25 +87,63 @@ class ClaudeSealedInvocationBundle:
     pre_admission: "ProviderExecutablePreAdmissionReceipt"
 
     def __post_init__(self) -> None:
-        missing = [
-            name
-            for name in (
-                "runtime_authorization",
-                "effect_execution",
-                "workspace_grant",
-                "invocation_authority",
-                "invocation_payload",
-                "invocation_abi",
-                "observation_binding_ledger",
-                "executable_registry",
-                "pre_admission",
-            )
-            if getattr(self, name) is None
-        ]
+        member_names = (
+            "runtime_authorization",
+            "effect_execution",
+            "workspace_grant",
+            "invocation_authority",
+            "invocation_payload",
+            "invocation_abi",
+            "observation_binding_ledger",
+            "executable_registry",
+            "pre_admission",
+        )
+        missing = [name for name in member_names if getattr(self, name) is None]
         if missing:
             raise ValueError(
                 "Claude sealed invocation bundle cannot contain empty members: "
                 + ", ".join(missing)
+            )
+
+        # Import at construction time to keep the bridge's import graph acyclic
+        # while still refusing substituted authority objects before any of their
+        # attributes can be evaluated by provider-side validation.
+        from .kernel.effects import EffectExecutionRequest
+        from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
+        from .providers.claude_cli import ClaudeWorkspaceGrant
+        from .runtimes.provider_executable_object_registry import (
+            ProviderExecutableObjectRegistry,
+        )
+        from .runtimes.provider_executable_pre_admission import (
+            ProviderExecutablePreAdmissionReceipt,
+        )
+        from .runtimes.provider_invocation_abi import ProviderInvocationABIContract
+        from .runtimes.provider_invocation_authority import (
+            ProviderInvocationObservationAuthority,
+        )
+        from .runtimes.provider_invocation_payload import ProviderInvocationPayload
+        from .runtimes.provider_observation import ProviderObservationBindingLedger
+
+        expected_types = {
+            "runtime_authorization": RuntimeBoundEffectAuthorization,
+            "effect_execution": EffectExecutionRequest,
+            "workspace_grant": ClaudeWorkspaceGrant,
+            "invocation_authority": ProviderInvocationObservationAuthority,
+            "invocation_payload": ProviderInvocationPayload,
+            "invocation_abi": ProviderInvocationABIContract,
+            "observation_binding_ledger": ProviderObservationBindingLedger,
+            "executable_registry": ProviderExecutableObjectRegistry,
+            "pre_admission": ProviderExecutablePreAdmissionReceipt,
+        }
+        substituted = [
+            name
+            for name, expected_type in expected_types.items()
+            if type(getattr(self, name)) is not expected_type
+        ]
+        if substituted:
+            raise TypeError(
+                "Claude sealed invocation bundle requires exact authority member types: "
+                + ", ".join(substituted)
             )
 
 
