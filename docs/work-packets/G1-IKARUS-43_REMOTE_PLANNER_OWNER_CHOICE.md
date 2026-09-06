@@ -45,11 +45,22 @@ Out of scope and untouched: the policy module (its provider set is mirrored, not
 | five new tests with the change | 5 passed |
 | loop, adversarial, history, autonomy, schedule and schedule-autonomy suites | 187 passed (38.5 s) |
 | import census (`tests/test_imports_graph.py`) after the module-level `sensitivity` import | 10 passed, 4 skipped |
+| five live Codex-planner missions on the reference page (activation evidence) | 5 of 5 `completed`, 4 calls and 2 tool steps each, 67 to 94 s, all summaries complete, no absent token |
 | `computer_loop.py` line endings | LF |
 
 ## Measured
 
-No live run in this packet: the floor is a deterministic string rule on retained artifacts, and the command is a wrapper over the reviewed configure path. The retained measure-09 (G1-IKARUS-32) is the live precedent for the remote planner; its page carried no secret, and this packet's floor would have let it through unchanged.
+Live, 2026-09-06 10:08 to 10:16, five missions in a row with `planner_provider: codex_cli`, `allow_remote_context: true` (Codex CLI 0.153.4 native binary through `DAEDALUS_CODEX_CLI`, `~/.codex/config.toml` model `gpt-6-astra`, owner-declared flat rate), the measure-09 objective, page, tools (`browser.navigate`, `browser.read`) and bounded policy (`max_steps 16`, `timeout_s 900`), on the scratch subject with the kill switch armed; other sessions' suites and a staged merge were running on the box. Evidence `docs/evidence/G1-IKARUS-43_REMOTE_PLANNER_LIVE/` (five reports, five proposal lists, five logs, `summary.json`, the retention script; paths scrubbed; pinned `-text`).
+
+| Mission | Terminal | Planner calls | Tool steps | Elapsed | Absent tokens (G1-IKARUS-44) | Largest prompt |
+| --- | --- | --- | --- | --- | --- | --- |
+| computer-loop-43-codex-r1 | completed | 4 | 2 | 90.8 s | none | 7,680 chars |
+| computer-loop-43-codex-r2 | completed | 4 | 2 | 67.0 s | none | 7,683 chars |
+| computer-loop-43-codex-r3 | completed | 4 | 2 | 93.5 s | none | 7,661 chars |
+| computer-loop-43-codex-r4 | completed | 4 | 2 | 86.5 s | none | 7,678 chars |
+| computer-loop-43-codex-r5 | completed | 4 | 2 | 89.1 s | none | 7,687 chars |
+
+Every run proposed plan, `browser.navigate`, `browser.read`, `finish`, in that order, and every finish summary names the page title, the three Today items, the dentist time and the sentinel (checked programmatically against the served page; `summary_tokens_absent_from_observations.absent` is empty in all five). Every report carries `planner: {"provider": "codex_cli", "model": null, "remote_context": true}` and the chat line "Kontext hat den Rechner verlassen: ja". The secret floor ran on ten observations and twenty prompts without a hit (the page carries no secret). Read together with G1-IKARUS-34 (local 7B: 0 of 10 finishes) this is the activation evidence for the owner's choice: the general planner completes the reference mission 5 of 5 times through the same policy, lease and evidence path. Not claimed: task success as kernel evidence (`task_success_verified` stays false), other objectives, or a comparison beyond this one page (same objective, no seeds beyond the mission id, a loaded box; Codex's own sampling is the only variation). The command path itself is exercised by the unit tests; these runs configured the policy through `configure_computer` with the same payload the command builds.
 
 ## Migration and rollback
 
