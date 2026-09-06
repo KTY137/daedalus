@@ -59,6 +59,7 @@ class CompiledRelationBlocks(Generic[T]):
     blocks: tuple[tuple[str, TypedRelationBlock[T]], ...]
     semantic_fact_count: int
     forest_edge_count: int
+    forest_hyperedge_count: int
     verified_binding_count: int
 
     def __post_init__(self) -> None:
@@ -74,6 +75,7 @@ class CompiledRelationBlocks(Generic[T]):
         for name in (
             "semantic_fact_count",
             "forest_edge_count",
+            "forest_hyperedge_count",
             "verified_binding_count",
         ):
             value = getattr(self, name)
@@ -121,6 +123,7 @@ class CompiledRelationBlocks(Generic[T]):
             "source_forest_sha256": self.source_forest_sha256,
             "semantic_fact_count": self.semantic_fact_count,
             "forest_edge_count": self.forest_edge_count,
+            "forest_hyperedge_count": self.forest_hyperedge_count,
             "verified_binding_count": self.verified_binding_count,
             "blocks": [
                 {
@@ -431,6 +434,7 @@ def compile_relation_blocks(
         blocks=tuple(compiled),
         semantic_fact_count=sum(block.entry_count for _, block in compiled),
         forest_edge_count=len(forest.edges),
+        forest_hyperedge_count=len(forest.hyperedges),
         verified_binding_count=binding_count,
     )
 
