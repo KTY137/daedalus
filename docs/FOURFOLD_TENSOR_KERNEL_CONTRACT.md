@@ -88,6 +88,9 @@ or store.
 - Both endpoint planes must be `complete`; sparse zeroes cannot stand for
   unknown partial/absent facts.
 - Cross-plane rows come only from verified `FourfoldSnapshot.bindings`.
+- The legacy Forest-to-Fourfold adapter refuses an undirected cross-plane
+  `ForestEdge` instead of inventing a directed verified binding from endpoint
+  storage order.
 - Same-plane rows come only from directed `ForestEdge` payloads whose canonical
   digest is retained by the source plane.
 - Retained hyperedges and undirected edges refuse instead of being flattened
@@ -154,6 +157,8 @@ Executable checks cover:
 - strict Forest/Fourfold identity/completeness before relation projection;
 - direct-Forest equivalence for admitted same-plane and verified cross-plane
   Boolean relations;
+- explicit refusal for undirected cross-plane legacy edges before they can be
+  upgraded into directed verified Fourfold bindings;
 - explicit refusal for retained hyperedges and undirected same-plane edges;
 - deterministic canonicalization and bounded CSR construction/contraction;
 - double-category identity/associativity/interchange laws;
