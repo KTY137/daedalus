@@ -914,11 +914,12 @@ def test_install_is_idempotent_and_uninstall_restores(monkeypatch):
 # exist today -- this regex is what makes the next one visible.
 _SPAWN = re.compile(
     r"subprocess\.(run|Popen|call|check_call|check_output)"
-    r"|from subprocess import"
+    r"|from subprocess import|import subprocess as"
     r"|urlopen\(|os\.system\(|os\.spawn"
     r"|requests\.(post|get|request)|httpx\.|aiohttp\.|http\.client")
 _VENDOR = re.compile(r"""["'](claude|codex|agy)["']|_exe\(["'](claude|codex)["']\)"""
                      r"""|api\.(anthropic|openai|deepseek)\.com""")
+_VENDOR_PATH = re.compile(r"(?:^|/)[^/]*(?:claude|codex|agy)[^/]*\.py$", re.IGNORECASE)
 
 # Files that match the crude scan but do NOT spend, each with the reason.
 _NOT_BILLABLE = {
@@ -967,8 +968,9 @@ def scan(root, paths) -> set[str]:
     out = set()
     for path in paths:
         text = Path(path).read_text(encoding="utf-8", errors="replace")
-        if _SPAWN.search(text) and _VENDOR.search(text):
-            out.add(Path(path).relative_to(root).as_posix())
+        relative = Path(path).relative_to(root).as_posix()
+        if _SPAWN.search(text) and (_VENDOR.search(text) or _VENDOR_PATH.search(relative)):
+            out.add(relative)
     return out
 
 
@@ -1050,6 +1052,17 @@ def test_the_surprise_check_does_not_fire_on_innocent_code(tmp_path):
     assert scan(tmp_path, [innocent]) == set()
 
 
+def test_the_surprise_check_sees_an_opaque_command_in_a_vendor_adapter(tmp_path):
+    """A sealed absolute command path must not make its vendor bridge invisible."""
+    planted = tmp_path / "claude_bridge.py"
+    planted.write_text(
+        "import subprocess as local_subprocess\n"
+        "local_subprocess.run([command_path, '-p'])\n",
+        encoding="utf-8",
+    )
+    assert scan(tmp_path, [planted]) == {"claude_bridge.py"}
+
+
 def test_the_non_vacuity_check_actually_fires_when_the_regex_dies():
     """A dead regex finds nothing, reports no surprises, and looks green."""
     assert blind_spots(set(), B.BILLABLE_SITES), (
@@ -1088,6 +1101,7 @@ def test_the_staleness_check_actually_fires_on_a_moved_site(tmp_path):
 @pytest.mark.parametrize("line", [
     'proc = subprocess.run([exe, "-p"])',
     'from subprocess import run',
+    'import subprocess as local_subprocess',
     'subprocess.check_output(["codex", "exec"])',
     'os.system("claude -p")',
     'requests.post("https://api.anthropic.com/v1/messages")',
