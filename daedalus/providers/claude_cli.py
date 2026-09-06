@@ -264,6 +264,9 @@ def _resolve_workspace(
 
 def _require_sealed_bundle(
     *,
+    runtime_authorization: RuntimeBoundEffectAuthorization | None,
+    effect_execution: EffectExecutionRequest | None,
+    workspace_grant: ClaudeWorkspaceGrant | None,
     invocation_authority: ProviderInvocationObservationAuthority | None,
     invocation_payload: ProviderInvocationPayload | None,
     invocation_abi: ProviderInvocationABIContract | None,
@@ -271,18 +274,49 @@ def _require_sealed_bundle(
     pre_admission: ProviderExecutablePreAdmissionReceipt | None,
     observation_binding_ledger: ProviderObservationBindingLedger | None,
 ) -> None:
-    if (
-        invocation_authority is None
-        or invocation_payload is None
-        or invocation_abi is None
-        or executable_registry is None
-        or pre_admission is None
-        or observation_binding_ledger is None
-    ):
+    members = (
+        ("runtime_authorization", runtime_authorization, RuntimeBoundEffectAuthorization),
+        ("effect_execution", effect_execution, EffectExecutionRequest),
+        ("workspace_grant", workspace_grant, ClaudeWorkspaceGrant),
+        (
+            "invocation_authority",
+            invocation_authority,
+            ProviderInvocationObservationAuthority,
+        ),
+        ("invocation_payload", invocation_payload, ProviderInvocationPayload),
+        ("invocation_abi", invocation_abi, ProviderInvocationABIContract),
+        ("executable_registry", executable_registry, ProviderExecutableObjectRegistry),
+        ("pre_admission", pre_admission, ProviderExecutablePreAdmissionReceipt),
+        (
+            "observation_binding_ledger",
+            observation_binding_ledger,
+            ProviderObservationBindingLedger,
+        ),
+    )
+    if runtime_authorization is None or effect_execution is None:
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires runtime-bound Effect-Lease authority"
+        )
+    if workspace_grant is None:
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires an exact isolated-workspace binding"
+        )
+    sealed_members = members[3:]
+    if any(value is None for _, value, _ in sealed_members):
         raise ClaudeProviderAuthorizationRequired(
             "Claude live execution requires the complete sealed invocation bundle: "
             "invocation authority, payload, ABI, executable registry, pre-admission, "
             "and provider-observation binding ledger"
+        )
+    substituted = [
+        name
+        for name, value, exact_type in members
+        if type(value) is not exact_type
+    ]
+    if substituted:
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires exact sealed invocation member types: "
+            + ", ".join(substituted)
         )
 
 
@@ -321,15 +355,10 @@ class ClaudeCLIProvider(Provider):
         observation_binding_ledger: ProviderObservationBindingLedger | None = None,
     ) -> dict[str, Any]:
         del policy
-        if runtime_authorization is None or effect_execution is None:
-            raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires runtime-bound Effect-Lease authority"
-            )
-        if workspace_grant is None:
-            raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires an exact isolated-workspace binding"
-            )
         _require_sealed_bundle(
+            runtime_authorization=runtime_authorization,
+            effect_execution=effect_execution,
+            workspace_grant=workspace_grant,
             invocation_authority=invocation_authority,
             invocation_payload=invocation_payload,
             invocation_abi=invocation_abi,
@@ -337,6 +366,15 @@ class ClaudeCLIProvider(Provider):
             pre_admission=pre_admission,
             observation_binding_ledger=observation_binding_ledger,
         )
+        assert runtime_authorization is not None
+        assert effect_execution is not None
+        assert workspace_grant is not None
+        assert invocation_payload is not None
+        assert invocation_authority is not None
+        assert invocation_abi is not None
+        assert executable_registry is not None
+        assert pre_admission is not None
+        assert observation_binding_ledger is not None
 
         normalized_paths = _validate_execution_shape(effect_execution, paths)
         workspace = _resolve_workspace(
@@ -378,12 +416,6 @@ class ClaudeCLIProvider(Provider):
             "request_sha256": request_sha256,
             "invocation_sha256": invocation_sha256,
         }
-        assert invocation_payload is not None
-        assert invocation_authority is not None
-        assert invocation_abi is not None
-        assert executable_registry is not None
-        assert pre_admission is not None
-        assert observation_binding_ledger is not None
         if invocation_payload.to_dict()["body"] != expected_payload:
             raise ClaudeInvocationBindingMismatch(
                 "Claude authenticated payload does not match the exact invocation"
