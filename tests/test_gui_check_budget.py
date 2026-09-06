@@ -1,6 +1,8 @@
 """Regression tests for the browser gate's bounded per-suite budget."""
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
 from tools import gui_check
@@ -33,3 +35,47 @@ def test_timeout_message_is_actionable_and_reports_the_declared_budget():
     assert gui_check.timeout_message(1200.0).startswith(
         "the browser suite did not finish within 1200s"
     )
+
+
+def test_server_output_is_file_backed_instead_of_an_undrained_pipe(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    observed = {}
+
+    class FakeProcess:
+        returncode = None
+
+        def poll(self):
+            return None
+
+    def fake_popen(*args, **kwargs):
+        observed.update(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setattr(gui_check.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        gui_check,
+        "_wait_ready",
+        lambda port, proc: (True, "<html>cockpit</html>", ""),
+    )
+
+    proc, body, entry, documented_error, output_file = gui_check._start_server(
+        tmp_path,
+        54321,
+        False,
+    )
+    try:
+        assert proc is not None
+        assert body == "<html>cockpit</html>"
+        assert entry == gui_check.SERVER_ENTRIES[0][0]
+        assert documented_error == ""
+        assert output_file is not None
+        assert observed["stdout"] is output_file
+        assert observed["stdout"] is not subprocess.PIPE
+        assert observed["stderr"] is subprocess.STDOUT
+        assert output_file.seekable()
+        assert output_file.fileno() >= 0
+    finally:
+        if output_file is not None:
+            output_file.close()
