@@ -565,7 +565,15 @@ def test_a_replay_needs_two_complete_runs(tmp_path):
     first = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
     body = _json.loads(path.read_text(encoding="utf-8"))
+    # BOTH lists, because since G1-RENOVATION-02A they mean different things:
+    # ``blockers`` is what the run reports (execution blockers plus whatever the
+    # replay comparison added), ``execution_blockers`` is the run's OWN failure.
+    # ``previous_run_complete`` reads the second one -- a predecessor blocked
+    # only by ITS replay comparison is still a complete run, or one blocked run
+    # would block every run after it forever. A real run that ends in blockers
+    # writes both, which is what this line simulates.
     body["blockers"] = ["a blocker the previous run ended with"]
+    body["execution_blockers"] = ["a blocker the previous run ended with"]
     path.write_text(_json.dumps(body, indent=2, sort_keys=True) + chr(10), encoding="utf-8")
 
     second = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
