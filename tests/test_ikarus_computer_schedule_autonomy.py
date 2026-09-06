@@ -12,6 +12,7 @@ import pytest
 
 from daedalus.kernel.policy.computer import BROWSER_TOOLS, ComputerPolicy, ComputerRefused, policy_path
 from daedalus.orchestration.ikarus import computer_schedule as subject
+from daedalus.runtimes import computer as computer_runtime
 from daedalus.runtimes.computer import ComputerService
 from daedalus.spine import killswitch
 from daedalus.spine.ledger import SpineLedger
@@ -24,6 +25,11 @@ def autonomous(tmp_path, monkeypatch):
     monkeypatch.setenv("USERPROFILE", str(profile))
     monkeypatch.setattr(killswitch, "OS_PROFILE_DIR", profile)
     monkeypatch.delenv("DAEDALUS_KILLSWITCH", raising=False)
+    # This fixture supplies a private deterministic host adapter.  Exercise the
+    # canonical mission/lease/CAS/receipt path without coupling those contracts
+    # to whichever optional GUI packages happen to be installed on the runner.
+    monkeypatch.setattr(computer_runtime, "_release_unavailable_reason",
+                        lambda _policy, _tool: "")
     database = tmp_path / "spine.sqlite3"
     monkeypatch.setenv("DAEDALUS_SPINE_DB", str(database))
     root, workspace = tmp_path / "authority", tmp_path / "scratch"
