@@ -420,22 +420,41 @@ def test_exact_ledger_instance_shadow_cannot_bypass_forged_abi_refusal(
     assert ledger.load(execution.execution_id) is None
 
 
-def test_repository_source_mutation_after_admission_refuses_before_effect(
+def test_substituted_entrypoint_refuses_before_ledger_verification(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bundle = _bundle(tmp_path, monkeypatch)
-    authorization, execution = bundle[:2]
-    path = bundle[9]
-    path.write_text(
-        path.read_text(encoding="utf-8") + "\nMUTATED = True\n",
-        encoding="utf-8",
-        newline="\n",
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = bundle[:8]
+
+    def forbidden_verification(*args, **kwargs):
+        raise AssertionError("ledger verification must not run for a substituted entrypoint")
+
+    monkeypatch.setattr(
+        ProviderObservationBindingLedger,
+        "verify_invocation_abi_contract",
+        forbidden_verification,
     )
 
+    class SubstitutedEntrypoint(str):
+        pass
+
     with pytest.raises(
-        ProviderRuntimeInvocationBindingMismatch,
-        match="executable subject did not authenticate pre-effect",
+        ProviderRuntimeInvocationBindingShapeError,
+        match="entrypoint_id must be exact str",
     ):
-        _bind(bundle)
+        bind_provider_runtime_invocation(
+            SubstitutedEntrypoint(authorization.request.entrypoint_id),
+            authorization=authorization,
+            execution=execution,
+            invocation_authority=authority,
+            invocation_payload=payload,
+            invocation_abi=abi,
+            observation_binding_ledger=ledger,
+            executable_registry=registry,
+            pre_admission=pre_admission,
+            at=fixture.NOW,
+        )
+
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert ledger.load(execution.execution_id) is None
