@@ -1,0 +1,2 @@
+big.html: 394271 bytes, sha256 ff1380ae42025d481ef5140fb04c5d3511b35e680e2fee3ed5ef81e355e0470e
+generator: 1,200 paragraphs of 40 random words (seed 36) after the measure-09 Today list; sentinel TANGERINE-4471 in the last paragraph
