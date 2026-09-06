@@ -194,8 +194,12 @@ __all__ = [
 #: justified by the measurement, not by taste.
 MAX_ROUNDS_CAP = 3
 DEFAULT_ROUNDS = 2
-DEFAULT_PER_CALL_TIMEOUT_S = 120.0
-DEFAULT_WALL_CLOCK_S = 900.0
+# Measured 2026-09-05 on the owner's box: a one-word reply takes ~21 s from the
+# Claude CLI and ~60 s from Codex at "ultra" reasoning; a review over ~29k
+# evidence tokens exceeded a 420 s cap while the box ran three test suites.
+# 120 s per call was a probe-sized bound, not a review-sized one.
+DEFAULT_PER_CALL_TIMEOUT_S = 600.0
+DEFAULT_WALL_CLOCK_S = 2400.0
 #: Per-COUNCIL prompt-token ceiling, charged before each dispatch.  Transcript
 #: tokens grow as O(V^2 R^2): four vendors x three rounds is twelve calls each
 #: carrying up to eleven prior turns.
@@ -412,6 +416,11 @@ class ParticipantRecord:
     lane: str
     outcome: str           # requested|seated|responded|refused|unavailable
     reason: str = ""
+    #: The vendor's own reason and first stderr line behind a fixed-vocabulary
+    #: ``reason`` (e.g. ``over_context_budget: 28893 prompt tokens exceed ...``
+    #: behind ``transport_error``). A rendering aid for the operator; it is
+    #: not written to the bus.
+    detail: str = ""
     withheld: tuple[str, ...] = ()
     rounds_spoken: int = 0
     #: Operator opted this vendor out of the untrusted allow-list for THIS
@@ -505,8 +514,9 @@ class CouncilRecord:
         if self.degraded:
             for p in self.participants:
                 if p.outcome != "responded":
+                    detail = f" -- {p.detail}" if p.detail else ""
                     lines.append(f"             MISSING VOICE {p.actor} "
-                                 f"({p.outcome}: {p.reason or 'no reason recorded'})")
+                                 f"({p.outcome}: {p.reason or 'no reason recorded'}{detail})")
         if self.duplicate_classes:
             lines.append("  WARNING  : duplicate weight families seated -- "
                          + ", ".join(self.duplicate_classes)
@@ -1157,7 +1167,7 @@ def convene(question: str, evidence: Evidence,
     claims: list[Claim] = []
     anomalies: list[tuple[str, str]] = []
     outcomes: dict[str, dict] = {
-        a.actor: {"outcome": "seated", "reason": "", "withheld": (), "spoke": 0}
+        a.actor: {"outcome": "seated", "reason": "", "detail": "", "withheld": (), "spoke": 0}
         for a in seated
     }
     tokens_charged = 0
@@ -1218,9 +1228,15 @@ def convene(question: str, evidence: Evidence,
                 if reply is None:
                     # Hung or crashed: recorded as a turn, never as an absence.
                     reason = "timeout" if "error" not in box else "transport_error"
+                    outcomes[adapter.actor]["detail"] = (
+                        _first_line(str(box.get("error") or ""))
+                        or f"no reply within the {budget:.0f}s round budget"
+                    )
                     batch.append(_unavailable_turn(adapter, role, reason,
                                                    blind=round_no == 1))
                     continue
+                if reply.status != "ok" or not (reply.content or "").strip():
+                    outcomes[adapter.actor]["detail"] = _reply_detail(reply)
                 batch.append(_turn_from_reply(
                     adapter, role, reply,
                     blind=round_no == 1,
@@ -1274,6 +1290,7 @@ def convene(question: str, evidence: Evidence,
             lane=a.lane,
             outcome=outcomes[a.actor]["outcome"],
             reason=outcomes[a.actor]["reason"],
+            detail=outcomes[a.actor].get("detail", "") if outcomes[a.actor]["outcome"] != "responded" else "",
             withheld=tuple(outcomes[a.actor]["withheld"]),
             rounds_spoken=outcomes[a.actor]["spoke"],
             operator_trusted=a.vendor in trusted,
@@ -1343,6 +1360,42 @@ def _first_offending_path(evidence: Evidence) -> str:
         if secret_floor_rule(path, ""):
             return path
     return ""
+
+
+def _first_line(text: str, limit: int = 240) -> str:
+    """First non-empty line of a vendor's own words, scrubbed by the secret floor.
+
+    ``detail`` is the first surface that renders a vendor's stderr or crash
+    message. The child runs with the operator's environment, so a CLI that
+    echoes a key on its error line would otherwise land it in the local render,
+    which an agent then reads back into a vendor context (Cerberus, 2026-09-05).
+    The same unconditional floor that guards the prompt before dispatch guards
+    this return path: on a hit the rule label stands in for the line.
+    """
+    from ..sensitivity import secret_floor_rule
+
+    line = (text or "").strip().splitlines()[0].strip() if (text or "").strip() else ""
+    if not line:
+        return ""
+    rule = secret_floor_rule("", line)
+    if rule:
+        return f"[withheld: {rule}]"[:limit]
+    return line[:limit]
+
+
+def _reply_detail(reply: VendorReply) -> str:
+    """The vendor's own words behind the bus vocabulary: reason plus first stderr line.
+
+    Rendering only. The bus keeps its closed reason set; an operator reading
+    ``transport_error`` still needs to know it was an over-budget prompt and
+    not a broken socket. The stderr line passes the secret floor in
+    :func:`_first_line`; the reason is bus vocabulary and never vendor text.
+    """
+    reason = (reply.reason or reply.status or "").strip()
+    line = _first_line(reply.stderr)
+    if reason and line:
+        return f"{reason}: {line}"
+    return reason or line
 
 
 def _unavailable_turn(adapter: CouncilAdapter, role: str, reason: str, *,

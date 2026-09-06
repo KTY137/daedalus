@@ -32,6 +32,8 @@ import json
 import pathlib
 import sys
 
+from . import treewalk
+
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "site-packages",
              ".mypy_cache", ".pytest_cache", "reference", "lab_assets", "docs",
              # Artefact and output trees. Without these the planner treats every
@@ -43,47 +45,12 @@ MIN_BUCKET_FILES = 2
 MIN_BUCKET_LOC = 200
 
 
-def _venv_roots(root: pathlib.Path) -> set[pathlib.Path]:
-    """Directories that are virtual environments, whatever they are called.
-
-    A venv is identified by its own marker file, not by being named `venv`.
-    project_tct's environment put `Scripts/` and `bin/` into the topic list
-    until this was added.
-    """
-    return {cfg.parent for cfg in root.rglob("pyvenv.cfg")}
-
-
-def _nested_checkout_roots(root: pathlib.Path) -> set[pathlib.Path]:
-    """Directories below ``root`` that are a DIFFERENT repository.
-
-    A git worktree marks itself with a ``.git`` FILE, a clone with a directory;
-    either way the tree under it is a second copy of modules this survey has
-    already seen. Structural, not nominal, for the reason the venv rule above
-    is: a name list is always one name behind. ``.claude/worktrees/`` is not in
-    SKIP_DIRS and would not have been.
-
-    MEASURED 2026-08-26 on this repository, with one such worktree present:
-    the survey returned 983 files, of which **480 came from the copy**. Nearly
-    half the wiki plan was about a duplicate of the tree it was describing --
-    topics, weights and author assignment all computed over it.
-
-    ``root`` itself is never a nested checkout by this rule; it is the subject.
-    """
-    found: set[pathlib.Path] = set()
-    for marker in root.rglob(".git"):
-        parent = marker.parent
-        if parent != root:
-            found.add(parent)
-    return found
-
-
-def _usable(path: pathlib.Path, venvs: frozenset[pathlib.Path] = frozenset(),
-            nested: frozenset[pathlib.Path] = frozenset()) -> bool:
-    if any(part in SKIP_DIRS for part in path.parts):
-        return False
-    if any(checkout in path.parents for checkout in nested):
-        return False
-    return not any(venv in path.parents for venv in venvs)
+# What is NOT this project's tree -- a virtual environment (``pyvenv.cfg``), a
+# nested git checkout (own ``.git``), a frozen application bundle
+# (``_internal/base_library.zip``) -- is decided by ``treewalk`` for every
+# instrument in this package, with the measurements that produced each rule.
+# The survey below therefore never sees those directories; it does not filter
+# them out afterwards.
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,11 +69,10 @@ class Topic:
 
 def survey(root: pathlib.Path) -> list[Topic]:
     """Partition the tree into topics by directory, ranked by weight."""
-    venvs = frozenset(_venv_roots(root))
-    nested = frozenset(_nested_checkout_roots(root))
+    root = pathlib.Path(root).resolve()
     by_dir: dict[str, list[pathlib.Path]] = collections.defaultdict(list)
-    for path in root.rglob("*.py"):
-        if not _usable(path, venvs, nested) or path.stat().st_size > 400_000:
+    for path in treewalk.walk_files(root, SKIP_DIRS, suffixes=(".py",)):
+        if path.stat().st_size > 400_000:
             continue
         rel = path.relative_to(root)
         if rel.name.startswith("test_") or "tests" in rel.parts:

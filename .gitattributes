@@ -391,6 +391,7 @@ daedalus/kernel/events/__init__.py -text
 daedalus/kernel/events/durability.py -text
 daedalus/kernel/events/envelope.py -text
 daedalus/kernel/events/ledger.py -text
+daedalus/kernel/policy/__init__.py -text
 daedalus/kernel/policy/ledger.py -text
 daedalus/kernel/policy/limits.py -text
 daedalus/kernel/policy/pricing.py -text
@@ -450,6 +451,7 @@ daedalus/orchestration/runtime_registry.py -text
 daedalus/runtimes/computer.py -text
 daedalus/runtimes/computer_browser.py -text
 daedalus/runtimes/computer_desktop.py -text
+daedalus/runtimes/computer_files.py -text
 daedalus/runtimes/computer_ocr.py -text
 daedalus/runtimes/computer_vision.py -text
 daedalus/spine/linux_containment.py -text

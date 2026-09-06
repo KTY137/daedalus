@@ -2,13 +2,13 @@
 title: Graph delta as fitness
 type: finding
 status: verified
-updated: 2026-07-30
+updated: 2026-09-05
 ---
 
 # Graph delta as fitness
 
 Measured 30 July against the seeded-defect corpus in
-[[code:tools/gate_discrimination.py]] and 516 changed functions of real history.
+[`tools/gate_discrimination.py`](../../tools/gate_discrimination.py) and 516 changed functions of real history.
 
 ## Numbers
 
@@ -32,4 +32,4 @@ produce the same delta. Removing a `startswith` in the write-allow policy was a
 fix; removing a `fullmatch` in the picker was a defect. Structure cannot tell them
 apart -- only intent can. So: evidence for ranking, never a gate.
 
-Related: [[Type graph]], [[Agents hold no state]].
+Related: [Type graph](architecture/type-graph.md), [Agents hold no state](decisions/agents-hold-no-state.md).

@@ -6,9 +6,8 @@ admission, a refusal that provably performed no host effect is reported as
 ``blocked`` (not ``reconciliation_required``), the secret floor stays in the
 service, and the vision path forms and skill reads stay fenced.
 
-Every case is ``xfail(strict=True)`` until the wiring lands: the suite stays
-green in the shared tree, and an unexpected pass fails loudly so the marker
-must be removed in the same change that lifts the fence.
+These cases were ``xfail(strict=True)`` until G1-IKARUS-25 phase 2 lifted the
+fence for the file tools (replacement of an existing file stays fenced).
 """
 from __future__ import annotations
 
@@ -25,10 +24,6 @@ from daedalus.kernel.policy.computer import (
 )
 from daedalus.runtimes import computer as subject
 from daedalus.spine import killswitch
-
-NOT_WIRED = pytest.mark.xfail(
-    strict=True, reason="G1-IKARUS-25 wiring not landed: file tools are release-disabled")
-
 
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -77,7 +72,6 @@ def run(service, tool, args, attempt):
     return service.execute(tool, args, mission_id="computer-files-fixture", attempt_id=attempt)
 
 
-@NOT_WIRED
 def test_file_tools_execute_through_the_anchored_adapter_with_persisted_leases(configured):
     service, workspace, _, _, _, grants = configured
     projected = {tool["name"] for tool in service.capabilities()["tools"]}
@@ -103,34 +97,42 @@ def test_file_tools_execute_through_the_anchored_adapter_with_persisted_leases(c
         assert result["evidence"]["artifact"]["sha256"]
 
 
-@NOT_WIRED
 def test_ancestor_swap_at_the_checkpoint_is_blocked_with_zero_effect(configured, monkeypatch):
     service, workspace, _, _, _, grants = configured
     outside = workspace.parent / "outside"
     outside.mkdir()
     (workspace / "sub").mkdir()
     real_check = service.check_cancelled
-    swapped = False
+    outcome: list[str] = []
 
     def swap_checked_ancestor():
-        nonlocal swapped
         real_check()
-        if not swapped and (workspace / "sub").is_dir() and not (workspace / "sub-original").exists():
+        # The service also checkpoints before admission; the retained race is
+        # the checkpoint the adapter runs AFTER the parent handle is open.
+        if outcome or service._files is None:
+            return
+        try:
             (workspace / "sub").rename(workspace / "sub-original")
-            link_directory(outside, workspace / "sub")
-            swapped = True
+        except PermissionError:
+            outcome.append("pinned")
+            return
+        link_directory(outside, workspace / "sub")
+        outcome.append("moved")
 
     monkeypatch.setattr(service, "check_cancelled", swap_checked_ancestor)
     result = run(service, "file.write", {"path": "sub/escaped.txt", "text": "escaped"}, "swap-race")
-    assert swapped is True
-    assert result["state"] == "blocked", result
-    assert "changed during" in result["error"]
+    assert outcome in (["pinned"], ["moved"])
     assert list(outside.iterdir()) == []
-    assert not (workspace / "sub-original" / "escaped.txt").exists()
+    if outcome == ["pinned"]:
+        assert result["state"] == "completed" and result["result"]["postcondition_verified"] is True
+        assert (workspace / "sub" / "escaped.txt").read_bytes() == b"escaped"
+    else:
+        assert result["state"] == "blocked", result
+        assert "changed during" in result["error"]
+        assert not (workspace / "sub-original" / "escaped.txt").exists()
     assert len(grants) == 1
 
 
-@NOT_WIRED
 def test_parent_moved_out_of_the_workspace_never_receives_model_bytes(configured, monkeypatch):
     """Cerberus finding on G1-IKARUS-24: the assertion is 'nothing outside', not a flag."""
     service, workspace, _, _, _, grants = configured
@@ -142,12 +144,13 @@ def test_parent_moved_out_of_the_workspace_never_receives_model_bytes(configured
 
     def move_out():
         real_check()
-        if not attempts:
-            try:
-                (workspace / "sub").rename(outside / "sub")
-                attempts.append("moved")
-            except PermissionError:
-                attempts.append("pinned")
+        if attempts or service._files is None:
+            return   # only the adapter's own checkpoint, after the parent is open
+        try:
+            (workspace / "sub").rename(outside / "sub")
+            attempts.append("moved")
+        except PermissionError:
+            attempts.append("pinned")
 
     monkeypatch.setattr(service, "check_cancelled", move_out)
     result = run(service, "file.write", {"path": "sub/escaped.txt", "text": "MODEL BYTES"}, "move-out")
@@ -161,7 +164,6 @@ def test_parent_moved_out_of_the_workspace_never_receives_model_bytes(configured
     assert len(grants) == 1
 
 
-@NOT_WIRED
 def test_file_tools_are_unavailable_outside_windows_in_this_release(configured, monkeypatch):
     service, _, _, _, _, _ = configured
     monkeypatch.setattr(os, "name", "posix")
@@ -171,7 +173,6 @@ def test_file_tools_are_unavailable_outside_windows_in_this_release(configured, 
     assert all("Windows" in unavailable[tool] for tool in FILE_TOOLS)
 
 
-@NOT_WIRED
 def test_secret_content_is_refused_before_the_adapter_and_withheld_on_read(configured):
     service, workspace, _, _, _, _ = configured
     leaked = "AKIA" + "ABCDEFGHIJKLMNOP"
@@ -184,21 +185,21 @@ def test_secret_content_is_refused_before_the_adapter_and_withheld_on_read(confi
     assert read["state"] == "blocked" or read["result"].get("withheld") is True
 
 
-@NOT_WIRED
 def test_stale_or_missing_hash_refusals_are_blocked_not_reconciliation(configured):
     service, workspace, _, _, _, grants = configured
     assert run(service, "file.write", {"path": "a.txt", "text": "one"}, "h0")["state"] == "completed"
     missing = run(service, "file.write", {"path": "a.txt", "text": "two"}, "h1")
+    assert missing["state"] == "blocked", missing
+    assert "expected_sha256" in missing["error"]
+    # Replacement itself stays fenced in this release: refused before any lease.
     stale = run(service, "file.write", {"path": "a.txt", "text": "two", "expected_sha256": sha(b"stale")}, "h2")
-    for result in (missing, stale):
-        assert result["state"] == "blocked", result
-        assert "expected_sha256" in result["error"]
+    assert stale["state"] == "blocked", stale
+    assert "replac" in stale["error"]
     assert (workspace / "a.txt").read_bytes() == b"one"
     assert sorted(p.name for p in workspace.iterdir()) == ["a.txt"]
-    assert len(grants) == 3
+    assert len(grants) == 2
 
 
-@NOT_WIRED
 def test_vision_path_forms_and_skill_reads_stay_fenced_after_the_lift():
     assert subject._release_tool_spec("vision.match") is None
     assert subject._release_tool_spec("vision.changes") is None

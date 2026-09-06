@@ -2,13 +2,13 @@
 title: Tool vetting
 type: spec
 status: implemented
-updated: 2026-07-30
+updated: 2026-09-05
 ---
 
 # Tool vetting
 
 The gate a skill or MCP server passes before an agent may be given it, in
-[[code:daedalus/tools/vet.py]]. Static only: you do not run untrusted code to
+[`daedalus/tools/vet.py`](../../daedalus/tools/vet.py). Static only: you do not run untrusted code to
 decide whether to trust it.
 
 A skill is text that reaches a model, so its surface is prompt injection. An MCP

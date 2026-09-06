@@ -11,14 +11,19 @@ Cerberus review -- ``kairos.gated_writes`` is a provider-attempt pipeline, not
 a write fence, and wiring a human editor's PUT through it would fail every save
 silently. See docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md.
 
-**Generate** (``plan``, ``verify``): the deterministic halves of automatic wiki
-generation. ``plan`` surveys a tree and partitions it into topic buckets with
-dispatchable task prompts; ``verify`` decides whether the resulting pages are
-true about that tree. Neither calls a model, touches the network, or writes
-outside its declared output -- the effectful half (fan out, search, write
-pages) is a separate step so spend, egress and write roots stay at one
-boundary. They are imported as submodules, not re-exported here, because both
-carry a ``main`` and a tree walk that package import should not pay for.
+**Generate and measure** (``plan``, ``verify``, ``metrics``, ``qml_index``,
+``treewalk``): the deterministic halves of automatic wiki generation. ``plan``
+surveys a tree and partitions it into topic buckets with dispatchable task
+prompts; ``verify`` decides whether the resulting pages are true about that
+tree; ``metrics`` reports the structural health of the result (k-core survival
+of doc->source edges); ``qml_index`` reads ``.qml``/``.js`` names for the
+verifier's vocabulary; ``treewalk`` decides once, structurally, what is NOT
+this project's tree (venv, nested checkout, frozen bundle). None calls a model,
+touches the network, or writes outside its declared output -- the effectful
+half (fan out, search, write pages) is a separate step so spend, egress and
+write roots stay at one boundary. They are imported as submodules, not
+re-exported here, because each carries a ``main`` or a tree walk that package
+import should not pay for. ``python -m daedalus.wiki`` dispatches to them.
 """
 from .vault import (PAGE_SUFFIX, PROJECT_VAULT_DIR, VAULT_VERSION, Page, Vault,
                     discover_pages, discover_vaults, page_tree, parse_frontmatter,

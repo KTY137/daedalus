@@ -548,3 +548,37 @@ def test_a_nested_checkout_is_not_half_the_plan(tmp_path: pathlib.Path) -> None:
         "the fixture never had enough material to be excluded; this probe "
         f"proves nothing: {_dirs(after)}"
     )
+
+
+def test_a_frozen_application_bundle_is_not_a_topic(tmp_path: pathlib.Path) -> None:
+    """A PyInstaller one-dir bundle is a COPY of the package, not the package.
+
+    MEASURED 2026-09-05 on this repository: the Tauri desktop build keeps two
+    frozen copies of ``daedalus`` under ``apps/web/src-tauri/backend/_internal``
+    and ``.../target/debug/backend/_internal``. Neither carries a ``.git``
+    marker, so the nested-checkout rule did not see them, and the survey
+    returned 153 topics over 760k lines where the tree has 63 topics over
+    300k. Every kernel directory appeared three times, with three authors
+    assigned to write three pages about one directory.
+
+    The marker is structural, like ``pyvenv.cfg`` and ``.git``: PyInstaller
+    writes ``_internal/base_library.zip`` next to the frozen interpreter. The
+    positive control removes the marker and shows the copy leaks back in, so
+    the exclusion is caused by the marker and not by the fixture's size.
+    """
+    _fat_dir(tmp_path, "core", prefix="core")
+    _write(tmp_path, "apps/desktop/backend/_internal/base_library.zip", "PK")
+    _fat_dir(tmp_path, "apps/desktop/backend/_internal/core", prefix="core")
+    _fat_dir(tmp_path, "apps/desktop/backend/_internal/extra", prefix="extra")
+
+    topics = wiki_plan.survey(tmp_path)
+    assert _names(topics) == {"core"}, f"the frozen bundle leaked in: {_dirs(topics)}"
+    assert all(not f.startswith("apps/") for t in topics for f in t.files)
+
+    # positive control: without the marker the copy is ordinary source again
+    (tmp_path / "apps/desktop/backend/_internal/base_library.zip").unlink()
+    topics = wiki_plan.survey(tmp_path)
+    assert "extra" in _names(topics), (
+        "the fixture's bundle modules were never countable; this probe proves "
+        "the exclusion above was caused by the marker file"
+    )

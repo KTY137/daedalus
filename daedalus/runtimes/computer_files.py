@@ -136,8 +136,16 @@ def _validate_component(part: Any) -> str:
 
     Separators, drive/stream colons, NUL, Windows wildcards and quoting
     characters, and control characters are refused on every platform, and a
-    component must be NFC-normalized so that two names a model cannot tell
-    apart cannot denote two files.
+    requested component must already be NFC-normalized.
+
+    The NFC rule bounds what this adapter accepts; it does not make the host
+    normalize. NTFS stores a name as written (measured 2026-09-05), so a
+    pre-existing non-NFC entry remains a distinct entry that no request can
+    address: the name as listed is refused here, and its NFC spelling does not
+    exist on disk. ``file.list`` still reports such an entry rather than
+    counting it withheld. Writing the NFC spelling therefore creates a second,
+    separate entry and leaves the unaddressable one's bytes untouched -- it is
+    not a replacement bypass and loses no data.
     """
     if (not isinstance(part, str) or not part or len(part) > 255 or part in (".", "..")
             or any(ch in _REFUSED_CHARACTERS or ord(ch) < 32 or ord(ch) == 127 for ch in part)):
@@ -797,18 +805,32 @@ class WorkspaceFiles:
         data = self._current(parent, name, shown)
         return data is not None and hashlib.sha256(data).hexdigest() == digest
 
+    def _host_note(self, shown: str, exc: OSError) -> str:
+        """Name the failure class and the requested path, never the host's text.
+
+        A raw ``OSError`` message can carry an absolute host path, so only its
+        class reaches a reported detail.
+        """
+        return f"verification failed: re-reading '{shown}' raised {type(exc).__name__}"
+
     def _verify(self, parent: _Directory, name: str, shown: str, digest: str) -> tuple[bool, str]:
         """Post-effect content check that reports instead of raising."""
         try:
             return self._matches(parent, name, shown, digest), ""
         except ComputerRefused as exc:
             return False, f"verification failed: {exc}"
+        except OSError as exc:
+            # The effect already landed; a broken re-read is an unverified
+            # postcondition, not a failed operation.
+            return False, self._host_note(shown, exc)
 
     def _absent(self, parent: _Directory, name: str, shown: str) -> tuple[bool, str]:
         try:
             return self._current(parent, name, shown) is None, ""
         except ComputerRefused as exc:
             return False, f"verification failed: {exc}"
+        except OSError as exc:
+            return False, self._host_note(shown, exc)
 
     def _readback_matches(self, parent: _Directory, name: str, shown: str, data: bytes) -> bool:
         """Re-open below the same parent and compare safe bytes before disclosure."""
@@ -996,6 +1018,11 @@ class WorkspaceFiles:
                 rollback_proven = self._matches(parent, name, shown, expected)
             except ComputerRefused as exc:
                 notes.append(f"; rollback verification failed ({exc})")
+            except OSError as exc:
+                # A host error while re-reading is reported by class only: its
+                # message may carry an absolute host path, and this detail is
+                # model-facing. Unproven rollback is uncertain, never a leak.
+                notes.append(f"; rollback verification raised {type(exc).__name__}")
             if backup_owned:
                 backup_absent, backup_note = self._absent(parent, backup, backup_shown)
                 rollback_proven = rollback_proven and backup_absent
@@ -1147,30 +1174,45 @@ class WorkspaceFiles:
     def _mkdir(self, args: dict[str, Any]) -> dict[str, Any]:
         parts, shown = self._target(args["path"], what="directory")
         name, parent_shown, expected_parent = parts[-1], "/".join(parts[:-1]) or ".", self._expected(parts[:-1])
-        parent = self._open_chain(parts, stop_before_last=True)
+        effect_possible = False
         try:
-            self._admit_effect(parent, expected_parent, parent_shown)
-            created = True
+            parent = self._open_chain(parts, stop_before_last=True)
             try:
-                self._backend.create_directory(parent, name)
-            except _HostRefusal as exc:
-                if str(exc) != "already exists":
-                    raise ComputerRefused(f"'{shown}' {exc}") from None
-                created = False
-            # Opening the child by handle proves a real directory exists, not a
-            # link or file. Before any effect that is a refusal; after creating
-            # it is a verification result.
-            verified, note = True, ""
-            if created:
+                self._admit_effect(parent, expected_parent, parent_shown)
+                effect_possible = True
+                created = True
                 try:
+                    self._backend.create_directory(parent, name)
+                except _HostRefusal as exc:
+                    if str(exc) != "already exists":
+                        raise ComputerRefused(f"'{shown}' {exc}") from None
+                    created = False
+                # Opening the child by handle proves a real directory exists, not a
+                # link or file. Before any effect that is a refusal; after creating
+                # it is a verification result.
+                verified, note = True, ""
+                if created:
+                    try:
+                        self._backend.close_directory(self._child(parent, name, shown))
+                    except ComputerRefused as exc:
+                        verified, note = False, f"verification failed: {exc}"
+                else:
                     self._backend.close_directory(self._child(parent, name, shown))
-                except ComputerRefused as exc:
-                    verified, note = False, f"verification failed: {exc}"
-            else:
-                self._backend.close_directory(self._child(parent, name, shown))
-            in_place = self._in_place(parent, expected_parent)
-        finally:
-            self._backend.close_directory(parent)
+                in_place = self._in_place(parent, expected_parent)
+            finally:
+                self._backend.close_directory(parent)
+        except ComputerFileInterrupted:
+            raise
+        except KeyboardInterrupt as exc:
+            # Once admission passed, the adapter cannot prove which side of the
+            # create the signal landed on: report the directory for reconciliation
+            # instead of letting a bare interrupt escape untyped.
+            raise ComputerFileInterrupted(
+                f"creating directory '{shown}' was interrupted"
+                + (" before an effect" if not effect_possible else "; final state requires reconciliation"),
+                effect_state="none" if not effect_possible else "uncertain",
+                recovery_paths=() if not effect_possible else (shown,),
+            ) from exc
         result = {"path": shown, "created": created, "postcondition_verified": verified and in_place}
         if not in_place:
             result["detail"] = f"'{parent_shown}' {self._DRIFT}"

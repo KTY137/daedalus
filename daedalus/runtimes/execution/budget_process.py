@@ -240,6 +240,20 @@ def _inside_explicit() -> bool:
 _INSTALLED: dict[str, Any] = {}
 
 
+def _release_never_spawned(res: Reservation, exc: BaseException) -> None:
+    """Release a reservation whose process never came into existence.
+
+    ``Popen.__init__`` raises ``FileNotFoundError`` from ``CreateProcess`` /
+    ``execve`` before any child exists, so no vendor bytes can have moved.
+    Every other exception keeps the settle-on-exception rule in :func:`guard`.
+    The reason lands in the ledger entry so the released call stays auditable.
+    """
+    res.release(
+        f"spawn failed before any vendor process existed ({type(exc).__name__}: "
+        f"{str(exc)[:160]})"
+    )
+
+
 def _guarded_spawn(
     original: Callable[..., Any],
     kind: str,
@@ -262,6 +276,14 @@ def _guarded_spawn(
         _enter_explicit()
         try:
             return original(*args, **kwargs)
+        except FileNotFoundError as exc:
+            # The executable does not exist: no process, no vendor bytes. This is
+            # the one provable no-call case ``release`` exists for. Measured
+            # 2026-09-05: a seat missing from PATH was booked at its $2.00 worst
+            # case and, with one more, closed the day's ceiling for calls that
+            # never happened.
+            _release_never_spawned(res, exc)
+            raise
         finally:
             _exit_explicit()
             res.settle()
@@ -326,6 +348,11 @@ def _guarded_popen(
             _enter_explicit()
             try:
                 super().__init__(*args, **kwargs)
+            except FileNotFoundError as exc:
+                # See ``_guarded_spawn``: a missing executable never became a
+                # process, so nothing can have reached a vendor.
+                _release_never_spawned(res, exc)
+                raise
             finally:
                 _exit_explicit()
                 res.settle()
@@ -487,9 +514,12 @@ BILLABLE_SITES: tuple[dict[str, Any], ...] = (
     # spine/cancel.py::ManagedProcess (subprocess.Popen), so no text scan of
     # this file finds a spawn, and no text scan of cancel.py finds a vendor.
     # Only the runtime interposer sees these -- the argv is concrete by then.
+    # G1-COUNCIL-02: the seat reserves explicitly (``guard(self.budget_vendor,
+    # model, label=...)``) around run_managed and settles at the CLI's reported
+    # cost, so the interposer must not book it a second time.
     {"file": "daedalus/council/vendors.py", "func": "_CliAdapter._dispatch",
      "vendor": "anthropic_cli|openai_cli", "how": "run_managed->spine.cancel.Popen",
-     "explicit": False, "static_visible": False},
+     "explicit": True, "static_visible": False},
     {"file": "daedalus/council/vendors.py", "func": "AntigravityAdapter._dispatch",
      "vendor": "google_agy", "how": "run_managed->spine.cancel.Popen",
      "explicit": False, "static_visible": False},

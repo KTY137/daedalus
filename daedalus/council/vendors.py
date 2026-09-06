@@ -780,17 +780,43 @@ class _CliAdapter(CouncilAdapter):
             argv += [self.profile.model_arg, model]
         return argv
 
+    #: Budget vendor key per council profile: the same keys the process guard
+    #: derives from an argv, named here so the seat reserves EXPLICITLY.
+    budget_vendor = ""
+
     def _dispatch(self, text: str, *, model: str, timeout_s: float) -> dict[str, Any]:
+        from daedalus.budget import guard
+
+        if not self.budget_vendor:
+            # An unpriced seat would be booked at the $5.00 unknown-call worst
+            # case without anyone having chosen that; a seat must name its vendor.
+            raise ValueError(f"council seat {self.vendor!r} declares no budget vendor")
         argv = self.argv(model)
-        with council_cwd(self.repo_root) as cwd:
-            result = self._runner(
-                argv,
-                stdin_text=text,
-                timeout_s=timeout_s,
-                cwd=cwd,
-                env=council_env(),
-            )
-        return self._interpret(result)
+        # Reserve explicitly around the whole call instead of letting the
+        # process guard interpose the spawn: the guard cannot see the vendor's
+        # own price report and books every CLI call at its worst case (measured
+        # 2026-09-05: a $0.34 Claude reply booked at $3.00), while a seat whose
+        # executable is missing must be released, not charged. ``guard`` stands
+        # the interposer down for the spawn, so nothing is reserved twice, and
+        # its exit settles at the estimate whenever nothing below settled first.
+        with guard(self.budget_vendor or None, model if model != "unknown" else None,
+                   label=f"council seat {self.vendor}: {argv[0]}") as reservation:
+            with council_cwd(self.repo_root) as cwd:
+                result = self._runner(
+                    argv,
+                    stdin_text=text,
+                    timeout_s=timeout_s,
+                    cwd=cwd,
+                    env=council_env(),
+                )
+            reply = self._interpret(result)
+            if result.spawn_error and result.spawn_error.startswith("not_on_path"):
+                reservation.release("council seat executable not found; nothing was spawned")
+            else:
+                reported = (reply.get("usage") or {}).get("total_cost_usd")
+                if isinstance(reported, (int, float)) and reported >= 0:
+                    reservation.settle(float(reported))
+        return reply
 
     def _interpret(self, result: RunResult) -> dict[str, Any]:
         if result.spawn_error:
@@ -846,6 +872,7 @@ class ClaudeAdapter(_CliAdapter):
     profile_name = "anthropic"
     endpoint = "cli:claude"
     local = False
+    budget_vendor = "anthropic_cli"
 
     def _auth_failure(self, result: RunResult) -> str:
         if result.returncode not in (0, None) and _looks_unauthenticated(result.stderr, result.stdout):
@@ -888,6 +915,7 @@ class CodexAdapter(_CliAdapter):
     profile_name = "openai"
     endpoint = "cli:codex"
     local = False
+    budget_vendor = "openai_cli"
 
     def _auth_failure(self, result: RunResult) -> str:
         if result.returncode not in (0, None) and _looks_unauthenticated(result.stderr, result.stdout):

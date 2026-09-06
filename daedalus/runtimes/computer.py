@@ -19,10 +19,11 @@ from daedalus.atomic import ExclusiveFileLock
 from daedalus.kernel.artifacts import store_canonical_json
 from daedalus.kernel.effects import EffectLeaseError
 from daedalus.kernel.offload_lease import acquire_effect_lease, WaveLeaseDenied
+from daedalus.kernel.policy import computer as _release_policy
 from daedalus.kernel.policy.computer import (
-    ComputerRefused, ComputerPolicy, VISION_TOOLS, DESKTOP_TOOLS,
-    BROWSER_TOOLS, PATH_IO_RELEASE_REFUSAL, RELEASE_DISABLED_TOOLS,
-    RELEASE_OBSERVATION_ONLY_TOOLS, admit_operation, load_policy, policy_path,
+    ComputerRefused, ComputerPolicy, FILE_TOOLS, VISION_TOOLS, DESKTOP_TOOLS,
+    BROWSER_TOOLS, PATH_IO_RELEASE_REFUSAL, FILE_REPLACE_RELEASE_REFUSAL,
+    admit_operation, load_policy, policy_path,
     refuse_workspace_path_io,
 )
 from daedalus.limit_policy import load_from_env as load_limit_policy
@@ -70,11 +71,19 @@ TOOL_SPECS = {
 
 def _release_tool_spec(tool: str) -> tuple[str, dict[str, Any]] | None:
     """Project only executable v0.1.6 tool shapes into the model capability."""
-    if tool in RELEASE_DISABLED_TOOLS:
+    # Read at call time (Odysseus O-1, F2 generalised): projection and fence share one binding.
+    if tool in _release_policy.RELEASE_DISABLED_TOOLS:
         return None
     description, parameters = TOOL_SPECS[tool]
     parameters = json.loads(json.dumps(parameters))
-    if tool in RELEASE_OBSERVATION_ONLY_TOOLS:
+    if tool == "file.write" and _release_policy.RELEASE_REPLACE_FENCED:
+        # Replacement stays fenced (FILE_REPLACE_RELEASE_REFUSAL): do not offer
+        # the one shape the kernel would refuse. The flag is read at call time
+        # so this projection, capabilities() and the kernel fence agree.
+        parameters["properties"].pop("expected_sha256", None)
+        description = ("Create a NEW UTF-8 file inside the computer workspace. Replacing an "
+                       "existing file is disabled in this release; read back to verify.")
+    if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
         parameters["properties"].pop("path", None)
         parameters["required"] = ["observation_id"]
         description = (
@@ -106,7 +115,7 @@ def _validate_arguments(tool: str, args: dict) -> None:
 def _release_unavailable_reason(policy: ComputerPolicy, tool: str) -> str:
     """Return the same static prerequisite refusal used by projection/execution."""
     reason = ""
-    if tool in RELEASE_OBSERVATION_ONLY_TOOLS:
+    if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
         if "desktop.observe" not in policy.tools:
             reason = "Observation-only release mode requires desktop.observe"
         elif os.name != "nt":
@@ -126,6 +135,10 @@ def _release_unavailable_reason(policy: ComputerPolicy, tool: str) -> str:
         reason = "Install daedalus[computer] for capture"
     if tool in BROWSER_TOOLS and importlib.util.find_spec("playwright") is None:
         reason = "Install daedalus[computer] and Playwright Chromium"
+    if tool in FILE_TOOLS and os.name != "nt":
+        # Only Windows can pin the open directory chain against a concurrent
+        # move (delete-share denial); POSIX effects stay unavailable (G1-IKARUS-24).
+        reason = "Windows host required for file tools in this release"
     return reason
 
 
@@ -143,6 +156,7 @@ class ComputerService:
                           if self.limit_policy.enforces("wall_time") else None)
         self._desktop = None
         self._browser = None
+        self._files = None
         self._active_authorization = None
         self._active_operation = None
         self._cancellation_probe: Callable[[], bool] | None = None
@@ -171,7 +185,10 @@ class ComputerService:
                     description += " Enabled origins: " + ", ".join(self._policy.origins)
                 available.append({"name": tool, "description": description, "parameters": parameters})
         return {"enabled": bool(available), "tools": available, "unavailable": unavailable,
-                "path_io_release_lock": PATH_IO_RELEASE_REFUSAL,
+                "path_io_release_lock": "; ".join(
+                    [f"path-based vision: {PATH_IO_RELEASE_REFUSAL}"]
+                    + ([f"file.write with expected_sha256: {FILE_REPLACE_RELEASE_REFUSAL}"]
+                       if _release_policy.RELEASE_REPLACE_FENCED else [])),
                 "workspace": str(self._policy.workspace), "policy_sha256": self.policy_digest,
                 "planner_provider": self._policy.planner_provider, "planner_model": self._policy.planner_model,
                 "allow_remote_context": self._policy.allow_remote_context,
@@ -190,7 +207,7 @@ class ComputerService:
         reason = _release_unavailable_reason(self._policy, tool)
         if reason:
             raise ComputerRefused(reason)
-        if tool in RELEASE_OBSERVATION_ONLY_TOOLS:
+        if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
             if self._desktop is None:
                 raise ComputerRefused("a current policy-scoped desktop observation is required")
             self._desktop.require_fresh_observation(arguments["observation_id"])
@@ -213,6 +230,8 @@ class ComputerService:
         granted = None
         execution = None
         external_started = False
+        dispatched = False
+        operation_digest = None
         try:
             _validate_arguments(tool, arguments)
             # Detach arguments from caller-owned mutable containers before admission.
@@ -254,6 +273,9 @@ class ComputerService:
                 self.check_cancelled()
                 external_started = True
                 result = self._dispatch(tool, arguments)
+                # The adapter returned: whatever is refused from here on was
+                # observed AFTER the host effect and can never mean "no effect".
+                dispatched = True
                 self.check_cancelled()
                 # Secret-floor filtering is performed before results enter CAS
                 # or the planner, including arbitrary web/application text.
@@ -265,7 +287,8 @@ class ComputerService:
                           "mission_id": mission_id, "attempt_id": attempt_id,
                           "policy_sha256": self.policy_digest,
                           "host_mutation": tool in {"file.write", "file.mkdir", "file.move", "app.launch", "desktop.click", "desktop.type", "desktop.key", "browser.click", "browser.fill"},
-                          "filesystem_scope_kind": "computer-policy-workspace-relative"}
+                          "filesystem_scope_kind": ("handle-anchored-computer-workspace" if tool in FILE_TOOLS
+                                                    else "computer-policy-workspace-relative")}
                 artifact = store_canonical_json(self.control / "computer-artifacts", output)
                 terminal = granted.authorization.finish_effect(started.receipt, outcome="COMPLETED",
                     output_digests=(artifact.sha256,), detail_sha256=artifact.sha256)
@@ -287,18 +310,74 @@ class ComputerService:
         except (Exception, KeyboardInterrupt) as exc:
             # A failure after entering an adapter is an unknown external outcome.
             # Keep STARTED for reconciliation; never retry or invent failure.
-            if started is not None and started.execute and not external_started:
+            # The one exception is the file adapter's own contract: a plain
+            # ComputerRefused or an interruption it annotates with
+            # effect_state "none" is raised only before any host effect, while
+            # anything it cannot prove carries effect_state "uncertain".
+            # A refusal raised by the post-dispatch checkpoint (cancellation,
+            # deadline, policy drift, re-admission) is observed after the effect
+            # landed; the lease then stays STARTED for reconciliation.
+            effect_state = getattr(exc, "effect_state", None)
+            provably_no_effect = external_started and not dispatched and tool in FILE_TOOLS and (
+                # A plain refusal is raised by the adapter only before an effect;
+                # an interruption is trusted only when the adapter typed it.
+                (isinstance(exc, ComputerRefused) and effect_state in (None, "none"))
+                or (isinstance(exc, KeyboardInterrupt) and effect_state == "none")
+            )
+            record = None
+            if started is not None:
+                # Once an effect receipt exists, its failure leaves a digest-bound
+                # record: error class and message, the adapter's proven effect
+                # state and the paths a reconciliation must inspect. The result
+                # floor applies before anything enters CAS.
+                record = self._store_failure_record(
+                    tool=tool, operation_digest=operation_digest, mission_id=mission_id,
+                    attempt_id=attempt_id, exc=exc, effect_state=effect_state,
+                    external_started=external_started, dispatched=dispatched,
+                    provably_no_effect=provably_no_effect)
+            if started is not None and started.execute and (not external_started or provably_no_effect):
                 try:
                     granted.authorization.finish_effect(started.receipt, outcome="CANCELLED",
-                        detail_sha256=canonical_sha({"error": type(exc).__name__}))
+                        detail_sha256=record.sha256 if record is not None
+                        else canonical_sha({"error": type(exc).__name__}))
                     granted.retain_terminal_record(execution)
                 except Exception:
                     pass
-            return {"ok": False, "state": "reconciliation_required" if external_started else "blocked",
-                    "error": str(exc)[:1200], "error_type": type(exc).__name__}
+            blocked = not external_started or provably_no_effect
+            failure = {"ok": False, "state": "blocked" if blocked else "reconciliation_required",
+                       "error": str(exc)[:1200], "error_type": type(exc).__name__}
+            if record is not None:
+                failure["evidence"] = {"failure_record": record.to_dict()}
+            return failure
         finally:
             self._active_authorization = None
             self._active_operation = None
+
+    def _store_failure_record(self, *, tool: str, operation_digest: str | None, mission_id: str,
+                              attempt_id: str, exc: BaseException, effect_state: str | None,
+                              external_started: bool, dispatched: bool, provably_no_effect: bool):
+        """Persist what a later reconciliation needs; never mask the failure itself."""
+        recovery = getattr(exc, "recovery_paths", None) or ()
+        failure = {"schema": "daedalus-computer-failure/1", "tool": tool,
+                   "operation_sha256": operation_digest, "mission_id": mission_id, "attempt_id": attempt_id,
+                   "policy_sha256": self.policy_digest, "error_type": type(exc).__name__,
+                   "error": str(exc)[:1200], "effect_state": effect_state,
+                   "recovery_paths": [str(path) for path in recovery],
+                   "external_started": external_started, "dispatched": dispatched,
+                   "provably_no_effect": provably_no_effect}
+        try:
+            rendered = json.dumps(failure, ensure_ascii=False, allow_nan=False)
+            if secret_floor_rule("computer-failure.json", rendered):
+                failure = {"schema": "daedalus-computer-failure/1", "tool": tool,
+                           "operation_sha256": operation_digest, "mission_id": mission_id,
+                           "attempt_id": attempt_id, "policy_sha256": self.policy_digest,
+                           "error_type": type(exc).__name__, "effect_state": effect_state,
+                           "withheld": True, "reason": "secret floor",
+                           "external_started": external_started, "dispatched": dispatched,
+                           "provably_no_effect": provably_no_effect}
+            return store_canonical_json(self.control / "computer-artifacts", failure)
+        except Exception:
+            return None
 
     def _read_bytes(self, value: str) -> bytes:
         refuse_workspace_path_io()
@@ -313,7 +392,15 @@ class ComputerService:
 
     def _dispatch(self, tool: str, args: dict) -> dict:
         if tool.startswith("file."):
-            return self._file(tool, args)
+            # G1-IKARUS-24/25: the handle-anchored adapter is the only file
+            # seam. It re-admits through the same policy (grant, release fence,
+            # lexical rules), runs check_cancelled after the parent handle is
+            # open, and applies the secret floor to read, write and move. The
+            # legacy pathname helpers below stay fenced and unreachable.
+            from daedalus.runtimes.computer_files import WorkspaceFiles
+            if self._files is None:
+                self._files = WorkspaceFiles(self._policy, self.check_cancelled)
+            return self._files.execute(tool, args)
         if tool.startswith("vision."):
             from daedalus.runtimes.computer_vision import OpenCVVision, ImageCoordinateFrame
             from daedalus.runtimes.computer_ocr import WindowsOCR
@@ -347,80 +434,6 @@ class ComputerService:
                 self._browser = BrowserAdapter(self._policy, self.check_cancelled, self.control)
             return self._browser.execute(tool, args)
         raise ComputerRefused("unknown computer tool")
-
-    def _file(self, tool: str, args: dict) -> dict:
-        refuse_workspace_path_io()
-        policy = self._policy
-        path = policy.path(args.get("path", "."))
-        if tool == "file.list":
-            if not path.is_dir():
-                raise ComputerRefused("directory does not exist")
-            entries = []
-            for child in sorted(path.iterdir(), key=lambda p: p.name.casefold()):
-                if len(entries) >= 200:
-                    break
-                relative = child.relative_to(policy.workspace).as_posix()
-                try:
-                    safe = policy.path(relative, must_exist=True)
-                except ComputerRefused:
-                    continue
-                entries.append({"path": relative, "kind": "directory" if safe.is_dir() else "file"})
-            return {"entries": entries, "limit": 200, "postcondition_verified": True}
-        if tool == "file.read":
-            data = self._read_bytes(args["path"])
-            text = data.decode("utf-8")
-            if secret_floor_rule(args["path"], text):
-                raise ComputerRefused("file text withheld by secret floor")
-            return {"path": args["path"], "text": text, "sha256": hashlib.sha256(data).hexdigest(), "postcondition_verified": True}
-        if tool == "file.mkdir":
-            self.check_cancelled()
-            path.mkdir(exist_ok=True)
-            return {"path": args["path"], "postcondition_verified": path.is_dir()}
-        if tool == "file.move":
-            source = policy.path(args["source"], must_exist=True)
-            destination = policy.path(args["destination"])
-            data = self._read_bytes(args["source"])
-            digest = hashlib.sha256(data).hexdigest()
-            if destination.exists() or digest != args["expected_sha256"]:
-                raise ComputerRefused("move source changed or destination exists")
-            self.check_cancelled()
-            source.rename(destination)
-            return {"path": args["destination"], "sha256": digest,
-                    "postcondition_verified": not source.exists() and hashlib.sha256(self._read_bytes(args["destination"])).hexdigest() == digest}
-        if tool == "file.write":
-            data = args["text"].encode("utf-8")
-            if len(data) > policy.max_file_bytes or secret_floor_rule(args["path"], args["text"]):
-                raise ComputerRefused("file content exceeds size or secret policy")
-            if path.exists():
-                old = self._read_bytes(args["path"])
-                if hashlib.sha256(old).hexdigest() != args.get("expected_sha256"):
-                    raise ComputerRefused("replacing a file requires its current expected_sha256")
-            elif "expected_sha256" in args:
-                raise ComputerRefused("expected file no longer exists")
-            self.check_cancelled()
-            if path.exists():
-                with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
-                    temporary = Path(stream.name)
-                    stream.write(data)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                try:
-                    self.check_cancelled()
-                    policy.path(args["path"])
-                    if hashlib.sha256(self._read_bytes(args["path"])).hexdigest() != args.get("expected_sha256"):
-                        raise ComputerRefused("file changed before replacement")
-                    temporary.replace(path)
-                finally:
-                    temporary.unlink(missing_ok=True)
-            else:
-                with path.open("xb") as stream:
-                    stream.write(data)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-            digest = hashlib.sha256(data).hexdigest()
-            return {"path": args["path"], "sha256": digest, "bytes": len(data),
-                    "postcondition_verified": hashlib.sha256(self._read_bytes(args["path"])).hexdigest() == digest}
-        raise ComputerRefused("unknown file tool")
 
     def close(self) -> None:
         if self._browser is not None:

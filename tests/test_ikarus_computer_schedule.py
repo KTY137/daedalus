@@ -190,14 +190,19 @@ def test_runner_exception_is_not_claimed_as_safe_failure_to_retry(scheduled, mon
     assert subject.dispatch_due_computer(root, now=now + timedelta(minutes=3)) == []
 
 
-def test_scheduled_path_effect_is_release_locked_without_retry(scheduled, monkeypatch):
+def test_scheduled_release_locked_tool_is_unavailable_without_retry(scheduled, monkeypatch):
+    """A mission whose only granted tools are release-locked has no capability
+    and ends unavailable before any planner call, with nothing retried. Since
+    G1-IKARUS-25 the file tools are no longer locked; path-based vision is."""
     from daedalus.orchestration.ikarus.computer_loop import run_computer_task
-    root, policy, _, _, now, _, database = scheduled
+    root, policy, path, _, now, _, database = scheduled
+    path.write_text(json.dumps(replace(policy, tools=("vision.match", "vision.changes")).to_dict()),
+                    encoding="utf-8")
     planner_calls = []
     def propose(*args):
         planner_calls.append(args)
-        return json.dumps({"type": "tool", "tool": "file.write", "arguments": {
-            "path": "scheduled.txt", "text": "Scheduled Ikarus fixture"}})
+        return json.dumps({"type": "tool", "tool": "vision.match", "arguments": {
+            "observation_id": "never", "template": "template.png"}})
     def runner(authority, objective, **kwargs):
         return run_computer_task(authority, objective, propose=propose, **kwargs)
     monkeypatch.setattr(subject, "_run_computer_task", runner)

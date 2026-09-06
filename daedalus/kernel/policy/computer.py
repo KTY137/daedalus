@@ -27,15 +27,32 @@ BROWSER_TOOLS = ("browser.navigate", "browser.read", "browser.click", "browser.f
 ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS)
 # v0.1.6 release fence.  ``Path.resolve`` plus a later pathname operation is
 # not a write-root boundary: another process can replace a checked ancestor
-# with a symlink/junction between those two operations.  Keep legacy policy
-# files readable so owners can remove old grants, but never turn those grants
-# into runtime authority.  Observation-backed vision does not open a workspace
-# path and remains a separate, explicitly constrained capability.
+# with a symlink/junction between those two operations.  G1-IKARUS-24/25
+# replaced the pathname file helpers with the handle-anchored adapter
+# (``daedalus.runtimes.computer_files``), so the five file tools are admitted
+# again; path-based vision still opens a workspace pathname and stays fenced,
+# and observation-backed vision remains a separate, explicitly constrained
+# capability.  Replacing an existing file runs the adapter's two-rename
+# protocol, whose crash window has no service-owned reconciliation yet, so
+# that one shape stays fenced with its own reason.  Keep legacy policy files
+# readable so owners can remove old grants, but never turn those grants into
+# runtime authority.
 PATH_IO_RELEASE_REFUSAL = (
     "workspace path tools are disabled in v0.1.6 until handle-relative, "
     "reparse-safe I/O is independently verified"
 )
-RELEASE_DISABLED_TOOLS = frozenset(FILE_TOOLS + ("vision.match", "vision.changes"))
+FILE_REPLACE_RELEASE_REFUSAL = (
+    "replacing an existing file is disabled in v0.1.6 until the two-rename "
+    "replacement has a service-owned crash reconciliation; create a new file or move"
+)
+RELEASE_DISABLED_TOOLS = frozenset(("vision.match", "vision.changes"))
+# Release constant: replacement stays fenced until the two-rename protocol has
+# a service-owned crash reconciliation (G1-IKARUS-24 HOLD, G1-IKARUS-25, design
+# G1-IKARUS-27). Only a release packet lowers it. The runtime reads it at call
+# time so the projected schema, the capability claim and this fence cannot
+# disagree; the adapter suite lowers it per test through monkeypatch (restored
+# automatically) to exercise the protocol below the fence.
+RELEASE_REPLACE_FENCED = True
 RELEASE_OBSERVATION_ONLY_TOOLS = frozenset(("vision.inspect", "vision.ocr"))
 _PROTECTED = frozenset({".git", ".agentenv", ".codex", "agents.md", "computer-policy.json",
                         "ikarus_ariadne_master_plan.md", "ikarus_ariadne_master_plan.amendments.jsonl"})
@@ -72,6 +89,8 @@ def enforce_release_tool_fence(tool: str, arguments: Mapping[str, Any]) -> None:
     """
     if tool in RELEASE_DISABLED_TOOLS:
         raise ComputerRefused(PATH_IO_RELEASE_REFUSAL)
+    if RELEASE_REPLACE_FENCED and tool == "file.write" and "expected_sha256" in arguments:
+        raise ComputerRefused(FILE_REPLACE_RELEASE_REFUSAL)
     if tool in RELEASE_OBSERVATION_ONLY_TOOLS:
         # The lease issuer calls this same admission seam independently of the
         # runtime.  Bind the complete release shape here: accepting merely the

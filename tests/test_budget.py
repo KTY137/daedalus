@@ -1112,7 +1112,13 @@ def test_the_register_is_honest_about_what_is_not_yet_wired():
     when a site starts reserving for itself, flip its flag here and in the
     register, so 'guarded' never drifts into wishful thinking."""
     explicit = explicit_sites(B.BILLABLE_SITES)
-    assert explicit == [], (
+    # G1-COUNCIL-02 (2026-09-05): the council CLI seat reserves for itself
+    # through ``guard(self.budget_vendor, model, label=...)`` around
+    # run_managed and settles at the CLI's reported cost. Verified by
+    # tests/test_council_vendors.py (seat accounting: settle, release when
+    # never spawned, ValueError on an empty budget_vendor) and by
+    # test_an_explicit_reservation_is_not_double_charged_by_the_interposer.
+    assert explicit == ["daedalus/council/vendors.py::_CliAdapter._dispatch"], (
         "a site now claims an explicit reservation; verify it and update this "
         f"expectation: {explicit}")
     assert len(B.BILLABLE_SITES) >= 17
