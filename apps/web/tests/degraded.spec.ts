@@ -152,8 +152,10 @@ test('classic runtime failure revokes a stale Ikarus brain instead of reusing ca
   await expect(brain).toHaveValue('claude_code_cli');
 
   // Wait for the initial aggregate refresh to finish before requesting a new
-  // sample through the same user-facing Refresh affordance.
-  const refresh = page.getByRole('button', { name: 'Refresh' });
+  // sample through the same user-facing Refresh affordance. Use the exact
+  // accessible name: Mission Control also exposes "Refresh Mission Control",
+  // and a fuzzy role lookup turns two valid controls into a strict-mode error.
+  const refresh = page.getByRole('button', { name: 'Refresh', exact: true });
   await expect(refresh).toBeEnabled({ timeout: 60_000 });
   failRuntime = true;
   await refresh.click();
