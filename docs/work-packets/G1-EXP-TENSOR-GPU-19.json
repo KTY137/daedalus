@@ -1,4 +1,51 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-19",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "b85e563236c309de5cf3f916423f2f8a334cbdc8",
+    "dependencies": "G1-EXP-TENSOR-GPU-18 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "next_decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "authority"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "change",
+          "semantic_guards"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "semantic_guards"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "promotion"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundary"
+        ]
+      }
+    }
+  },
   "packet_id": "G1-EXP-TENSOR-GPU-19",
   "title": "Replace per-entry CSR row-state validation with matched-count row spans",
   "status": "closed-experiment",

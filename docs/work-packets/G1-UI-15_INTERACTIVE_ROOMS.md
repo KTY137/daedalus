@@ -1,12 +1,24 @@
 # G1-UI-15 — Interactive Blender rooms and local v0.1.6 delivery
 
-Classification: ALIGNED. Gate: 1. Owner request: 2026-09-05; package again on
-2026-09-06 at 08:00 Europe/Berlin, explicitly confirmed. Plan revision 12.
+Packet ID: G1-UI-15
+Artifact role: primary
+Active gate: 1
+Classification: ALIGNED
+Owner: repository owner
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
 Dependencies: G1-UI-11 verified Blender sources; G1-UI-12 through 14 existing
-room selection and workspace composition. Source base: 585b7ea4 plus preserved
-owner worktree changes, captured in the external build baseline receipt.
+room selection and workspace composition.
 
-## Scope and baseline
+Owner request: 2026-09-05; package again on 2026-09-06 at 08:00 Europe/Berlin,
+explicitly confirmed. Plan revision 12. Preserved owner worktree changes are
+captured in the external build baseline receipt.
+
+## Primary acceptance claim
+
+The six verified local rooms gain an optional bounded 3D renderer while image
+mode remains the default, durable fallback and existing product authority.
+
+## Scope
 
 Six static Blender renderings already live in the existing Theme Studio.
 Version mirrors already read 0.1.6. Add optional real geometry rendering behind
@@ -25,7 +37,12 @@ its runner, logs and schedule receipt remain separate operational artifacts.
 Forbidden: runtime/kernel/policy/ledger authority changes, commit, tag, publish,
 automatic promotion, installation of the built app.
 
-## Acceptance
+## Contracts and behavior
+
+The renderer stays behind the existing ThemeProvider contract, accepts only
+packaged scene assets and never becomes orchestration or persistence authority.
+
+## Acceptance matrix
 
 - Six self-contained GLBs load, retain cameras and optical glass materials.
 - Image/3D mode and light level survive reload and JSON round-trip; malformed
@@ -47,7 +64,13 @@ task; the scheduler is configured to run after a missed start when possible.
 
 Verification measurements and retained failures are appended after execution.
 
-## Measured verification — 2026-09-05
+## Migration and rollback
+
+Migration is additive: existing image mode and stored theme data remain valid.
+Rollback removes the 3D controls, lazy renderer and assets while retaining all
+package receipts and failed-browser evidence.
+
+## Evidence, expected failures and review
 
 - Preserved source baseline: app bootstrap 524/524. Final package build:
   app bootstrap 527/527, motion 145/145, TypeScript and Vite production build pass.

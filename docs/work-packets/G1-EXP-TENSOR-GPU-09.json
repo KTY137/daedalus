@@ -1,4 +1,52 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-09",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "45daf70f329c34e9ef27069716b9f013d8b806e9",
+    "dependencies": "G1-EXP-TENSOR-GPU-08 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "hypothesis",
+          "finding",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "files",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "experiment_contract"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundary",
+          "finding"
+        ]
+      }
+    }
+  },
   "schema": "daedalus-work-packet/1",
   "id": "G1-EXP-TENSOR-GPU-09",
   "title": "Measure bounded revision-frozen packed-prefix fanout reuse",

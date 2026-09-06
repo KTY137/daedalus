@@ -1,4 +1,51 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-04",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "a4f97fa437161b5a4e3ad419ee237fc0405d599f",
+    "dependencies": "G1-EXP-TENSOR-GPU-03 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "finding",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "bounds",
+          "files",
+          "measurement_contract"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "change"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claims",
+          "finding"
+        ]
+      }
+    }
+  },
   "schema": "daedalus-work-packet/1",
   "id": "G1-EXP-TENSOR-GPU-04",
   "title": "Separate packed-bitset validation from the timed resident kernel",

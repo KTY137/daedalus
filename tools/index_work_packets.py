@@ -335,12 +335,24 @@ def _markdown_contract(text: str) -> tuple[str, str, dict[str, str | int], tuple
 def _json_contract(
     payload: Mapping[str, Any],
 ) -> tuple[str, str, dict[str, str | int], tuple[str, ...]]:
+    registry_raw = payload.get("registry_contract")
+    if registry_raw is None:
+        registry: Mapping[str, Any] = {}
+    elif isinstance(registry_raw, Mapping):
+        registry = registry_raw
+    else:
+        raise IndexError("registry_contract must be an object")
+
     declared_id: Any = UNKNOWN
+    if "packet_id" in registry:
+        declared_id = registry["packet_id"]
     for key in ("work_packet_id", "work_packet", "packet_id"):
-        if key in payload:
+        if declared_id == UNKNOWN and key in payload:
             declared_id = payload[key]
             break
-    role = _metadata_value(payload.get("artifact_role", UNKNOWN))
+    role = _metadata_value(
+        registry.get("artifact_role", payload.get("artifact_role", UNKNOWN))
+    )
     metadata: dict[str, str | int] = _empty_metadata()
     aliases = {
         "active_gate": ("active_gate", "gate"),
@@ -350,6 +362,9 @@ def _json_contract(
         "dependencies": ("dependencies",),
     }
     for field, keys in aliases.items():
+        if field in registry:
+            metadata[field] = _metadata_value(registry[field])
+            continue
         for key in keys:
             if key in payload:
                 metadata[field] = _metadata_value(payload[key])
@@ -367,8 +382,29 @@ def _json_contract(
             "review_questions",
         },
     }
+    registry_sections_raw = registry.get("sections", {})
+    if not isinstance(registry_sections_raw, Mapping):
+        raise IndexError("registry_contract.sections must be an object")
+    registry_sections: set[str] = set()
+    for section, projection in registry_sections_raw.items():
+        if section not in REQUIRED_SECTIONS:
+            raise IndexError(f"unknown registry contract section: {section}")
+        if not isinstance(projection, Mapping):
+            raise IndexError(f"registry contract section must be an object: {section}")
+        source_fields = projection.get("source_fields")
+        if (
+            not isinstance(source_fields, list)
+            or not source_fields
+            or not all(isinstance(field, str) and field in payload for field in source_fields)
+        ):
+            raise IndexError(
+                f"registry contract section has invalid source_fields: {section}"
+            )
+        registry_sections.add(str(section))
     sections = tuple(
-        section for section in REQUIRED_SECTIONS if section_keys[section].intersection(payload)
+        section
+        for section in REQUIRED_SECTIONS
+        if section in registry_sections or section_keys[section].intersection(payload)
     )
     return str(declared_id), str(role).lower(), metadata, sections
 

@@ -1,11 +1,18 @@
 # G1-ISO-02 — the evaluator that decides the gate gets the same bounds
 
 Packet ID: `G1-ISO-02`
+Artifact role: primary
 Active gate: Gate 1
 Classification: `ALIGNED`
 Owner: repository owner
-Base revision: `5ac06193` (stacked on G1-ISO-01, green and adversarially reviewed)
+Base revision: `5ac061933841e71df5b155cbb719d14cba7ec969`
+Dependencies: G1-ISO-01
 Branch: `packet/g1-iso-02`
+
+## Primary acceptance claim
+
+The evaluator child receives the same bounded process and environment contract
+as the behavior probe, with retained adversarial evidence for every refusal.
 
 ## 1. Why this packet exists
 
@@ -41,7 +48,13 @@ against the broken code — pytest's own capture layer redirects fd 1 to a temp
 file, so the descendant inherited that, not the evaluator's pipe. Only the
 `capfd.disabled()` variant reaches the defect.
 
-## 3. Decision
+## Scope
+
+In scope are `checks.py`, the shared child runner and workflow wiring, plus
+their focused tests. Kernel policy, the Master Plan and promotion semantics are
+out of scope.
+
+## Contracts and behavior
 
 - environment: an explicit allowlist, `checks.EVALUATOR_CHILD_ENV_KEYS`, via
   `checks.evaluator_child_env()`. **One definition**, imported by
@@ -50,7 +63,7 @@ file, so the descendant inherited that, not the evaluator's pipe. Only the
   judged tree, which `_post_gate_artifact_stable` would refuse),
   `stderr=STDOUT`, `stdin=DEVNULL`.
 
-## 4. Round two — the second adversarial review, and what it refuted
+## Evidence, expected failures and review
 
 A second independent verifier attacked `5eda3aba`. **The two fixes held
 against every executed attack**; the defects it found were in the claims made
@@ -166,7 +179,7 @@ bytes now become `U+FFFD`.
    in-scope path) and left as a one-line follow-up rather than silently widened
    into.
 
-## 6. Acceptance
+## Acceptance matrix
 
 | # | Claim | Test | Failed before |
 | --- | --- | --- | --- |
@@ -182,7 +195,7 @@ bytes now become `U+FFFD`.
 | 10 | the bundle digest moves for any judging module | `test_the_bundle_digest_moves_when_any_judging_module_changes` | **replaces a false test** |
 | 11 | the closure reaches past the declared roots | `test_the_closure_reaches_past_the_declared_roots` | n/a |
 
-## 7. Rollback
+## Migration and rollback
 
 Revert the commits on `packet/g1-iso-02`. No schema, artifact, ledger, receipt
 contract or promotion path changes shape. The evaluator bundle digest moves

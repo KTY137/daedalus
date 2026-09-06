@@ -1,4 +1,52 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-18",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "d2ac75daac8d53d82c97e916b56340080741638c",
+    "dependencies": "G1-EXP-TENSOR-GPU-17 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "question",
+          "finding",
+          "decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "gardener_boundary",
+          "decision"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundary",
+          "finding"
+        ]
+      }
+    }
+  },
   "schema": "daedalus-work-packet/1",
   "id": "G1-EXP-TENSOR-GPU-18",
   "title": "Freeze constructor self-time as the next optimization gate without new instrumentation",

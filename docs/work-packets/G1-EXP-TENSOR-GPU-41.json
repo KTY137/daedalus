@@ -1,4 +1,49 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-41",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "e861b6ffb17407cd12aabc824fe8f038d037dafd",
+    "dependencies": "G1-EXP-TENSOR-GPU-40 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "implementation",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "focused_tests"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-41",
   "title": "Prune unselected relation evidence materialization in the canonical compiler",
   "classification": "implementation",

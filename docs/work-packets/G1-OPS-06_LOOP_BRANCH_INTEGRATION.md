@@ -10,7 +10,7 @@ Classification: ALIGNED
 
 Owner: repository owner
 
-Base revision: 5a13dbf9
+Base revision: 5a13dbf95e05becce15d26bdec199b26e62bc082
 
 Dependencies: A2 commits 27d27a7b..5a13dbf9; loop/stage3-failed-receipt 04fde78b
 
@@ -112,7 +112,7 @@ With the corrected base the conflict set collapsed from 31 files to **one**.
 | registry / census | see Evidence |
 | post-merge full suite | see Evidence |
 
-## Conflict resolution
+## Contracts and behavior
 
 `tests/runtimes/test_computer_service.py` — **both sides kept**, markers removed,
 no other edit. Ours contributes `_record_terminal_outcomes`, the Cerberus F1/F2/F3
@@ -137,7 +137,7 @@ Auto-merged, verified by inspection rather than assumed:
   ours has no edits in the loop status section.
 - `docs/work-packets/index.json` — taken from the loop branch verbatim.
 
-## Deferred: the work-packet index re-render
+## Migration and rollback
 
 `docs/work-packets/index.json` is **not** re-rendered in this packet. Ruling of
 the Amendment-013 lane (`daedalus-b4`, 2026-09-06): the index render must run
@@ -160,7 +160,7 @@ IndexError: Master Plan authority drifted from Revision 12:
 i.e. the checker sees the amendment lane's uncommitted revision-13 plan. Nothing
 in this merge can make it green, and nothing in this merge made it red.
 
-## Evidence
+## Evidence, expected failures and review
 
 Interpreter `.venv/Scripts/python.exe -m pytest -q --color=no -p no:cacheprovider`,
 Windows 11, CPython 3.13.14, host under concurrent load (counts are evidence,

@@ -1,4 +1,48 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-21",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "def8a74b37115131b2a4201e87a3d997ff23bb5b",
+    "dependencies": "G1-EXP-TENSOR-GPU-20 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "files"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "production_runtime_changed"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "diagnostic_checkpoint"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "promotion_state"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-21",
   "title": "Retire the one-shot GPU-20 CSR A/B control after evidence capture",
   "status": "closed-experiment",

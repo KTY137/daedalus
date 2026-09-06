@@ -1,4 +1,52 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-03",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "dependencies": "G1-EXP-TENSOR-GPU-02 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "hypothesis",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "bounds",
+          "design",
+          "files"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "design"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "acceptance",
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claims",
+          "kill_or_redesign"
+        ]
+      }
+    }
+  },
   "schema": "daedalus-work-packet/1",
   "id": "G1-EXP-TENSOR-GPU-03",
   "title": "Add a packed CPU bitset baseline before escalating CUDA complexity",

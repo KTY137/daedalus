@@ -1,4 +1,52 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-MAP-06",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "5a1219fe831bfd54ecd3ace5e8b8e50077c7ea80",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "authority",
+          "source"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "gardener",
+          "decision",
+          "current_canonical_state"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardener",
+          "decision",
+          "next"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification"
+        ]
+      }
+    }
+  },
   "id": "G1-GARDEN-MAP-06",
   "title": "Re-evaluate coverage dependency transplant against the current canonical lock state",
   "status": "closed-research",

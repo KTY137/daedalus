@@ -1,4 +1,52 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-ISO-04",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "b2026fda612f4cc88cbcfd67bcd54a283e6f7437",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "legacy_source",
+          "reintegrate_commit"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "repair",
+          "authority_transitions"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "diagnostic_red"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "authority_transitions",
+          "next"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "diagnostic_red"
+        ]
+      }
+    }
+  },
   "schema": "daedalus-work-packet/1",
   "id": "G1-GARDEN-ISO-04",
   "title": "Selectively reintegrate bounded Gate1 isolation evidence and close modern-tree CI drift",

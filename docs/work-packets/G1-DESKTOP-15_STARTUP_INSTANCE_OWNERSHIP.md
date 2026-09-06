@@ -5,7 +5,15 @@ report on 2026-09-06. Plan revision 12, digest
 126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb.
 Base: 585b7ea4 plus preserved source of the v0.1.6 local UI package.
 
-## Baseline and acceptance
+Packet ID: G1-DESKTOP-15
+Artifact role: primary
+Active gate: 1
+Classification: ALIGNED
+Owner: repository owner
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
+Dependencies: preserved v0.1.6 UI and startup evidence
+
+## Primary acceptance claim
 
 The owner reported immediate disappearance, then confirmed the app had started.
 The installed main process began at 01:58:52 Berlin; its backend started at
@@ -20,6 +28,8 @@ startup verification/migration, including before a backend port or window exists
 Later launches exit cleanly and attempt to restore/focus the existing window.
 The OS releases ownership on normal exit and process termination.
 
+## Scope
+
 Allowed: native desktop instance guard and its narrow Windows API dependency,
 wiring before Tauri setup, focused process tests, affected packaging contracts,
 local v0.1.6 repackage and this packet. Implement in the existing detached build
@@ -28,7 +38,7 @@ Forbidden: removing generation data, changing artifact identity/validation,
 adopting an unrelated port listener, killing the user's running app, new runtime
 state stores, kernel/policy changes, commit/merge/publication.
 
-## Verification matrix
+## Acceptance matrix
 
 - Real cross-process contention: second owner refused before any UI/backend.
 - Normal and abrupt owner exit release the OS object; no stale lock file.
@@ -40,7 +50,7 @@ state stores, kernel/policy changes, commit/merge/publication.
 - Rebuild v0.1.6 locally and retain the morning schedule with the corrected
   snapshot. No claim that the user's running binary was replaced.
 
-## Implementation choice
+## Contracts and behavior
 
 A Windows named kernel object held for the process lifetime avoids persistent
 lock files and protects the entire startup interval. It is a local coordination
@@ -49,7 +59,13 @@ plugin 2.4.4 was reviewed but not adopted: its Windows path can enter setup when
 the mutex exists but the first hidden message window does not yet exist, and its
 notification waits on a busy UI thread. Preserve that negative evidence.
 
-## Focused evidence and limits
+## Migration and rollback
+
+The guard is additive and creates no persistent lock. Rollback removes the
+native guard and its pre-setup wiring while retaining this packet and the
+positive and negative startup evidence.
+
+## Evidence, expected failures and review
 
 `cargo test --offline --target x86_64-pc-windows-gnu --lib instance::tests --
 --test-threads=1`: five passed, zero failed, 21 existing tests filtered, 0.65 s

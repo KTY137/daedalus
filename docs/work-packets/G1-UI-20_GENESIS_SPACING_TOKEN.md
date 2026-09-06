@@ -3,11 +3,12 @@
 Packet ID: G1-UI-20
 Artifact role: primary
 Active gate: 1
-Classification: ALIGNED (theme token wiring and glass presentation; no API,
-policy, evidence or Genesis behaviour change)
+Classification: ALIGNED
+Change class: theme token wiring and glass presentation; no API, policy,
+evidence or Genesis behaviour change.
 Owner: repository owner ("kannst du den genesis tab ein bissl schöner machen,
 beide panels berühren sich", 2026-09-06 08:47)
-Base revision: 585b7ea4 plus the uncommitted tree incl. G1-UI-15..19
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
 Dependencies: G1-UI-10 (glass recipe in `spatial.css`)
 Authority: IKARUS_ARIADNE_MASTER_PLAN.md revision 12.
 
@@ -36,7 +37,7 @@ setters), `apps/web/src/app/styles/spatial.css` (appended Genesis glass
 block), this packet. Not touched: `genesis.css`, `ariadne.css`, `ide.css`,
 Genesis.tsx, tests.
 
-## Changes
+## Contracts and behavior
 
 - `--u5 = unit × 2.5` and `--u7 = unit × 3.5` are defined next to the other
   steps and listed in the applied-token array, so `unit` changes in the
@@ -55,6 +56,11 @@ Genesis.tsx, tests.
 | Side effects | Ariadne view screenshot after: header, boundary and cards spaced; no test references the token list (grep `'--u` in theme.spec.ts, spatial.spec.ts, genesis.spec.ts: none) |
 | Not run | `tools/gui_check.py` browser suite |
 
-## Rollback
+## Evidence, expected failures and review
+
+The token audit and visual spacing checks are the focused evidence; known
+styling limits remain presentation-only and do not change Genesis behavior.
+
+## Migration and rollback
 
 Revert the two files. Nothing is stored.

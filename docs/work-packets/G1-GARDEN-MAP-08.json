@@ -1,4 +1,53 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-MAP-08",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "c0d45c167d7ce05019c65b2f8f689a73d99da814",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "authority",
+          "source"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "gardener",
+          "decision",
+          "cleanup"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "probe"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardener",
+          "cleanup",
+          "decision"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification"
+        ]
+      }
+    }
+  },
   "id": "G1-GARDEN-MAP-08",
   "title": "Re-verify indirect environment-reader blindness on the current canonical gardening tree",
   "status": "closed-research",

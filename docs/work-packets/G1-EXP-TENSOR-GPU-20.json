@@ -1,4 +1,53 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-20",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "9e21142919b73b15e7627a1c0bcdaf485fffec7e",
+    "dependencies": "G1-EXP-TENSOR-GPU-19 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "files",
+          "measurement_contract",
+          "control"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "measurement_contract",
+          "control",
+          "candidate"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "observations"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "promotion_state"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundaries",
+          "observations"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-20",
   "title": "Measure matched-count CSR row-order validation against the pre-GPU-19 row-state control in one process",
   "status": "closed-experiment",

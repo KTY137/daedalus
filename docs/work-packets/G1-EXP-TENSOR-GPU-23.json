@@ -1,4 +1,50 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-23",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c5c1cd68c6d6e4d8fdb324bdc103395d5c725d94",
+    "dependencies": "G1-EXP-TENSOR-GPU-22 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "research_question",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "experiment"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "experiment",
+          "gardening_close"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "experiment"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardening_close"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "claim_boundary",
+          "experiment"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-23",
   "title": "Retain a paired scalar-admission effect-size gate, then prune the one-shot harness",
   "status": "closed-experiment",

@@ -1,4 +1,52 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-26",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "9de1f0256b92b206ef9200f0b266a826d1e13353",
+    "dependencies": "G1-EXP-TENSOR-GPU-25 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "implementation",
+          "authority"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation",
+          "gardener_decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "promotion",
+          "closure"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "retained_diagnostics"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-26",
   "title": "Remove the impossible None branch from matched-count CSR row validation",
   "status": "closed-implementation",

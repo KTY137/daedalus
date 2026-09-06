@@ -194,18 +194,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "356 tracked files" in message  # re-measured 2026-09-06 after G1-IKARUS-32..35, 42..45
+    assert "423 tracked files" in message  # re-measured 2026-09-06 after the post-index registry migration
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
-    # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`.
+    # complete 2026-09-06 post-index artifact set with
+    # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 353,
+        "assigned_artifacts": 420,
         "legacy_artifacts": 204,
-        "packet_artifacts": 355,
-        "packet_ids": 290,
-        "post_index_artifacts": 151,
+        "packet_artifacts": 422,
+        "packet_ids": 357,
+        "post_index_artifacts": 218,
         "registry_artifacts": 1,
-        "tracked_files": 356,
+        "tracked_files": 423,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -256,7 +257,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
     expected_primary_ids = {
         "G1-ACCEL-01",
         "G1-ARIADNE-02",
-            "G1-ARIADNE-03",
+        "G1-ARIADNE-03",
         "G1-ARIADNE-04",
         "G1-ARIADNE-05",
         "G1-ARIADNE-06",
@@ -267,6 +268,8 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EDA-HOST-STATUS-02",
         "G1-GENESIS-REHEARSAL-01",
         "G1-IKARUS-26",
+        "G1-IKARUS-27",
+        "G1-IKARUS-28",
         "G1-IKARUS-29",
         "G1-IKARUS-30",
         "G1-IKARUS-31",
@@ -281,8 +284,10 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-SELF-00",
         "G1-SELF-01",
         "G1-TESTS-01",
-            "G1-COUNCIL-01",
-            "G1-DESKTOP-PRERELEASE-016",
+        "G1-COUNCIL-01",
+        "G1-COUNCIL-02",
+        "G1-DESKTOP-15",
+        "G1-DESKTOP-PRERELEASE-016",
         "G1-ENV-01",
         "G1-HW-01",
         "G1-KERNEL-02",
@@ -291,6 +296,47 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-GPU-ENV-01",
         "G1-EXP-TENSOR-GPU-01",
         "G1-EXP-TENSOR-GPU-02",
+        "G1-EXP-TENSOR-GPU-03",
+        "G1-EXP-TENSOR-GPU-04",
+        "G1-EXP-TENSOR-GPU-05",
+        "G1-EXP-TENSOR-GPU-06",
+        "G1-EXP-TENSOR-GPU-07",
+        "G1-EXP-TENSOR-GPU-08",
+        "G1-EXP-TENSOR-GPU-09",
+        "G1-EXP-TENSOR-GPU-10",
+        "G1-EXP-TENSOR-GPU-11",
+        "G1-EXP-TENSOR-GPU-12",
+        "G1-EXP-TENSOR-GPU-13",
+        "G1-EXP-TENSOR-GPU-14",
+        "G1-EXP-TENSOR-GPU-15",
+        "G1-EXP-TENSOR-GPU-16",
+        "G1-EXP-TENSOR-GPU-17",
+        "G1-EXP-TENSOR-GPU-18",
+        "G1-EXP-TENSOR-GPU-19",
+        "G1-EXP-TENSOR-GPU-20",
+        "G1-EXP-TENSOR-GPU-21",
+        "G1-EXP-TENSOR-GPU-22",
+        "G1-EXP-TENSOR-GPU-23",
+        "G1-EXP-TENSOR-GPU-24",
+        "G1-EXP-TENSOR-GPU-25",
+        "G1-EXP-TENSOR-GPU-26",
+        "G1-EXP-TENSOR-GPU-27",
+        "G1-EXP-TENSOR-GPU-28",
+        "G1-EXP-TENSOR-GPU-29",
+        "G1-EXP-TENSOR-GPU-30",
+        "G1-EXP-TENSOR-GPU-31",
+        "G1-EXP-TENSOR-GPU-32",
+        "G1-EXP-TENSOR-GPU-33",
+        "G1-EXP-TENSOR-GPU-34",
+        "G1-EXP-TENSOR-GPU-35",
+        "G1-EXP-TENSOR-GPU-36",
+        "G1-EXP-TENSOR-GPU-37",
+        "G1-EXP-TENSOR-GPU-38",
+        "G1-EXP-TENSOR-GPU-39",
+        "G1-EXP-TENSOR-GPU-40",
+        "G1-EXP-TENSOR-GPU-41",
+        "G1-EXP-TENSOR-GPU-42",
+        "G1-EXP-TENSOR-GPU-43",
         "G1-EXP-TENSOR-LATENT-CEILING-01",
         "G1-EXP-TENSOR-LATENT-CEILING-02",
         "G1-EXP-TENSOR-LATENT-CEILING-03",
@@ -299,6 +345,15 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-TENSOR-LATENT-CEILING-06",
         "G1-EXP-TENSOR-LATENT-CEILING-07",
         "G1-GATE-01",
+        "G1-GARDEN-BRANCH-03",
+        "G1-GARDEN-HYBRID-01",
+        "G1-GARDEN-HYBRID-02",
+        "G1-GARDEN-ISO-04",
+        "G1-GARDEN-MAP-05",
+        "G1-GARDEN-MAP-06",
+        "G1-GARDEN-MAP-07",
+        "G1-GARDEN-MAP-08",
+        "G1-GARDEN-MAP-09",
         "G1-GENESIS-01",
         "G1-GENESIS-02",
         "G1-GENESIS-03",
@@ -367,6 +422,9 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-IKARUS-CONTEXT-01",
         "G1-IKARUS-CV-01",
         "G1-INTEGRATE-DEEPSEEK-LAB-01",
+        "G1-ISO-01",
+        "G1-ISO-02",
+        "G1-ISO-03",
         "G1-KERNEL-01",
         "G1-MUT-01",
         "G1-MUT-02A",
@@ -376,7 +434,9 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-MUT-02E",
         "G1-MUT-02F",
         "G1-ORCH-01",
+        "G1-OPS-06",
         "G1-PKG-01",
+        "G1-RENOVATION-02A",
         "G1-RUNTIME-02",
         "G1-RUNTIME-03",
         "G1-RUNTIME-PROVIDER-01",
@@ -399,7 +459,15 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-UI-12",
         "G1-UI-13",
         "G1-UI-14",
+        "G1-UI-15",
+        "G1-UI-16",
+        "G1-UI-17",
+        "G1-UI-18",
+        "G1-UI-19",
+        "G1-UI-20",
+        "G1-UI-21",
         "G1-WEB-01",
+        "G1-WIKI-01",
         "G1-WP-IKARUS-COMPUTER-LOOP-01",
         "G1-WP-INDEX-01",
         "G1-SCC-02",
@@ -472,6 +540,65 @@ def test_new_primary_validation_rejects_missing_contract_and_id_drift() -> None:
     noncanonical["declared_packet_id"] = "G1-TEST-01_DESCRIPTIVE_SUFFIX"
     with pytest.raises(subject.IndexError, match="canonical ID exactly"):
         subject._validate_new_artifact(noncanonical, "G1-TEST-01", "G1-TEST-01")
+
+
+def test_json_registry_contract_projects_existing_evidence_without_copying_it() -> None:
+    payload = {
+        "id": "G1-EXP-TEST-01",
+        "finding": {"result": "retained"},
+        "scope": {"paths": ["experiment.py"]},
+        "implementation": {"changed": False},
+        "verification": {"result": "passed"},
+        "branch_hygiene": {"force_update": False},
+        "claim_boundary": {"promotion": False},
+        "registry_contract": {
+            "packet_id": "G1-EXP-TEST-01",
+            "artifact_role": "primary",
+            "active_gate": 1,
+            "classification": "EXPERIMENT",
+            "owner": "repository owner",
+            "base_revision": subject.LEGACY_BASE_REVISION,
+            "dependencies": "the exact retained base named by the packet",
+            "sections": {
+                "primary_acceptance_claim": {"source_fields": ["finding"]},
+                "scope": {"source_fields": ["scope"]},
+                "contracts_and_behavior": {"source_fields": ["implementation"]},
+                "acceptance_matrix": {"source_fields": ["verification"]},
+                "migration_and_rollback": {"source_fields": ["branch_hygiene"]},
+                "evidence_expected_failures_and_review": {
+                    "source_fields": ["verification", "claim_boundary"]
+                },
+            },
+        },
+    }
+
+    packet_id, role, metadata, sections = subject._json_contract(payload)
+
+    assert packet_id == "G1-EXP-TEST-01"
+    assert role == "primary"
+    assert metadata == {
+        "active_gate": 1,
+        "base_revision": subject.LEGACY_BASE_REVISION,
+        "classification": "EXPERIMENT",
+        "dependencies": "the exact retained base named by the packet",
+        "owner": "repository owner",
+    }
+    assert sections == subject.REQUIRED_SECTIONS
+
+
+def test_json_registry_contract_refuses_a_missing_evidence_source() -> None:
+    with pytest.raises(subject.IndexError, match="invalid source_fields"):
+        subject._json_contract(
+            {
+                "registry_contract": {
+                    "sections": {
+                        "primary_acceptance_claim": {
+                            "source_fields": ["missing_finding"]
+                        }
+                    }
+                }
+            }
+        )
 
 
 def test_packet_group_allows_companions_but_refuses_two_new_primaries() -> None:

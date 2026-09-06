@@ -1,14 +1,21 @@
 # G1-ISO-01 — the behavior probe leaves the verifier process
 
 Packet ID: `G1-ISO-01`
-Active gate: Gate 1 (Renovation ignition slice)
+Artifact role: primary
+Active gate: 1
+Gate context: Renovation ignition slice
 Classification: `ALIGNED`
 Owner: repository owner
-Base revision: `b7251af8`
+Base revision: `b7251af87eb1aaed1cac344fa7893dfa8deec324`
 Branch: `packet/g1-iso-01`
 Dependencies: none (the Gate-1 slice is green at this revision — see
 `runs/ignition/mission-gate1-voltage-ignition/receipt.json`, measured
 2026-09-03, `replay_demonstrated: true`)
+
+## Primary acceptance claim
+
+Behavior probes run in a child interpreter under explicit resource bounds and
+return typed refusals without weakening the existing policy boundary.
 
 ## 1. The defect
 
@@ -69,7 +76,7 @@ The other three baseline failures are `isolation` not declared, and two raw
 exceptions (`ModuleNotFoundError`, `RuntimeError`) escaping instead of
 `IgnitionError`.
 
-## 3. Scope
+## Scope
 
 In scope:
 
@@ -81,7 +88,7 @@ Forbidden paths: the master plan, the amendment chain, `AGENTS.md`,
 anything under `apps/`. The receipt's contract does not change, so `gate1.py`
 needs no edit; if it turns out to need one, that is a new packet.
 
-## 4. Decision, and the option that was rejected
+## Contracts and behavior
 
 **Chosen:** run the probe in a bounded child interpreter
 (`sys.executable -I -c <probe>`), parse one JSON object from its stdout.
@@ -106,7 +113,7 @@ Consequence, stated rather than hidden: the probe result declares
 probe to `spawn_contained` where the platform supports it is deferred work, not
 part of this packet.
 
-## 5. Acceptance matrix
+## Acceptance matrix
 
 | # | Claim | Test | Must fail before |
 | --- | --- | --- | --- |
@@ -130,7 +137,7 @@ mapping into the `ignition-behavior` evidence item, and the receipt compares
 two runs' check reports. A pid, duration or absolute path in the result would
 make every Gate-1 run report itself as a failed replay.
 
-## 6. Expected failures
+## Evidence, expected failures and review
 
 - The FIRST run after this change is legitimately not a replay: the evaluator
   bundle digest moves because `runner.py` moved. Two further runs are required
@@ -140,7 +147,7 @@ make every Gate-1 run report itself as a failed replay.
   0.1-0.3 s this packet first estimated. Slice wall time over the three
   acceptance runs was 15/15/17 s, unchanged within noise.
 
-## 7. Rollback
+## Migration and rollback
 
 Revert the single commit on `packet/g1-iso-01`. No schema, no stored artifact,
 no ledger and no receipt contract changes shape, so a revert needs no

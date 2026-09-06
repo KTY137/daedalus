@@ -3,11 +3,12 @@
 Packet ID: G1-UI-21
 Artifact role: primary
 Active gate: 1
-Classification: ALIGNED (deterministic test plus theme/material wiring; no
-API, policy, evidence or view-behaviour change)
+Classification: ALIGNED
+Change class: deterministic test plus theme/material wiring; no API, policy,
+evidence or view-behaviour change.
 Owner: repository owner ("mach weiter, nimm die most advanced general
 option", 2026-09-06 09:53, after G1-UI-20)
-Base revision: 5a13dbf9 plus the uncommitted UI tree (G1-UI-15..20)
+Base revision: 5a13dbf95e05becce15d26bdec199b26e62bc082
 Dependencies: G1-UI-20 (`--u5`/`--u7`), G1-UI-10 (glass recipe)
 Authority: IKARUS_ARIADNE_MASTER_PLAN.md revision 13.
 
@@ -47,7 +48,7 @@ Owned paths: `apps/web/src/app/tokens.spec.mjs` (new), `apps/web/src/app/run-spe
 packet. Not touched: `apply.ts` token list beyond G1-UI-20, any TSX, tests
 under `tests/`.
 
-## Changes
+## Contracts and behavior
 
 - **Audit.** `tokens.spec.mjs` walks `src` for `.css`, collects every
   `var(--x)` without a fallback, and checks it against `--x:` declarations in
@@ -75,14 +76,14 @@ under `tests/`.
 | Visual | Genesis and Ariadne at 1440 and 1024 px, zero page errors; Ariadne cards now opaque glass, fields no longer show the render |
 | Not run | `tools/gui_check.py` browser suite |
 
-## Residual
+## Evidence, expected failures and review
 
 The audit reads static text. A token set only at runtime under a condition
 (for example inside a `matchMedia` branch) counts as defined by its literal
 even if the branch never runs; that is the right side to err on for a
 spacing/colour audit, and a false "defined" is visible on screen.
 
-## Rollback
+## Migration and rollback
 
 Delete `tokens.spec.mjs`, revert the two lines in `run-spec.mjs` and the
 four stylesheets.

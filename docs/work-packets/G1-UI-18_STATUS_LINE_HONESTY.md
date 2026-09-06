@@ -3,10 +3,11 @@
 Packet ID: G1-UI-18
 Artifact role: primary
 Active gate: 1
-Classification: ALIGNED (presentation only; no API, policy or evidence
-change; the five-state health vocabulary is applied, not altered)
+Classification: ALIGNED
+Change class: presentation only; no API, policy or evidence change. The
+five-state health vocabulary is applied, not altered.
 Owner: repository owner (owner loop of 2026-09-06, iteration 3 of four)
-Base revision: 585b7ea4 plus the uncommitted tree incl. G1-UI-15/16/17
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
 Dependencies: G1-UI-17
 Authority: IKARUS_ARIADNE_MASTER_PLAN.md revision 12.
 
@@ -36,7 +37,7 @@ Owned paths: `apps/web/src/app/StatusLine.tsx` (two branches),
 chip, aria-labels ("Wer antwortet: …", "Zustand öffnen: …"), the
 `status-details-toggle`.
 
-## Changes
+## Contracts and behavior
 
 - No project: `<span class="status-item muted">Kein Projekt gewählt</span>`
   instead of `<b>—</b>`.
@@ -56,6 +57,11 @@ chip, aria-labels ("Wer antwortet: …", "Zustand öffnen: …"), the
 | Visual | Composer and footer crops before/after at 1440 px in the artifact "Daedalus GUI Iterationen" |
 | Not run | `tools/gui_check.py` browser suite |
 
-## Rollback
+## Evidence, expected failures and review
+
+The acceptance matrix retains the HTTP-500 baseline and verifies honest status
+copy; it does not turn a failing backend into a green health claim.
+
+## Migration and rollback
 
 Revert the two files.

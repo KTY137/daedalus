@@ -3,10 +3,11 @@
 Packet ID: G1-UI-17
 Artifact role: primary
 Active gate: 1
-Classification: ALIGNED (presentation and copy only; no theme schema,
-storage, API or policy change)
+Classification: ALIGNED
+Change class: presentation and copy only; no theme schema, storage, API or
+policy change.
 Owner: repository owner (owner loop of 2026-09-06, iteration 2 of four)
-Base revision: 585b7ea4 plus the uncommitted tree incl. G1-UI-15/16
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
 Dependencies: G1-UI-16 (iteration 1)
 Authority: IKARUS_ARIADNE_MASTER_PLAN.md revision 12.
 
@@ -35,7 +36,7 @@ rule, type-preview small rule), this packet. Not touched: tab names, the
 "Alle Looks" button, "Themes" trigger, "Fertig", save notices — every string
 the browser specs resolve.
 
-## Changes
+## Contracts and behavior
 
 - Header: `<h2>Theme Studio</h2>`; eyebrow and accent-dot rules deleted.
 - Looks: "Eingebaute Looks — Ein Klick wechselt sofort; das Original bleibt
@@ -55,6 +56,11 @@ the browser specs resolve.
 | Visual | Panel screenshots before/after, Looks and Schrift tabs, retained in the artifact "Daedalus GUI Iterationen" |
 | Not run | `tools/gui_check.py` browser suite (real-server harness) |
 
-## Rollback
+## Evidence, expected failures and review
+
+The focused copy assertions and retained browser capture are the evidence;
+known presentation limits remain named and no policy claim is implied.
+
+## Migration and rollback
 
 Revert the two files; no stored theme is affected.

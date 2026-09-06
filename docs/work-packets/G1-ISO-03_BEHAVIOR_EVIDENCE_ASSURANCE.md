@@ -1,11 +1,21 @@
 # G1-ISO-03 — the behavior item stops citing a seal it does not have
 
 Packet ID: `G1-ISO-03`
+Artifact role: primary
 Active gate: Gate 1
 Classification: `ALIGNED`
 Owner: repository owner
-Base revision: `a6e740b1`
+Base revision: `a6e740b1b12c4a4f3071272f06e71acb3c1e60e7`
+Dependencies: G1-ISO-02
 Branch: `packet/g1-iso-02` (stacked; G1-ISO-02 green and twice adversarially reviewed)
+
+## Primary acceptance claim
+
+Every behavior evidence item reports its derived assurance and the exact
+criterion module that produced it, including the retained residual limitation.
+
+## Scope
+
 In scope: `daedalus/ignition/gate1.py`, `tests/test_ignition_gate1.py`
 Forbidden: everything else, including `runner.py` and `checks.py` — this packet
 changes what the record CLAIMS, not what the probe does.
@@ -52,7 +62,7 @@ under `python -I -c`, `_nonce` and `_out` are ordinary `__main__` attributes.
 No `Event` class and no `parse_event` need exist. An item citing another
 check's seal is claiming a property it does not have.
 
-## 3. Decision
+## Contracts and behavior
 
 - pass the **derived** `assurance` to both items rather than a literal;
 - give each item **its own** reason, with the composed checks' reason appended
@@ -69,7 +79,7 @@ overstatement lives in the *reason*, and that is where it is fixed.
 real runtime behavior; the schema and link checks have the same shape of limit
 and are kept as items with their limit stated. Consistency beats a special case.
 
-## 4. Acceptance
+## Acceptance matrix
 
 | # | Claim | Test | Red before |
 | --- | --- | --- | --- |
@@ -89,7 +99,7 @@ something other than its stated proposition shipped once already
 Verified red-before by reverting `gate1.py` to `HEAD` with the new tests in
 place: **2 failed, 1 passed** — exactly rows 1, 2 and 3.
 
-## 5. What this does not change
+## Evidence, expected failures and review
 
 The probe's forgeability is **unchanged**. This packet moves no boundary; it
 corrects what the evidence says about the boundary that exists. Closing the
@@ -102,7 +112,7 @@ imports `ignition_app` and the straggler scan reads the tree, so both go red.
 The residue is a fabricated `gate1-behavior` item — which, after this packet,
 at least describes itself accurately.
 
-## 6. Rollback
+## Migration and rollback
 
 Revert the single commit. No schema, artifact, ledger or promotion path changes
 shape. The evaluator bundle digest moves because `gate1.py` moves, so the first

@@ -1,4 +1,53 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-33",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "8906f46bbddd9566b61095d7910375fb5c19c601",
+    "dependencies": "G1-EXP-TENSOR-GPU-32 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "research_question",
+          "decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "gardening",
+          "decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "hosted_evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardening",
+          "decision",
+          "next_bounded_packet"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "hosted_evidence",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-33",
   "title": "Bound duplicate Fourfold cross-plane label admission before production change",
   "classification": "RESEARCH",

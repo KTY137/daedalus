@@ -1,4 +1,51 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-40",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "81cb6990f4446bf0cee80ac246b3b12ae6fad5b8",
+    "dependencies": "G1-EXP-TENSOR-GPU-39 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "finding",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "cleanup",
+          "next_bounded_implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "negative_probe"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "cleanup"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "claim_boundaries",
+          "negative_probe",
+          "finding"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-40",
   "title": "Bound selected-signature Forest evidence materialization before production pruning",
   "classification": "research",

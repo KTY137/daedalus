@@ -1,4 +1,54 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-31",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "d74f6481d688d5d47556794751c51c5097e4d608",
+    "dependencies": "G1-EXP-TENSOR-GPU-30 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "candidate",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "gardening",
+          "decision",
+          "candidate"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "hosted_evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardening",
+          "decision",
+          "next_bounded_packet"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "hosted_evidence",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-31",
   "title": "Bound exact-int CSR common-path fusion with exhaustive semantic evidence",
   "classification": "EXPERIMENT",

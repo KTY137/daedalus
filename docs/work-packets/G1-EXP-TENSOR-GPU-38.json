@@ -1,4 +1,53 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-38",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "ed463851d445823b4ca6609dcd196d5b9c20d922",
+    "dependencies": "G1-EXP-TENSOR-GPU-37 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "finding",
+          "decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "decision",
+          "cleanup",
+          "probe"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "probe"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "cleanup",
+          "decision"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "claim_boundaries",
+          "finding"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-38",
   "title": "Bound indexed column fail-closed ordering before a production change",
   "classification": "research",

@@ -1,4 +1,51 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-HYBRID-01",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "finding",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "deleted",
+          "changed",
+          "added"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "gardener_decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claims",
+          "finding"
+        ]
+      }
+    }
+  },
   "schema": "daedalus-work-packet/1",
   "id": "G1-GARDEN-HYBRID-01",
   "title": "Prune duplicate packaged Fourfold hybrid retrieval stack",

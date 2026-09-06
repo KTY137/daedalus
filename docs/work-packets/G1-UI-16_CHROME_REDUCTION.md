@@ -3,11 +3,12 @@
 Packet ID: G1-UI-16
 Artifact role: primary
 Active gate: 1
-Classification: ALIGNED (presentation only; chat stays an interface, no
-orchestration, policy, API or evidence change)
+Classification: ALIGNED
+Change class: presentation only; chat stays an interface, with no orchestration,
+policy, API or evidence change.
 Owner: repository owner (owner loop of 2026-09-06, "GUI besser, aber nicht
 überladen", four iterations with artifacts)
-Base revision: 585b7ea4 plus the uncommitted G1-UI-12/13/14/15 tree
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
 Dependencies: G1-UI-14 (workspace pane), G1-UI-15 (rooms)
 Authority: IKARUS_ARIADNE_MASTER_PLAN.md revision 12.
 
@@ -40,7 +41,7 @@ for `.theme-trigger` and `.workspace-brand-caption`), this packet.
 Not touched: kernel, API, tests' accessible names ("Themes" stays the
 button's name; tests keep resolving it).
 
-## Changes
+## Contracts and behavior
 
 - Brand: caption removed; `aria-label="Daedalus"`; the two caption rules in
   `spatial.css` deleted with it.
@@ -60,6 +61,11 @@ button's name; tests keep resolving it).
 | Visual | After-screenshots at 1440×900 and 1024×720: four equal icon tools, no caption, no switch on the empty stage; zero console errors in the after-run |
 | Not run | `tools/gui_check.py` browser suite (needs the real server harness); named as residual |
 
-## Rollback
+## Evidence, expected failures and review
+
+The acceptance matrix and retained room screenshots are the focused evidence;
+no runtime-health or promotion claim is added by this presentation packet.
+
+## Migration and rollback
 
 Revert the two files; no data, storage or contract changes.

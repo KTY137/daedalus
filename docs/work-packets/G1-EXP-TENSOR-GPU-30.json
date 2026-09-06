@@ -1,4 +1,49 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-30",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "8e84b3e407a5fdc487be1eaafe6115b8029b7aad",
+    "dependencies": "G1-EXP-TENSOR-GPU-29 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "authority"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "gardener_change"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "promotion",
+          "closure"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-30",
   "title": "Contain settled residency and fanout probes from per-PR CI after evidence capture",
   "status": "closed-gardened",

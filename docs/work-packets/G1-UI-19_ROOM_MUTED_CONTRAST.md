@@ -3,10 +3,11 @@
 Packet ID: G1-UI-19
 Artifact role: primary
 Active gate: 1
-Classification: ALIGNED (palette values of six built-in looks; no schema,
-storage, API or policy change)
+Classification: ALIGNED
+Change class: palette values of six built-in looks; no schema, storage, API or
+policy change.
 Owner: repository owner (owner loop of 2026-09-06, iteration 4 of four)
-Base revision: 585b7ea4 plus the uncommitted tree incl. G1-UI-15..18
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
 Dependencies: G1-UI-13 (room looks), G1-UI-14 (pane), G1-UI-18
 Authority: IKARUS_ARIADNE_MASTER_PLAN.md revision 12.
 
@@ -51,7 +52,7 @@ spread (its render has bright reflections behind the glass), so its `ink3`
 lands at 85 % of the way to `ink2`; `ink2` moves from #bcc7d6 to #c4cedc so
 the three text steps stay distinguishable.
 
-## Changes
+## Contracts and behavior
 
 | Look | ink3 before | ink3 after | mix toward ink2 |
 | --- | --- | --- | --- |
@@ -89,13 +90,13 @@ the three text steps stay distinguishable.
 Graphite `ink2` (notes, suggestions) rose from 5.86 to 6.30; headlines
 unchanged. No look moved below any of its previous values.
 
-## Residual
+## Evidence, expected failures and review
 
 The measurement samples one pane on one viewport. Text over the bare room
 image (outside any pane) is not covered; with G1-UI-14 no body text sits
 there in glass looks, but the map's empty state headline does — it measured
 ≥ 8.9 and is not muted.
 
-## Rollback
+## Migration and rollback
 
 Revert `presets.ts`; stored themes are copies and keep their own values.

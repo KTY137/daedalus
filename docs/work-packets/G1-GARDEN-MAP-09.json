@@ -1,4 +1,51 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-MAP-09",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "f52ef035b63c4baf6b55c49319337506acf2a373",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "implementation",
+          "authority",
+          "source_evidence"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation",
+          "gardener"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardener",
+          "next"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "source_evidence"
+        ]
+      }
+    }
+  },
   "id": "G1-GARDEN-MAP-09",
   "title": "Resolve indirect environment-reader switches at their canonical call sites",
   "status": "closed-implementation",

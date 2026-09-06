@@ -1,4 +1,49 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-28",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c10329fe6373210551c432e0f93dc55082468f87",
+    "dependencies": "G1-EXP-TENSOR-GPU-27 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "authority"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "gardener_decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "paired_microstage_probe"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "promotion",
+          "closure"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "claim_boundary"
+        ]
+      }
+    }
+  },
   "work_packet": "G1-EXP-TENSOR-GPU-28",
   "title": "Bound the next CSR common-path optimization with semantic equivalence and paired predicate A/B evidence",
   "status": "closed-research",
