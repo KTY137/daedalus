@@ -197,6 +197,14 @@ class ComputerPolicy:
         parts = normalized.split("/")
         if normalized.startswith("/") or any(p == ".." or ":" in p or p.rstrip(" .") != p for p in parts if p != "."):
             raise ComputerRefused("path must remain relative to the computer workspace")
+        # Reject Windows-invalid names lexically, before pathlib reaches the
+        # host filesystem.  On Windows, lstat/resolve raises WinError 123 for
+        # these spellings; that would leak an adapter exception past the
+        # canonical policy refusal and could happen before the first
+        # checkpoint.  Keep the check platform-independent so admission has
+        # identical fail-closed semantics in offline fixtures.
+        if any(any(ord(ch) < 32 or ch in '<>\"|?*' for ch in part) for part in parts):
+            raise ComputerRefused("path contains Windows-invalid characters")
         if any(p.casefold() in _PROTECTED for p in parts):
             raise ComputerRefused("policy and repository control paths are protected")
         from pathlib import PureWindowsPath
