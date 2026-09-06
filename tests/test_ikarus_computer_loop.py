@@ -872,6 +872,9 @@ def test_an_observation_larger_than_the_window_is_counted_and_said(isolated, mon
     exceeded the estimate instead of letting the provider truncate silently."""
     monkeypatch.setenv("OLLAMA_NUM_CTX", "6144")
     root, ledger = isolated
+    # G1-IKARUS-45 bounds the prompt view, so the overflow counter stays 0 here; the counter and
+    # its chat line are pinned on a report whose window was not respected (a remote or older run).
+    monkeypatch.setattr(loop, "_prompt_view", lambda history, **kw: (list(history), loop._no_compaction(kw.get("budget_chars"))))
     result = loop.run_computer_task(root, "Read fixture", service=LongTextService(30_000), ledger=ledger,
                                     propose=planner(READ, DONE))
     assert result["state"] == "completed"
@@ -1074,3 +1077,82 @@ def test_a_heartbeat_without_a_bound_root_is_named_as_such(tmp_path, monkeypatch
     assert (unbound["state"], unbound["serves_this_root"], unbound["ticks_this_root"]) == ("alive", False, False)
     line = loop._watcher_line(unbound)
     assert "ohne Ordnerbindung" in line and "None" not in line
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-45: a bounded prompt view of the history (Momus design A with his constraints),
+# built only after measure-11c showed the local window overflows on one page read
+# --------------------------------------------------------------------------
+
+def _read_history(*texts, ok=True, tool="browser.read", start=1):
+    return [{"step": start + i, "tool": tool, "outcome": {"ok": ok, "state": "verified", "result": {"text": t}},
+             "artifact": {"sha256": "a" * 64, "locator": "artifact-locator:sha256:" + "a" * 64}} for i, t in enumerate(texts)]
+
+
+def test_prompt_view_is_pure_bounded_and_marks_every_elision():
+    import copy
+    history = _read_history("A" * 10_000, "B" * 10_000, "C" * 10_000, "D" * 10_000)
+    before = copy.deepcopy(history)
+    view, compaction = loop._prompt_view(history, budget_chars=15_000)
+    assert history == before, "the retained history is never mutated"
+    assert compaction["version"] == "v1" and compaction["applied"] is True and compaction["fits"] is True
+    assert compaction["elided_steps"] == [1, 2, 3, 4] and compaction["verbatim_window"] == loop._STALL_OBSERVATIONS
+    oldest = view[0]["outcome"]["result"]
+    assert len(oldest["text"]) == loop._OLD_OBSERVATION_TEXT_CHARS and oldest["text_elided"] is True
+    assert oldest["text_full_chars"] == 10_000 and len(oldest["text_full_sha256"]) == 64
+    assert view[0]["elided_by_prompt_view"] is True and "artifact" in view[0]
+    shares = {len(entry["outcome"]["result"]["text"]) for entry in view[1:]}
+    assert len(shares) == 1 and loop._MIN_WINDOW_TEXT_CHARS <= shares.pop() < 10_000, "the window shares equally"
+    assert sum(len(json.dumps(e, ensure_ascii=False)) for e in view) <= 15_000
+    again, _ = loop._prompt_view(history, budget_chars=15_000)
+    assert again == view, "deterministic"
+
+
+def test_prompt_view_keeps_failed_observations_verbatim_and_needs_no_change_when_it_fits():
+    history = _read_history("F" * 5_000, ok=False) + _read_history("G" * 5_000, "H" * 5_000, "I" * 5_000, start=2)
+    view, compaction = loop._prompt_view(history, budget_chars=12_000)
+    assert view[0]["outcome"]["result"]["text"] == "F" * 5_000 and "elided_by_prompt_view" not in view[0]
+    assert compaction["applied"] is True and 1 not in compaction["elided_steps"]
+    small, none = loop._prompt_view(_read_history("x" * 100), budget_chars=10_000)
+    assert none["applied"] is False and small[0]["outcome"]["result"]["text"] == "x" * 100
+    unknown, no_window = loop._prompt_view(_read_history("y" * 100_000), budget_chars=None)
+    assert no_window["applied"] is False and no_window["reason"] == "no known window"
+    with pytest.raises(ValueError):
+        loop._prompt_view(history, budget_chars=12_000, verbatim_window=loop._STALL_OBSERVATIONS - 1)
+
+
+def test_the_loop_bounds_the_prompt_to_the_local_window_and_reports_it(isolated, monkeypatch):
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "6144")
+    root, ledger = isolated
+    propose, prompts = _capturing_planner(READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=LongTextService(30_000), ledger=ledger,
+                                    propose=propose, mission_id="compaction-local")
+    assert result["state"] == "completed"
+    assert result["prompt_overflow_calls"] == 0 and result["prompt_chars_max"] <= 6144 * 4
+    shown = prompts[1]["observations"][0]["outcome"]["result"]
+    assert shown["text_elided"] is True and shown["text_full_chars"] == 30_000 and len(shown["text"]) < 30_000
+    assert result["compaction"]["version"] == "v1" and result["compaction"]["applied_calls"] == 1
+    assert result["steps"][0]["outcome"]["result"]["text"] == "x" * 30_000, "the report keeps the full observation"
+    artifacts = (root / "control" / "ikarus-computer-artifacts").glob("*.json")
+    proposals = [json.loads(path.read_text()) for path in artifacts if '"ikarus-computer-proposal/1"' in path.read_text()]
+    assert any(a["compaction"]["applied"] for a in proposals) and all("compaction" in a for a in proposals)
+    assert "text_elided" in json.dumps(prompts[1]) and "elided" in prompts[1].get("_directive", "") or "elided" in loop._prompt("o", [], [], {})
+
+
+def test_a_remote_planner_gets_the_full_history(isolated):
+    root, ledger = isolated
+    propose, prompts = _capturing_planner(READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=RemoteService(), ledger=ledger, propose=propose)
+    assert result["compaction"]["applied_calls"] == 0 and result["compaction"]["reason"] == "no known window"
+
+
+def test_a_stall_on_elided_reads_is_attributed_to_the_view(isolated, monkeypatch):
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "6144")
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=LongTextService(30_000, max_steps=8), ledger=ledger,
+                                    propose=planner(READ, READ, READ, DONE))
+    assert result["state"] == "stalled" and result["stall_after_elision"] is True
+    assert "elided" in result["summary"]
+    plain = loop.run_computer_task(root, "Read fixture", service=Service(max_steps=8), ledger=ledger,
+                                   propose=planner(READ, READ, READ, DONE))
+    assert plain["state"] == "stalled" and plain["stall_after_elision"] is False
