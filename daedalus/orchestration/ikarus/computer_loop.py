@@ -763,6 +763,55 @@ def _chat_report(report: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def watcher_projection(authority_root: str | Path, *, now: float | None = None) -> dict[str, Any]:
+    """Read-only: will a File Bridge watcher tick due tasks for this authority root?
+
+    Automatic scheduled execution exists only while ``python -m daedalus.file_bridge
+    watch --repo-root <root>`` runs for exactly this root (G1-IKARUS-20); the desktop
+    never adopts that watcher in v0.1.6. A queued task with no such watcher is stored
+    and never runs, and until G1-IKARUS-35 nothing told the owner so. This reads the
+    watcher heartbeat and fails open: an unreadable heartbeat is reported as
+    ``unknown``, never as running. It grants nothing and starts nothing."""
+    root = Path(authority_root).resolve()
+    restart = f'python -m daedalus.file_bridge watch --repo-root "{root}"'
+    try:
+        from ...file_bridge import heartbeat_status
+        status = heartbeat_status(now)
+    except Exception as exc:  # a read that cannot be made is reported, not guessed
+        return {"state": "unknown", "serves_this_root": None, "ticks_this_root": False,
+                "age_s": None, "pid": None, "watcher_root": None, "restart": restart,
+                "detail": f"{type(exc).__name__}: {exc}"[:200]}
+    served = status.get("repo_root")
+    if status.get("state") == "none":
+        serves = None
+    elif isinstance(served, str) and served:
+        try:
+            serves = Path(served).resolve() == root
+        except OSError:
+            serves = False
+    else:
+        serves = False
+    return {"state": status.get("state"), "serves_this_root": serves,
+            "ticks_this_root": bool(serves) and status.get("state") in {"alive", "busy"},
+            "age_s": status.get("age_s"), "pid": status.get("pid"), "watcher_root": served,
+            "restart": restart, "detail": status.get("detail")}
+
+
+def _watcher_line(projection: Mapping[str, Any]) -> str:
+    """One honest sentence for the chat: does anything execute the stored tasks?"""
+    restart = projection.get("restart")
+    if projection.get("ticks_this_root"):
+        age = projection.get("age_s")
+        when = f", letzter Tick vor {age:.0f} s" if isinstance(age, (int, float)) else ""
+        return (f"Watcher: aktiv für diesen Ordner (PID {projection.get('pid')}{when}); "
+                "fällige Aufträge werden automatisch ausgeführt.")
+    if projection.get("serves_this_root") is False and projection.get("state") in {"alive", "busy"}:
+        return (f"Watcher: läuft für einen anderen Ordner (`{projection.get('watcher_root')}`); Aufträge für diesen "
+                f"Ordner werden nicht automatisch ausgeführt. Start: `{restart}`")
+    return (f"Watcher: nicht aktiv ({projection.get('state')}); Aufträge werden nicht automatisch ausgeführt, "
+            f"`/computer run-due` prüft manuell. Start: `{restart}`")
+
+
 def _repeat_request(argument: str) -> tuple[int, int, str]:
     """Parse an explicit finite repeat command, never an inferred standing grant."""
     import re
@@ -820,12 +869,13 @@ def conversation_events(project: str | None, message: str, *,
                                                      repeat_every_s=seconds, occurrences=count)
                 summary = (f"{count} Ausführungen mit mindestens {seconds} Sekunden Abstand eingeplant: "
                            f"`{result['schedule_id']}`. Nach einer unklaren oder fehlgeschlagenen Aktion stoppt die Serie.")
+            watcher = None
             if verb.casefold() != "cancel":
-                summary += ("\n\nDer File-Bridge-Watcher dieser Installation führt fällige Aufträge aus. "
-                            "`/computer run-due` prüft manuell. Abbruch: "
-                            f"`/computer cancel {result['schedule_id']}`.")
+                watcher = watcher_projection(root)
+                summary += f"\n\n{_watcher_line(watcher)} Abbruch: `/computer cancel {result['schedule_id']}`."
             yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
-                                         assistant=summary, computer=result)
+                                         assistant=summary,
+                                         computer={**result, "watcher": watcher} if watcher is not None else result)
             return
         if verb.casefold() in {"remember", "forget", "notes", "skill"}:
             from . import computer_context
@@ -851,10 +901,11 @@ def conversation_events(project: str | None, message: str, *,
             if len(parts) != 3:
                 raise ComputerLoopRefused("Use /computer schedule <ISO8601-with-timezone> <task>")
             scheduled = KairosScheduler().schedule_computer(root, parts[1], parts[2], owner_confirmed=True)
+            watcher = watcher_projection(root)
             yield "final", core.envelope(
                 project, intent="computer", shell="hand", provider_used="deterministic",
-                assistant=f"Computer task scheduled: `{scheduled['schedule_id']}`. It runs while the File Bridge watcher for this installation is running; /computer run-due performs a manual tick.",
-                computer=scheduled,
+                assistant=f"Computer task scheduled: `{scheduled['schedule_id']}`. {_watcher_line(watcher)}",
+                computer={**scheduled, "watcher": watcher},
             )
             return
         if objective.casefold() in {"scheduled", "run-due"}:
@@ -864,11 +915,12 @@ def conversation_events(project: str | None, message: str, *,
             else:
                 from ...kairos.scheduler import KairosScheduler
                 rows = KairosScheduler().dispatch_due_computer(root, cancelled=cancelled)
+            watcher = watcher_projection(root)
             yield "final", core.envelope(
                 project, intent="computer", shell="hand", provider_used="deterministic",
-                assistant=f"{len(rows)} scheduled task record(s). Automatic ticks require the File Bridge watcher for `{root}`.\n\n```json\n"
+                assistant=f"{len(rows)} scheduled task record(s). {_watcher_line(watcher)}\n\n```json\n"
                           + json.dumps(rows, ensure_ascii=False, default=str)[:12000] + "\n```",
-                computer={"scheduled": rows},
+                computer={"scheduled": rows, "watcher": watcher},
             )
             return
         if objective.casefold() == "configure" or objective.casefold().startswith("configure "):
