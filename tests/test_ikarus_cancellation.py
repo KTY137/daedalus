@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from daedalus.ikarus_cancellation import (
@@ -24,6 +26,31 @@ def test_registry_cancel_is_idempotent_and_reports_active_owner() -> None:
     }
     assert second.active is True
     assert second.newly_cancelled is False
+
+
+def test_signal_cancel_transition_has_exactly_one_winner_under_race() -> None:
+    signal = CancellationSignal("turn-race-000001")
+    start = threading.Barrier(9)
+    results: list[bool] = []
+    results_lock = threading.Lock()
+
+    def cancel() -> None:
+        start.wait()
+        result = signal.cancel()
+        with results_lock:
+            results.append(result)
+
+    threads = [threading.Thread(target=cancel) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert len(results) == 8
+    assert results.count(True) == 1
+    assert results.count(False) == 7
+    assert signal.cancelled() is True
 
 
 def test_unknown_id_is_not_misreported_as_cancelled_work() -> None:
