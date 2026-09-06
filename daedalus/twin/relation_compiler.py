@@ -49,6 +49,12 @@ def relation_block_name(signature: RelationSignature) -> str:
     )
 
 
+def _materialize_declared_sequence(values: Sequence[Any]) -> tuple[Any, ...]:
+    """Materialize exactly the cardinality declared by a bounded sequence."""
+
+    return tuple(values[index] for index in range(len(values)))
+
+
 @dataclass(frozen=True)
 class CompiledRelationBlocks(Generic[T]):
     """One deterministic relation-block projection and its compact receipt."""
@@ -82,9 +88,18 @@ class CompiledRelationBlocks(Generic[T]):
             if type(value) is not int or value < 0:
                 raise ValueError(f"{name} must be a non-negative integer")
 
+        if isinstance(self.blocks, (str, bytes, Mapping)) or not isinstance(
+            self.blocks, Sequence
+        ):
+            raise ValueError("blocks must be a bounded sequence")
+        if len(self.blocks) > MAX_COMPILED_RELATIONS:
+            raise ValueError(
+                f"compiled block count exceeds limit {MAX_COMPILED_RELATIONS}"
+            )
+
         names: set[str] = set()
         ordered: list[tuple[str, TypedRelationBlock[T]]] = []
-        for name, block in tuple(self.blocks):
+        for name, block in _materialize_declared_sequence(self.blocks):
             if type(name) is not str or not name:
                 raise ValueError("compiled block names must be non-empty strings")
             if name in names:
@@ -148,13 +163,15 @@ def _selected_signatures(
     if requested is None:
         values = tuple(discovered)
     else:
-        if isinstance(requested, (str, bytes, Mapping)):
+        if isinstance(requested, (str, bytes, Mapping)) or not isinstance(
+            requested, Sequence
+        ):
             raise ValueError("signatures must be a bounded sequence")
         if len(requested) > MAX_COMPILED_RELATIONS:
             raise ValueError(
                 f"signatures exceed bounded limit {MAX_COMPILED_RELATIONS}"
             )
-        values = tuple(requested)
+        values = _materialize_declared_sequence(requested)
         if any(not isinstance(item, RelationSignature) for item in values):
             raise ValueError(
                 "signatures must contain RelationSignature records"
