@@ -136,15 +136,16 @@ def test_exact_composite_authority_round_trips_and_verifies() -> None:
 
 
 def test_authority_evidence_hashing_is_detached_from_shared_helper(monkeypatch) -> None:
-    authority = _authority(_execution())
-    body = authority.to_dict()
+    execution = _execution()
+    baseline = _authority(execution)
+    body = baseline.to_dict()
     signing_body = dict(body)
     signing_body["signature_sha256"] = "0" * 64
     contract_body = {
         "schema": "daedalus-provider-invocation-contract/1",
-        "invocation_contract_id": authority.invocation_contract_id,
-        "invocation_subject_sha256": authority.invocation_subject.digest,
-        "invocation_registry_sha256": authority.invocation_registry_sha256,
+        "invocation_contract_id": baseline.invocation_contract_id,
+        "invocation_subject_sha256": baseline.invocation_subject.digest,
+        "invocation_registry_sha256": baseline.invocation_registry_sha256,
     }
     expected = (
         canonical_sha(body),
@@ -159,10 +160,13 @@ def test_authority_evidence_hashing_is_detached_from_shared_helper(monkeypatch) 
         raising=False,
     )
 
+    candidate = _authority(execution)
+    _verify(candidate, execution)
+    assert candidate == baseline
     assert (
-        authority.digest,
-        authority.signing_digest,
-        authority.invocation_contract_sha256,
+        candidate.digest,
+        candidate.signing_digest,
+        candidate.invocation_contract_sha256,
     ) == expected
 
 
