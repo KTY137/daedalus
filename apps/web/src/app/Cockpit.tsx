@@ -927,9 +927,9 @@ export function Cockpit() {
       </header>
     ) : (
       <header className="chrome bar">
-        <div className="workspace-brand" role="img" aria-label="Daedalus — your ideas, in motion">
+        <div className="workspace-brand" role="img" aria-label="Daedalus">
           <span className="workspace-brand-mark"><Aperture size={22} strokeWidth={1.4} aria-hidden="true" /></span>
-          <span>daedalus<span className="workspace-brand-caption">YOUR IDEAS, IN MOTION</span></span>
+          <span>daedalus</span>
         </div>
         <ProjectPicker projects={projects} project={project} onPick={setProject} onRegistered={loadProjects} reduced={reducedMotion} />
         <span className="chrome-divider" aria-hidden="true" />
@@ -957,7 +957,10 @@ export function Cockpit() {
       {view === 'map' && (
         <main className="cockpit-body map">
           <div className="cockpit-stage">
-            {graphModeSwitch}
+            {/* The Modulumfeld/Fourfold switch belongs to a map; without a
+                project there is no map, and a switch over an empty stage is a
+                control with nothing to control. */}
+            {project && graphModeSwitch}
             {graphMode === 'modules' ? (
               nh ? (
                 <Stage
@@ -1573,7 +1576,7 @@ function ChromeTools({
         <kbd className="chrome-kbd">Strg ,</kbd>
       </button>
       <button type="button" className="theme-trigger" onClick={onStudio} title="Themes">
-        <Palette size={17} aria-hidden="true" /><span>Themes</span>
+        <Palette size={17} aria-hidden="true" /><span className="tool-label">Themes</span>
       </button>
       <span className="chrome-divider" aria-hidden="true" />
       <a className="chrome-link" href="?surface=classic" title="Kompatibilitätsalias — öffnet dieselbe Cockpit-App">

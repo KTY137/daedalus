@@ -1,10 +1,10 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 12
-Version: 2.3.0
+Revision: 13
+Version: 2.4.0
 Status: adopted  
-Date: 2026-09-05
+Date: 2026-09-06
 Owner: repository owner  
 Active delivery gate: Gate 1 — Renovation, owner-directed Genesis and general computer assistance  
 Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`
@@ -340,6 +340,39 @@ not modify policy or evaluators and remain separate from Ariadne adaptive
 memory. External tools and connectors use adapters behind the same admission
 boundary. Unavailable dependencies and integrations are reported as unavailable.
 
+### 7.3 Hardware design targets
+
+Genesis supports target materializations for PCB, FPGA/SoC, and firmware design.
+
+**PCB projects** (KiCad 8/9 and later): `.kicad_pro`, `.kicad_sch`, `.kicad_pcb`
+source files become ProductSpec inputs. Deterministic evaluators include
+`kicad-cli erc`, `kicad-cli drc` for symbol/footprint/constraint validation,
+and netlist/BOM extraction as Data plane artifacts. Symbols and footprints
+remain Type plane; schematic/layout hierarchy are Code plane. Source Identity
+follows symbol/footprint/library provenance with explicit version, license and
+temporal binding; any imported library without declared provenance blocks the
+manifest and is reported as `incomplete_sources`.
+
+**FPGA/SoC projects** (Vivado/Vitis, AMD/Xilinx): build on the existing
+read-only XPR inspection (docs/chip-design/README.md) and static Vivado Tcl
+runner. RTL (Verilog/SystemVerilog/VHDL), block designs, HLS, and constraints
+become source candidates; synthesis/implementation reports are deterministic
+evaluators. Timing, utilization, DRC, methodology, and simulation receipt
+contracts are expanded from G1-EDA-01 to support bounded Genesis synthesis and
+implementation rounds. IP/block-design library provenance and vendor catalog
+state are declared as explicit trust inputs.
+
+**Firmware**: source targets for the selected board (ARM Cortex-M, RISC-V,
+x86) with deterministic toolchain (GCC/Clang, LLVM) and evaluators (static
+lint, unit test, simulation via GTest/pytest/cocotb). Bootloader and runtime
+isolation is an explicit design statement, not inferred from target family.
+Binary evaluators (checksum, size, symbol table) become Data plane artifacts
+when relevant.
+
+Daedalus does not claim to verify mixed-signal, power-integrity, thermal,
+electrical safety, or manufacturing-readiness. Those remain explicit out-of-scope
+dimensions.
+
 ## 8. Ariadne and the evolution layer
 
 The orchestration layer executes one bounded software mission. The evolution
@@ -380,6 +413,24 @@ Every campaign follows this controlled loop:
 Campaigns factorize evolution: change one major axis at a time unless a
 pre-registered interaction experiment justifies more. Code, prompts, operators,
 evaluators, and orchestration do not silently co-evolve in one campaign.
+
+### 8.1 Self-Renovation strand
+
+Ariadne may run controlled Renovation campaigns whose subject is the Daedalus
+repository itself (code, tests, documentation, provider adapters). Each campaign
+is an isolated, capability-bounded trial under the same Invariant rules:
+candidates are content-addressed source trees, candidates cannot modify their
+evaluator, policy, evidence ledger or promotion mechanism (Invariant 3/5).
+
+Self-Renovation campaigns carry an additional leakage boundary: a candidate
+produced from `daedalus/` sources may not edit `daedalus/spine`, `daedalus/kernel`
+policy enforcement, the master plan (`docs/IKARUS_ARIADNE_MASTER_PLAN.md`),
+amendment chain, `AGENTS.md`, or tests of its own evaluator. This prevents a
+candidate from weakening its own constraints.
+
+Every nominated candidate requires an explicit owner OwnerApproval per section
+7.1 before promotion to the primary checkout. No self-nominated or auto-merged
+candidate is admitted.
 
 ## 9. Generation, corpus composition, and round-trip compilation
 
@@ -550,6 +601,13 @@ cancellation, timeout and crash recovery. General-assistant availability
 neither closes the Renovation gate nor establishes a scientific comparison
 against Hermes or another system.
 
+Gate 1 also admits self-Renovation campaigns of section 8.1. Subject is the
+Daedalus repository itself; evaluators are existing tests, deterministic lint,
+and review-gating. Candidates are isolated, cannot edit their own evaluator or
+Daedalus policy boundaries, and require owner OwnerApproval per candidate for
+promotion. Self-Renovation neither advances the research gates nor claims
+autonomous self-improvement without explicit approval.
+
 ### Gate 2 — Forest v2 and corpus seed
 
 Add function/method resolution, data/schema extraction, knowledge crosslinks,
@@ -716,6 +774,27 @@ as an explicit historical discontinuity; no approval or historical hash is
 invented. Its evidence is in
 `docs/work-packets/G1-IKARUS-17_GENERAL_ASSISTANT_AMENDMENT.md`.
 
+### Revision 13 — Hardware targets and self-Renovation (2026-09-06)
+
+The repository owner approved the exact draft in
+`docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` on
+2026-09-06 at 08:48, choosing "Ja, exakt wie entworfen" to the explicit
+question put in the review session; the answer is recorded verbatim in
+`docs/decisions-pending/OWNER_DECISIONS_20260906.md`. Genesis gains hardware
+design targets (section 7.3: PCB with KiCad, FPGA/SoC with Vivado/Vitis,
+firmware) with deterministic evaluators and declared library provenance.
+Ariadne gains a self-Renovation strand (section 8.1) under the same invariants
+plus a leakage boundary that keeps a candidate away from the spine, kernel
+policy enforcement, the plan, the amendment chain, `AGENTS.md` and its own
+evaluator's tests. Gate 1 admits such campaigns without advancing any research
+gate; section 13 forbids an LLM-judgment gate for electrical validation.
+
+This amendment records only what was approved. The existing read-only KiCad
+inspection (G1-HW-01), Vivado/Vitis Tcl emission (G1-EDA-HOST-STATUS-02) and
+two self-Renovation nominations (G1-SELF-00/01) remain EXPERIMENT evidence
+until their production packets pass the section 10 chain; no hardware
+toolchain was available on the measuring host and nothing was promoted.
+
 ## 13. Forbidden default directions
 
 Do not add these to the production architecture:
@@ -734,7 +813,9 @@ Do not add these to the production architecture:
 - a greenfield rewrite that discards measured failures and working modules;
 - dependent feature packets built on an unreviewed or red parent packet;
 - corpus ingestion that drops source license, revision, or temporal provenance;
-- treating visual similarity or an LLM critique as sufficient UI acceptance.
+- treating visual similarity or an LLM critique as sufficient UI acceptance;
+- an LLM-judgment gate for ERC, DRC, timing closure, or electrical validation
+  in hardware designs; deterministic tools and independent human review only.
 
 Any of these may appear only in an isolated falsification experiment with an
 explicit hypothesis and no production promotion.

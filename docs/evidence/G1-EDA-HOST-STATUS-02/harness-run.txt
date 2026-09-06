@@ -1,0 +1,30 @@
+# Contained tclsh dry parse of each emitted script. The subject script
+# is embedded in the harness as base64, so the harness reads no file.
+# Every vendor command and every effectful Tcl surface is stubbed, so
+# no vendor tool runs and nothing is written. This is Tcl parseability
+# evidence only; it is not evidence that AMD Vivado or Vitis HLS
+# accepts these scripts, and Daedalus itself never runs the harness.
+
+$ tclsh <TMP>/vivado_full.harness.tcl
+returncode: 0
+DAEDALUS_VIVADO_EMITTED_OK scope=full
+DAEDALUS_TCL_PARSE sha256_expected=99e3fc661fcd90b4f51578af81078f84ec8b149ae025333e291673c19305d964
+DAEDALUS_TCL_PARSE embedded_bytes=5599
+DAEDALUS_TCL_PARSE complete=1
+DAEDALUS_TCL_PARSE stub_calls=42
+DAEDALUS_TCL_PARSE intercepted_exit=0
+DAEDALUS_TCL_PARSE tcl_error=
+DAEDALUS_TCL_PARSE vendor_acceptance_claimed=0
+harness wrote nothing new into its directory: True
+
+$ tclsh <TMP>/vitis_hls.harness.tcl
+returncode: 0
+DAEDALUS_VITIS_HLS_EMITTED_OK scope=csynth
+DAEDALUS_TCL_PARSE sha256_expected=80ef3c3ceae3247cb861f07a3b42a2c168fbb5ceedfeb457735d4118f41cd4ed
+DAEDALUS_TCL_PARSE embedded_bytes=2835
+DAEDALUS_TCL_PARSE complete=1
+DAEDALUS_TCL_PARSE stub_calls=11
+DAEDALUS_TCL_PARSE intercepted_exit=0
+DAEDALUS_TCL_PARSE tcl_error=
+DAEDALUS_TCL_PARSE vendor_acceptance_claimed=0
+harness wrote nothing new into its directory: True

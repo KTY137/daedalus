@@ -1,6 +1,7 @@
 """General computer loop contract tests; fake adapters are not live host evidence."""
 from __future__ import annotations
 
+import itertools
 import json
 import threading
 from pathlib import Path
@@ -15,15 +16,17 @@ from daedalus.spine.durability import open_gate0_spine_writer
 class Service:
     policy_digest = "a" * 64
 
-    def __init__(self, *, enabled=True, result=None, max_steps=4):
+    def __init__(self, *, enabled=True, result=None, max_steps=4, unavailable=None):
         self.calls = []
         self.enabled = enabled
+        self.unavailable = dict(unavailable or {})
         self.result = result or {"ok": True, "state": "verified", "result": {"text": "fixture"}, "evidence": {"digest": "b" * 64}}
         self.max_steps = max_steps
         self.stopped = False
 
     def capabilities(self):
         return {"enabled": self.enabled, "tools": [{"name": "file.read", "description": "Read a permitted file", "parameters": {}}],
+                "unavailable": dict(self.unavailable),
                 "max_steps": self.max_steps, "timeout_s": 10, "planner_provider": "ollama_http"}
 
     def check_cancelled(self):
@@ -310,3 +313,275 @@ def test_stream_cancellation_reaches_inflight_computer_planner(isolated):
     assert not worker.is_alive()
     assert not service.calls
     assert not results
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-26: what the live 2026-09-05 measurement found (missions computer-loop-measure-02/03)
+# --------------------------------------------------------------------------
+
+PLAN = {"type": "plan", "steps": ["Read the page and report the title.", "Observe the current browser DOM again."]}
+PLAN_OTHER = {"type": "plan", "steps": ["Read the page and report the title."]}
+RELEASE_LOCK = "workspace path tools are disabled in v0.1.6 until handle-relative, reparse-safe I/O is independently verified"
+
+
+def _unbounded(monkeypatch):
+    """The owner's Revision-10 master option: every Daedalus-owned cap axis disabled."""
+    from daedalus.kernel.policy.limits import ExecutionLimitPolicy, store_in_env
+
+    env = {}
+    store_in_env(ExecutionLimitPolicy(mode="unbounded_execution"), env)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+
+def test_release_locked_policy_is_reported_as_locked_not_as_missing(isolated):
+    """Mission computer-loop-measure-02: a configured policy whose every tool was
+    release-locked was reported as if no policy existed."""
+    root, ledger = isolated
+    locked = Service(enabled=False, unavailable={"file.read": RELEASE_LOCK, "file.write": RELEASE_LOCK})
+    result = loop.run_computer_task(root, "Read fixture", service=locked, ledger=ledger, propose=planner())
+    assert result["state"] == "unavailable"
+    assert "every configured tool is unavailable" in result["summary"]
+    assert "file.read: workspace path tools are disabled" in result["summary"]
+    assert "owner-configured" not in result["summary"]
+    assert not ledger.recent_intents(loop.MISSION_KIND)
+    missing = loop.run_computer_task(root, "Read fixture", service=Service(enabled=False), ledger=ledger, propose=planner())
+    assert missing["state"] == "unavailable"
+    assert "needs an owner-configured computer policy" in missing["summary"]
+
+
+def test_three_identical_plans_stall_even_under_unbounded_execution(isolated, monkeypatch):
+    """Mission computer-loop-measure-03: a 7B planner repeated one plan eleven times and only
+    the kill switch ended the loop. Identical plans are a progress criterion, not a cap, so
+    the rule holds when every cap axis is disabled and the step limit is not enforced."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN, PLAN, PLAN, READ, DONE), mission_id="plan-stall")
+    assert result["state"] == "stalled", result["summary"]
+    assert "identical advisory plans" in result["summary"]
+    assert (result["planner_calls"], result["replans"], result["tool_steps"]) == (3, 2, 0)
+    assert len(result["proposals"]) == 3, "all three proposals stay retained"
+    assert result["plan"]["revision"] == 3
+    assert service.calls == []
+
+
+# Both counter-cases below kept their claim but lost two planner calls in G1-IKARUS-29:
+# their original sequences ran five and four plans without an intervening tool step and
+# now end on the plan budget, which is the intended new behaviour and is asserted by
+# test_four_paraphrased_plans_without_a_tool_step_stall_under_unbounded_execution.
+
+def test_a_different_plan_or_a_tool_step_resets_the_identical_plan_sequence(isolated, monkeypatch):
+    """Over-eagerness guard: two identical plans, a different one, a tool step and two more
+    identical plans are not a stall under either rule."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN, PLAN, PLAN_OTHER, READ, PLAN, PLAN, DONE))
+    assert result["state"] == "completed", result["summary"]
+    assert (result["planner_calls"], result["tool_steps"], result["replans"]) == (7, 1, 4)
+    assert len(service.calls) == 1
+
+
+def test_an_invalid_response_between_plans_resets_the_identical_plan_sequence(isolated, monkeypatch):
+    """Without the reset the third PLAN would be the third identical plan in a row and stall."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    responses = iter([json.dumps(PLAN), json.dumps(PLAN), "not a proposal at all",
+                      json.dumps(PLAN), json.dumps(READ), json.dumps(DONE)])
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=lambda *args: next(responses))
+    assert result["state"] == "completed", result["summary"]
+    assert (result["planner_calls"], result["tool_steps"], result["repair_calls"]) == (6, 1, 1)
+
+
+def test_identical_plans_stall_under_the_bounded_default_before_the_step_limit(isolated):
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN, PLAN, PLAN, READ, DONE))
+    assert result["state"] == "stalled" and result["planner_calls"] == 3
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-29: the two items G1-IKARUS-26 left open (missions computer-loop-measure-03/04)
+# --------------------------------------------------------------------------
+
+# Paraphrases of one another: no two consecutive step lists compare equal, so the
+# identical-plan rule of G1-IKARUS-26 never fires on this sequence. Codex refused
+# whitespace normalisation and paraphrase detection; the budget below counts plans
+# instead of comparing their text.
+PLAN_A = {"type": "plan", "steps": ["Read the page and report the title.", "Observe the DOM again."]}
+PLAN_B = {"type": "plan", "steps": ["Report the title of the page.", "Then observe the DOM."]}
+PLAN_C = {"type": "plan", "steps": ["First read the page.", "Report its title afterwards."]}
+PLAN_D = {"type": "plan", "steps": ["Look at the page and state the title."]}
+
+
+def test_four_paraphrased_plans_without_a_tool_step_stall_under_unbounded_execution(isolated, monkeypatch):
+    """Mission computer-loop-measure-03 with a planner that paraphrases instead of repeating:
+    a plan that never proposes a tool is no progress, whatever its wording. The budget is a
+    progress criterion, so it holds when every Revision-10 cap axis is disabled."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN_A, PLAN_B, PLAN_C, PLAN_D, READ, DONE),
+                                    mission_id="plan-budget")
+    assert result["state"] == "stalled", result["summary"]
+    assert "no tool step" in result["summary"] and "plan budget" in result["summary"]
+    assert (result["planner_calls"], result["tool_steps"], result["replans"]) == (4, 0, 3)
+    assert len(result["proposals"]) == 4, "all four proposals stay retained"
+    assert result["plan"]["revision"] == 4
+    assert service.calls == []
+
+
+def test_a_tool_step_renews_the_plan_budget(isolated, monkeypatch):
+    """The budget is per step, not per mission: three plans, a tool step, three more plans."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN_A, PLAN_B, PLAN_C, READ,
+                                                    PLAN_A, PLAN_B, PLAN_C, DONE))
+    assert result["state"] == "completed", result["summary"]
+    assert (result["planner_calls"], result["tool_steps"]) == (8, 1)
+    assert len(service.calls) == 1
+
+
+def test_an_invalid_response_does_not_renew_the_plan_budget(isolated, monkeypatch):
+    """Deliberately unlike the identical-plan rule, which an intervening response resets:
+    only an executed tool step is progress, and a correction round is not one."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    responses = iter([json.dumps(PLAN_A), json.dumps(PLAN_B), "not a proposal at all",
+                      json.dumps(PLAN_C), json.dumps(PLAN_D), json.dumps(READ), json.dumps(DONE)])
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=lambda *args: next(responses))
+    assert result["state"] == "stalled", result["summary"]
+    assert (result["planner_calls"], result["repair_calls"]) == (5, 1)
+    assert service.calls == []
+
+
+def test_the_plan_budget_also_holds_under_the_bounded_default(isolated):
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN_A, PLAN_B, PLAN_C, PLAN_D, READ, DONE))
+    assert result["state"] == "stalled" and result["planner_calls"] == 4
+    assert service.calls == []
+
+
+def test_exhausted_wall_time_ends_the_mission_before_the_adapter_starts(isolated):
+    """Mission computer-loop-measure-04: two planner calls consumed the 300 s mission budget,
+    the browser start then hit the adapter's own cooperative deadline and was reported as a
+    tool failure with a `reconciliation_required` outcome. The budget is checked immediately
+    before the effect instead: no step artifact, no step intent, no adapter call."""
+    root, ledger = isolated
+    service = Service()  # timeout_s 10
+    # One planner call consumes 9 of the 10 s; the budget is gone when the effect would start.
+    ticks = iter((0.0, 0.0, 0.0, 9.0, 10.0, 10.0))
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(READ), clock=lambda: next(ticks),
+                                    mission_id="pre-effect-timeout")
+    assert result["state"] == "timeout", result["summary"]
+    assert "before the tool step" in result["summary"]
+    assert service.calls == []
+    assert (result["tool_steps"], result["steps"]) == (0, [])
+    assert not ledger.recent_intents(loop.STEP_KIND)
+    assert not ledger.open_intents()
+
+
+def test_a_single_planner_call_may_consume_the_whole_budget(isolated):
+    """Both wall-time checks read the clock; neither counts planner calls. Measured on this
+    host: one 7B call can exceed a whole bounded mission, because the pre-call warm-up gives
+    up after 60 s and the /v1 route holds no keep-alive. Here the earlier post-planner rule
+    fires first, which pins the ordering of the two checks; no effect starts either way."""
+    root, ledger = isolated
+    service = Service()  # timeout_s 10
+    ticks = iter((0.0, 0.0, 0.0, 10.5, 10.5))
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(READ), clock=lambda: next(ticks))
+    assert result["state"] == "timeout", result["summary"]
+    assert "Planner exhausted the mission timeout" in result["summary"]
+    assert service.calls == [] and result["tool_steps"] == 0
+
+
+def test_unbounded_execution_never_ends_a_mission_on_wall_time(isolated, monkeypatch):
+    """The pre-effect check is the same wall-time axis Revision 10 lets the owner disable."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service()  # timeout_s 10, while the clock jumps 1000 s per reading
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(READ, DONE),
+                                    clock=itertools.count(0, 1000).__next__)
+    assert result["state"] == "completed", result["summary"]
+    assert len(service.calls) == 1
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-31: the planner call is reachable by the cancellation probe
+# --------------------------------------------------------------------------
+
+
+def test_the_default_planner_receives_a_probe_bound_to_the_loop(isolated, monkeypatch):
+    """Without a propose override the loop must call _model_proposal with a callable
+    ``cancelled`` probe that reflects both the mission cancellation and the service stop."""
+    root, ledger = isolated
+    service = Service()
+    seen = {}
+
+    def recorder(prompt, capabilities, limit_policy, timeout_s, *, cancelled=None):
+        seen["probe"] = cancelled
+        seen["before"] = cancelled()
+        service.stopped = True
+        seen["after_stop"] = cancelled()
+        service.stopped = False
+        return json.dumps(DONE)
+
+    monkeypatch.setattr(loop, "_model_proposal", recorder)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger)
+    assert result["state"] == "no_actions", result["summary"]
+    assert callable(seen["probe"])
+    assert seen["before"] is False and seen["after_stop"] is True
+
+
+def test_a_user_cancellation_during_the_planner_call_ends_as_cancelled(isolated, monkeypatch):
+    """Codex (room, 21:56): user cancellation must map to exactly ``cancelled``."""
+    from daedalus.providers._openai_compat import ProviderCancelled
+
+    root, ledger = isolated
+    service = Service()
+    cancel = threading.Event()
+
+    def planner_that_is_cancelled(prompt, capabilities, limit_policy, timeout_s, *, cancelled=None):
+        cancel.set()
+        assert cancelled(), "the probe must see the cancellation"
+        raise ProviderCancelled("cancelled while provider-call was in flight")
+
+    monkeypatch.setattr(loop, "_model_proposal", planner_that_is_cancelled)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    cancelled=cancel.is_set)
+    assert result["state"] == "cancelled", result["summary"]
+    assert result["planner_calls"] == 1 and result["tool_steps"] == 0
+    assert service.calls == []
+
+
+def test_a_service_stop_during_the_planner_call_keeps_the_stop_attribution(isolated, monkeypatch):
+    from daedalus.providers._openai_compat import ProviderCancelled
+
+    root, ledger = isolated
+    service = Service()
+
+    def planner_stopped(prompt, capabilities, limit_policy, timeout_s, *, cancelled=None):
+        service.stopped = True
+        assert cancelled()
+        raise ProviderCancelled("cancelled while provider-call was in flight")
+
+    monkeypatch.setattr(loop, "_model_proposal", planner_stopped)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger)
+    assert result["state"] == "blocked", result["summary"]
+    assert "operator stop" in result["summary"]

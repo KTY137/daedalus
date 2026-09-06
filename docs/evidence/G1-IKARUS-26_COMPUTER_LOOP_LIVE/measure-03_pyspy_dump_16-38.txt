@@ -1,0 +1,18 @@
+Process 17616 (worktree venv python 3.13.14) at 16:38, mission computer-loop-measure-03
+Thread 5572 (idle): "MainThread"
+    readinto (socket.py:723)
+    _read_status (http/client.py:297)
+    begin (http/client.py:336)
+    getresponse (http/client.py:1459)
+    do_open (urllib/request.py:1323)
+    urlopen (urllib/request.py:189)
+    wrapper (daedalus/runtimes/execution/budget_process.py:352)
+    _post (daedalus/providers/_openai_compat.py:58)
+    chat_completion (daedalus/providers/_openai_compat.py:105)
+    _ollama (daedalus/orchestration/ikarus/shell.py:2471)
+    _llm (daedalus/orchestration/ikarus/shell.py:2058)
+    _model_proposal (daedalus/orchestration/ikarus/computer_loop.py:215)
+    _computer_events_admitted (daedalus/orchestration/ikarus/computer_loop.py:459)
+    computer_events (daedalus/orchestration/ikarus/computer_loop.py:316)
+    run_computer_task (daedalus/orchestration/ikarus/computer_loop.py:599)
+    <module> (stage13_measure.py:38)

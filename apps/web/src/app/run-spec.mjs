@@ -266,6 +266,8 @@ try {
   const { runTeamSettingsSpec } = await import(pathToFileURL(teamOutfile).href);
   const { runFourfoldSpec } = await import(pathToFileURL(fourfoldOutfile).href);
   const { runThemeSpec } = await import(pathToFileURL(themeOutfile).href);
+  // plain JS, needs the filesystem, no bundling — see tokens.spec.mjs
+  const { runTokenSpec } = await import('./tokens.spec.mjs');
   const results = [
     ...runSurfaceSpec(),
     ...(await runSystemCapabilitiesSpec()),
@@ -284,6 +286,7 @@ try {
     ...runTeamSettingsSpec(),
     ...runFourfoldSpec(),
     ...runThemeSpec(),
+    ...runTokenSpec(),
     ...(await architectureSpec())
   ];
   let failed = 0;

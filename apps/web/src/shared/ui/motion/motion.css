@@ -90,7 +90,7 @@
   border-radius: 14px;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
-  box-shadow: 0 6px 16px var(--accent-glow);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 35%, transparent);
   pointer-events: none;
   z-index: 0;
 }
@@ -109,13 +109,13 @@
 }
 .segmented[data-motion] > button.active {
   background: transparent;
-  border-color: var(--edge-soft);
-  color: var(--text);
+  border-color: var(--line2);
+  color: var(--ink);
 }
 .segmented[data-motion] .motion-thumb {
   position: absolute;
   inset: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
   pointer-events: none;
@@ -133,15 +133,15 @@
 /* styles.css paints a :focus-within ring; the motion ring below replaces it
    so the field does not wear two. */
 .composer[data-motion] .inputwrap:focus-within {
-  border-color: var(--edge-soft);
+  border-color: var(--line2);
   box-shadow: none;
 }
 .composer[data-motion] .motion-ring {
   position: absolute;
   inset: -1px;
-  border-radius: calc(var(--r-lg) + 1px);
+  border-radius: calc(var(--radius) + 1px);
   border: 1px solid var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
   pointer-events: none;
   z-index: 0;
 }
@@ -166,7 +166,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1.5px solid var(--good);
+  border: 1.5px solid var(--ok);
   pointer-events: none;
   transform: scale(1);
   opacity: 0;

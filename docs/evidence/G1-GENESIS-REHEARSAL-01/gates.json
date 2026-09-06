@@ -1,0 +1,93 @@
+{
+  "schema": "daedalus-genesis-rehearsal-gates/1",
+  "measured": "2026-09-05",
+  "run_id": "genesis-c4b987ce12c2530ab365b5d6",
+  "host": "Windows 11, base interpreter via daedalus.kernel.interpreter",
+  "gates": [
+    {
+      "gate": "build",
+      "passed": true,
+      "wall_time_ms": 463,
+      "timed_out": false,
+      "cancelled": false,
+      "returncode": 0,
+      "contained": true,
+      "mechanism": "mic-low+job+bounded-inherit",
+      "interpreter": {
+        "binary_sha256": "623f669041a962346e6a377408193e628bfc409d12e5851042a727685980813e",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": false,
+      "observation_sha256": "822d721b4d116942bf4d479f70cdf6567fc154e4c3b50caece39fcb351467636"
+    },
+    {
+      "gate": "test",
+      "passed": true,
+      "wall_time_ms": 1173,
+      "timed_out": false,
+      "cancelled": false,
+      "returncode": 0,
+      "contained": true,
+      "mechanism": "mic-low+job+bounded-inherit",
+      "interpreter": {
+        "binary_sha256": "623f669041a962346e6a377408193e628bfc409d12e5851042a727685980813e",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": false,
+      "observation_sha256": "be740d9ecd141dda1010d0e1aa9674ed20c2d9ff7675af41ee97cae834f3b644"
+    },
+    {
+      "gate": "runtime",
+      "passed": true,
+      "wall_time_ms": 1096,
+      "timed_out": false,
+      "cancelled": false,
+      "returncode": 0,
+      "contained": true,
+      "mechanism": "mic-low+job+bounded-inherit",
+      "interpreter": {
+        "binary_sha256": "623f669041a962346e6a377408193e628bfc409d12e5851042a727685980813e",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": false,
+      "observation_sha256": "ce79ba6e7a7798433a238a84b929350145fa458a96b980fb6350deed9872c049"
+    },
+    {
+      "gate": "kanban_template_conformance",
+      "passed": true,
+      "wall_time_ms": 18,
+      "timed_out": false,
+      "cancelled": false,
+      "returncode": 0,
+      "contained": true,
+      "mechanism": "in-process kernel-owned read-only certified kanban template, model, schema, and markup inspector",
+      "interpreter": null,
+      "launcher_warning_in_output": false,
+      "observation_sha256": "e435f8f01e0b39c9335118dab95730f50631c129f057bde7c2010fd31ce2a5f0"
+    },
+    {
+      "gate": "package",
+      "passed": true,
+      "wall_time_ms": 462,
+      "timed_out": false,
+      "cancelled": false,
+      "returncode": 0,
+      "contained": true,
+      "mechanism": "mic-low+job+bounded-inherit",
+      "interpreter": {
+        "binary_sha256": "623f669041a962346e6a377408193e628bfc409d12e5851042a727685980813e",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": false,
+      "observation_sha256": "e7852ecfa780b86b0298117d04fcf4cdd0c8c40e93572a2b1a087d7c8ab08d6b"
+    }
+  ]
+}

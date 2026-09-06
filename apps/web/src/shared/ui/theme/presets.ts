@@ -566,6 +566,13 @@ BUILT_INS.unshift(liquid, {
 // lighter than Liquid so the room shows through the panels. The three image
 // directions the owner was asked to choose between (Porcelain, Graphite,
 // Spatial) are therefore switchable live instead of compared on stills.
+// G1-UI-19: ink3 (muted text — eyebrow, rail roles, status line) is set per
+// room so that it reaches 4.5:1 against the RENDERED empty-thread pane, i.e.
+// the glass composited over the room image, not against the flat token. The
+// six values come from a measured walk from the old ink3 toward ink2 (worst
+// sampled pane pixel >= 4.5, average >= 4.7). Graphite's pane has the widest
+// luminance spread, so its ink3 lands near ink2 and ink2 moves one step up to
+// keep the three-step hierarchy.
 const roomForm: ThemeSpec['form'] = { ...liquid.form, blur: 26, alpha: 0.58 };
 const roomSceneOf = (environment: NonNullable<ThemeSpec['scene']>['environment']): NonNullable<ThemeSpec['scene']> =>
   ({ enabled: false, intensity: 0.85, speed: 0.35, environment });
@@ -595,7 +602,7 @@ BUILT_INS.unshift(
     colors: {
       room: '#e4e7e6', room2: '#f4f5f5',
       surface: 'rgba(255,255,255,.52)', surface2: 'rgba(255,255,255,.7)',
-      ink: '#1d2530', ink2: '#48546a', ink3: '#5d687c',
+      ink: '#1d2530', ink2: '#48546a', ink3: '#566176',
       line: 'rgba(52,70,102,.2)', line2: 'rgba(52,70,102,.1)',
       accent: '#4a6fb3', accentInk: '#ffffff',
       node: '#4a6fb3', node2: '#7a879d', edge: 'rgba(52,70,102,.18)', edgeHot: '#4a6fb3'
@@ -606,7 +613,7 @@ BUILT_INS.unshift(
     colors: {
       room: '#1d2936', room2: '#0a1119',
       surface: 'rgba(176,196,226,.06)', surface2: 'rgba(190,206,236,.09)',
-      ink: '#eef2f7', ink2: '#bcc7d6', ink3: '#8d9bb0',
+      ink: '#eef2f7', ink2: '#c4cedc', ink3: '#b5c0d0',
       line: 'rgba(196,212,240,.17)', line2: 'rgba(196,212,240,.08)',
       accent: '#9fb8dc', accentInk: '#0d1b2c',
       node: '#dbe5f4', node2: '#7e90ab', edge: 'rgba(176,196,226,.16)', edgeHot: '#9fb8dc'
@@ -617,7 +624,7 @@ BUILT_INS.unshift(
     colors: {
       room: '#e8e5df', room2: '#f5f3ee',
       surface: 'rgba(255,255,255,.5)', surface2: 'rgba(255,255,255,.68)',
-      ink: '#1f2a36', ink2: '#4a5768', ink3: '#5f6b7b',
+      ink: '#1f2a36', ink2: '#4a5768', ink3: '#4f5b6c',
       line: 'rgba(60,80,104,.2)', line2: 'rgba(60,80,104,.1)',
       accent: '#3d6f9e', accentInk: '#ffffff',
       node: '#3d6f9e', node2: '#7f8b98', edge: 'rgba(60,80,104,.18)', edgeHot: '#3d6f9e'
@@ -628,7 +635,7 @@ BUILT_INS.unshift(
     colors: {
       room: '#3a2b30', room2: '#1b1317',
       surface: 'rgba(236,200,180,.07)', surface2: 'rgba(240,208,190,.1)',
-      ink: '#f7ece4', ink2: '#d5c3b8', ink3: '#a8968c',
+      ink: '#f7ece4', ink2: '#d5c3b8', ink3: '#b4a297',
       line: 'rgba(240,214,196,.18)', line2: 'rgba(240,214,196,.09)',
       accent: '#e9a878', accentInk: '#2a1810',
       node: '#f3ddcc', node2: '#a98a7d', edge: 'rgba(236,200,180,.16)', edgeHot: '#e9a878'
@@ -639,7 +646,7 @@ BUILT_INS.unshift(
     colors: {
       room: '#dadde0', room2: '#edeff1',
       surface: 'rgba(255,255,255,.5)', surface2: 'rgba(255,255,255,.68)',
-      ink: '#1f272d', ink2: '#4a545c', ink3: '#5f6970',
+      ink: '#1f272d', ink2: '#4a545c', ink3: '#515b63',
       line: 'rgba(56,72,80,.2)', line2: 'rgba(56,72,80,.1)',
       accent: '#5b7a52', accentInk: '#ffffff',
       node: '#5b7a52', node2: '#7f8a90', edge: 'rgba(56,72,80,.18)', edgeHot: '#5b7a52'
@@ -650,7 +657,7 @@ BUILT_INS.unshift(
     colors: {
       room: '#1f3d47', room2: '#0c1e25',
       surface: 'rgba(170,214,222,.06)', surface2: 'rgba(180,222,230,.09)',
-      ink: '#e9f4f5', ink2: '#b9d0d4', ink3: '#87a4aa',
+      ink: '#e9f4f5', ink2: '#b9d0d4', ink3: '#90acb2',
       line: 'rgba(190,230,236,.17)', line2: 'rgba(190,230,236,.08)',
       accent: '#7fe3d8', accentInk: '#062a2b',
       node: '#d6f0f2', node2: '#7ea3aa', edge: 'rgba(170,214,222,.16)', edgeHot: '#7fe3d8'

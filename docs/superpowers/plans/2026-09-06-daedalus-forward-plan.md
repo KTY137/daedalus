@@ -580,6 +580,41 @@ def test_model_arm_is_budget_equal_frozen_evaluated_and_never_self_nominates(scr
 
 ---
 
+## Gate-2-Kurs (Owner-Anweisung 2026-09-06 10:09: „sorg dafür das wir Gate 2 erreichen“)
+
+Gate 2 wird erst nach dem Owner-Schluss von Gate 1 aktiv (Plan §11 „Work advances in order“). Zwei Dinge laufen deshalb ab jetzt gleichzeitig: **Phase B ist der kritische Pfad** zum Gate-1-Schluss (B2a → B2b → B3 → B4 → B5 → Owner-Entscheidung), und **Phase E startet sofort als EXPERIMENT** in eigenen Worktrees, damit am Tag des Gate-1-Schlusses die Gate-2-Fundamente schon gemessen sind. Phasen C und D sind Gate-1-*Produkt*-Stränge, die Gate 1 weder schließen noch blockieren; sie laufen nur noch in Peer-Lanes (daedalus-6c) oder nach B/E.
+
+### Gate-2-Exit-Matrix (Plan §11 Gate 2, Bullet für Bullet)
+
+| Gate-2-Bullet | Heute im Baum (gemessen 10:10) | Task | Beweis, den der Owner sehen muss |
+| --- | --- | --- | --- |
+| function/method resolution | `structcore/graph.py` `SymbolResolver`, `typegraph.py` `resolve`, `imports.py` `resolve_internal` existieren; Aufrufkanten-Auflösung im Code-Plane des Twins unvermessen | **E2** (Messung sofort, Bau danach) | Precision/Recall gegen 30 handverifizierte Kanten auf Fixture + Zweitsubjekt; `resolution_kind` je Kante |
+| data/schema extraction | `legacy_forest.py:34-41` projiziert Data-Plane **`absent`**; Sprachregistry kennt csv/json-schema/sql/parquet | **E1** (sofort) | Data-Plane `complete` für Fixture und Zweitsubjekt; verifizierte `data.field → code.attribute`-Bindung |
+| knowledge crosslinks | `structcore/markdown.py` löst Wiki-Links (`resolve_wiki_links`); Ignition-Link-Check nutzt sie | **E2** nimmt die Messung mit (Knowledge → Code Kanten zählen) | Anzahl verifizierter Knowledge→Code-Bindungen, Anteil unaufgelöster Links |
+| revision atomicity | `contracts.py` bindet `source_revision` an jede `PlaneSnapshot` und jede `CrossPlaneBinding`; `projection_verifier` prüft Forest-Projektion | vorhanden; **E3** beweist es zweimal (Rebuild digest-identisch) | zwei Builds desselben Repos bei derselben Revision → identischer Snapshot-Digest |
+| evidence locators | `PlaneSnapshot`/Bindings tragen Locator-Felder (contracts.py) | vorhanden; **E3** prüft, dass jeder Locator auf eine existierende Byte-Range der gepinnten Revision zeigt | Locator-Verifikation als Test über den Corpus |
+| four-plane ablations | keine | **E4** | Vier-Ebenen vs Code-only vs BM25 vs randomisierte Cross-Plane-Kanten auf der WorkItem-Ableitung; Kill-Kriterien §14 explizit geprüft |
+| small license-audited, temporally pinned corpus | keiner (`docs/corpus/` existiert nicht) | **E3** (nach B4) | drei Repos mit `PROVENANCE.md` (Lizenz-Digest, Revision, Cutoff, Extraktor-Versionen), Negativbeispiele retained |
+| deterministic Twin rebuilding | Replay des Ignition-Fixtures digest-identisch (WP-01) | **E3** verallgemeinert auf den Corpus | Test: Rebuild × 2 identisch pro Repo |
+| cross-repository alignment | nichts | **E5** (neu, nach E3) | Alignment zweier Twins auf typisierten Knoten (gleiche Signatur/gleicher Schema-Feldname) mit Score und Rationale; ausschließlich Vorschläge, verifiziert oder verfallen (§6) |
+| motif provenance | nichts | **E5** | ein Motiv (z. B. „CSV-Schema-Feld ↔ Modellattribut ↔ Wiki-Erklärung“) mit Quell-Repos, Revisionen, Lizenzen, Cutoff, Stützsubgraph, Negativbeispiel (§9.1) |
+| „do not scale before the full graph beats simpler representations“ | — | **E4** liefert die Zahl | Ablation zeigt Vier-Ebenen > Code-only und > BM25, sonst Kill-Kriterium 1 → Amendment-Vorlage |
+
+### Reihenfolge ab 10:10 (Fleet-Zuordnung 11:03 nachgetragen)
+
+Owner-Auftrag an die Fleet-Session daedalus-35 (10:20): 30 Opus-Agenten in eigenen Worktrees (`fleet/*`), Integration durch die Fleet nach A3-Merge-Commit und Amendment-013-Commit. Damit sind folgende Tasks dieses Plans **fleet-owned** (Packet-IDs identisch, nichts doppelt bauen): C3 = s01 (G1-IKARUS-37 terminal.run), C5 = s02 (IKARUS-28 Phase 1 + IKARUS-38 document.read), C6 = s03 (IKARUS-39), C4 = s04 (IKARUS-27 D1+D2) + s20 (G1-KERNEL-03 finish_effect-Liveness), C7 = s05 (IKARUS-40), C9 = s06 (Matrix 20260906), D1 = s07 (G1-ARIADNE-10), D2 = s08 (G1-ARIADNE-11), D3 = s09 (G1-SELF-02 Leakage-Test), E3-Vorarbeit = s12 (G2-CORPUS-01 Seed-Vertrag, lokale Subjekte, `CANDIDATES_20260906.md` Lizenz-Audit), E4 = s13 (G2-ABLATION-01), F1 = s14 (G1-HW-02), A4 #8 = s16 (Reap-Tür), Genesis-Backlog = s18/s19, plus s10 G2-KNOW-01 Knowledge-Crosslinks und s11 G2-REV-01 Revisions-Atomizität (neue Gate-2-Zeilen, nur neue Dateien). Diese Session übernimmt die Fleet-Branches als Eingabe (Review, Übernahme oder Verwerfen) statt sie selbst zu bauen.
+
+| Spur | jetzt | danach |
+| --- | --- | --- |
+| Gate-1-Schluss (kritisch, diese Session) | A3-Merge committen, A2-Fix, B2a (4 Commits auf `g1/renovation-02a`) | B2b → B3 → B4 (Subjekt aus s12-Audit) → B5 → Owner-Vorlage |
+| Gate-2-Fundament (diese Session) | E1 Data-Plane, E2 Messung | E2 Bau, E5 Alignment/Motiv; E3/E4 = Review von fleet/s12, fleet/s13 |
+| Fleet (daedalus-35) | s01–s20 Support, d01–d10 Docs | Rebase auf den A3-Merge-Commit, Suite dort, dann Integration |
+| Peer-Lanes | daedalus-31 (vorher 6c/9d): Ikarus 42–44, lane11-Rebase | — |
+
+### Task E5: Cross-Repository-Alignment und ein Motiv mit Provenienz (EXPERIMENT)
+
+**Packet:** G2-ATLAS-01_ALIGNMENT_AND_FIRST_MOTIF (EXPERIMENT; §6, §9.1). Abhängig von E3. Alignment = Kandidatenpaare typisierter Knoten über zwei Twins (gleiche Signatur, gleicher Schema-Feldname, gleicher Wiki-Titel) mit Score, Rationale und Ablaufdatum; Verifier prüft Quellenevidenz und Revisionskompatibilität, bevor ein Paar `verified` wird. Ein Motiv: der abstrahierte Subgraph „Schema-Feld ↔ Modellattribut ↔ Dokumentation“, mit Quell-Repos, Revisionen, Lizenzen, Cutoff, Stützsubgraphen und einem Negativbeispiel (ein Repo, in dem das Muster fehlt). Failing test zuerst: `test_alignment_proposals_never_enter_bindings_unverified` (ein unverifiziertes Alignment-Paar darf in keinem `FourfoldSnapshot.bindings` auftauchen).
+
 ## Phase E — Gate-2-Fundament (EXPERIMENT-gelabelt, kein konkurrierender Kernel)
 
 ### Task E1: Data-Plane `complete` für das Ignition-Fixture

@@ -344,10 +344,7 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
     >
       <header className="studio-head">
         <div>
-          <span className="studio-eyebrow">DEIN WORKSPACE. DEIN LOOK.</span>
-          <h2>
-            Theme Studio<span>.</span>
-          </h2>
+          <h2>Theme Studio</h2>
         </div>
         <button
           ref={closeButton}
@@ -431,8 +428,8 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
           <>
             <div className="studio-collection-heading">
               <div>
-                <h3>Eine neue Perspektive.</h3>
-                <p>Ein Klick verändert die Atmosphäre.</p>
+                <h3>Eingebaute Looks</h3>
+                <p>Ein Klick wechselt sofort; das Original bleibt erhalten.</p>
               </div>
               <span>{api.builtIns.length} Looks</span>
             </div>
@@ -474,8 +471,8 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
             </ul>
             <div className="studio-collection-heading custom-heading">
               <div>
-                <h3>Von dir gestaltet.</h3>
-                <p>Deine Looks, automatisch gespeichert.</p>
+                <h3>Deine Looks</h3>
+                <p>Kopien, die du bearbeitet hast; automatisch gespeichert.</p>
               </div>
               <span>{api.custom.length}</span>
             </div>
@@ -692,8 +689,8 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
           <>
             <div className="studio-type-preview">
               <span>Aa</span>
-              <p>Raum für große Ideen.</p>
-              <small>DAEDALUS · DEIN WORKSPACE</small>
+              <p>Woran arbeiten wir?</p>
+              <small>Nachricht an Ikarus … („/“ für Befehle)</small>
             </div>
             <Section title="Schriftfamilien" hint="Verwendet deine lokal verfügbaren Schriften.">
               {(
@@ -764,7 +761,7 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
 
         {tab === 'buehne' && (
           <>
-            <Section title="Dein Raum." hint="Eine in Blender gerenderte Umgebung hinter deinem Glas. Das Glas bricht sie live.">
+            <Section title="Dein Raum." hint="Wähle eine Umgebung für dein Glas — als ruhiges Bild oder mit lebendiger 3D-Perspektive.">
               <div className="field choice">
                 <span className="field-label">
                   Umgebung
@@ -816,13 +813,21 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
                   })}
                 </div>
               </div>
+              {scene.environment && <>
+                <Choice label="Darstellung" value={scene.rendering ?? 'image'}
+                  options={[["image", "Bild"], ["interactive", "Interaktives 3D"]]}
+                  onChange={(rendering) => edit({ scene: { ...scene, rendering } })} />
+                <Range label="Licht" value={Math.round((scene.exposure ?? 1) * 100)} min={50} max={160} step={5} suffix=" %"
+                  onChange={(value) => edit({ scene: { ...scene, exposure: value / 100 } })} />
+                {scene.rendering === 'interactive' && <p className="studio-hint">Die Perspektive folgt deiner Maus. 3D benötigt mehr Grafikleistung; bei Ladeproblemen bleibt das Bild sichtbar.</p>}
+              </>}
               {scene.environment && (() => {
                 const room = sceneEnvironment(scene.environment);
                 const origin = sceneEnvironmentProvenance(scene.environment);
                 const mismatch = room.base !== theme.base;
                 return (
                   <>
-                    {origin && (
+                    {origin && scene.rendering !== 'interactive' && (
                       <p className="studio-hint room-provenance">
                         {origin.quality === 'draft' ? 'Entwurf' : 'Final'} · Blender {origin.blender ?? '?'} · {origin.samples ?? '?'} Samples ·{' '}
                         {origin.image.width}×{origin.image.height}

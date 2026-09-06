@@ -1,0 +1,79 @@
+{
+  "ok": true,
+  "genesis": {
+    "run_id": "genesis-6e0cd55c90eab594e946297c",
+    "request_key": "loop-genesis-rehearsal-03-cli",
+    "status": "blocked",
+    "target": "cli",
+    "defaults": {
+      "accessibility": "WCAG 2.2 AA",
+      "authentication": false,
+      "audience": "one local user",
+      "base_repository": null,
+      "capability_scope": "card CRUD with fixed backlog/in-progress/done columns, keyboard move controls, and optional search/filter",
+      "language": "English UI generated from the supplied objective",
+      "product_class": "local-first kanban board",
+      "requested_stack": null,
+      "requested_target": "cli",
+      "stack": "python-stdlib",
+      "stack_required": false,
+      "storage": "local-only",
+      "target": "cli",
+      "target_required": true,
+      "telemetry": false,
+      "blueprint": "kanban-board-v1"
+    },
+    "blockers": [
+      "The kanban-board-v1 blueprint supports browser, desktop, and mobile PWA targets only; CLI is not implemented."
+    ],
+    "mission": null,
+    "candidate": null,
+    "evidence": null,
+    "roundtrip": null,
+    "preview": null,
+    "artifacts": {},
+    "admission": {
+      "policy_decision": {
+        "contract_type": "daedalus.policy-decision",
+        "contract_version": "1.0.0",
+        "decision_id": "genesis-6e0cd55c90eab594e946297c-deny",
+        "subject_id": "genesis-6e0cd55c90eab594e946297c",
+        "subject_sha256": "5a5efe431a490ac23336bcca441b40ba1dda4a0357638bd86076bba23080eca4",
+        "policy_version": "12.1",
+        "policy_sha256": "f0af9f697ef77eceddebfa851430872250205e544fa7a1c877ef8371d255e3d2",
+        "verdict": "deny",
+        "reasons": [
+          "The kanban-board-v1 blueprint supports browser, desktop, and mobile PWA targets only; CLI is not implemented."
+        ],
+        "effect_scope": {
+          "read_only": true,
+          "writable_paths": [],
+          "egress_endpoints": [],
+          "tools": [],
+          "secret_refs": [],
+          "max_cost_microusd": null,
+          "max_concurrency": 1,
+          "timeout_s": null,
+          "kill_switch_ref": ""
+        },
+        "provenance": {
+          "origin": "genesis.admission-denial",
+          "source_revision": "a4e98188f07982fadfa83a2f2cef50ee54e25816",
+          "created_at": "2026-09-05T13:05:36.195700+00:00",
+          "input_digests": [
+            "5a5efe431a490ac23336bcca441b40ba1dda4a0357638bd86076bba23080eca4",
+            "f0af9f697ef77eceddebfa851430872250205e544fa7a1c877ef8371d255e3d2"
+          ],
+          "trace_id": "genesis-6e0cd55c90eab594e946297c"
+        }
+      },
+      "effect_started": false,
+      "stack_required": false,
+      "target_required": true
+    },
+    "publication": {
+      "status": "not-requested",
+      "owner_approval_required": true
+    }
+  }
+}

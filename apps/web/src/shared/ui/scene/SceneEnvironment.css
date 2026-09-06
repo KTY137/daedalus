@@ -10,6 +10,7 @@
   contain: strict;
 }
 .scene-environment img {
+  filter: brightness(var(--env-exposure, 1));
   position: absolute;
   inset: -2.5%;
   width: 105%;
@@ -21,6 +22,16 @@
   -webkit-user-select: none; /* the desktop shell is WebKit on macOS */
   user-select: none;
 }
+.scene-environment-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.scene-environment[data-renderer='webgl'] .scene-environment-canvas { opacity: 1; }
+.scene-environment[data-renderer='webgl'] > img { visibility: hidden; }
 /* Veil in the theme's own room colours: at full weight the room shows almost
    bare, at low weight it recedes behind the palette. Never fully opaque, so
    the picture is always what the owner chose, only quieter. */
@@ -43,4 +54,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .scene-environment img { transition: none; transform: none; }
+  .scene-environment-canvas { transition: none; }
 }

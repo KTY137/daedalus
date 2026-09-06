@@ -8,7 +8,7 @@ import datetime
 import time
 from pathlib import Path
 
-from . import crosstalk
+from . import crosstalk, serena, tools
 from ._common import (
     HookResult,
     _Lock,
@@ -23,6 +23,9 @@ from ._tree import (
     UNREADABLE_KEY,
     fingerprint_diff,
     last_sweep,
+    serena_configured_root,
+    serena_language_servers,
+    serena_root_mismatch,
     source_fingerprint,
     tree_facts,
 )
@@ -88,6 +91,16 @@ def session_start(payload: dict, root: Path, sid: str) -> HookResult:
     plan = root / "docs" / "IKARUS_ARIADNE_MASTER_PLAN.md"
     if plan.exists():
         lines.append("PLAN: docs/IKARUS_ARIADNE_MASTER_PLAN.md -- design authority; read it before architecture/kernel work")
+    lines.append(
+        serena.session_line(
+            load_state(root, sid),
+            reachable=tools.serena_is_reachable(),
+            configured=facts.serena_configured,
+            mismatch=facts.serena_mismatch or None,
+            language_servers=serena_language_servers(root),
+            index_cached=(root / ".serena" / "cache").is_dir(),
+        )
+    )
     sweep_sha, behind = last_sweep(root)
     if sweep_sha:
         tail = f" ({behind} commits since)" if behind and behind != "0" else ""
@@ -239,8 +252,21 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
     )
 
     collected: dict = {}
+    serena_up = tools.serena_is_reachable()
+    serena_cfg = serena_configured_root(root)
+    serena_off = serena_root_mismatch(root)
 
     def mutate(state: dict) -> None:
+        # Owner order 2026-09-06: Serena on every prompt. Computed inside the
+        # locked update because it reads the usage the tool hooks recorded.
+        collected["serena"] = serena.turn_line(
+            root,
+            state,
+            payload.get("prompt"),
+            reachable=serena_up,
+            configured=serena_cfg is not None,
+            mismatch=serena_off,
+        )
         crew_lines, live = _crew_lines(state)
         collected["crew"] = crew_lines
         if crew_lines and any(l.startswith("  where work goes") for l in crew_lines):
@@ -291,6 +317,10 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
     # architecture delta goes last: it is the largest block and the least
     # urgent, and it is clipped to its own budget above so that even when it
     # survives it cannot crowd the alarms out.
+    # SERENA goes SECOND, before even the alarms: the owner asked for it on
+    # every prompt, and second is where the trimmer cannot reach it.
+    if collected.get("serena"):
+        lines.append(collected["serena"])
     if collected.get("watchdog"):
         lines.append(collected["watchdog"])
     if collected.get("changed"):
@@ -359,6 +389,13 @@ def subagent_start(payload: dict, root: Path, sid: str) -> HookResult:
         lines.append(archived)
     if facts.serena_mismatch:
         lines.append("Use Edit/Write/Bash with absolute paths in this tree; Serena read tools only.")
+    lines.append(
+        serena.subagent_line(
+            reachable=tools.serena_is_reachable(),
+            configured=facts.serena_configured,
+            mismatch=facts.serena_mismatch or None,
+        )
+    )
     text, _ = trim_lines(lines, 600)
     return HookResult(
         payload={

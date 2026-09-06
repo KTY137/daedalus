@@ -118,7 +118,7 @@
 .project-folder-row .folder-picker:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .project-folder-row .folder-picker:disabled { opacity: 0.55; cursor: default; }
 .project-dialog-hint { margin-top: calc(-1 * var(--u3)); color: var(--ink3); font-size: var(--fs-xs); }
-.project-dialog-error { padding: var(--u2) var(--u3); border-left: 3px solid var(--danger); color: var(--danger); background: var(--surface2); }
+.project-dialog-error { padding: var(--u2) var(--u3); border-left: 3px solid var(--bad); color: var(--bad); background: var(--surface2); }
 .project-dialog-actions { justify-content: flex-end; }
 
 @media (max-width: 640px) {

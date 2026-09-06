@@ -1,0 +1,11 @@
+--- base/daedalus/providers/codex_cli.py
++++ candidate/daedalus/providers/codex_cli.py
+@@ -36,7 +36,7 @@
+ 
+ THE PROMPT IS NEVER IN ARGV (packet G1-SEC-01, finding F-W1-01)
+ ---------------------------------------------------------------
+-npm ships ``codex`` as a ``.CMD`` shim, and on this box that is the ONLY form
++npm ships ``codex`` as a ``.CMD`` shim, and on this box that is the only form ON PATH (a native ``codex.exe`` also ships in the VS Code extension bundle, MEASURED 2026-09-05); the shim is the form
+ it has (MEASURED 2026-09-02: ``shutil.which("codex")`` ->
+ ``...\\hermes\\node\\codex.CMD``; ``codex.exe`` -> ``None``, so preferring a
+ native ``.exe`` -- what ``council.canary.resolve_exe`` does -- would not help

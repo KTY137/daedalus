@@ -13,6 +13,9 @@ use std::{
 use sha2::{Digest, Sha256};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
+#[cfg(target_os = "windows")]
+mod instance;
+
 const BACKEND_ADDR: &str = "127.0.0.1:8765";
 const BACKEND_URL: &str = "http://127.0.0.1:8765";
 const DESKTOP_READY_PATH: &str = "/api/desktop-ready";
@@ -1308,6 +1311,20 @@ fn stop_backend(app: &tauri::AppHandle) {
 }
 
 pub fn run() {
+    // Claim the entire startup interval, before verification or migration can
+    // race another launch. The backend port is not bound until much later.
+    #[cfg(target_os = "windows")]
+    let _instance = match instance::acquire() {
+        Ok(Some(guard)) => guard,
+        Ok(None) => {
+            instance::focus_existing();
+            return;
+        }
+        Err(error) => {
+            eprintln!("Daedalus desktop instance ownership failed: {error}");
+            std::process::exit(1);
+        }
+    };
     let builder = tauri::Builder::default();
     // The native dialog plugin brings Windows common-controls entrypoints into
     // the final desktop binary. Unit tests exercise only the sidecar/lifecycle

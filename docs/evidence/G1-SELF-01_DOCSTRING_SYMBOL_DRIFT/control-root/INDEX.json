@@ -1,0 +1,103 @@
+{
+  "control_root": "<SCRATCH>/control",
+  "files": [
+    {
+      "original_bytes": 1110,
+      "original_sha256": "2e45ab0323e4bd7544b33e67808dfe0a91ad82bbe07d58722f5c477869ded8c3",
+      "path": "self-renovation-04/disjointness/5367c2c4aca774e781d38f33eb7ebce2b609f1b95d32ee37ee7a5a437d105a15.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 1110,
+      "original_sha256": "08c7b2f4989b57602269ae51ae13a1d23aecb6ddfdd006d667169ec105bee1c3",
+      "path": "self-renovation-04/disjointness/5c933fc015d61a600f4a524d34f022133749d2a9bcf68c1ce26b29e0e1e15655.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 1110,
+      "original_sha256": "fbbe4ef7f7351e7b3633bca0ceb3d1f75300f0c644e99bc8f1ce54654b63a1cc",
+      "path": "self-renovation-04/disjointness/66288507c3103f79c064961b0a5e1fc91579abd5f113f306533ea82523dbc5c0.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 1110,
+      "original_sha256": "f6108d44b0a298db414c662a510401668022193aeb5308e1c9ebd68c1468b6f9",
+      "path": "self-renovation-04/disjointness/d764bb4558622e0f01a03463fd4ea79c9e6a94dbe1048ab651877a54058e26e8.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 1301,
+      "original_sha256": "d5ffbcdb79a475578f27dd734ebff9ef2bdbf412ab55ac1a06c4d4675fcb3735",
+      "path": "self-renovation-04/lease-execution/540039c9faef945da2f92f2ee5695cc33e4979804730e280acf00569830471f0.json",
+      "sanitized": false
+    },
+    {
+      "original_bytes": 1272,
+      "original_sha256": "0389df08707a20b80f2ad040d522205590334086fcc382ac83b6af2174c9e4b0",
+      "path": "self-renovation-04/lease-execution/5f2adc41b0316f4a633084cdccf7808521034640afdd51f92d295a8e24381aaf.json",
+      "sanitized": false
+    },
+    {
+      "original_bytes": 1302,
+      "original_sha256": "950cf22079ea1268f58c6d2fd1d024424d2d64116bc7a7c84ead0aba2898faca",
+      "path": "self-renovation-04/lease-execution/7fd2f1376311806825a6dd05cd9048255226acd55e5337b5182f1b9d4c267718.json",
+      "sanitized": false
+    },
+    {
+      "original_bytes": 1278,
+      "original_sha256": "4f56235dc8191bdd47f66b4d6bc877a8434d5b04ad79e27dd7a184508e6e21f1",
+      "path": "self-renovation-04/lease-execution/bb385ce134a37b645179e1bcb3bdd6f1a6ee046aae5e82664f6747f3323dc660.json",
+      "sanitized": false
+    },
+    {
+      "original_bytes": 8457,
+      "original_sha256": "dcfa1e319fd0640ac999b2ea82d32a5c8d2ed4b3a0f3943620683b53aa69d6ed",
+      "path": "self-renovation-04/lease-subject/02f4ba10630f4e796e9bd5d6ab117ad1835918882e44df51a1195ae1d023aa9b.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 9057,
+      "original_sha256": "3108c698574df47b1327255b49031a73aaa65066136924c3f269ac3d2cc88951",
+      "path": "self-renovation-04/lease-subject/0dc043d049ca0a64e8c438797e5ed23ce128ad32c53489bcf0a6bd36308ea10f.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 8937,
+      "original_sha256": "3eacf6089f0fb395261fda309aff3cd5eea02fd0ad58b31f188fc77c10051ae9",
+      "path": "self-renovation-04/lease-subject/2795a5d6034d5a48f34b7d88c235574f1218d8623e906325a42155ffe84f4588.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 8961,
+      "original_sha256": "f606deb8560a10180ce4e2fea02c4e698c0ca228cb7ba7955977104239e57e6a",
+      "path": "self-renovation-04/lease-subject/49913c7ca36390c97f4b1300e28c1b2ac4ef4fcf3eb8fd29f52cc17c01fc504c.json",
+      "sanitized": true
+    },
+    {
+      "original_bytes": 1690,
+      "original_sha256": "7621b3cf412a798cc6e5b96788f58be41ca93e1b4cc43dd07143b5a3e98ffe26",
+      "path": "self-renovation-04/lease-terminal/3f1e20a72e2584fc8250414d748f04f50fcbca5169bbb2ca8424f5bdd5e7db34.json",
+      "sanitized": false
+    },
+    {
+      "original_bytes": 1717,
+      "original_sha256": "dbafc9ebdafab4a0f04bc9dccc0ea47c1c14a66c2c22ac23dae43256ae68120a",
+      "path": "self-renovation-04/lease-terminal/4348f96652a024701c917f38b5389538fcd819d6f418a87b7d1631a3d3deccda.json",
+      "sanitized": false
+    },
+    {
+      "original_bytes": 1693,
+      "original_sha256": "4b9c78176fb88f0d059a4be4c6941882487c239383270917a62c5191dcdbb177",
+      "path": "self-renovation-04/lease-terminal/83fea1e1229c83692461324756049560852777a6e14e0352ce208eca10794bf1.json",
+      "sanitized": false
+    },
+    {
+      "original_bytes": 1715,
+      "original_sha256": "ec536ac90e42204c1f967bf3c3f4de973df36ca159e3c35e62dc5869020e0cc3",
+      "path": "self-renovation-04/lease-terminal/996519439f47cef0354e86597c7784a8cff893ef5311a1e1c0eae0ff555037af.json",
+      "sanitized": false
+    }
+  ],
+  "note": "Retained copies are HOME-PATH SANITIZED, so a copy's bytes no longer hash to the record_sha256 written inside it. original_sha256 below is the digest of the UNSANITIZED bytes the campaign wrote.",
+  "schema": "daedalus-g1-self-01-control-root-index/1"
+}

@@ -2,7 +2,6 @@
    Ambient sculpture is decorative; graph evidence retains its own encoding. */
 .workspace-brand { display: flex; align-items: center; gap: 10px; flex: none; font-family: var(--font-display); font-size: 19px; font-weight: 600; letter-spacing: -.7px; }
 .workspace-brand-mark { display: grid; place-items: center; width: 40px; height: 40px; color: var(--accent); border: 1px solid var(--line); border-radius: 13px; background: linear-gradient(145deg, var(--surface2), transparent); box-shadow: inset 0 1px 0 var(--line); }
-.workspace-brand-caption { display: block; margin-top: 1px; color: var(--ink3); font: var(--fs-xs)/1.2 var(--font-body); font-weight: 500; letter-spacing: .12em; }
 .viewswitch button, .viewswitch-thumb { align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
 .chrome-tools svg, .viewswitch svg { flex: none; }
 .convo-eyebrow { display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); font-weight: 500; letter-spacing: .12em; color: var(--accent); }
@@ -52,8 +51,6 @@
 :root[data-material='glass'] .chrome-tools { gap: 4px; }
 :root[data-material='glass'] .chrome-tools button { padding: 0 11px; border-radius: var(--radius-sm); }
 :root[data-material='glass'] .chrome-tools .chrome-kbd { display: none; }
-:root[data-material='glass'] .chrome-tools .theme-trigger { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 24%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); padding: 0 14px; }
-:root[data-material='glass'] .chrome-tools .theme-trigger:hover { background: color-mix(in srgb, var(--accent) 17%, transparent); border-color: var(--accent); }
 :root[data-material='glass'] .chrome-tools .chrome-link { width: 32px; padding: 0; justify-content: center; }
 :root[data-material='glass'] .chrome-link span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 :root[data-material='glass'] .chrome-tools > .chrome-divider { display: none; }
@@ -101,11 +98,10 @@
 
 @media (max-width: 1500px) {
   :root[data-material='glass'] .chrome-tools .tool-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  :root[data-material='glass'] .chrome-tools button:not(.theme-trigger) { width: 40px; justify-content: center; }
+  :root[data-material='glass'] .chrome-tools button { width: 40px; justify-content: center; }
   :root[data-material='glass'] .chrome.bar { gap: 12px; }
 }
 @media (max-width: 1180px) {
-  .workspace-brand-caption { display: none; }
   :root[data-material='glass'] .workspace-brand { font-size: 17px; }
   :root[data-material='glass'] .chrome .scope { margin-left: 0; }
   :root[data-material='glass'] .chrome.bar { gap: 8px; padding: 10px 12px; }
@@ -146,8 +142,7 @@
   .workspace-brand-mark { width: 32px; height: 32px; border-radius: 10px; }
   :root[data-material='glass'] .workspace-brand > span:last-child { display: none; }
   :root[data-material='glass'] .scope-trigger { padding: 0 7px; max-width: 108px; }
-  :root[data-material='glass'] .chrome-tools button:not(.theme-trigger) { width: 32px; padding: 0; }
-  :root[data-material='glass'] .chrome-tools .theme-trigger { padding: 0 8px; }
+  :root[data-material='glass'] .chrome-tools button { width: 32px; padding: 0; }
   :root[data-material='glass'] .chrome-link { display: none; }
   :root[data-material='glass'] .viewswitch { gap: 0; }
   :root[data-material='glass'] .viewswitch button { font-size: 11px; min-height: 44px; }
@@ -257,3 +252,32 @@
     overflow: visible;
   }
 }
+
+/* Workbench panes under glass (G1-UI-21, generalising G1-UI-20): the intake
+   and result cards of Genesis and Ariadne and the IDE notice are panes in the
+   same room as the composer and the rail — same fill, edge, blur and shadow —
+   instead of a translucent surface tint that lets the room render through
+   their form fields. One rule, so the next workbench inherits it by using
+   the same card classes rather than by adding another block here. Spacing
+   comes from the canonical --u tokens; nothing here sets a gap. */
+:root[data-material='glass'] .genesis-card,
+:root[data-material='glass'] .genesis-result,
+:root[data-material='glass'] .ariadne-card,
+:root[data-material='glass'] .ariadne-result,
+:root[data-material='glass'] .ide-notice {
+  border-top-color: var(--glass-edge);
+  background: linear-gradient(160deg, var(--glass-light), transparent 65%), var(--glass-fill);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow-pane);
+}
+:root[data-material='glass'] .genesis-intro p,
+:root[data-material='glass'] .ariadne-intro p { color: var(--ink2); }
+/* Workbench views dim the room like the map does; reading pages are not the
+   place for the render to compete with form fields. */
+:root[data-material='glass'] .cockpit[data-view='genesis'] > .spatial-scene,
+:root[data-material='glass'] .cockpit[data-view='ariadne'] > .spatial-scene,
+:root[data-material='glass'] .cockpit[data-view='ide'] > .spatial-scene { filter: opacity(.14); }
+/* Ariadne's own radial tints were designed for the flat ground; over a room
+   they stack a second haze on the glass. */
+:root[data-material='glass'] .cockpit-body.ariadne { background: none; }

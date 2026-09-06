@@ -1,0 +1,14 @@
+{
+  "entries": [
+    "demo.srcs",
+    "demo.srcs/constrs_1",
+    "demo.srcs/constrs_1/new",
+    "demo.srcs/constrs_1/new/pins.xdc",
+    "demo.srcs/sources_1",
+    "demo.srcs/sources_1/new",
+    "demo.srcs/sources_1/new/top.sv",
+    "demo.xpr"
+  ],
+  "note": "the whole fixture tree after two emitting planning runs; planning writes no file at all, so the review directory stays empty too",
+  "review_directory_entries": []
+}

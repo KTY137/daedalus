@@ -100,12 +100,18 @@ function repair(
     missing.push('scene.environment');
     return undefined;
   })();
-  const scene = isRecord(raw.scene)
+  const scene: ThemeSpec['scene'] = isRecord(raw.scene)
     ? {
         enabled: pick('scene', 'enabled', base.scene?.enabled ?? true, 'boolean'),
         intensity: Math.max(0, Math.min(1, pick('scene', 'intensity', base.scene?.intensity ?? 0.7, 'number'))),
         speed: Math.max(0, Math.min(1, pick('scene', 'speed', base.scene?.speed ?? 0.5, 'number'))),
-        ...(environment ? { environment } : {})
+        ...(environment ? { environment } : {}),
+        ...(raw.scene.rendering === 'interactive' || raw.scene.rendering === 'image'
+          ? { rendering: raw.scene.rendering }
+          : {}),
+        ...(typeof raw.scene.exposure === 'number' && Number.isFinite(raw.scene.exposure)
+          ? { exposure: Math.max(.5, Math.min(1.6, raw.scene.exposure)) }
+          : {})
       }
     : undefined;
 

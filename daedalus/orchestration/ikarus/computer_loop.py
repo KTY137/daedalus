@@ -7,6 +7,7 @@ visible reconciliation work, never automatically retried.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import ipaddress
 import json
@@ -43,6 +44,7 @@ _MAX_PLAN_STEPS = 12
 _MAX_PLAN_STEP_CHARS = 240
 _MAX_CONSECUTIVE_REPAIRS = 2
 _STALL_OBSERVATIONS = 3
+_MAX_PLANS_PER_STEP = 4
 _READ_TOOLS = frozenset({"file.list", "file.read", "vision.inspect", "vision.match",
                          "vision.changes", "vision.ocr", "desktop.observe", "browser.read"})
 
@@ -195,8 +197,27 @@ def _require_context_route(capabilities: Mapping[str, Any]) -> str:
     return provider
 
 
+def _cancel_probe(cancelled: Callable[[], bool] | None, service: Any) -> Callable[[], bool]:
+    """A non-raising probe for the provider call: mission cancellation or service stop.
+
+    The loop's own ``checkpoint()`` keeps raising the typed error afterwards, so
+    the attribution (``cancelled`` versus the kill switch) is unchanged; the probe
+    only lets the in-flight provider call be abandoned (G1-KERNEL-02).
+    """
+    def probe() -> bool:
+        if cancelled is not None and cancelled():
+            return True
+        try:
+            service.check_cancelled()
+        except BaseException:  # noqa: BLE001 - any stop signal is a stop for the probe
+            return True
+        return False
+    return probe
+
+
 def _model_proposal(prompt: str, capabilities: Mapping[str, Any],
-                    limit_policy: ExecutionLimitPolicy, timeout_s: float | None) -> str:
+                    limit_policy: ExecutionLimitPolicy, timeout_s: float | None, *,
+                    cancelled: Callable[[], bool] | None = None) -> str:
     # Recheck the concrete endpoint on every step, including after tool output.
     provider = _require_context_route(capabilities)
     from .shell import _llm
@@ -216,6 +237,8 @@ def _model_proposal(prompt: str, capabilities: Mapping[str, Any],
         provider, prompt, model=capabilities.get("planner_model"), effort="medium",
         project=None, timeout_s=timeout_s, limit_policy=limit_policy,
         response_schema={"anyOf": alternatives},
+        cancelled=cancelled,
+        transport="native",  # explicit, not derived from the schema (G1-IKARUS-31)
     )
     if not response:
         raise ComputerLoopRefused("configured computer planner returned no usable response")
@@ -328,6 +351,16 @@ def computer_events(
                 service.close()
 
 
+def _unavailable_summary(capabilities: Mapping[str, Any]) -> str:
+    """Name what is missing: no owner policy, or a policy whose every tool is unavailable here."""
+    unavailable = capabilities.get("unavailable")
+    if isinstance(unavailable, dict) and unavailable:
+        reasons = "; ".join(f"{name}: {reason}" for name, reason in sorted(unavailable.items()))
+        return ("Computer assistance is configured, but every configured tool is unavailable "
+                f"on this host: {reasons}")
+    return "Computer assistance needs an owner-configured computer policy."
+
+
 def _computer_events_admitted(
     root: Path, objective: str, *, mission_id: str | None, service: Any,
     propose: Callable[[str, Mapping[str, Any], ExecutionLimitPolicy, float | None], str] | None,
@@ -340,7 +373,7 @@ def _computer_events_admitted(
     capabilities = json.loads(json.dumps(service.capabilities(), allow_nan=False))
     if capabilities.get("enabled") is not True:
         yield "final", {"ok": False, "state": "unavailable", "steps": [],
-                        "summary": "Computer assistance needs an owner-configured computer policy.",
+                        "summary": _unavailable_summary(capabilities),
                         "capabilities": capabilities, "planner_calls": 0, "tool_steps": 0,
                         "replans": 0, "repair_calls": 0, "plan": None,
                         "task_success_verified": False}
@@ -357,7 +390,9 @@ def _computer_events_admitted(
         raise ComputerLoopRefused("execution limit policy changed since this mission was scheduled")
     context_snapshot = _context_snapshot(root)
     context_digest = str(context_snapshot["context_sha256"])
-    propose = propose or _model_proposal
+    # G1-IKARUS-31: the default planner gets a probe so a hanging provider call
+    # can be abandoned; an injected ``propose`` keeps its four-argument contract.
+    propose = propose or functools.partial(_model_proposal, cancelled=_cancel_probe(cancelled, service))
     mission_id = mission_id or f"computer-{uuid.uuid4().hex}"
     now = datetime.now(timezone.utc).isoformat()
     policy_digest = str(service.policy_digest)
@@ -419,6 +454,9 @@ def _computer_events_admitted(
         repeated_observations = 0
         prior_invalid_response = None
         repeated_invalid_responses = 0
+        prior_plan_steps: list[str] | None = None
+        repeated_plans = 0
+        plans_since_tool_step = 0
         proposals: list[dict[str, Any]] = []
 
         def checkpoint() -> None:
@@ -495,6 +533,7 @@ def _computer_events_admitted(
                     invalid_signature = hashlib.sha256(response_text.encode("utf-8")).hexdigest()
                     repeated_invalid_responses = repeated_invalid_responses + 1 if invalid_signature == prior_invalid_response else 1
                     prior_invalid_response = invalid_signature
+                    prior_plan_steps, repeated_plans = None, 0  # a non-plan response ends the plan sequence
                     if repeated_invalid_responses >= _STALL_OBSERVATIONS:
                         state, summary = "stalled", "Three identical invalid planner responses established no correction progress."
                         break
@@ -512,19 +551,56 @@ def _computer_events_admitted(
                 prior_invalid_response = None
                 repeated_invalid_responses = 0
                 if proposal["type"] == "plan":
+                    steps = list(proposal["steps"])
+                    # Exact comparison of the parsed, ordered steps; any literal
+                    # difference is a different plan (Codex, room 2026-09-05 16:49).
+                    repeated_plans = repeated_plans + 1 if steps == prior_plan_steps else 1
+                    prior_plan_steps = steps
+                    # Counted, not compared: a planner that paraphrases one plan produces a
+                    # different steps list every time and would never trip the rule above
+                    # (Codex named that limitation; whitespace normalisation was refused).
+                    plans_since_tool_step += 1
                     if plan is not None:
                         replans += 1
                     plan = {"advisory": True, "revision": replans + 1, "steps": proposal["steps"],
                             "artifact": proposal_artifact.to_dict()}
                     yield "progress", {"mission_id": mission_id, "phase": "plan", "plan": plan,
                                        "planner_call": planner_calls}
+                    if repeated_plans >= _STALL_OBSERVATIONS:
+                        # A progress criterion like the identical-observation rule
+                        # below, so it holds under every execution-limit mode: measured
+                        # 2026-09-05 (mission computer-loop-measure-03), eleven identical
+                        # plans under unbounded_execution until the kill switch.
+                        state, summary = "stalled", "Three consecutive identical advisory plans established no progress."
+                        break
+                    if plans_since_tool_step >= _MAX_PLANS_PER_STEP:
+                        # Planning is not progress; only an executed tool step is. The budget
+                        # is per step and renews below, so a plan-execute-plan rhythm is
+                        # unaffected. Like the rules around it this is a progress criterion,
+                        # not one of the section-4.1 cap axes, so no execution-limit mode
+                        # disables it: measured 2026-09-05 (computer-loop-measure-03), where a
+                        # 7B planner replanned until the kill switch under unbounded_execution.
+                        state, summary = "stalled", (
+                            f"{_MAX_PLANS_PER_STEP} consecutive advisory plans proposed no tool step; "
+                            "the plan budget for one step is exhausted.")
+                        break
                     continue
+                prior_plan_steps, repeated_plans = None, 0  # a tool or finish proposal ends the plan sequence
                 if proposal["type"] == "finish":
                     planner_summary = proposal["summary"]
                     state = "completed" if history else "no_actions"
                     summary = (f"{len(history)} tool operation(s) completed; evidence is retained. "
                                "The planner's task-level conclusion remains advisory." if history else
                                "The planner finished without executing any tool.")
+                    break
+                if limit_policy.enforces("wall_time") and clock() - started_at >= timeout:
+                    # Last check before the effect: the planner call above may have consumed
+                    # the remaining budget. Measured 2026-09-05 (computer-loop-measure-04):
+                    # two planner calls consumed a 300 s mission and the browser start then
+                    # hit the adapter's own cooperative deadline, which is reported as a tool
+                    # failure. An exhausted budget is a mission outcome, not a tool defect, so
+                    # no step artifact, no step intent and no adapter call happen here.
+                    state, summary = "timeout", "The mission timeout elapsed before the tool step; no effect was started."
                     break
                 tool = proposal["tool"]
                 step += 1
@@ -554,6 +630,7 @@ def _computer_events_admitted(
                     raise
                 history.append({"step": step, "tool": tool, "outcome": outcome,
                                 "artifact": result_artifact.to_dict()})
+                plans_since_tool_step = 0  # an executed tool step renews the plan budget
                 yield "progress", {"mission_id": mission_id, "phase": "observed", "step": step,
                                    "tool": tool, "ok": outcome["ok"], "state": outcome.get("state")}
                 if not outcome["ok"]:
@@ -765,7 +842,10 @@ def conversation_events(project: str | None, message: str, *,
             caps = computer_status(root)
             enabled = caps.get("enabled") is True
             summary = ("Computer assistance is configured. Use /computer followed by your task."
-                       if enabled else "Computer assistance is unavailable until its owner policy is configured. Use /computer setup to create a separate local workspace.")
+                       if enabled else
+                       "Computer assistance is configured, but every configured tool is unavailable on this host; see Unavailable below."
+                       if caps.get("unavailable") else
+                       "Computer assistance is unavailable until its owner policy is configured. Use /computer setup to create a separate local workspace.")
             if enabled:
                 names = ", ".join(tool["name"] for tool in caps.get("tools", []))
                 summary += f"\n\nWorkspace: `{caps.get('workspace', '')}`\n\nAvailable tools: {names}."
