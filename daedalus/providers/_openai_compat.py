@@ -134,14 +134,20 @@ def chat_raw(
     }
     if tools:
         body["tools"] = tools
-    payload = _post(
-        base_url,
-        body,
-        api_key,
-        timeout_s,
-        cancelled=cancelled,
-        poll_interval_s=poll_interval_s,
-    )
+    # Keep the legacy call shape byte-for-byte for callers/tests that inject the
+    # old four-argument _post seam. The new keywords exist only when a caller
+    # actually opts into cancellation.
+    if cancelled is None:
+        payload = _post(base_url, body, api_key, timeout_s)
+    else:
+        payload = _post(
+            base_url,
+            body,
+            api_key,
+            timeout_s,
+            cancelled=cancelled,
+            poll_interval_s=poll_interval_s,
+        )
     return payload["choices"][0]["message"]
 
 
@@ -230,14 +236,17 @@ def chat_completion(
     if extra:
         body.update(extra)
 
-    payload = _post(
-        base_url,
-        body,
-        api_key,
-        timeout_s,
-        cancelled=cancelled,
-        poll_interval_s=poll_interval_s,
-    )
+    if cancelled is None:
+        payload = _post(base_url, body, api_key, timeout_s)
+    else:
+        payload = _post(
+            base_url,
+            body,
+            api_key,
+            timeout_s,
+            cancelled=cancelled,
+            poll_interval_s=poll_interval_s,
+        )
     try:
         return payload["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
