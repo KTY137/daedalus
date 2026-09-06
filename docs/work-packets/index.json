@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 349,
+    "assigned_artifacts": 350,
     "legacy_artifacts": 204,
-    "packet_artifacts": 351,
-    "packet_ids": 286,
-    "post_index_artifacts": 147,
+    "packet_artifacts": 352,
+    "packet_ids": 287,
+    "post_index_artifacts": 148,
     "registry_artifacts": 1,
-    "tracked_files": 352,
+    "tracked_files": 353,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -4022,6 +4022,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1463bde2a11690cab181bec68df9099eb7a2ff9b",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-31` (native Ollama route sends `num_ctx_value()`), `G1-IKARUS-33` (planner facts in the report), Momus critique of 2026-09-06 04:10 (measure before compacting; see Council and review record below)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-42",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -6276,6 +6292,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-35",
       "path": "docs/work-packets/G1-IKARUS-35_SCHEDULED_AUTONOMY_WATCHER_TRUTH.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-42",
+      "path": "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

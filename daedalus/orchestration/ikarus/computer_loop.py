@@ -250,6 +250,22 @@ def _context_snapshot(root: Path) -> dict[str, Any]:
     return json.loads(json.dumps(context(root), allow_nan=False))
 
 
+_CHARS_PER_TOKEN_ESTIMATE = 4  # a stated estimate for the report, never a cap (G1-IKARUS-42)
+
+
+def _planner_context_tokens(capabilities: Mapping[str, Any]) -> int | None:
+    """The configured context window of the local planner, or None when unknown.
+
+    Only the loopback Ollama route has a window the loop can name (``num_ctx_value()``,
+    the value the native route sends). Remote CLI planners carry their own limits and
+    are reported as unknown rather than guessed."""
+    from ..llm_client import normalize_provider
+    if normalize_provider(capabilities.get("planner_provider") or "ollama_http") != "ollama_http":
+        return None
+    from ...providers._ollama_native import num_ctx_value
+    return int(num_ctx_value())
+
+
 def _plan_progress(plan: Mapping[str, Any] | None, tool_steps_since_plan: int) -> dict[str, Any] | None:
     """Deterministic progress over an advisory plan: the first step without an executed
     tool step, counted over the tool steps since the plan was adopted.
@@ -418,6 +434,11 @@ def _computer_events_admitted(
     planner_facts = {"provider": capabilities.get("planner_provider"),
                      "model": capabilities.get("planner_model"),
                      "remote_context": capabilities.get("allow_remote_context") is True}
+    # G1-IKARUS-42: the provider's context window is an external constraint the loop cannot
+    # widen (plan 4.1); it is estimated for the local route and reported, never claimed away.
+    planner_window = _planner_context_tokens(capabilities)
+    prompt_chars_max = 0
+    prompt_overflow_calls: int | None = 0 if planner_window is not None else None
     limit_policy = load_from_env()
     if (expected_execution_limit_policy_sha256 is not None
             and limit_policy.fingerprint_sha256 != expected_execution_limit_policy_sha256):
@@ -522,10 +543,16 @@ def _computer_events_admitted(
                     if remaining <= 0:
                         state, summary = "timeout", "The mission timeout elapsed before the next planner call."
                         break
+                prompt_chars = len(prompt)
+                prompt_chars_max = max(prompt_chars_max, prompt_chars)
+                window_exceeded = (planner_window is not None
+                                   and prompt_chars > planner_window * _CHARS_PER_TOKEN_ESTIMATE)
+                if window_exceeded:
+                    prompt_overflow_calls = (prompt_overflow_calls or 0) + 1
                 proposal_intent = ledger.record_intent(PROPOSAL_KIND, {
                     "mission_id": mission_id, "mission_sha256": mission.digest, "authority_root": str(root),
                     "planner_call": planner_calls + 1, "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-                    "advisory": True,
+                    "prompt_chars": prompt_chars, "advisory": True,
                 }, effect_key=f"{mission_id}-planner-{planner_calls + 1:04d}", trace_id=mission_id)
                 planner_calls += 1
                 if correction is not None:
@@ -546,6 +573,8 @@ def _computer_events_admitted(
                     "response": None if withheld else response,
                     "response_format": "utf8-text" if isinstance(response, str) else "provider-value-json",
                     "withheld_by_secret_floor": withheld,
+                    "prompt_chars": prompt_chars, "planner_context_tokens": planner_window,
+                    "context_window_exceeded_estimate": window_exceeded,
                 })
                 proposals.append(proposal_artifact.to_dict())
                 ledger.mark_completed(proposal_intent.id, effect_id=proposal_artifact.locator, result={
@@ -712,6 +741,8 @@ def _computer_events_admitted(
             "authority_root": str(root), "planner_calls": planner_calls, "tool_steps": step,
             "replans": replans, "repair_calls": repair_calls, "plan": plan,
             "proposals": proposals, "planner": planner_facts,
+            "prompt_chars_max": prompt_chars_max, "planner_context_tokens": planner_window,
+            "context_estimate": "chars/4", "prompt_overflow_calls": prompt_overflow_calls,
             "task_success_verified": False, "elapsed_s": max(0.0, clock() - started_at),
         }
         final_artifact = store_canonical_json(artifact_root, report)
@@ -758,6 +789,12 @@ def _chat_report(report: Mapping[str, Any]) -> str:
         model = f" ({planner['model']})" if planner.get("model") else ""
         left = "ja" if planner.get("remote_context") is True else "nein"
         lines.extend(["", f"Planner: {planner.get('provider')}{model} · Kontext hat den Rechner verlassen: {left}"])
+    overflow = report.get("prompt_overflow_calls")
+    if isinstance(overflow, int) and overflow > 0:
+        lines.extend(["", f"Hinweis: {overflow} Planner-Aufruf(e) überschritten das geschätzte Kontextfenster des "
+                          f"lokalen Modells ({report.get('planner_context_tokens')} Token, Schätzung "
+                          f"{report.get('context_estimate')}); das Modell hat den Anfang des Prompts vermutlich "
+                          f"nicht gesehen. Größter Prompt: {report.get('prompt_chars_max')} Zeichen."])
     if report.get("mission_id"):
         lines.extend(["", f"Mission: `{report['mission_id']}`"])
     return "\n".join(lines)
