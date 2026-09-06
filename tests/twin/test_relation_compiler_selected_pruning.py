@@ -119,6 +119,7 @@ def test_explicit_signature_prunes_unselected_evidence_materialization(
     )
     assert compiled.semantic_fact_count == 1
     assert compiled.forest_edge_count == len(forest.edges)
+    assert compiled.forest_hyperedge_count == 0
     assert compiled.verified_binding_count == len(snapshot.bindings)
 
 
@@ -152,6 +153,7 @@ def test_explicit_signature_prunes_unselected_verified_binding_facts(
     assert tuple(compiled.block_map) == (relation_block_name(selected),)
     assert compiled.semantic_fact_count == 1
     assert compiled.forest_edge_count == len(forest.edges)
+    assert compiled.forest_hyperedge_count == 0
     assert compiled.verified_binding_count == len(snapshot.bindings)
 
 
@@ -246,6 +248,7 @@ def test_discover_all_keeps_existing_forest_materialization_behavior(
         "code:declares:type",
     }
     assert compiled.forest_edge_count == len(forest.edges)
+    assert compiled.forest_hyperedge_count == 0
     assert compiled.verified_binding_count == len(snapshot.bindings)
 
 
@@ -286,3 +289,5 @@ def test_explicit_unrelated_relation_can_skip_retained_hyperedge() -> None:
     )
     assert compiled.semantic_fact_count == 1
     assert compiled.forest_edge_count == len(forest.edges)
+    assert compiled.forest_hyperedge_count == len(forest.hyperedges) == 1
+    assert compiled.to_dict()["forest_hyperedge_count"] == 1
