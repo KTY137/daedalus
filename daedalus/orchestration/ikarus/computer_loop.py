@@ -592,9 +592,14 @@ def _computer_events_admitted(
                     plans_since_tool_step += 1
                     if plan is not None:
                         replans += 1
+                    if plan is None or steps != list(plan["steps"]):
+                        # Progress is counted against the plan in force. Restating that plan
+                        # is not adopting a new one: measured 2026-09-06 (measure-08), the 7B
+                        # re-proposed its one-step plan after executing the step and a reset
+                        # then told it the step was open again (Momus, G1-IKARUS-32 review).
+                        tool_steps_since_plan = 0
                     plan = {"advisory": True, "revision": replans + 1, "steps": proposal["steps"],
                             "artifact": proposal_artifact.to_dict()}
-                    tool_steps_since_plan = 0  # progress is counted against the plan in force
                     yield "progress", {"mission_id": mission_id, "phase": "plan", "plan": plan,
                                        "planner_call": planner_calls}
                     if repeated_plans >= _STALL_OBSERVATIONS:

@@ -657,3 +657,19 @@ def test_prompt_states_that_an_unchanged_plan_is_not_progress():
     assert "plan_progress names the first advisory step without an executed tool step" in text
     assert "Re-proposing an unchanged plan is not progress" in text
     assert "grant no tools" in text
+
+
+def test_restating_the_plan_in_force_keeps_the_progress_count(isolated):
+    """Momus on measure-08 (2026-09-06): the 7B re-proposed the plan already in force after
+    executing its only step, and the reset then told it that step was open again. Restating
+    a plan is not adopting one: the count against it stands. A different plan still restarts it."""
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, PLAN_TWO, PLAN_OTHER, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    restated = prompts[3]["plan_progress"]
+    assert (restated["tool_steps_since_plan"], restated["next_step"]) == (1, "Read it again to verify.")
+    assert prompts[3]["advisory_plan"]["revision"] == 2, "the revision count is unchanged by this rule"
+    revised = prompts[4]["plan_progress"]
+    assert (revised["tool_steps_since_plan"], revised["next_step"]) == (0, PLAN_OTHER["steps"][0])

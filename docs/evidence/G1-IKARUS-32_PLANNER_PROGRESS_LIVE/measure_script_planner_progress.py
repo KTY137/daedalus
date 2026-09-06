@@ -29,7 +29,7 @@ payload = dict(current)
 payload.update({
     "tools": ["browser.navigate", "browser.read"],
     "origins": [f"http://127.0.0.1:{port}"],
-    "max_steps": 8, "timeout_s": 900,
+    "max_steps": int(os.environ.get("MAX_STEPS", "8")), "timeout_s": 900,
 })
 if planner == "ollama":
     payload.update({"planner_provider": "ollama_http", "planner_model": "qwen2.5-coder:7b", "allow_remote_context": False})
