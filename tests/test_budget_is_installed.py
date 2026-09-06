@@ -180,6 +180,35 @@ def test_a_vendor_spawn_IS_intercepted_when_installed(monkeypatch, tmp_path):
     assert seen, "a recognised vendor spawn was not reserved"
 
 
+def test_a_spawn_that_never_started_is_released_not_charged(monkeypatch, tmp_path):
+    """Measured 2026-09-05: a council seat whose executable was not on PATH
+    raised FileNotFoundError inside ``Popen.__init__`` and was still SETTLED at
+    the $2.00 worst case, which consumed the day's ceiling for a call that never
+    existed. No process, no vendor bytes: that is the one case ``release`` is
+    for, and the reason must say so in the ledger."""
+    import json
+
+    ledger_path = tmp_path / "ledger.json"
+    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(ledger_path))
+    budget.reset_default_ledger()
+    budget.install_process_guard()
+    try:
+        missing = str(tmp_path / "definitely-missing" / "claude.exe")
+        with pytest.raises(FileNotFoundError):
+            subprocess.Popen([missing, "-p", "--output-format", "json"])
+        with pytest.raises(FileNotFoundError):
+            subprocess.run([missing, "-p", "--output-format", "json"], capture_output=True)
+    finally:
+        budget.uninstall_process_guard()
+        budget.reset_default_ledger()
+    data = json.loads(ledger_path.read_text(encoding="utf-8"))
+    closes = [e for e in data["entries"] if e.get("kind") in ("settle", "release")]
+    assert len(closes) == 2, data["entries"]
+    assert all(e["kind"] == "release" and e["usd"] == 0.0 for e in closes), closes
+    assert all("spawn" in e["reason"] and "FileNotFoundError" in e["reason"] for e in closes)
+    assert data["spent_usd"] == 0.0 and data["calls"] == 0 and data["open"] == {}
+
+
 def test_uninstall_never_resurrects_a_mock_that_was_active_during_install():
     """The 2026-08-23 full-suite cascade, pinned. A test mocks subprocess.run,
     the code under test installs the guard around the MOCK, the mock's context

@@ -28,6 +28,17 @@ from daedalus.council import canary as C
 from daedalus.council.vendors import VendorReply
 
 
+@pytest.fixture(autouse=True)
+def isolated_ledger(monkeypatch, tmp_path):
+    """CLI seats reserve explicitly; no test may touch the real day ledger."""
+    from daedalus.kernel.policy import ledger as L
+
+    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(tmp_path / "budget-ledger.json"))
+    L.reset_default_ledger()
+    yield
+    L.reset_default_ledger()
+
+
 # --------------------------------------------------------------------------
 # fakes
 # --------------------------------------------------------------------------

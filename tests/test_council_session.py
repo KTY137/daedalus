@@ -45,13 +45,14 @@ class FakeAdapter(V.CouncilAdapter):
     """
 
     def __init__(self, vendor, model, *, reply="", status="ok", reason="",
-                 delay=0.0, lane="trusted", **kw):
+                 stderr="", delay=0.0, lane="trusted", **kw):
         super().__init__(model=model, lane=lane, **kw)
         self.vendor = vendor
         self.endpoint = f"fake:{vendor}"
         self.reply = reply
         self.status = status
         self.reason = reason
+        self.stderr = stderr
         self.delay = delay
         self.seen: list[dict] = []
 
@@ -59,7 +60,8 @@ class FakeAdapter(V.CouncilAdapter):
         self.seen.append({"text": text, "model": model, "timeout_s": timeout_s})
         if self.delay:
             time.sleep(self.delay)
-        return {"status": self.status, "content": self.reply, "reason": self.reason}
+        return {"status": self.status, "content": self.reply, "reason": self.reason,
+                "stderr": self.stderr}
 
 
 class ExplodingAdapter(V.CouncilAdapter):
@@ -283,6 +285,69 @@ def test_degraded_quorum_is_reported_prominently(tmp_path):
     assert "DEGRADED" in head and "MISSING VOICE" in head, \
         "the degraded flag must sit adjacent to the findings, not in a footer"
     assert "2 of 2" not in text
+
+
+def test_missing_voice_render_names_the_vendor_detail_behind_the_bus_reason(tmp_path):
+    """The bus vocabulary is fixed (an over-budget local prompt lands as
+    ``transport_error``), but the operator must still see WHY a voice is missing.
+    Measured 2026-09-05: a 7b seat refusing 28893 prompt tokens rendered only
+    ``transport_error`` and read like a broken network."""
+    a = FakeAdapter("anthropic", "claude-opus-5", reply=CLAIM_A)
+    local = FakeAdapter("local", "qwen2.5-coder:7b", status="error", reason="over_context_budget",
+                        stderr="28893 prompt tokens exceed the usable input window 5120 "
+                               "(num_ctx=6144); refusing rather than letting the server "
+                               "head-truncate the prompt\nsecond line is not rendered")
+    rec = S.convene("q", _evidence(), [a, local], rounds=1, council_id="c-detail",
+                    store_path=_store(tmp_path))
+
+    missing = [p for p in rec.participants if p.outcome != "responded"]
+    assert [p.reason for p in missing] == ["transport_error"]
+    assert missing[0].detail.startswith("over_context_budget: 28893 prompt tokens")
+    assert "second line" not in missing[0].detail
+    text = rec.render()
+    head, _, _ = text.partition("CLAIMS (")
+    assert "MISSING VOICE council.local.qwen2.5-coder-7b (unavailable: transport_error" in head
+    assert "over_context_budget: 28893 prompt tokens exceed the usable input window 5120" in head
+    # The chained record keeps the fixed vocabulary; the detail is a rendering.
+    stuck = [t for t in rec.turns if t.actor == local.actor]
+    assert [(t.status, t.reason) for t in stuck] == [("unavailable", "transport_error")]
+
+
+class LeakingAdapter(FakeAdapter):
+    """A vendor whose crash message carries a credential; lands in ``box["error"]``."""
+
+    def ask(self, *args, **kwargs):
+        raise RuntimeError(f"auth refresh failed for key {PLANTED_KEY} (see log)")
+
+
+def test_missing_voice_detail_runs_through_the_secret_floor(tmp_path):
+    """Cerberus 2026-09-05 (HIGH on G1-COUNCIL-02): ``detail`` is the first surface
+    that renders a vendor's stderr. The child runs with the operator's environment,
+    so a CLI that echoes a key on its error line would put it into the local render,
+    which an agent then reads back into a vendor context. The floor that guards the
+    prompt (pre-dispatch) must also guard this return path: the rule label replaces
+    the line, the bus reason stays, and the record itself never carries the line."""
+    a = FakeAdapter("anthropic", "claude-opus-5", reply=CLAIM_A)
+    leaking_stderr = FakeAdapter("openai", "gpt-5-codex", status="error", reason="auth_failure",
+                                 stderr=f"fatal: request rejected for key {PLANTED_KEY}\nsecond line")
+    crashing = LeakingAdapter("local", "qwen2.5-coder:7b")
+    rec = S.convene("q", _evidence(), [a, leaking_stderr, crashing], rounds=1,
+                    council_id="c-floor", store_path=_store(tmp_path))
+
+    missing = {p.actor: p for p in rec.participants if p.outcome != "responded"}
+    assert {leaking_stderr.actor, crashing.actor} <= set(missing)
+    stderr_detail = missing[leaking_stderr.actor].detail
+    crash_detail = missing[crashing.actor].detail
+    for detail in (stderr_detail, crash_detail):
+        assert PLANTED_KEY not in detail, detail
+        assert "secret content" in detail, detail
+        assert len(detail) <= 240
+    assert stderr_detail.startswith("auth_failure: ")
+    text = rec.render()
+    assert PLANTED_KEY not in text
+    assert "MISSING VOICE" in text and "secret content" in text
+    # The chained record never saw the line in the first place.
+    assert PLANTED_KEY not in _store(tmp_path).read_text(encoding="utf-8")
 
 
 def test_hung_vendor_is_bounded_and_the_session_still_completes(tmp_path):

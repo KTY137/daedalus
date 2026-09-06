@@ -52,6 +52,44 @@ block in the first lines). Match it in prose when you report to the user.
 
 A vendor that does not answer is a degraded quorum, never a silent drop.
 
+## Measured operating notes (2026-09-05, owner's Windows box)
+
+These are the reasons a live council came back 0 of 3 that day, each with
+its fix. Read them before blaming a vendor.
+
+- **Codex CLI version.** The npm global `@openai/codex` was 0.146.0 while the
+  owner's `~/.codex/config.toml` selects `gpt-6-astra`; the API refuses that
+  model on an old CLI with HTTP 400 "requires a newer version". `codex
+  --version` must be at least 0.153; upgrade with `npm install -g
+  @openai/codex@latest`. The `.CMD` shim is resolved by `_resolve_command`.
+- **Per-call timeout.** A one-word reply takes ~21 s from `claude -p` and
+  ~60 s from Codex at the owner's "ultra" reasoning effort; a review over
+  ~29k evidence tokens exceeded 420 s under load. Defaults are now 600 s per
+  call and 2400 s wall clock; pass `--timeout`/`--wall-clock` larger for big
+  evidence, and do not run three test suites next to a council.
+- **Local seat context.** The local `qwen2.5-coder:7b` runs with
+  `num_ctx=6144` on a 2 GB GPU / 15.7 GB RAM box, so its usable input window
+  is ~5100 tokens. Evidence above that is REFUSED loudly by the adapter
+  (`over_context_budget`) rather than head-truncated; the bus records it as
+  `transport_error` and the render now shows the vendor detail behind it.
+  Give the local seat small evidence (one test file, a diff) or accept the
+  honest refusal. Use `--ollama-host http://127.0.0.1:11434`; the bench host
+  is another machine and is often asleep.
+- **Budget accounting.** Every CLI seat reserves `anthropic_cli` $3.00 /
+  `openai_cli` $2.00 worst case against the day ledger
+  (`runs/budget/ledger.json`, default ceiling $5.00). Since 2026-09-05 a
+  Claude seat settles at the CLI's own `total_cost_usd` (a one-word reply is
+  ~$0.34) and a seat whose executable never spawned is released, not charged;
+  a timed-out or unpriced seat keeps the worst case. `budget_exhausted` in the
+  render means the ceiling, not the vendor: raise it deliberately as the owner
+  (desktop cap menu, or `DAEDALUS_BUDGET_USD`), declare a flat-rate vendor with
+  `DAEDALUS_SUBSCRIPTION_VENDORS` (the owner's Codex uses ChatGPT auth), or
+  wait for the day to roll over. Never point `DAEDALUS_BUDGET_LEDGER` elsewhere
+  to get around it.
+- **Cheap liveness first.** `daedalus canary --live --quick --vendors
+  anthropic,openai,local --ollama-host http://127.0.0.1:11434` asks each lane
+  one checkable question before you spend a review on it.
+
 ## The canonical record
 
 The transcript is an append-only, hash-chained JSONL bus at
@@ -132,3 +170,11 @@ speak -- `unavailable`, `refused`, `budget_exhausted` -- say which one and why;
 `bus.py` records that instead of dropping the vendor precisely so it can be
 reported, and "three vendors agreed" reads very differently from "one was never
 asked".
+
+### Measured operating notes, addendum (2026-09-05 evening)
+
+- **Evidence path must pass the untrusted egress lane.** The Codex seat runs in the `untrusted` lane; `slice_egress_rule` default-denies any evidence path outside the allow-list substrings (`docs/`, `/tests/`, `test_`, `.md`, `readme`). A scratchpad or `.diff` path is WITHHELD silently: the seat answers "evidence withheld", and the dry run shows no `withheld` field. Put council evidence under a repo-relative path with an allowed name (e.g. `runs/council/evidence/<name>.md`).
+- **Snapshot the evidence when nobody else edits the file.** A round taken while an adversarial agent had a mutant applied in place reviewed the mutant, not the tree; record the sha256 of the evidence and of the file it was cut from in the report.
+- **Round-2 attrition.** The Anthropic seat's reply can trip the secret floor (a key-shaped string in its own prose) and is then dropped unread as `refused`; the local 7B seat's 5,120-token window is consumed by prior turns, so round 2 fails at 0 ms as `transport_error` (pre-dispatch context refusal). A "3 of 3 responded" render can hide a one-voice refutation round: read per-round statuses.
+- **A killed council process leaves its open reservation in the ledger** (worst case, pid recorded); it is not released automatically. Report it; never rewrite the ledger.
+
