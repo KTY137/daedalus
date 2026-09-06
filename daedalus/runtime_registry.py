@@ -53,7 +53,10 @@ RUNTIMES: tuple[RuntimeSpec, ...] = (
         label="Codex CLI",
         mode="cli",
         command="codex",
-        trusted_with_ip=True,
+        # The provider's enforced egress policy is fail-closed for proprietary
+        # content. The operator-facing runtime registry must never advertise a
+        # broader clearance than the provider that actually executes the task.
+        trusted_with_ip=False,
         can_write=True,
         agentic=True,
         notes="Codex participates through AGENTS.md and the Daedalus file bus when CLI auth is available.",
