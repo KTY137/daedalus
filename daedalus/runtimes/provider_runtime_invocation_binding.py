@@ -52,6 +52,51 @@ class ProviderRuntimeInvocationBindingMismatch(ProviderRuntimeInvocationBindingE
     """Authenticated ABI, executable, runtime, or effect subjects differ."""
 
 
+def _require_exact_boundary_types(
+    authorization: RuntimeBoundEffectAuthorization,
+    execution: EffectExecutionRequest,
+    invocation_authority: ProviderInvocationObservationAuthority,
+    invocation_payload: ProviderInvocationPayload,
+    invocation_abi: ProviderInvocationABIContract,
+    observation_binding_ledger: ProviderObservationBindingLedger,
+    executable_registry: ProviderExecutableObjectRegistry,
+    pre_admission: ProviderExecutablePreAdmissionReceipt,
+) -> None:
+    """Reject substituted trust inputs before ledger-owned secret verification."""
+
+    expected = (
+        (authorization, RuntimeBoundEffectAuthorization, "authorization"),
+        (execution, EffectExecutionRequest, "execution"),
+        (
+            invocation_authority,
+            ProviderInvocationObservationAuthority,
+            "invocation_authority",
+        ),
+        (invocation_payload, ProviderInvocationPayload, "invocation_payload"),
+        (invocation_abi, ProviderInvocationABIContract, "invocation_abi"),
+        (
+            observation_binding_ledger,
+            ProviderObservationBindingLedger,
+            "observation_binding_ledger",
+        ),
+        (
+            executable_registry,
+            ProviderExecutableObjectRegistry,
+            "executable_registry",
+        ),
+        (
+            pre_admission,
+            ProviderExecutablePreAdmissionReceipt,
+            "pre_admission",
+        ),
+    )
+    for value, exact_type, label in expected:
+        if type(value) is not exact_type:
+            raise ProviderRuntimeInvocationBindingShapeError(
+                f"{label} must be exact {exact_type.__name__}"
+            )
+
+
 def _require_same(label: str, comparisons: Mapping[str, tuple[Any, Any]]) -> None:
     mismatches = tuple(
         sorted(
@@ -81,22 +126,16 @@ def bind_provider_runtime_invocation(
 ) -> ProviderRuntimeExecutableBindingReceipt:
     """Verify ABI + executable conjunction without granting or starting an Effect."""
 
-    if type(invocation_authority) is not ProviderInvocationObservationAuthority:
-        raise ProviderRuntimeInvocationBindingShapeError(
-            "invocation_authority must be exact ProviderInvocationObservationAuthority"
-        )
-    if type(invocation_payload) is not ProviderInvocationPayload:
-        raise ProviderRuntimeInvocationBindingShapeError(
-            "invocation_payload must be exact ProviderInvocationPayload"
-        )
-    if type(invocation_abi) is not ProviderInvocationABIContract:
-        raise ProviderRuntimeInvocationBindingShapeError(
-            "invocation_abi must be exact ProviderInvocationABIContract"
-        )
-    if type(observation_binding_ledger) is not ProviderObservationBindingLedger:
-        raise ProviderRuntimeInvocationBindingShapeError(
-            "observation_binding_ledger must be exact ProviderObservationBindingLedger"
-        )
+    _require_exact_boundary_types(
+        authorization,
+        execution,
+        invocation_authority,
+        invocation_payload,
+        invocation_abi,
+        observation_binding_ledger,
+        executable_registry,
+        pre_admission,
+    )
     if type(at) is not datetime or at.tzinfo is None or at.utcoffset() is None:
         raise ProviderRuntimeInvocationBindingShapeError(
             "at must be an exact timezone-aware datetime"
