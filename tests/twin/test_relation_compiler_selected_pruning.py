@@ -17,7 +17,7 @@ from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
 from daedalus.twin.relation_blocks import RelationSignature
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
-from daedalus.twin.semiring import BooleanSemiring
+from daedalus.twin.semiring import BooleanSemiring, EvidenceDagSemiring, NaturalSemiring
 
 REVISION = "4" * 40
 CREATED_AT = "2026-09-06T11:00:00+02:00"
@@ -185,15 +185,15 @@ def test_explicit_signature_prunes_unselected_evidence_materialization(
     compiled = compile_relation_blocks(
         forest,
         snapshot,
-        BooleanSemiring(),
+        EvidenceDagSemiring(),
         signatures=(selected,),
     )
 
     assert observed_relations == ["declares"]
     assert tuple(compiled.block_map) == (relation_block_name(selected),)
-    assert tuple(compiled.block_map[relation_block_name(selected)].iter_entries()) == (
-        ("src/worker.py", "type:Event", True),
-    )
+    entries = tuple(compiled.block_map[relation_block_name(selected)].iter_entries())
+    assert len(entries) == 1
+    assert entries[0][:2] == ("src/worker.py", "type:Event")
     assert compiled.semantic_fact_count == 1
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.forest_hyperedge_count == 0
@@ -232,6 +232,35 @@ def test_explicit_signature_prunes_unselected_verified_binding_facts(
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.forest_hyperedge_count == 0
     assert compiled.verified_binding_count == len(snapshot.bindings)
+
+
+def test_scalar_observers_record_selected_facts_without_provenance_bundles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "declares", "type")
+    observed_evidence_atoms: list[object] = []
+    original = relation_compiler._record_fact
+
+    def recording_record_fact(*args: object, **kwargs: object) -> None:
+        if kwargs.get("signature") == selected:
+            observed_evidence_atoms.append(kwargs.get("evidence_atoms"))
+        original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", recording_record_fact)
+
+    for semiring, expected in ((BooleanSemiring(), True), (NaturalSemiring(), 1)):
+        observed_evidence_atoms.clear()
+        compiled = compile_relation_blocks(
+            forest,
+            snapshot,
+            semiring,
+            signatures=(selected,),
+        )
+        entries = tuple(compiled.block_map[relation_block_name(selected)].iter_entries())
+        assert entries == (("src/worker.py", "type:Event", expected),)
+        assert observed_evidence_atoms == [None, None]
+        assert compiled.verified_binding_count == 1
 
 
 def test_explicit_signature_contract_is_validated_before_edge_materialization(
@@ -375,7 +404,7 @@ def test_explicit_complete_relation_ignores_unselected_partial_plane(
     compiled = compile_relation_blocks(
         forest,
         snapshot,
-        BooleanSemiring(),
+        EvidenceDagSemiring(),
         signatures=(selected,),
     )
 
@@ -416,7 +445,7 @@ def test_discover_all_keeps_existing_forest_materialization_behavior(
 
     monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", recording_atoms)
 
-    compiled = compile_relation_blocks(forest, snapshot, BooleanSemiring())
+    compiled = compile_relation_blocks(forest, snapshot, EvidenceDagSemiring())
 
     assert observed_relations == ["imports", "declares"]
     assert set(compiled.block_map) == {

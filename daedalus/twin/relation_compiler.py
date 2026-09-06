@@ -237,11 +237,14 @@ def _record_fact(
     signature: RelationSignature,
     source: str,
     target: str,
-    evidence_atoms: Sequence[str],
+    evidence_atoms: Sequence[str] | None,
 ) -> None:
-    atoms = tuple(sorted(set(evidence_atoms)))
     bucket = facts.setdefault(signature, {})
-    bucket.setdefault((source, target), set()).add(atoms)
+    evidence_bundles = bucket.setdefault((source, target), set())
+    if evidence_atoms is None:
+        return
+    atoms = tuple(sorted(set(evidence_atoms)))
+    evidence_bundles.add(atoms)
 
 
 def _forest_edge_atoms(edge: ForestEdge) -> tuple[str, ...]:
@@ -274,8 +277,9 @@ def compile_relation_blocks(
     an explicitly selected conflicting relation fail closed instead.
 
     Forest edges and matching verified bindings are deduplicated by semantic
-    endpoint/relation identity. Their evidence bundles remain alternative
-    provenance paths in the evidence observer.
+    endpoint/relation identity. The evidence observer retains their canonical
+    provenance alternatives; scalar observers retain only semantic coordinate
+    presence and do not materialize provenance bundles they cannot consume.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -396,6 +400,7 @@ def compile_relation_blocks(
     )
     _require_complete_endpoint_planes(snapshot, selected)
     selected_set = frozenset(selected)
+    retain_evidence = observer_name == "evidence-dag"
 
     facts: dict[
         RelationSignature,
@@ -407,7 +412,7 @@ def compile_relation_blocks(
         if not include_forward and not include_reverse:
             continue
 
-        atoms = _forest_edge_atoms(edge)
+        atoms = _forest_edge_atoms(edge) if retain_evidence else None
         if include_forward:
             _record_fact(
                 facts,
@@ -434,8 +439,9 @@ def compile_relation_blocks(
             source=binding.source_node_id,
             target=binding.target_node_id,
             evidence_atoms=(
-                binding.digest,
-                *binding.evidence_sha256s,
+                (binding.digest, *binding.evidence_sha256s)
+                if retain_evidence
+                else None
             ),
         )
 

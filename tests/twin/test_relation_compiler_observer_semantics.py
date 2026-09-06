@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
+
 from daedalus.schemas import ContractProvenance
 from daedalus.spine.envelope import canonical_sha
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
+from daedalus.twin import relation_compiler
 from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
 from daedalus.twin.relation_blocks import RelationSignature
@@ -101,8 +104,22 @@ def _single_value(compiled: object) -> object:
     return entries[0][2]
 
 
-def test_boolean_observer_collapses_duplicate_witnesses_to_existence() -> None:
+def _forbid_forest_evidence_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(
+            f"scalar observer materialized Forest evidence for {edge.relation}"
+        )
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+
+def test_boolean_observer_collapses_duplicate_witnesses_to_existence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     forest, snapshot = _fixture()
+    _forbid_forest_evidence_materialization(monkeypatch)
 
     compiled = compile_relation_blocks(
         forest,
@@ -116,8 +133,11 @@ def test_boolean_observer_collapses_duplicate_witnesses_to_existence() -> None:
     assert compiled.forest_edge_count == 2
 
 
-def test_natural_observer_counts_semantic_paths_not_ingest_witnesses() -> None:
+def test_natural_observer_counts_semantic_paths_not_ingest_witnesses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     forest, snapshot = _fixture()
+    _forbid_forest_evidence_materialization(monkeypatch)
 
     compiled = compile_relation_blocks(
         forest,
@@ -166,8 +186,11 @@ class AlternateNaturalBackend:
         return left * right
 
 
-def test_compiler_preserves_protocol_backend_substitution_by_semantic_name() -> None:
+def test_compiler_preserves_protocol_backend_substitution_by_semantic_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     forest, snapshot = _fixture()
+    _forbid_forest_evidence_materialization(monkeypatch)
 
     compiled = compile_relation_blocks(
         forest,
