@@ -1,0 +1,114 @@
+{
+  "id": "G1-GARDEN-MAP-09",
+  "title": "Resolve indirect environment-reader switches at their canonical call sites",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "f52ef035b63c4baf6b55c49319337506acf2a373",
+  "source_evidence": {
+    "branch": "packet/g1-map-02",
+    "selected_commit": "8bb907a633c59d4760fa396983472ac89f937b37",
+    "legacy_production_blob": {
+      "path": "daedalus/mapping/switches.py",
+      "sha": "f2259586e6f6ae6135dd87832e32beb4cee07d4e"
+    },
+    "legacy_test_blob": {
+      "path": "tests/test_mapping_switches_indirect.py",
+      "sha": "09c10c464f5cc36110d554a6240b893183330c23"
+    },
+    "previous_current_revision_probe": "G1-GARDEN-MAP-08",
+    "wholesale_merge": false,
+    "source_ref_retained": true,
+    "archive_target_used": false
+  },
+  "implementation": {
+    "commit": "f785ce089c74f3c55505603f386df0e9e1f2dd04",
+    "tree": "9bb1600ce4013a7ffb9b77052d8bca6f59f46fb7",
+    "previous_switch_inventory_blob": "3db6c5d99e5cd592650e1aa13a1e0a5db7cfd5e5",
+    "switch_inventory_blob": "6fd8cc13a2d71e9b8268ba27d8807b65050c88fb",
+    "focused_test_blob": "71934b31530f77c66cd5b77d41c8659be5fe4850",
+    "previous_gate1_workflow_blob": "e188b5459a812082b0c389b3ea6b5965884942aa",
+    "gate1_workflow_blob": "8e6c003be6737e7a66bf9df9a4172a09ce79b0e1",
+    "semantic_change": [
+      "recognize only module-local helpers that structurally hand one of their own positional parameters to os.environ/os.getenv",
+      "attribute a concrete environment-variable read to the helper call site, where the variable is selected",
+      "resolve literal, local-constant, and imported-constant call arguments only through the existing constant/import resolver",
+      "retain unresolvable call arguments as dynamic_reads rather than guessing",
+      "suppress the recognized helper's own name parameter as a duplicate dynamic read because the call site now owns that uncertainty",
+      "reuse the existing EnvSite, reconciliation, resolver, drift, and Gate-1 workflow owners instead of adding a parallel scanner or workflow"
+    ],
+    "focused_regressions": [
+      "local constant through an env-reader helper is attributed to the call site",
+      "imported constant reuses the existing import-aware resolver",
+      "unresolvable helper argument remains dynamic and invents no switch",
+      "a decoy helper that never reads the environment is not followed",
+      "DAEDALUS_BUDGET_USD is recognized as a real ledger helper read",
+      "DAEDALUS_BUDGET_MAX_CALLS is recognized as a real ledger helper read",
+      "the two budget switches are no longer reported as documented_never_read"
+    ],
+    "new_parallel_abstraction": false,
+    "new_workflow": false
+  },
+  "verification": {
+    "gate1": {
+      "run_id": 34010777141,
+      "event": "pull_request",
+      "head_sha": "f785ce089c74f3c55505603f386df0e9e1f2dd04",
+      "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "merge_preview_sha_at_verification": "22dd66feb61e4d097dcb63e8619b982fb2e01b90",
+      "conclusion": "success",
+      "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+      "matrix_result": "all four matrix jobs completed successfully with tests/test_mapping_switches.py and tests/test_mapping_switches_indirect.py in the executed command",
+      "isolated_wheel": "successful",
+      "claim_type": "PR merge-preview integration evidence, not raw-head checkout evidence"
+    },
+    "fourfold_tensor": {
+      "run_id": 34010777123,
+      "event": "pull_request",
+      "head_sha": "f785ce089c74f3c55505603f386df0e9e1f2dd04",
+      "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "merge_preview_sha_at_verification": "22dd66feb61e4d097dcb63e8619b982fb2e01b90",
+      "conclusion": "success",
+      "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 successful",
+      "public_api": "successful",
+      "isolated_wheel": "successful",
+      "repository_collection": "successful",
+      "full_repository_suite": "manual-only/skipped on pull_request events",
+      "claim_type": "PR integration and collection evidence only"
+    },
+    "claim_boundary": {
+      "raw_head_checkout_green_claim": false,
+      "full_repository_test_suite_claim": false,
+      "performance_claim": false,
+      "tensor_vs_forest_claim": false,
+      "crewai_claim": false,
+      "alphaevolve_claim": false
+    }
+  },
+  "gardener": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "archive_write": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "parallel_abstraction_added": false,
+    "source_branch_preserved": true,
+    "canonical_line_only": true
+  },
+  "authority": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "automatic_merge": false,
+    "gate_transition": false
+  },
+  "closure_note": "MAP-08 first re-proved the legacy blind spot against the current canonical revision. MAP-09 now closes exactly that bounded defect in-place and keeps the legacy branch as evidence rather than merging it wholesale or moving it into archive/legacy-20260830.",
+  "next": "Re-evaluate the next still-unique packet/g1-map-02 commit against the current canonical tree or return to the separately bounded MAP-06 coverage dependency. Continue one responsibility at a time; do not wholesale-merge the packet branch."
+}
