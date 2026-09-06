@@ -1,0 +1,26 @@
+[
+ {
+  "call": 1,
+  "step": 1,
+  "sha256": "e4b2b5e3711adefde1edd76e46c8a2c0eea89b58febded4fef037a9f1bbbcc36",
+  "response": "{\"type\":\"plan\",\"steps\":[\"Open http://127.0.0.1:57660/notes.html in the browser.\",\"Read the page, verify its title, the three Today items, and the sentinel code, then report them.\"]}"
+ },
+ {
+  "call": 2,
+  "step": 1,
+  "sha256": "3e8b91a0d76a43e21cdbaa8dd7c6d831f630f9a8ec0bc3310cf208a1f8731315",
+  "response": "{\"type\":\"tool\",\"tool\":\"browser.navigate\",\"arguments\":{\"url\":\"http://127.0.0.1:57660/notes.html\"}}"
+ },
+ {
+  "call": 3,
+  "step": 2,
+  "sha256": "0113b2bcf80f6c548dc2b59b65b93f1b1616154a568f910138e4bd6517b09e1b",
+  "response": "{\"type\":\"tool\",\"tool\":\"browser.read\",\"arguments\":{}}"
+ },
+ {
+  "call": 4,
+  "step": 3,
+  "sha256": "72d088780ab7ae9f115c3d094e14ae2cf1a00e387878b542dcb4bb2ca5f7ba10",
+  "response": "{\"type\":\"finish\",\"summary\":\"The browser observations show the page title as “Daedalus stage 13 notes”. Today lists: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471.\"}"
+ }
+]

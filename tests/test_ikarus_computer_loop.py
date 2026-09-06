@@ -585,3 +585,75 @@ def test_a_service_stop_during_the_planner_call_keeps_the_stop_attribution(isola
     result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger)
     assert result["state"] == "blocked", result["summary"]
     assert "operator stop" in result["summary"]
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-32: the prompt names the next open advisory step (mission computer-loop-measure-06)
+# --------------------------------------------------------------------------
+
+PLAN_TWO = {"type": "plan", "steps": ["Read the fixture file.", "Read it again to verify."]}
+
+
+def _capturing_planner(*responses):
+    """Like ``planner`` but retains every prompt payload the loop sent."""
+    pending = iter(responses)
+    prompts: list[dict] = []
+
+    def propose(prompt, *args):
+        prompts.append(json.loads(prompt.rsplit("\n", 1)[1]))  # the payload follows the directive
+        return json.dumps(next(pending))
+    return propose, prompts
+
+
+def test_prompt_names_the_next_open_plan_step_and_counts_executed_steps(isolated):
+    """Measure-06 (2026-09-05): after one successful tool step the 7B planner proposed the same
+    one-step plan three times although the observation already held the page text. The loop
+    now tells the planner which advisory step has no executed tool step yet, counted over the
+    tool steps since the plan was adopted; nothing is inferred from the step wording."""
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    assert prompts[0]["advisory_plan"] is None and prompts[0]["plan_progress"] is None
+    first = prompts[1]["plan_progress"]
+    assert first == {"tool_steps_since_plan": 0, "next_step_index": 1,
+                     "next_step": "Read the fixture file.",
+                     "open_steps": ["Read the fixture file.", "Read it again to verify."],
+                     "every_step_has_a_tool_step": False}
+    second = prompts[2]["plan_progress"]
+    assert (second["tool_steps_since_plan"], second["next_step_index"], second["next_step"]) == (1, 2, "Read it again to verify.")
+    assert second["open_steps"] == ["Read it again to verify."]
+    third = prompts[3]["plan_progress"]
+    assert third == {"tool_steps_since_plan": 2, "next_step_index": None, "next_step": None,
+                     "open_steps": [], "every_step_has_a_tool_step": True}
+    assert prompts[3]["advisory_plan"]["steps"] == PLAN_TWO["steps"], "the plan itself stays in the prompt"
+
+
+def test_a_revised_plan_restarts_the_progress_count(isolated):
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, PLAN_OTHER, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    after_revision = prompts[3]["plan_progress"]
+    assert after_revision["tool_steps_since_plan"] == 0
+    assert after_revision["next_step"] == PLAN_OTHER["steps"][0]
+    assert prompts[3]["advisory_plan"]["revision"] == 2
+
+
+def test_progress_never_indexes_past_the_plan_and_is_absent_without_a_plan():
+    assert loop._plan_progress(None, 3) is None
+    plan = {"advisory": True, "revision": 1, "steps": ["only step"], "artifact": {}}
+    assert loop._plan_progress(plan, 5) == {"tool_steps_since_plan": 5, "next_step_index": None, "next_step": None,
+                                            "open_steps": [], "every_step_has_a_tool_step": True}
+
+
+def test_prompt_states_that_an_unchanged_plan_is_not_progress():
+    """The directive is data for the planner, not authority: it grants no tool and the loop's
+    plan budget (G1-IKARUS-29) still ends a planner that ignores it."""
+    text = loop._prompt("objective", [], [], {}, plan={"advisory": True, "revision": 1, "steps": ["s"], "artifact": {}},
+                        progress=loop._plan_progress({"steps": ["s"]}, 0))
+    assert "plan_progress names the first advisory step without an executed tool step" in text
+    assert "Re-proposing an unchanged plan is not progress" in text
+    assert "grant no tools" in text
