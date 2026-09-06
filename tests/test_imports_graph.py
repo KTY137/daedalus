@@ -186,7 +186,7 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
         self.assertEqual(component_edges(edges, ("a", "b")),
                          (("a", "b"), ("b", "a")))
 
-    #: The cross-domain knot ``core.py`` sits in, pinned by MEMBERSHIP.
+    #: Historical membership of the cross-domain knot around ``core.py``.
     #:
     #: UPDATED 2026-09-02 for packet G1-SCC-CUT1 (``6b557bd9``, merged
     #: ``22cff7bf``), which cut this component from 18 modules to 13 by making
@@ -205,7 +205,14 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
     #: now compose with ``core``, ``file_bridge``, ``status`` and the Kairos
     #: scheduler.  This is a measured debt increase, not a claimed cycle cut;
     #: pinning all six arrivals keeps a later distillation visible.
-    CORE_CYCLE = frozenset({
+    #:
+    #: RETIRED 2026-09-06 by integration merge ``f7b6be55``.  That merge made
+    #: the repository's tracked ``center: daedalus, tools, apps/web/src``
+    #: declaration effective.  Shell material remains import-resolvable but no
+    #: longer turns the measured project center into one cross-domain knot;
+    #: ``daedalus/core.py`` consequently became acyclic.  Keep the former set
+    #: as negative evidence and fail if core silently re-enters a cycle.
+    PRE_CENTER_CORE_CYCLE = frozenset({
         "daedalus/build.py",
         "daedalus/build_exec.py",
         "daedalus/core.py",
@@ -230,12 +237,10 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
     def test_this_repo_reports_its_own_cyclic_components(self):
         """The regression this file exists for.
 
-        Asserts the CAPABILITY plus one fact about this repo: the component
-        containing ``core.py`` is named, member by member. If a future
-        distillation legitimately breaks it, this assertion should be UPDATED
-        with the new membership and the commit that cut it -- the point is that
-        shrinking it becomes a visible, deliberate act rather than something
-        nobody can measure either way.
+        Asserts the CAPABILITY plus one fact about this repo: after the tracked
+        project-center declaration became effective, ``core.py`` is no longer
+        in a cyclic component.  The former membership remains recorded above,
+        and this test now makes any re-entry visible.
 
         LOCATED BY MEMBERSHIP, NOT BY ``components[0]`` (changed 2026-09-02).
         The old form asked for the LARGEST component and asserted ``core.py``
@@ -260,16 +265,8 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
         holding = [c for c in report["components"]
                    if "daedalus/core.py" in c["modules"]]
         self.assertEqual(
-            len(holding), 1,
-            "daedalus/core.py is in no cyclic component at all -- if a "
-            "distillation genuinely made it acyclic that is a WIN, but this "
-            "assertion has to be retired deliberately rather than by deleting "
-            "the only thing pinning the knot's membership")
-        self.assertEqual(
-            frozenset(holding[0]["modules"]), self.CORE_CYCLE,
-            "the cross-domain component around daedalus/core.py changed "
-            "membership; UPDATE CORE_CYCLE with the new list and name the "
-            "commit that moved it, per this test's docstring")
-        # The induced edges are what any feedback-arc-set proposal is computed
-        # from, so an empty list here would make every such proposal vacuous.
-        self.assertTrue(holding[0]["induced_edges"])
+            holding, [],
+            "daedalus/core.py re-entered a cyclic component after the project "
+            "center cut; compare it with PRE_CENTER_CORE_CYCLE and record the "
+            "commit that changed membership")
+        self.assertIn("daedalus/core.py", self.PRE_CENTER_CORE_CYCLE)
