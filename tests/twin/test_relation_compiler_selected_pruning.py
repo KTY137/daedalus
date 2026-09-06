@@ -6,6 +6,7 @@ import pytest
 
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
 from daedalus.twin import relation_compiler
+from daedalus.twin.contracts import FourfoldSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
 from daedalus.twin.relation_blocks import RelationSignature
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
@@ -29,7 +30,7 @@ def _edge(source: str, target: str, relation: str) -> ForestEdge:
     )
 
 
-def _fixture() -> tuple[KnowledgeForest, object]:
+def _fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
     forest = KnowledgeForest(
         root=".",
         nodes=(
@@ -85,6 +86,39 @@ def test_explicit_signature_prunes_unselected_evidence_materialization(
     assert tuple(compiled.block_map[relation_block_name(selected)].iter_entries()) == (
         ("src/worker.py", "type:Event", True),
     )
+    assert compiled.semantic_fact_count == 1
+    assert compiled.forest_edge_count == len(forest.edges)
+    assert compiled.verified_binding_count == len(snapshot.bindings)
+
+
+def test_explicit_signature_prunes_unselected_verified_binding_facts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "imports", "code")
+    observed_signatures: list[RelationSignature] = []
+    original = relation_compiler._record_fact
+
+    def guarded_record_fact(*args: object, **kwargs: object) -> None:
+        signature = kwargs.get("signature")
+        if not isinstance(signature, RelationSignature):
+            raise AssertionError("relation fact did not carry a typed signature")
+        observed_signatures.append(signature)
+        if signature != selected:
+            raise AssertionError("unselected verified-binding fact was materialized")
+        original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", guarded_record_fact)
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(selected,),
+    )
+
+    assert observed_signatures == [selected]
+    assert tuple(compiled.block_map) == (relation_block_name(selected),)
     assert compiled.semantic_fact_count == 1
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.verified_binding_count == len(snapshot.bindings)
