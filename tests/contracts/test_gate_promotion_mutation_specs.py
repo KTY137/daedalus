@@ -36,8 +36,14 @@ UNMIGRATED = {
         ("unbounded-timeout", "c6b6c6412feb74af769aaed37f499c713b7878c0426f722e06573a08db42c122"),
     "run_gate0_release_writer_inventory_mutations.py":
         ("unbounded-timeout", "4b40b2afd1701f6b47a64f59c2c6071062c3e246e44d4ee0457333cdca5c0a19"),
+    # f7c517d0 deliberately repaired this legacy campaign after the contracts
+    # facade became a package: its six mutants now target security.py,
+    # canonical.py and the kernel facade, preserve each file's newline style,
+    # and restore every byte. It is still not a declarative migration because
+    # it keeps an unbounded subprocess loop and creates a temporary competing
+    # module, so retain it in this inventory with its real residual reason.
     "run_promotion_receipt_authority_mutations.py":
-        ("unbounded-timeout-and-file-creation", "de0d4ba66f49bb1963343db483f396bb71d959f5b843a73008d506644bccfa64"),
+        ("repaired-current-owners;unbounded-timeout-and-file-creation", "0f49bb478dcf49536ac29de89e561fd72a276810ad339f6cb97d754b86597e25"),
     "run_promotion_execution_reader_mutations.py":
         ("unbounded-timeout", "8e5f9fd7c7ff1b61f7cf954c59c198bb5235ced09dd649e0df3dc60f8901b80a"),
     "run_promotion_execution_mutations.py":
@@ -138,6 +144,27 @@ class GatePromotionMutationSpecTests(unittest.TestCase):
                     _sha256(ROOT / "scripts" / name),
                     expected_digest,
                 )
+
+    def test_repaired_legacy_receipt_campaign_names_current_owners_and_restoration(self):
+        source = (
+            ROOT / "scripts" / "run_promotion_receipt_authority_mutations.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'security = ROOT / "daedalus" / "kernel" / "contracts" / "security.py"',
+            source,
+        )
+        self.assertIn(
+            'canonical = ROOT / "daedalus" / "kernel" / "contracts" / "canonical.py"',
+            source,
+        )
+        self.assertIn(
+            'competing_module = ROOT / "daedalus" / "kernel" / "promotion_receipts.py"',
+            source,
+        )
+        self.assertIn("finally:", source)
+        self.assertIn("path.write_bytes(original)", source)
+        self.assertIn("temporary competing module was not removed", source)
+        self.assertNotIn('contracts = ROOT / "daedalus" / "kernel" / "contracts.py"', source)
 
     def test_spec_strictly_loads_the_frozen_legacy_job(self):
         payload = json.loads(SPEC.read_text(encoding="utf-8"))
