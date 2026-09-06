@@ -411,6 +411,62 @@ def test_assurance_falls_when_no_check_is_anchored():
     assert "outside the candidate's write scope" in reason and problem
 
 
+def _item(slice_result, evidence_id):
+    for item in slice_result.packet.items:
+        if item.evidence_id == evidence_id:
+            return item
+    raise AssertionError(f"no evidence item {evidence_id!r}")
+
+
+def test_the_behavior_item_names_the_module_that_actually_judged_it(slice_result):
+    """`criterion_paths` is a claim about what judged, and it was wrong.
+
+    It named ``daedalus/ignition/gate1.py``. The probe body and the result
+    contract are ``daedalus.ignition.runner._BEHAVIOR_PROBE`` and
+    ``_validated_behavior``; this module only reads the answer back. G1-ISO-01
+    moved the probe into a child interpreter, which made the stale name wrong
+    in a second way as well.
+    """
+    detail = _item(slice_result, "gate1-behavior").details
+
+    assert "daedalus/ignition/runner.py" in detail["criterion_paths"]
+    assert "daedalus/ignition/gate1.py" not in detail["criterion_paths"]
+
+
+def test_the_behavior_item_states_its_own_residual(slice_result):
+    """It used to borrow the composed checks' reason, which it has no claim to.
+
+    The composed reason describes an anchored conformance suite frozen in the
+    judged tree outside every work item's target_paths. The behavior probe has
+    no such anchor: its criterion is module code, and its answer channel is
+    forgeable in four lines through ``__main__`` under ``python -I -c``. An
+    item that cites someone else's seal is overstating what it is worth.
+    """
+    behavior = _item(slice_result, "gate1-behavior").details["assurance_reason"]
+    composed = _item(slice_result, "gate1-check-pytest").details["assurance_reason"]
+
+    assert behavior != composed, "the behavior item is still citing another check's seal"
+    assert "runner.py" in behavior
+    assert "__main__" in behavior, "the measured forgery residual is not stated"
+    assert "not a verdict sealed from the candidate" in behavior
+
+
+def test_the_derived_assurance_reaches_every_item(slice_result):
+    """No item carries an assurance the derivation did not produce.
+
+    HONEST LIMIT, stated because the alternative is a test that looks like a
+    guard and is not: in a green run every item is `deterministic`, so this
+    cannot distinguish "derived" from "asserted the same value". It is a
+    consistency assertion, and the discriminating case -- a run where the
+    derivation returns `unverified` -- is refused at packet assembly by
+    `kernel.contracts.canonical` before any item is observable. That refusal
+    is covered by `test_an_unverified_assurance_prevents_the_packet`.
+    """
+    assurances = {item.assurance for item in slice_result.packet.items}
+
+    assert len(assurances) == 1, f"items disagree about assurance: {assurances}"
+
+
 def test_an_unverified_assurance_prevents_the_packet(slice_result):
     """The kernel refuses the packet rather than downgrading it -- confirm it."""
 

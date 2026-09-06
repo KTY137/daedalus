@@ -117,6 +117,35 @@ DEFAULT_RECEIPT_ROOT = ROOT / "runs" / "ignition"
 RETIRED_SYMBOL = "voltage"
 RENAMED_SYMBOL = "bias_voltage"
 
+#: Why the behavior item is worth what it is worth -- ITS OWN reason, not the
+#: composed checks'. It used to borrow theirs, which described an anchored
+#: conformance suite this measurement does not have.
+BEHAVIOR_ASSURANCE_REASON = (
+    "the probe body and the result contract are authored in "
+    "daedalus/ignition/runner.py, outside the candidate, and since G1-ISO-01 "
+    "the candidate is imported in a CHILD interpreter, so it no longer "
+    "executes inside the process that records this measurement. RESIDUAL, "
+    "measured 2026-09-03 rather than assumed: the probe receives its nonce on "
+    "stdin under `python -I -c`, where `_nonce` and `_out` are ordinary "
+    "`__main__` attributes -- four lines of candidate module-level code read "
+    "them and write a passing result with no Event class and no parse_event "
+    "in existence. This item is therefore a runtime consistency measurement, "
+    "not a verdict sealed from the candidate. What refuses that forgery is "
+    "the anchored conformance suite recorded as gate1-check-pytest and the "
+    "tree read recorded as the composed candidate's straggler scan -- both "
+    "separate items, and neither of them this one."
+)
+
+#: The graph delta borrowed the same reason and has the same shape of limit:
+#: its criterion is module code, not a frozen file in the judged tree.
+GRAPH_DELTA_ASSURANCE_REASON = (
+    "the delta is computed by daedalus/twin/reference_compiler.py over two "
+    "snapshots this module compiled, so its criterion is evaluator code the "
+    "candidate cannot reach. It states that the rename moved the Fourfold, "
+    "not that it moved it CORRECTLY: a consistently wrong rename produces a "
+    "delta too. The anchored conformance suite is what distinguishes them."
+)
+
 SESSION_SLUG = "gate1-voltage-ignition"
 FEATURE = (
     "propagate the Event.voltage -> Event.bias_voltage rename across the code, "
@@ -1184,7 +1213,12 @@ def run_gate1_ignition(
 
         behavior_report = ignition_checks.CheckReport(
             kind="behavior", evaluator="ignition-behavior", passed=behavior_ok,
-            criterion_paths=("daedalus/ignition/gate1.py",),
+            # runner.py, NOT gate1.py: the probe body and the result contract
+            # live in `daedalus.ignition.runner._BEHAVIOR_PROBE` /
+            # `_validated_behavior`. This module only reads the answer. Naming
+            # the wrong file here is a claim about what judged, and it was
+            # wrong even before G1-ISO-01 moved the probe out of process.
+            criterion_paths=("daedalus/ignition/runner.py",),
             subject_paths=("src/ignition_app",),
             detail=dict(behavior), output=json.dumps(behavior, sort_keys=True),
         )
@@ -1195,9 +1229,19 @@ def run_gate1_ignition(
             subject_paths=("fourfold.json",),
             detail=delta.to_dict(), output=json.dumps(delta.to_dict(), sort_keys=True),
         )
-        for report, evidence_id in (
-            (behavior_report, "gate1-behavior"),
-            (delta_report, "gate1-graph-delta"),
+        # DERIVED, NOT ASSERTED, and each with ITS OWN reason. Until 2026-09-03
+        # these two items passed `assurance="deterministic"` as a literal while
+        # carrying `assurance_reason` derived by `_derive_assurance` -- so a run
+        # where the derivation said "unverified" produced two items claiming
+        # determinism beside a sentence explaining why they had none. The packet
+        # constraint in `kernel.contracts.canonical` refuses a conclusive packet
+        # holding unverified evidence, so this never let a bad packet through;
+        # it was a contradiction inside the record rather than a bypass, and
+        # `spine.receipts.evaluator_assurance_detail` states the standard these
+        # two were the exception to: derived, never asserted.
+        for report, evidence_id, reason in (
+            (behavior_report, "gate1-behavior", BEHAVIOR_ASSURANCE_REASON),
+            (delta_report, "gate1-graph-delta", GRAPH_DELTA_ASSURANCE_REASON),
         ):
             items.append(
                 check_evidence_item(
@@ -1209,8 +1253,8 @@ def run_gate1_ignition(
                     ),
                     source_revision=candidate_digest,
                     collected_at=collected_at,
-                    assurance="deterministic",
-                    assurance_reason=assurance_reason,
+                    assurance=assurance,
+                    assurance_reason=f"{reason} The checks this run rests on: {assurance_reason}",
                 )
             )
 
