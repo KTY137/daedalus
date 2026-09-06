@@ -4612,14 +4612,14 @@ is unchanged.
 ## Final integrated-kernel remeasurement (2026-09-06, Windows)
 
 The historical rows above remain revision-bound evidence.  On exact integrated
-head `47c27d54eff24f8f71fbbb1e4e018c85483474c3`, the repository venv's CPython
+head `893b14674010b3ca299bd78ca63450f7252c596a`, the repository venv's CPython
 3.12.13 ran the complete `probe_external_corpora.py` declaration twice.  The
 kernel row was identical across both runs apart from its root and wall-clock
 fields:
 
 | probe | final integrated corpus | measured result |
 | --- | --- | --- |
-| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,796 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741` |
+| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,796 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7` |
 
 Relative to the exact v0.1.6 measurement source `b59b2628ad6e`, this is a net
 +10 files and +145 functions.  A direct source census decomposes that movement:
@@ -4648,4 +4648,12 @@ Two final product fixes after GPU-44 change only control-flow/refusal details in
 `kernel/policy/computer.py`.  They add no file, function, import or type-name
 site, so every displayed measurement remains unchanged; their source bytes do
 move the content-exact digest from `d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930`
-to the final `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741`.
+to the pre-HTTP `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741`.
+
+The final unsanitized HTTP hardening changes early-refusal control flow in
+`interfaces/http/effects.py` and `interfaces/http/web_api.py`.  It adds no
+file, function or type-name site; `EffectStartRefused` joins an existing
+`spine.effect_boundary` import and therefore adds no resolved graph edge.
+All displayed measurements remain unchanged, while the exact source digest
+moves from `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741`
+to `c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7`.

@@ -467,7 +467,10 @@ CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_des
 # head 47c27d54eff2 alter computer refusal/control flow, again with no Import
 # node. The final tuple remains 483 modules, 1926 edges, 14 components, maximum
 # 19, and the exact component digest above.
-CENSUS_EDGES = 1926  # re-confirmed 2026-09-06 on final integration head
+# The unsanitized HTTP hardening through 893b14674010 names one more symbol on
+# an already-resolved spine.effect_boundary import and adds no import target.
+# A fresh graph run confirms the same complete tuple once more.
+CENSUS_EDGES = 1926  # re-confirmed 2026-09-06 on unsanitized integration head
 
 
 def _module_name(path: str) -> str:

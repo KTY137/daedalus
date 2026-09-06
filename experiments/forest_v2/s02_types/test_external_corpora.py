@@ -62,12 +62,12 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured twice on final integrated Gate-1 head 47c27d54eff2
+    # Re-measured twice on final unsanitized Gate-1 head 893b14674010
     # with CPython 3.12.13.  The digest binds the exact 483-file source corpus;
     # these figures are drift detectors, not claimed cross-version constants.
     assert entry["corpus_pin"] == {
         "files": 483,
-        "sha256": "c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741",
+        "sha256": "c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7",
     }
     assert entry["functions"] == 6728
     assert entry["annotation_only_pct"] == 94.37  # the control
