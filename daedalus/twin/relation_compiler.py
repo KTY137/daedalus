@@ -264,6 +264,15 @@ def compile_relation_blocks(
             + ", ".join(missing_nodes[:8])
         )
 
+    requested_signatures = (
+        None
+        if signatures is None
+        else _selected_signatures(signatures, set())
+    )
+    requested_set = (
+        None if requested_signatures is None else frozenset(requested_signatures)
+    )
+
     facts: dict[
         RelationSignature,
         dict[tuple[str, str], set[tuple[str, ...]]],
@@ -281,20 +290,31 @@ def compile_relation_blocks(
             edge.relation,
             target_plane,
         )
-        atoms = _forest_edge_atoms(edge)
-        _record_fact(
-            facts,
-            signature=signature,
-            source=edge.source,
-            target=edge.target,
-            evidence_atoms=atoms,
-        )
+        reverse: RelationSignature | None = None
         if not edge.directed and edge.source != edge.target:
             reverse = RelationSignature(
                 target_plane,
                 edge.relation,
                 source_plane,
             )
+
+        include_forward = requested_set is None or signature in requested_set
+        include_reverse = reverse is not None and (
+            requested_set is None or reverse in requested_set
+        )
+        if not include_forward and not include_reverse:
+            continue
+
+        atoms = _forest_edge_atoms(edge)
+        if include_forward:
+            _record_fact(
+                facts,
+                signature=signature,
+                source=edge.source,
+                target=edge.target,
+                evidence_atoms=atoms,
+            )
+        if include_reverse and reverse is not None:
             _record_fact(
                 facts,
                 signature=reverse,
@@ -312,6 +332,8 @@ def compile_relation_blocks(
                 binding.relation,
                 binding.target_plane,
             )
+            if requested_set is not None and signature not in requested_set:
+                continue
             _record_fact(
                 facts,
                 signature=signature,
@@ -323,7 +345,11 @@ def compile_relation_blocks(
                 ),
             )
 
-    selected = _selected_signatures(signatures, set(facts))
+    selected = (
+        requested_signatures
+        if requested_signatures is not None
+        else _selected_signatures(None, set(facts))
+    )
     subject = ProjectionSubject(
         repository_id=snapshot.repository_id,
         source_revision=snapshot.source_revision,
