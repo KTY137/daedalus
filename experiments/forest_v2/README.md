@@ -4608,3 +4608,27 @@ named, not symbol-table verified; the former zero / 100% row is retained above
 instead of being presented as timeless.  The fixture remains over 100x the
 kernel's measured marginal contribution, so the executable comparative claim
 is unchanged.
+
+## Final integrated-kernel remeasurement (2026-09-06, Windows)
+
+The historical rows above remain revision-bound evidence.  On exact integrated
+head `7e52deaac4ca21064136d630fb108aa901d874bf`, the repository venv's CPython
+3.12.13 ran the complete `probe_external_corpora.py` declaration twice.  The
+kernel row was identical across both runs apart from its root and wall-clock
+fields:
+
+| probe | final integrated corpus | measured result |
+| --- | --- | --- |
+| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; type-name resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `653bfb18c4a04cf9e111b9f902ae7799000cfac0e230c7cc1db08e66de1b48c8` |
+
+Relative to the exact v0.1.6 measurement source `b59b2628ad6e`, this is a net
++10 files and +145 functions.  A direct source census decomposes that movement:
+12 added files contribute +137 functions (the eight `pcb_design` files +54,
+`chip_design/tcl_emit.py` +24, `runtimes/contracts/git_objects.py` +39,
+`hooks/serena.py` +13, and `wiki/treewalk.py` +7); deleting the duplicate
+`twin/contractions.py` and `twin/hybrid_retrieval.py` removes 36; changes in
+surviving files contribute the remaining +44.  Thus `137 - 36 + 44 = 145`;
+the new content pin records the integrated source rather than disguising that
+movement as a resolver improvement.  The fixture's 15.7895 pp contribution
+still exceeds the kernel's 0.1189 pp by more than two orders of magnitude, so
+the executable comparative claim remains unchanged.

@@ -441,7 +441,27 @@ CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_des
 # their integrations contribute a measured net +169 resolved imports.  The
 # equality below pins the complete graph's edge census; no tolerance was added
 # for the large staged change.
-CENSUS_EDGES = 1923  # re-measured 2026-09-05 with the module census above
+# 1923 -> 1926 on final integrated head 7e52deaac4ca, measured against the
+# pin-setting 1fac260a880d graph as +18 resolved edges and -15.  The complete
+# movement, rather than only its net +3, is:
+#
+#   duplicate Twin module deletions                                 -12
+#       contractions (-4), hybrid_retrieval (-8)
+#   ignition runner consolidation                         +1, -3 =  -2
+#       -> ignition.checks replaces its old Fourfold/schema/Twin edges
+#   shared wiki tree walker (four callers)                          +7
+#   Serena/tool hook wiring (events and tools)                      +4
+#   computer assistant/runtime wiring                               +4
+#       computer_loop -> {file_bridge, providers._ollama_native}
+#       runtimes.computer -> {kernel.policy, runtimes.computer_files}
+#   council dispatch -> budget                                      +1
+#   Claude provider -> orchestration.runtime_registry               +1
+#
+# The two new leaf modules (hooks.serena, wiki.treewalk) exactly replace the
+# two deleted Twin modules, so the 483-module total is unchanged.  None of the
+# 33 moved edges enters a non-trivial component: count 14, maximum 19, exact
+# membership assertions and CURRENT_COMPONENTS_SHA256 remain unchanged.
+CENSUS_EDGES = 1926  # re-measured 2026-09-06 with the final module census above
 
 
 def _module_name(path: str) -> str:
