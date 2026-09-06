@@ -82,7 +82,7 @@ def _project(root: Path, row: Any) -> dict:
         result.update(state=stored.get("state"), summary=str(stored.get("summary", ""))[:2000],
                       tool_steps=len(stored.get("steps", [])), elapsed_s=stored.get("elapsed_s"),
                       planner_calls=stored.get("planner_calls"), plan=stored.get("plan"),
-                      report_artifact=report["report_artifact"])
+                      planner=stored.get("planner"), report_artifact=report["report_artifact"])
     if secret_floor_rule("computer-history.json", json.dumps(result, ensure_ascii=False)):
         raise ComputerRefused("task display withheld by secret floor")
     return result
