@@ -236,6 +236,8 @@ def compile_relation_blocks(
         raise ValueError("forest must be a KnowledgeForest")
     if not isinstance(snapshot, FourfoldSnapshot):
         raise ValueError("snapshot must be a FourfoldSnapshot")
+    if type(include_verified_bindings) is not bool:
+        raise ValueError("include_verified_bindings must be boolean")
     observer_name = _observer_name(semiring)
     forest_digest = forest.content_sha256
     if snapshot.source_forest_sha256 != forest_digest:

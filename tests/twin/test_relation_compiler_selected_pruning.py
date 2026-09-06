@@ -143,6 +143,57 @@ def test_explicit_signature_contract_is_validated_before_edge_materialization(
         )
 
 
+@pytest.mark.parametrize("flag", (0, 1, None, "false"))
+def test_verified_binding_inclusion_policy_requires_exact_boolean(
+    flag: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected materialization of {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    with pytest.raises(ValueError, match="include_verified_bindings must be boolean"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            include_verified_bindings=flag,  # type: ignore[arg-type]
+        )
+
+
+def test_verified_binding_false_skips_binding_fact_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "declares", "type")
+    observed_signatures: list[RelationSignature] = []
+    original = relation_compiler._record_fact
+
+    def recording_record_fact(*args: object, **kwargs: object) -> None:
+        signature = kwargs.get("signature")
+        if not isinstance(signature, RelationSignature):
+            raise AssertionError("relation fact did not carry a typed signature")
+        observed_signatures.append(signature)
+        original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", recording_record_fact)
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(selected,),
+        include_verified_bindings=False,
+    )
+
+    assert observed_signatures == [selected]
+    assert compiled.semantic_fact_count == 1
+    assert compiled.verified_binding_count == 0
+
+
 def test_discover_all_keeps_existing_forest_materialization_behavior(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
