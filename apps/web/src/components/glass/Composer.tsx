@@ -45,6 +45,7 @@ interface ComposerProps {
  */
 export function Composer({ value, onChange, onSend, chips, onChip, busy, placeholder, extra }: ComposerProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const initialValue = useRef(value);
   const [focused, setFocused] = useState(false);
   const reduced = useReducedMotionPref();
 
@@ -54,6 +55,17 @@ export function Composer({ value, onChange, onSend, chips, onChip, busy, placeho
   const chipList = useMemo(() => listVariants(reduced, chips?.length ?? 0), [reduced, chips]);
   const chipItem = useMemo(() => listItemVariants(reduced), [reduced]);
   const press = pressProps(reduced);
+
+  // A chat action must begin with something the operator actually entered or
+  // explicitly chose in this mounted composer. Ambient/default parent state is
+  // not user intent and must never make Send arrive pre-armed. Suggestions
+  // already have an explicit surface (chips), while programmatic prefills made
+  // after mount still work normally.
+  useEffect(() => {
+    if (!initialValue.current.trim()) return;
+    initialValue.current = '';
+    onChange('');
+  }, [onChange]);
 
   // Auto-grow. This writes `height`, which is layout — but it happens once per
   // keystroke, not once per frame, and it is guarded so an unchanged height
