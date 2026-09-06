@@ -37,13 +37,30 @@ Nothing in the tree changes behaviour. If the decision rule adopts V2, that is a
 | Check | Result |
 | --- | --- |
 | pre-registration written before the first run | this file, committed with the results |
-| V1 finished / 5 | RESULT_V1 |
-| V2 finished / 5 | RESULT_V2 |
-| decision per the rule above | RESULT_DECISION |
+| V1 finished / 5 | 0/5 |
+| V2 finished / 5 | 0/5 |
+| decision per the rule above | tie: V1 retained; V2 recorded as negative evidence |
 
 ## Measured
 
-MEASURED_PLACEHOLDER
+Runs executed on 2026-09-06 in one process (`source_sha256` bc81ad31790c…, policy 6f9242500fba…), order v1, v2, v1, v2, v1, v2, v1, v2, v1, v2. Per-run proposal lists are in `exp01_results.json`.
+
+| run | variant | state | finished | calls | tool steps | replans | elapsed s |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | v1 | stalled | no | 9 | 4 | 4 | 229.1 |
+| 2 | v2 | stalled | no | 8 | 2 | 5 | 154.6 |
+| 3 | v1 | stalled | no | 6 | 2 | 3 | 109.3 |
+| 4 | v2 | stalled | no | 10 | 3 | 6 | 219.5 |
+| 5 | v1 | stalled | no | 6 | 2 | 3 | 112.7 |
+| 6 | v2 | stalled | no | 7 | 2 | 4 | 121.7 |
+| 7 | v1 | stalled | no | 7 | 3 | 3 | 158.8 |
+| 8 | v2 | stalled | no | 6 | 4 | 1 | 147.9 |
+| 9 | v1 | stalled | no | 7 | 3 | 3 | 166.4 |
+| 10 | v2 | stalled | no | 7 | 2 | 4 | 159.5 |
+
+V1 finished 0/5; V2 finished 0/5. Decision per the pre-registered rule: tie: V1 retained; V2 recorded as negative evidence.
+
+Reading of the ten proposal sequences (all in `exp01_results.json`): no run, under either shape, ever proposed `finish`. Every run ended through one of the loop's progress rules (identical plans 7x, plan budget 2x, identical observations 2x, counting run 1 once) and never through `max_steps` or the wall time, so the stall rules of G1-IKARUS-26/29 held in 10 of 10 live runs. The 7B alternates plan and tool proposals with the same one-step plan ("read the page") regardless of whether the payload says the step is executed as a boolean list (V2) or as a counter with `every_step_has_a_tool_step` (V1). The hypothesis that the six-view payload was the obstacle is refuted at this sample size; the residual is planner capability on this host, and the next lever is not a prompt shape. Not claimed: anything about other models, other objectives, or prompt wording (the directive was held constant).
 
 ## Migration and rollback
 
@@ -51,7 +68,7 @@ None: no behaviour change ships from this packet.
 
 ## Evidence, expected failures, and review
 
-Evidence: `docs/evidence/G1-IKARUS-34_PLAN_PROGRESS_SHAPE/` (script, log, results JSON with every proposal verbatim, paths scrubbed). Expected failures: a 7B on CPU under shared load may time out (`timeout`) or stall; both count as "not finished" and are retained. Known confounder, stated: the box runs other sessions' test and Vite load; it affects elapsed time, not the terminal state, but a wall-time timeout would. Review: Momus proposed the variant; no independent review of the result yet.
+Evidence: `docs/evidence/G1-IKARUS-34_PLAN_PROGRESS_SHAPE/` (script, log, results JSON with every proposal verbatim, paths scrubbed). Expected failures: a 7B on CPU under shared load may time out (`timeout`) or stall; both count as "not finished" and are retained. Known confounder, stated: the box runs other sessions' test and Vite load; it affects elapsed time, not the terminal state, but a wall-time timeout would. Review: Momus proposed the variant; the negative result is recorded without independent review of the runs (the terminal states are the loop's own, deterministic).
 
 Iron Plan: EXPERIMENT
 Iron Gate: 1
