@@ -5,6 +5,7 @@ import hashlib
 
 import pytest
 
+from daedalus.schemas import ContractProvenance
 from daedalus.structcore.forest import (
     ForestEdge,
     ForestHyperedge,
@@ -12,7 +13,7 @@ from daedalus.structcore.forest import (
     KnowledgeForest,
 )
 from daedalus.twin import relation_compiler
-from daedalus.twin.contracts import FourfoldSnapshot
+from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
 from daedalus.twin.relation_blocks import RelationSignature
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
@@ -33,6 +34,52 @@ def _edge(source: str, target: str, relation: str) -> ForestEdge:
         relation=relation,
         directed=True,
         evidence=(_digest(f"{relation}:{source}:{target}"),),
+    )
+
+
+def _with_plane_statuses(
+    forest: KnowledgeForest,
+    snapshot: FourfoldSnapshot,
+    statuses: dict[str, str],
+) -> FourfoldSnapshot:
+    planes = tuple(
+        (
+            PlaneSnapshot(
+                plane=plane.plane,
+                source_revision=plane.source_revision,
+                status=statuses[plane.plane],
+                node_ids=plane.node_ids,
+                relation_sha256s=plane.relation_sha256s,
+                evidence_sha256s=plane.evidence_sha256s,
+                reason=(
+                    "test fixture intentionally incomplete"
+                    if statuses[plane.plane] == "partial"
+                    else ""
+                ),
+            )
+            if plane.plane in statuses
+            else plane
+        )
+        for plane in snapshot.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-selected-pruning.status-fixture",
+        source_revision=snapshot.source_revision,
+        created_at=CREATED_AT,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in snapshot.bindings),
+        ),
+        trace_id="relation-compiler-selected-pruning-status",
+    )
+    return FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=snapshot.bindings,
+        provenance=provenance,
     )
 
 
@@ -61,7 +108,11 @@ def _fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
         created_at=CREATED_AT,
         trace_id="relation-compiler-selected-pruning",
     )
-    return forest, snapshot
+    return forest, _with_plane_statuses(
+        forest,
+        snapshot,
+        {"code": "complete", "type": "complete"},
+    )
 
 
 def _fixture_with_hyperedge() -> tuple[KnowledgeForest, FourfoldSnapshot]:
@@ -87,7 +138,11 @@ def _fixture_with_hyperedge() -> tuple[KnowledgeForest, FourfoldSnapshot]:
         created_at=CREATED_AT,
         trace_id="relation-compiler-selected-pruning-hyperedge",
     )
-    return forest, snapshot
+    return forest, _with_plane_statuses(
+        forest,
+        snapshot,
+        {"code": "complete", "type": "complete"},
+    )
 
 
 class _DeclaredSignatureCatalog(Sequence[RelationSignature]):
@@ -273,6 +328,79 @@ def test_verified_binding_false_skips_binding_fact_materialization(
     assert observed_signatures == [selected]
     assert compiled.semantic_fact_count == 1
     assert compiled.verified_binding_count == 0
+
+
+@pytest.mark.parametrize(
+    "signatures",
+    ((RelationSignature("code", "declares", "type"),), None),
+)
+def test_selected_relation_requires_complete_endpoint_planes_before_materialization(
+    signatures: tuple[RelationSignature, ...] | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    snapshot = _with_plane_statuses(forest, snapshot, {"type": "partial"})
+
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected materialization of {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    with pytest.raises(ValueError, match="type=partial"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=signatures,
+        )
+
+
+def test_explicit_complete_relation_ignores_unselected_partial_plane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    snapshot = _with_plane_statuses(forest, snapshot, {"type": "partial"})
+    selected = RelationSignature("code", "imports", "code")
+    observed_relations: list[str] = []
+    original = relation_compiler._forest_edge_atoms
+
+    def guarded_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        observed_relations.append(edge.relation)
+        if edge.relation != "imports":
+            raise AssertionError("unselected partial-plane evidence was materialized")
+        return original(edge)
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", guarded_atoms)
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(selected,),
+    )
+
+    assert observed_relations == ["imports"]
+    assert tuple(compiled.block_map) == (relation_block_name(selected),)
+
+
+def test_predeclared_empty_relation_refuses_absent_endpoint_before_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "feeds", "data")
+
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected materialization of {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    with pytest.raises(ValueError, match="data=absent"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(selected,),
+        )
 
 
 def test_discover_all_keeps_existing_forest_materialization_behavior(
