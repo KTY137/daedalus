@@ -48,12 +48,14 @@ Out of scope and untouched: any compaction or truncation of history (G1-IKARUS-4
 | three new tests without the change | 3 failed (missing report keys) |
 | three new tests with the change (a 30,000-character fixture observation is counted once and said) | 3 passed |
 | loop, adversarial, history, autonomy, schedule and schedule-autonomy suites | 182 passed (51.2 s) |
-| live `computer-loop-measure-11`: qwen2.5-coder:7b, bounded (`max_steps 16`, `timeout_s 900`), the measure-08 objective against a 394,271-byte page (1,200 paragraphs, same Today list and sentinel) | see Measured |
+| live `computer-loop-measure-11c`: qwen2.5-coder:7b, bounded (`max_steps 16`, `timeout_s 900`), the measure-08 objective against a 394,271-byte page (1,200 paragraphs, same Today list and sentinel) | overflow real: 3 of 4 calls above the estimate (24,984 and 25,643 chars against 24,576), `stalled` after 4 calls, never read, 314.8 s |
 | `computer_loop.py` line endings | LF |
 
 ## Measured
 
-MEASURED_PLACEHOLDER
+Live `computer-loop-measure-11c` (2026-09-06 10:22, after two aborted attempts 11/11b that died with session restarts; qwen2.5-coder:7b, native route, `num_ctx` 6144, `max_steps 16`, `timeout_s 900`, the measure-09 objective against `big.html`, 394,271 bytes, the same Today list and sentinel with 1,200 filler paragraphs; other sessions idle, no suite running): call 1 `browser.navigate` at 2,989 prompt characters; the navigate observation carries the page text capped at 20,000 characters by the browser adapter, so call 2 is 24,984 characters and calls 3 and 4 are 25,643, each above the 24,576-character estimate (`context_window_exceeded_estimate: true` on three of four proposal artifacts, `prompt_overflow_calls 3`, `prompt_chars_max 25,643`); the 7B proposed the same one-step plan three times and never read: `stalled` after 4 calls and 1 tool step, 314.8 s (about 78 s per call against 25 to 29 s on the small page). The chat line rendered: "3 Planner-Aufruf(e) überschritten das geschätzte Kontextfenster des lokalen Modells (6144 Token, Schätzung chars/4)". Evidence in `docs/evidence/G1-IKARUS-42_PROMPT_SIZE/` (report, proposals, log, page parameters, retention script; paths scrubbed).
+
+What this establishes: Momus's premise question is answered, overflow is real and reachable with one ordinary page read; a single 20,000-character observation plus the directive and tool schemas already exceeds the local window, so any compaction must bound the per-observation share and not only age out old observations. What it does not establish: that overflow caused the non-finish (G1-IKARUS-34 shows the 7B does not finish on the small page either); the differences here are that it never read at all and that each call took three times as long.
 
 ## Migration and rollback
 
