@@ -1,0 +1,15 @@
+........................................................................ [ 48%]
+........................................................................ [ 97%]
+....                                                                     [100%]
+148 passed in 25.75s
+
+=== regression: work packet registry contract ===
+......................                                                   [100%]
+22 passed in 3.75s
+
+=== regression: byte-pin EOL durability ===
+.................                                                        [100%]
+17 passed in 30.52s
+
+=== tools/index_work_packets.py --check ===
+Work Packet registry clean: 331 tracked files, 265 packet IDs, 2 unassigned legacy artifacts
