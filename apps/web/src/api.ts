@@ -750,13 +750,21 @@ export function getLoopArchitecture(project?: string) {
 }
 
 /**
- * Structure (code-health / distillation) surface. The first call for a big
- * repo can take up to ~60s while the server indexes it — callers should show a
- * loading state. `refresh` forces a re-index server-side.
+ * Structure (code-health / distillation) surface. A cold scan may be much
+ * slower than a warm index, especially on hosted CI. Gate 1 reproduced two
+ * consecutive first-page failures with the browser still willing to wait
+ * 240s while this client abandoned `/api/structure` after 70s and never
+ * retried. Any successful response after that client abort is impossible to
+ * render, so the UI was turning "slow/unknown" into a false empty map.
+ *
+ * 210s is an operation budget, not an expectation. It stays below the 240s
+ * acceptance ceiling so a real timeout can still surface before the browser
+ * test itself expires, while removing the proven 70s premature-abort seam.
+ * `refresh` still forces a re-index server-side.
  */
 export function getStructure(project: string, refresh = false): Promise<StructurePayload> {
   const q = `project=${encodeURIComponent(project)}${refresh ? '&refresh=1' : ''}`;
-  return request<StructurePayload>(`/api/structure?${q}`, undefined, 70_000);
+  return request<StructurePayload>(`/api/structure?${q}`, undefined, 210_000);
 }
 
 /** Distill a target module/symbol down to a minimal review slice. */
