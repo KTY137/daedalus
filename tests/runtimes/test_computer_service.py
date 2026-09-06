@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -57,27 +58,27 @@ def assert_no_lease_side_effects(service):
     assert not (service.control / "computer-effect-evidence").exists()
 
 
-def test_saved_file_grants_are_not_capabilities_or_executable(configured):
+def test_file_tools_are_projected_and_replacement_stays_fenced(configured):
+    """G1-IKARUS-25: the five file tools are offered again through the
+    handle-anchored adapter, while replacing an existing file (the two-rename
+    protocol without a service-owned crash reconciliation) is neither offered
+    nor executable, and its refusal never issues a lease."""
     service, workspace, _, _, _, grants = configured
-    assert not [tool for tool in service.capabilities()["tools"] if tool["name"].startswith("file.")]
-    assert "handle-relative" in service.capabilities()["path_io_release_lock"]
-    calls = [
-        ("file.list", {"path": "."}),
-        ("file.read", {"path": "hello.txt"}),
-        ("file.write", {"path": "hello.txt", "text": "Hello Ikarus\n"}),
-        ("file.mkdir", {"path": "folder"}),
-        ("file.move", {"source": "a", "destination": "b", "expected_sha256": "0" * 64}),
-    ]
-    for index, (tool, arguments) in enumerate(calls):
-        result = run(service, tool, arguments, f"release-fence-{index}")
-        assert result["state"] == "blocked", result
-        assert "handle-relative" in result["error"]
+    projected = {tool["name"]: tool for tool in service.capabilities()["tools"]}
+    assert set(projected) == {"file.list", "file.read", "file.write", "file.mkdir", "file.move"}
+    assert "expected_sha256" not in projected["file.write"]["parameters"]["properties"]
+    assert "NEW" in projected["file.write"]["description"]
+    assert "replac" in service.capabilities()["path_io_release_lock"]
+    result = run(service, "file.write", {"path": "hello.txt", "text": "x", "expected_sha256": "0" * 64}, "replace")
+    assert result["state"] == "blocked", result
+    assert "replac" in result["error"] and "handle-relative" not in result["error"]
     assert list(workspace.iterdir()) == []
     assert grants == []
+    assert_no_lease_side_effects(service)
 
 
 def test_release_capability_projection_contains_no_path_based_vision_schema():
-    assert subject._release_tool_spec("file.read") is None
+    assert subject._release_tool_spec("file.read") is not None
     assert subject._release_tool_spec("vision.match") is None
     assert subject._release_tool_spec("vision.changes") is None
     for tool in ("vision.inspect", "vision.ocr"):
@@ -211,52 +212,64 @@ def test_policy_drift_and_cancel_prevent_all_file_effects(configured):
     assert grants == []
 
 
-def test_ancestor_swap_after_checkpoint_cannot_escape_release_fence(configured, monkeypatch):
+def test_ancestor_swap_at_the_checkpoint_never_writes_outside_the_workspace(configured, monkeypatch):
+    """The retained COMPUTER-01 race, now answered by the adapter instead of
+    the fence: on Windows the open parent is pinned so the swap itself fails
+    and the write lands at the verified path; elsewhere the adapter refuses
+    after the checkpoint. In no outcome does a byte reach ``outside``."""
     service, workspace, _, _, _, grants = configured
     outside = workspace.parent / "outside"
     outside.mkdir()
     (workspace / "sub").mkdir()
-    checked = service._policy.path("sub/escaped.txt")
-    assert checked == workspace / "sub" / "escaped.txt"
-    swapped = False
+    real_check = service.check_cancelled
+    outcome: list[str] = []
 
     def swap_checked_ancestor():
-        nonlocal swapped
-        if swapped:
+        real_check()
+        if outcome or service._files is None:
+            return   # only the adapter's own checkpoint, after the parent is open
+        try:
+            (workspace / "sub").rename(workspace / "sub-original")
+        except PermissionError:
+            outcome.append("pinned")
             return
-        (workspace / "sub").rename(workspace / "sub-original")
         try:
             (workspace / "sub").symlink_to(outside, target_is_directory=True)
         except OSError as exc:
+            (workspace / "sub-original").rename(workspace / "sub")
             pytest.skip(f"symlink creation unavailable on host: {exc}")
-        swapped = True
+        outcome.append("moved")
 
     monkeypatch.setattr(service, "check_cancelled", swap_checked_ancestor)
-    monkeypatch.setattr(service, "_dispatch", lambda *args: pytest.fail("release fence entered adapter"))
     result = run(service, "file.write", {"path": "sub/escaped.txt", "text": "escaped"}, "swap-race")
-    assert swapped is True
-    assert result["state"] == "blocked"
-    assert "handle-relative" in result["error"]
-    assert not (outside / "escaped.txt").exists()
-    assert grants == []
+    assert outcome in (["pinned"], ["moved"])
+    assert not (outside / "escaped.txt").exists() and list(outside.iterdir()) == []
+    if outcome == ["pinned"]:
+        assert result["state"] == "completed" and result["result"]["postcondition_verified"] is True
+        assert (workspace / "sub" / "escaped.txt").read_bytes() == b"escaped"
+    else:
+        assert result["state"] == "blocked" and "changed during" in result["error"]
+        assert not (workspace / "sub-original" / "escaped.txt").exists()
+    assert len(grants) == 1
 
 
-def test_repeated_disabled_attempt_never_reaches_lease_or_adapter(configured, monkeypatch):
+def test_replacement_attempts_never_reach_lease_or_adapter(configured, monkeypatch):
     service, workspace, _, _, _, grants = configured
     monkeypatch.setattr(service, "_dispatch", lambda *args: pytest.fail("release fence entered adapter"))
-    args = {"path": "once.txt", "text": "once"}
+    args = {"path": "once.txt", "text": "once", "expected_sha256": "0" * 64}
     assert run(service, "file.write", args)["state"] == "blocked"
     assert run(service, "file.write", args)["state"] == "blocked"
     assert not workspace.joinpath("once.txt").exists()
     assert grants == []
 
 
-def test_private_file_and_path_read_seams_are_also_fail_closed(configured):
+def test_private_path_read_seam_is_still_fail_closed(configured):
+    """Path-based vision reads keep the retired pathname helper fenced; the
+    file tools no longer have a pathname seam at all."""
     service, workspace, _, _, _, _ = configured
     with pytest.raises(subject.ComputerRefused, match="handle-relative"):
-        service._file("file.write", {"path": "private.txt", "text": "never"})
-    with pytest.raises(subject.ComputerRefused, match="handle-relative"):
         service._read_bytes("private.txt")
+    assert not hasattr(service, "_file")
     assert not workspace.joinpath("private.txt").exists()
 
 
@@ -328,3 +341,140 @@ def test_generic_issuer_refuses_unbound_computer_authority(configured, tamper):
     assert isinstance(result, WaveLeaseDenied), result
     assert any(not guard.allowed and guard.contract == "computer.tool_policy" for guard in result.guard_decisions)
     assert list(workspace.iterdir()) == []
+
+
+def _record_terminal_outcomes(monkeypatch):
+    """Observe every terminal receipt the real kernel writes, without replacing it."""
+    from daedalus.kernel import authorization
+    terminals: list[dict] = []
+    real = authorization.NonRuntimeEffectAuthorization.finish_effect
+
+    def finish(self, receipt, *args, **kwargs):
+        terminals.append({"outcome": kwargs.get("outcome", args[0] if args else None),
+                          "detail_sha256": kwargs.get("detail_sha256")})
+        return real(self, receipt, *args, **kwargs)
+
+    monkeypatch.setattr(authorization.NonRuntimeEffectAuthorization, "finish_effect", finish)
+    return terminals
+
+
+@pytest.mark.parametrize("observed", ["cancellation", "policy drift", "typed no-effect interruption"])
+def test_a_refusal_observed_after_the_effect_landed_is_never_reported_as_no_effect(configured, monkeypatch, observed):
+    """Cerberus F1 (phase-2 review): the post-dispatch checkpoint raises a plain
+    ComputerRefused after the host mutation. The classifier must not turn that
+    into ``blocked`` with a CANCELLED terminal, because the effect happened;
+    the lease stays STARTED for reconciliation."""
+    service, workspace, policy, path, switch, grants = configured
+    if os.name != "nt":
+        pytest.skip("file tools are Windows-only in this release")
+    outcomes = _record_terminal_outcomes(monkeypatch)
+    target = workspace / "landed.txt"
+
+    def probe() -> bool:
+        if not target.exists():
+            return False  # every pre-effect checkpoint passes; the write proceeds
+        if observed == "policy drift":
+            path.write_text(json.dumps(replace(policy, tools=("file.read",)).to_dict()), encoding="utf-8")
+            return False  # the digest check behind the probe fires instead
+        if observed == "typed no-effect interruption":
+            # Council hint (local seat, 2026-09-05): an exception that CLAIMS
+            # effect_state "none" after the adapter returned must not be
+            # believed; the dispatched flag outranks the annotation.
+            from daedalus.runtimes.computer_files import ComputerFileInterrupted
+            raise ComputerFileInterrupted("late interrupt", effect_state="none")
+        return True
+
+    service.set_cancellation_probe(probe)
+    result = run(service, "file.write", {"path": "landed.txt", "text": "landed"})
+    assert target.read_text(encoding="utf-8") == "landed"
+    assert result["state"] == "reconciliation_required", result
+    assert all(terminal["outcome"] != "CANCELLED" for terminal in outcomes), outcomes
+    assert len(grants) == 1
+
+
+def _stored_artifact(service, sha256: str) -> dict:
+    return json.loads((service.control / "computer-artifacts" / f"{sha256}.json").read_text(encoding="utf-8"))
+
+
+def test_replacement_fence_claim_and_enforcement_share_one_source(configured, monkeypatch):
+    """Cerberus F2: the projected schema, the capability claim and the kernel
+    fence all read RELEASE_REPLACE_FENCED at call time, so the claim can never
+    say "disabled" while the fence admits, or the reverse."""
+    from daedalus.kernel.policy import computer as policy_module
+    service, workspace, policy, path, switch, grants = configured
+    replacement = {"path": "note.txt", "text": "data", "expected_sha256": "0" * 64}
+    assert policy_module.RELEASE_REPLACE_FENCED is True  # the release state
+    assert "expected_sha256" not in subject._release_tool_spec("file.write")[1]["properties"]
+    assert "expected_sha256" in service.capabilities()["path_io_release_lock"]
+    with pytest.raises(subject.ComputerRefused, match="replac"):
+        policy_module.enforce_release_tool_fence("file.write", replacement)
+    monkeypatch.setattr(policy_module, "RELEASE_REPLACE_FENCED", False)
+    assert "expected_sha256" in subject._release_tool_spec("file.write")[1]["properties"]
+    assert "expected_sha256" not in service.capabilities()["path_io_release_lock"]
+    policy_module.enforce_release_tool_fence("file.write", replacement)
+
+
+def test_failure_records_persist_the_adapter_recovery_paths(configured, monkeypatch):
+    """Cerberus F3: a failure after the lease began leaves a digest-bound record
+    in CAS carrying error class, message, effect_state and recovery_paths; the
+    response points at it and a CANCELLED terminal binds the same digest."""
+    from daedalus.runtimes.computer_files import ComputerFileEffectUncertain
+    service, workspace, policy, path, switch, grants = configured
+    if os.name != "nt":
+        pytest.skip("file tools are Windows-only in this release")
+    terminals = _record_terminal_outcomes(monkeypatch)
+    recovery = ("note.txt", ".daedalus-internal-0000.daedalus-backup")
+
+    def uncertain(tool, arguments):
+        raise ComputerFileEffectUncertain("verification failed after the rename", recovery_paths=recovery)
+
+    monkeypatch.setattr(service, "_dispatch", uncertain)
+    result = run(service, "file.write", {"path": "note.txt", "text": "data"})
+    assert result["state"] == "reconciliation_required", result
+    stored = _stored_artifact(service, result["evidence"]["failure_record"]["sha256"])
+    assert stored["schema"] == "daedalus-computer-failure/1"
+    assert stored["error_type"] == "ComputerFileEffectUncertain"
+    assert stored["effect_state"] == "uncertain"
+    assert stored["recovery_paths"] == list(recovery)
+    assert stored["tool"] == "file.write" and len(stored["operation_sha256"]) == 64
+    assert terminals == []  # the lease stays STARTED for reconciliation
+
+    def refused(tool, arguments):
+        raise subject.ComputerRefused("changed during operation")
+
+    monkeypatch.setattr(service, "_dispatch", refused)
+    result = run(service, "file.write", {"path": "other.txt", "text": "data"}, attempt="attempt-2")
+    assert result["state"] == "blocked", result
+    record = result["evidence"]["failure_record"]["sha256"]
+    assert _stored_artifact(service, record)["effect_state"] is None
+    assert terminals == [{"outcome": "CANCELLED", "detail_sha256": record}]
+
+
+def test_file_results_declare_the_handle_anchored_scope(configured):
+    """The stored result names how the path was resolved: file tools run through
+    the handle-anchored adapter, so their artifacts no longer claim the
+    retired policy-relative pathname resolution."""
+    service, workspace, policy, path, switch, grants = configured
+    if os.name != "nt":
+        pytest.skip("file tools are Windows-only in this release")
+    result = run(service, "file.write", {"path": "scope.txt", "text": "data"})
+    assert result["state"] == "completed", result
+    stored = _stored_artifact(service, result["evidence"]["artifact"]["sha256"])
+    assert stored["filesystem_scope_kind"] == "handle-anchored-computer-workspace"
+
+
+def test_every_release_fence_constant_is_read_at_call_time(monkeypatch):
+    """Odysseus O-1 (F2 generalised): no release constant may be bound by value
+    into the runtime, or the projected capability and the kernel fence disagree
+    the moment a release packet edits it."""
+    from daedalus.kernel.policy import computer as policy_module
+
+    move = {"source": "a", "destination": "b", "expected_sha256": "0" * 64}
+    assert subject._release_tool_spec("file.move") is not None
+    monkeypatch.setattr(policy_module, "RELEASE_DISABLED_TOOLS",
+                        frozenset(policy_module.RELEASE_DISABLED_TOOLS | {"file.move"}))
+    with pytest.raises(subject.ComputerRefused):
+        policy_module.enforce_release_tool_fence("file.move", move)
+    assert subject._release_tool_spec("file.move") is None, (
+        "the projection still offers a tool the kernel fence now refuses")
+

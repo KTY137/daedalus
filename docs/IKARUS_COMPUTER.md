@@ -2,8 +2,10 @@
 
 Ikarus kann mehrstufige Computeraufgaben mit dem lokalen Modell planen und
 Werkzeuge ausführen. Jede Aktion läuft durch die Daedalus-Policy und erhält
-gespeicherte Ausführungsbelege. In v0.1.6 sind alle dateipfadbasierten
-Werkzeuge vor der Freigabe zentral gesperrt; Details stehen unten.
+gespeicherte Ausführungsbelege. In v0.1.6 sind die Dateiwerkzeuge
+über einen handle-verankerten Adapter wieder ausführbar; zentral gesperrt
+bleiben das Ersetzen vorhandener Dateien und die pfadbasierten Vision-Formen.
+Details und der offene Review-Stand stehen unten.
 
 ## Starten
 
@@ -34,8 +36,10 @@ Im Ikarus-Chat:
 
 Setup legt einen eigenen Arbeitsordner und die Steuerdaten an, aktiviert aber
 zunächst kein Werkzeug. Status zeigt den Ordner, tatsächlich verfügbare
-Werkzeuge, die aktuelle Konfiguration und die v0.1.6-Pfadsperre. Gespeicherte
-ältere Grants können die gesperrten Werkzeuge nicht wieder aktivieren.
+Werkzeuge, die aktuelle Konfiguration und die verbliebene v0.1.6-Pfadsperre.
+Gespeicherte ältere Grants für die Dateiwerkzeuge werden mit der verengten
+Sperre wieder wirksam; die weiterhin gesperrten Werkzeuge kann kein Grant
+reaktivieren, weil die Sperre keine Grant-Frage ist.
 
 ## Notizen, Skills und Termine
 
@@ -105,17 +109,40 @@ Skill-Ordner ist in v0.1.6 gesperrt, weil auch sie einen pfadbasierten Leseweg
 öffnen würde. Bereits gespeicherte Skill-Metadaten werden nur als nicht
 verfügbar angezeigt und können mit `/computer skill off` entfernt werden.
 
-## Temporäre v0.1.6-Pfadsperre
+## Dateiwerkzeuge und die verbleibende v0.1.6-Sperre
 
-`file.list`, `file.read`, `file.write`, `file.mkdir`, `file.move`,
-`vision.match` und `vision.changes` werden weder ausgeführt noch als
-Capabilities angeboten. `vision.inspect` und `vision.ocr` akzeptieren nur eine
-frische `observation_id` aus `desktop.observe`, keinen Dateipfad. Grund ist ein
-reproduzierbares Race: Ein bereits geprüfter Unterordner konnte vor dem
-eigentlichen Zugriff gegen einen Link oder Windows-Reparse-Point getauscht
-werden. Die Sperre behauptet nicht, Pfadzugriffe sicher gemacht zu haben. Eine
-spätere Freigabe braucht separat verifizierte, handle-relative und unter
-Windows reparse-sichere I/O.
+`file.list`, `file.read`, `file.mkdir`, `file.move` und `file.write` für
+neue Dateien laufen seit G1-IKARUS-24/25 über einen handle-verankerten
+Adapter: Jede Pfadkomponente wird relativ zum geprüften Eltern-Handle
+geöffnet, Links, Junctions und Hardlinks werden verweigert, und unter
+Windows werden Elternverzeichnis, Arbeitsordner und Vorfahren für die Dauer
+der Operation gegen Verschieben gesperrt. Lesen und Auflisten laufen durch
+denselben Prüfpunkt wie Effekte; die Secret-Floor gilt für Lesen, Schreiben
+und Verschieben. Dateiwerkzeuge sind in diesem Release nur unter Windows
+verfügbar, andere Hosts melden sie als nicht verfügbar. Details und Grenzen:
+[G1-IKARUS-24](work-packets/G1-IKARUS-24_HANDLE_ANCHORED_WORKSPACE_FILES.md),
+[G1-IKARUS-25](work-packets/G1-IKARUS-25_FILE_TOOL_FENCE_LIFT.md).
+Stand 2026-09-05 abends: Die unabhängige Phase-2-Review dieses Lifts stand um
+17:40 auf **BLOCK** (F1: ein nach dem Effekt beobachteter Abbruch wurde als
+„kein Effekt" verbucht); nach den test-first-Reparaturen und einer
+adversarischen Verifikation lautet die Bestätigung um 20:44
+**PASS-WITH-FINDINGS**, gebunden an `computer.py` `81931eb9…`,
+`kernel/policy/computer.py` `1b3bc7e2…`, `computer_files.py` `7120cf2a…`.
+Akzeptierte Residuen: POSIX-Lesen/Listen nur vom Service gesperrt (F4, mit
+dem latenten POSIX-Rename-Befund N-1 als Grund), Failure-Record filtert Inhalt,
+nicht Pfadnamen (O-2), Fehlertext der Antwort ungefiltert, ohne Datei-Bytes
+(O-3). Kein Merge, keine Promotion; die Review spricht nur über Receipts und
+Zaun.
+
+Gesperrt bleiben: das Ersetzen einer vorhandenen Datei (`file.write` mit
+`expected_sha256`), bis das Zwei-Rename-Ersetzungsprotokoll eine
+service-eigene Absturz-Reconciliation hat, sowie `vision.match`,
+`vision.changes` und jede Pfadform von `vision.inspect`/`vision.ocr`; diese
+akzeptieren nur eine frische `observation_id` aus `desktop.observe`. Grund
+war ein reproduzierbares Race: Ein bereits geprüfter Unterordner konnte vor
+dem eigentlichen Zugriff gegen einen Link oder Windows-Reparse-Point getauscht
+werden; der Adapter schließt genau dieses Fenster, die Sperre der Restfälle
+behauptet nicht mehr als das.
 
 ## Programme und Browser
 

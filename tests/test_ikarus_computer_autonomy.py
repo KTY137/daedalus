@@ -380,9 +380,16 @@ def test_global_mission_id_cannot_replay_unscoped_or_other_authority(isolated, a
 
 
 def test_runtime_path_release_fence_inventory_is_preserved():
+    """G1-IKARUS-25 narrowed the v0.1.6 fence: file tools are projected through
+    the handle-anchored adapter (file.write without replacement), path-based
+    vision stays out, observation-only vision keeps its exact shape."""
     from daedalus.runtimes.computer import _release_tool_spec
-    for name in ("file.read", "file.write", "file.list", "file.move", "file.mkdir", "vision.match", "vision.changes"):
+    for name in ("vision.match", "vision.changes"):
         assert _release_tool_spec(name) is None
+    for name in ("file.read", "file.write", "file.list", "file.move", "file.mkdir"):
+        assert _release_tool_spec(name) is not None
+    _, write_schema = _release_tool_spec("file.write")
+    assert "expected_sha256" not in write_schema["properties"]
     for name in ("vision.inspect", "vision.ocr"):
         _, schema = _release_tool_spec(name)
         assert "path" not in schema["properties"]

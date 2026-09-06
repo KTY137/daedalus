@@ -101,21 +101,44 @@ def test_browser_origin_is_exact_not_hostname_prefix(policy):
 
 
 @pytest.mark.parametrize(("tool", "arguments"), [
-    ("file.list", {"path": "."}),
-    ("file.read", {"path": "note.txt"}),
-    ("file.write", {"path": "note.txt", "text": "data"}),
-    ("file.mkdir", {"path": "folder"}),
-    ("file.move", {"source": "a", "destination": "b", "expected_sha256": "0" * 64}),
     ("vision.match", {"observation_id": "observed", "template": "template.png"}),
     ("vision.changes", {"before": "a.png", "after": "b.png"}),
     ("vision.inspect", {"path": "image.png"}),
     ("vision.ocr", {"path": "image.png"}),
 ])
-def test_v016_release_fence_refuses_every_workspace_path_shape(policy, tool, arguments):
+def test_v016_release_fence_refuses_every_vision_path_shape(policy, tool, arguments):
     fenced = replace(policy, tools=(tool,))
     with pytest.raises(ComputerRefused, match="handle-relative") as refusal:
         fenced.admit(tool, arguments)
     assert str(refusal.value) == PATH_IO_RELEASE_REFUSAL
+
+
+@pytest.mark.parametrize(("tool", "arguments"), [
+    ("file.list", {"path": "."}),
+    ("file.read", {"path": "note.txt"}),
+    ("file.write", {"path": "note.txt", "text": "data"}),
+    ("file.mkdir", {"path": "folder"}),
+    ("file.move", {"source": "a", "destination": "b", "expected_sha256": "0" * 64}),
+])
+def test_file_tools_are_admitted_after_the_handle_anchored_lift(policy, tool, arguments):
+    """G1-IKARUS-25: the handle-anchored adapter replaced the fenced pathname
+    helpers, so the kernel admits the file shapes again (the adapter re-admits
+    and traverses by handle; this is the issuer-side half)."""
+    granted = replace(policy, tools=(tool,))
+    granted.admit(tool, arguments)
+
+
+def test_replacing_an_existing_file_stays_fenced(policy):
+    """The two-rename replacement has no service-owned crash reconciliation yet
+    (G1-IKARUS-24 HOLD): a write that names an expected_sha256 is refused with
+    its own reason, and never with the retired path-I/O reason."""
+    from daedalus.kernel.policy.computer import FILE_REPLACE_RELEASE_REFUSAL
+
+    granted = replace(policy, tools=("file.write",))
+    with pytest.raises(ComputerRefused, match="replac") as refusal:
+        granted.admit("file.write", {"path": "note.txt", "text": "data", "expected_sha256": "0" * 64})
+    assert str(refusal.value) == FILE_REPLACE_RELEASE_REFUSAL
+    assert "handle-relative" not in str(refusal.value)
 
 
 def test_observation_backed_vision_does_not_open_the_path_fence(policy):

@@ -11,6 +11,7 @@ public release entrypoint refuses every POSIX effect.
 """
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -60,6 +61,9 @@ def lowered_fence(monkeypatch):
     restores the full fence explicitly.
     """
     monkeypatch.setattr(policy_module, "RELEASE_DISABLED_TOOLS", frozenset({"vision.match", "vision.changes"}))
+    # The replacement protocol is fenced in the release (G1-IKARUS-25) and
+    # verified here: this suite is the adapter's own measurement of it.
+    monkeypatch.setattr(policy_module, "RELEASE_REPLACE_FENCED", False)
     if os.name != "nt":
         # The public host gate stays covered below. Existing cross-platform
         # cases deliberately exercise the private POSIX backend as a bounded
@@ -249,6 +253,61 @@ def test_post_effect_verification_failures_are_reported_not_raised(workspace, mo
     assert moved["postcondition_verified"] is False and "detail" in moved
 
 
+def test_post_effect_verification_reports_a_raw_host_error_instead_of_raising(workspace, monkeypatch):
+    """A host error while re-reading after the effect is a verification result.
+
+    The bytes are already on disk, so raising here would report a failure that
+    did not happen. Only the re-read is broken; the effect itself succeeded.
+    """
+    files = adapter(workspace)
+    backend = files._backend
+    real_open_file = backend.open_file
+    effected: list[str] = []
+
+    def fail_the_readback(parent, name, mode):
+        if mode == "create":
+            effected.append(name)
+        if effected and mode == "read":
+            raise OSError(errno.EIO, "injected host read failure")
+        return real_open_file(parent, name, mode)
+
+    monkeypatch.setattr(backend, "open_file", fail_the_readback)
+    result = files.execute("file.write", {"path": "new.txt", "text": "WRITTEN"})
+    assert (workspace / "new.txt").read_bytes() == b"WRITTEN"
+    assert result["postcondition_verified"] is False
+    assert "OSError" in result["detail"] and "new.txt" in result["detail"]
+    # The host error's own text may carry an absolute host path; the reported
+    # detail names the class and the workspace-relative path, not that text.
+    assert "injected host read failure" not in result["detail"]
+
+
+def test_post_effect_absence_check_reports_a_raw_host_error_instead_of_raising(workspace, monkeypatch):
+    files = adapter(workspace)
+    files.execute("file.write", {"path": "source.txt", "text": "payload"})
+    backend = files._backend
+    real_open_file, real_rename = backend.open_file, backend.rename
+    renamed: list[str] = []
+
+    def note_rename(*args, **kwargs):
+        outcome = real_rename(*args, **kwargs)
+        renamed.append("renamed")
+        return outcome
+
+    def fail_the_source_readback(parent, name, mode):
+        if renamed and name == "source.txt":
+            raise OSError(errno.EIO, "injected host stat failure")
+        return real_open_file(parent, name, mode)
+
+    monkeypatch.setattr(backend, "rename", note_rename)
+    monkeypatch.setattr(backend, "open_file", fail_the_source_readback)
+    result = files.execute("file.move", {"source": "source.txt", "destination": "moved.txt",
+                                         "expected_sha256": sha(b"payload")})
+    assert (workspace / "moved.txt").read_bytes() == b"payload"
+    assert not (workspace / "source.txt").exists()
+    assert result["postcondition_verified"] is False
+    assert "OSError" in result["detail"] and "source.txt" in result["detail"]
+
+
 def test_keyboard_interrupt_is_not_swallowed_and_leaves_no_temporary(workspace, monkeypatch):
     files = adapter(workspace)
     files.execute("file.write", {"path": "a.txt", "text": "one"})
@@ -285,6 +344,45 @@ def test_create_interrupt_reports_uncertain_when_partial_cleanup_cannot_be_verif
     assert interruption.value.effect_state == "uncertain"
     assert interruption.value.recovery_paths == ("partial.txt",)
     assert (workspace / "partial.txt").exists()
+
+
+# ``pytest.raises(KeyboardInterrupt)`` rather than the typed subclass: a
+# regression that lets a bare interrupt escape must fail this case, not abort
+# the whole session before the remaining cases have run.
+def test_mkdir_interrupt_at_the_checkpoint_reports_no_effect(workspace):
+    def interrupt():
+        raise KeyboardInterrupt()
+
+    files = adapter(workspace, checkpoint=interrupt)
+    with pytest.raises(KeyboardInterrupt) as interruption:
+        files.execute("file.mkdir", {"path": "dir"})
+    assert isinstance(interruption.value, subject.ComputerFileInterrupted)
+    assert interruption.value.effect_state == "none"
+    assert interruption.value.recovery_paths == ()
+    assert list(workspace.iterdir()) == []
+
+
+@pytest.mark.parametrize("after_create", [False, True], ids=["before-create", "after-create"])
+def test_mkdir_interrupt_inside_the_create_reports_uncertain_state(workspace, monkeypatch, after_create):
+    """After admission the adapter cannot prove which side of the syscall the
+    signal landed on, so both injections must report the same uncertain state
+    and name the directory for service-owned reconciliation."""
+    files = adapter(workspace)
+    backend = files._backend
+    real_create = backend.create_directory
+
+    def interrupt(parent, name):
+        if after_create:
+            real_create(parent, name)
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(backend, "create_directory", interrupt)
+    with pytest.raises(KeyboardInterrupt) as interruption:
+        files.execute("file.mkdir", {"path": "dir"})
+    assert isinstance(interruption.value, subject.ComputerFileInterrupted)
+    assert interruption.value.effect_state == "uncertain"
+    assert interruption.value.recovery_paths == ("dir",)
+    assert (workspace / "dir").is_dir() is after_create
 
 
 @pytest.mark.skipif(os.name != "nt", reason="share-mode hold is a Windows property")
@@ -1091,3 +1189,28 @@ def test_nt_backend_refuses_names_that_could_traverse(workspace):
     finally:
         backend.close_directory(root)
     assert list(workspace.iterdir()) == []
+
+
+def test_rollback_verification_host_error_is_reported_as_uncertain_not_raised(workspace, monkeypatch):
+    """Below the replacement fence (G1-IKARUS-27 input): when the install fails
+    and the rollback check itself hits a host error, the adapter must report
+    an uncertain state with recovery paths instead of leaking a raw OSError
+    (and its host path) out of the effect."""
+    files = adapter(workspace)
+    files.execute("file.write", {"path": "a.txt", "text": "one"})
+
+    def failing(fd, data):
+        raise OSError("injected disk failure")
+
+    def broken(self, parent, name, shown, digest):
+        raise OSError(5, "host read failure", "C:/host/secret/path")
+
+    monkeypatch.setattr(subject, "_write_all", failing)
+    monkeypatch.setattr(WorkspaceFiles, "_matches", broken)
+    with pytest.raises(subject.ComputerFileEffectUncertain) as uncertain:
+        files.execute("file.write", {"path": "a.txt", "text": "two", "expected_sha256": sha(b"one")})
+    assert "OSError" in str(uncertain.value)
+    assert "C:/host/secret" not in str(uncertain.value)
+    assert uncertain.value.recovery_paths[0] == "a.txt"
+    assert (workspace / "a.txt").read_bytes() == b"one"
+
