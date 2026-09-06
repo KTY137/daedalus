@@ -50,6 +50,22 @@ The evidence observer uses normalized bounded alternatives/conjunctions as the
 reference meaning of a future optimized evidence representation. No optimized
 backend may redefine the persisted algebra.
 
+The canonical multi-relation compiler in `daedalus/twin/relation_compiler.py`
+has an explicit scalar-admission contract over already-normalized semantic
+facts. One deduplicated semantic relation coordinate is admitted as `True` for
+the Boolean observer and as the unit `1` for the natural observer. Multiple
+Forest or verified-binding evidence bundles supporting that same coordinate do
+not increase the natural input scalar; natural multiplicity is produced by
+semiring composition of distinct semantic paths. Under the evidence observer,
+those bundles instead become the canonical alternative conjunctions of one
+`EvidenceValue`. A protocol backend may implement the same named algebra, but
+persisted values and operations remain checked against the canonical reference
+semantics for that name.
+
+This contract does not reinterpret `ForestEdge.weight`. Tropical compilation
+therefore remains refused until a separate, explicit non-negative cost
+projection is defined.
+
 ## Typed sparse relation blocks
 
 `daedalus/twin/relation_blocks.py` stores each relation family as a typed CSR
@@ -76,8 +92,12 @@ or store.
   digest is retained by the source plane.
 - Retained hyperedges and undirected edges refuse instead of being flattened
   into invented pairwise/directional semantics.
-- Projection is Boolean-only until weights, multiplicity, cost or evidence
-  bundles receive explicit scalar projection contracts.
+- This strict one-relation adapter is Boolean-only; it does not infer scalar
+  meaning from Forest weights or evidence packaging.
+
+The separate canonical multi-relation compiler may use Boolean, natural, or
+evidence-dag observers only under the explicit scalar-admission contract above.
+It does not broaden the strict adapter or authorize weighted/cost projection.
 
 The adapter reuses canonical Fourfold plane/node tuples where possible and skips
 Forest relation hashing when the authoritative retained relation set is empty.
@@ -121,6 +141,8 @@ Executable checks cover:
 - semiring identities, associativity, annihilation/distributivity and bounded
   scalar contracts;
 - evidence alternatives/conjunction/absorption and canonical digests;
+- canonical relation-compiler scalar admission: Boolean existence, natural
+  unit-per-semantic-coordinate path counting, and evidence-bundle alternatives;
 - direct sparse multi-hop Fourfold composition via `matmul()` + `hadamard()`;
 - Boolean existence, natural multiplicity, tropical minimum cost and evidence
   provenance over the same CSR mechanism;
@@ -145,8 +167,8 @@ This experiment does **not** add:
 - automatic edge trust, OwnerApproval or promotion;
 - polygraphic normal forms or coherence receipts;
 - a replacement for `TensorView`, Forest or `FourfoldSnapshot`;
-- weighted/natural/tropical/evidence projection from Forest payloads whose
-  scalar meaning is not explicitly specified.
+- weighted/tropical projection that reinterprets Forest payload weights without
+  an explicit scalar cost contract.
 
 A future plan/compiler layer must be justified by a concrete consumer and must
 reuse the canonical block semantics and budget authority rather than recreate
