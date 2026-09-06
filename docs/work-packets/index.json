@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 345,
+    "assigned_artifacts": 352,
     "legacy_artifacts": 204,
-    "packet_artifacts": 347,
-    "packet_ids": 282,
-    "post_index_artifacts": 143,
+    "packet_artifacts": 354,
+    "packet_ids": 289,
+    "post_index_artifacts": 150,
     "registry_artifacts": 1,
-    "tracked_files": 348,
+    "tracked_files": 355,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -3958,6 +3958,118 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-32_PLANNER_PROGRESS_PROMPT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "04fde78bdfb2186d664896295d834fa56f0676c9",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-26` (live measurement, the negative finding this packet acts on), `G1-IKARUS-29` (plan budget), `G1-IKARUS-31` (native planner route, cancel probe)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-32",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-32_PLANNER_PROGRESS_PROMPT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-33_PLANNER_PROVENANCE_IN_REPORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "ea8b20522c21a16bbb118ef81d6b590bcef9e514",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-32` (measure-09 ran Codex over `allow_remote_context`; Momus named the routing question an egress decision the owner must see, not a configuration note), `G1-IKARUS-23` (history views)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-33",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-33_PLANNER_PROVENANCE_IN_REPORT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-34_PLAN_PROGRESS_SHAPE_EXPERIMENT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "ef9ff1c47617e428ab04b1fe88aa6615e1963167",
+        "classification": "EXPERIMENT",
+        "dependencies": "`G1-IKARUS-32` (the payload under test and its Momus review), `G1-IKARUS-26` (fixture page and measurement recipe)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-34",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-34_PLAN_PROGRESS_SHAPE_EXPERIMENT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-35_SCHEDULED_AUTONOMY_WATCHER_TRUTH.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "a425a9b052e8dd95cfc5ec968e2cb3a799fcef2e",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-20` (scheduling; automatic dispatch requires the File Bridge watcher for the exact authority root), `G1-IKARUS-21`/`G1-IKARUS-23` (queue, finite recurrence, autonomy commands), `file_bridge.watch` (the registered watcher door; the desktop never adopts it in v0.1.6)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-35",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-35_SCHEDULED_AUTONOMY_WATCHER_TRUTH.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1463bde2a11690cab181bec68df9099eb7a2ff9b",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-31` (native Ollama route sends `num_ctx_value()`), `G1-IKARUS-33` (planner facts in the report), Momus critique of 2026-09-06 04:10 (measure before compacting; see Council and review record below)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-42",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-43_REMOTE_PLANNER_OWNER_CHOICE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c48ceb70deae2de8fcb23d2679f2432ed8600f9e",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-33` (planner facts and the egress line), `G1-IKARUS-19` (`configure_computer` compare-and-replace), forward plan A4 line 10 (`docs/superpowers/plans/2026-09-06-daedalus-forward-plan.md`), owner decision sheet `docs/decisions-pending/OWNER_DECISIONS_20260906.md` line 10",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-43",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-43_REMOTE_PLANNER_OWNER_CHOICE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-44_SUMMARY_TOKENS_ABSENT_FROM_OBSERVATIONS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "d4e4b83437b1d4437004692fb41c11eb701ef141",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-32` (the retained measure-09 report is the pre-registered falsifier), Momus design critique of 2026-09-06 04:10 (design B: proceed with changes; renamed, observations-only corpus, versioned tokenizer, chat line only on a hit, offline power test as the decision rule)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-44",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-44_SUMMARY_TOKENS_ABSENT_FROM_OBSERVATIONS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -6156,6 +6268,104 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-31",
       "path": "docs/work-packets/G1-IKARUS-31_PLANNER_NATIVE_ROUTE_AND_CANCEL.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-32",
+      "path": "docs/work-packets/G1-IKARUS-32_PLANNER_PROGRESS_PROMPT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-33",
+      "path": "docs/work-packets/G1-IKARUS-33_PLANNER_PROVENANCE_IN_REPORT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-34",
+      "path": "docs/work-packets/G1-IKARUS-34_PLAN_PROGRESS_SHAPE_EXPERIMENT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-35",
+      "path": "docs/work-packets/G1-IKARUS-35_SCHEDULED_AUTONOMY_WATCHER_TRUTH.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-42",
+      "path": "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-43",
+      "path": "docs/work-packets/G1-IKARUS-43_REMOTE_PLANNER_OWNER_CHOICE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-44",
+      "path": "docs/work-packets/G1-IKARUS-44_SUMMARY_TOKENS_ABSENT_FROM_OBSERVATIONS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

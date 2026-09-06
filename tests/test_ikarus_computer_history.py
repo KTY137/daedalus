@@ -165,3 +165,26 @@ def test_runtime_checkpoints_observe_cooperative_cancel_before_policy_read(monke
     assert service._cancellation_probe is None
     with pytest.raises(ComputerRefused):
         service.set_cancellation_probe(True)
+
+
+def test_history_projects_the_planner_provenance(isolated):
+    """G1-IKARUS-33: which planner ran and whether context left the machine is part of the
+    retained report, so the history view shows it instead of re-deriving it from policy."""
+    root, db = isolated
+    original = run_fixture(root, db, "history-planner")
+    assert original["planner"] == {"provider": "ollama_http", "model": None, "remote_context": False}
+    detail = history.computer_task(root, "history-planner")
+    assert detail["planner"] == original["planner"]
+    assert history.list_computer_tasks(root)["items"][0]["planner"] == original["planner"]
+
+
+def test_history_projects_the_prompt_size_and_absence_facts(isolated):
+    """G1-IKARUS-42/44: the Cockpit reads the history view, so the retained report's prompt-size
+    and absence facts are projected there too, unchanged."""
+    root, db = isolated
+    original = run_fixture(root, db, "history-facts")
+    detail = history.computer_task(root, "history-facts")
+    for key in ("prompt_chars_max", "planner_context_tokens", "prompt_overflow_calls",
+                "summary_tokens_absent_from_observations"):
+        assert detail[key] == original[key], key
+    assert detail["summary_tokens_absent_from_observations"]["checked"] == 0

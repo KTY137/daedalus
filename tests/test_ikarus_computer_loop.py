@@ -585,3 +585,492 @@ def test_a_service_stop_during_the_planner_call_keeps_the_stop_attribution(isola
     result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger)
     assert result["state"] == "blocked", result["summary"]
     assert "operator stop" in result["summary"]
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-32: the prompt names the next open advisory step (mission computer-loop-measure-06)
+# --------------------------------------------------------------------------
+
+PLAN_TWO = {"type": "plan", "steps": ["Read the fixture file.", "Read it again to verify."]}
+
+
+def _capturing_planner(*responses):
+    """Like ``planner`` but retains every prompt payload the loop sent."""
+    pending = iter(responses)
+    prompts: list[dict] = []
+
+    def propose(prompt, *args):
+        prompts.append(json.loads(prompt.rsplit("\n", 1)[1]))  # the payload follows the directive
+        return json.dumps(next(pending))
+    return propose, prompts
+
+
+def test_prompt_names_the_next_open_plan_step_and_counts_executed_steps(isolated):
+    """Measure-06 (2026-09-05): after one successful tool step the 7B planner proposed the same
+    one-step plan three times although the observation already held the page text. The loop
+    now tells the planner which advisory step has no executed tool step yet, counted over the
+    tool steps since the plan was adopted; nothing is inferred from the step wording."""
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    assert prompts[0]["advisory_plan"] is None and prompts[0]["plan_progress"] is None
+    first = prompts[1]["plan_progress"]
+    assert first == {"tool_steps_since_plan": 0, "next_step_index": 1,
+                     "next_step": "Read the fixture file.",
+                     "open_steps": ["Read the fixture file.", "Read it again to verify."],
+                     "every_step_has_a_tool_step": False}
+    second = prompts[2]["plan_progress"]
+    assert (second["tool_steps_since_plan"], second["next_step_index"], second["next_step"]) == (1, 2, "Read it again to verify.")
+    assert second["open_steps"] == ["Read it again to verify."]
+    third = prompts[3]["plan_progress"]
+    assert third == {"tool_steps_since_plan": 2, "next_step_index": None, "next_step": None,
+                     "open_steps": [], "every_step_has_a_tool_step": True}
+    assert prompts[3]["advisory_plan"]["steps"] == PLAN_TWO["steps"], "the plan itself stays in the prompt"
+
+
+def test_a_revised_plan_restarts_the_progress_count(isolated):
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, PLAN_OTHER, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    after_revision = prompts[3]["plan_progress"]
+    assert after_revision["tool_steps_since_plan"] == 0
+    assert after_revision["next_step"] == PLAN_OTHER["steps"][0]
+    assert prompts[3]["advisory_plan"]["revision"] == 2
+
+
+def test_progress_never_indexes_past_the_plan_and_is_absent_without_a_plan():
+    assert loop._plan_progress(None, 3) is None
+    plan = {"advisory": True, "revision": 1, "steps": ["only step"], "artifact": {}}
+    assert loop._plan_progress(plan, 5) == {"tool_steps_since_plan": 5, "next_step_index": None, "next_step": None,
+                                            "open_steps": [], "every_step_has_a_tool_step": True}
+
+
+def test_prompt_states_that_an_unchanged_plan_is_not_progress():
+    """The directive is data for the planner, not authority: it grants no tool and the loop's
+    plan budget (G1-IKARUS-29) still ends a planner that ignores it."""
+    text = loop._prompt("objective", [], [], {}, plan={"advisory": True, "revision": 1, "steps": ["s"], "artifact": {}},
+                        progress=loop._plan_progress({"steps": ["s"]}, 0))
+    assert "plan_progress names the first advisory step without an executed tool step" in text
+    assert "Re-proposing an unchanged plan is not progress" in text
+    assert "grant no tools" in text
+
+
+def test_restating_the_plan_in_force_keeps_the_progress_count(isolated):
+    """Momus on measure-08 (2026-09-06): the 7B re-proposed the plan already in force after
+    executing its only step, and the reset then told it that step was open again. Restating
+    a plan is not adopting one: the count against it stands. A different plan still restarts it."""
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, PLAN_TWO, PLAN_OTHER, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    restated = prompts[3]["plan_progress"]
+    assert (restated["tool_steps_since_plan"], restated["next_step"]) == (1, "Read it again to verify.")
+    assert prompts[3]["advisory_plan"]["revision"] == 2, "the revision count is unchanged by this rule"
+    revised = prompts[4]["plan_progress"]
+    assert (revised["tool_steps_since_plan"], revised["next_step"]) == (0, PLAN_OTHER["steps"][0])
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-33: the report and the mission artifact say which planner ran and whether
+# context left the machine (measure-09 ran Codex over allow_remote_context)
+# --------------------------------------------------------------------------
+
+class RemoteService(Service):
+    def capabilities(self):
+        caps = super().capabilities()
+        caps.update({"planner_provider": "codex_cli", "planner_model": "gpt-6-astra", "allow_remote_context": True})
+        return caps
+
+
+def test_report_and_mission_artifact_carry_the_planner_provenance(isolated):
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger,
+                                    propose=planner(READ, DONE), mission_id="planner-local")
+    assert result["planner"] == {"provider": "ollama_http", "model": None, "remote_context": False}
+    artifacts = (root / "control" / "ikarus-computer-artifacts").glob("*.json")
+    mission_artifact = next(json.loads(path.read_text()) for path in artifacts if '"repository_input"' in path.read_text())
+    assert mission_artifact["planner"] == {"provider": "ollama_http", "model": None, "remote_context": False}
+
+
+def test_remote_planner_is_named_in_the_report_the_chat_and_the_history(isolated):
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=RemoteService(), ledger=ledger,
+                                    propose=planner(READ, DONE), mission_id="planner-remote")
+    assert result["planner"] == {"provider": "codex_cli", "model": "gpt-6-astra", "remote_context": True}
+    text = loop._chat_report(result)
+    assert "Planner: codex_cli (gpt-6-astra)" in text
+    assert "Kontext hat den Rechner verlassen: ja" in text
+    assert "verlassen: nein" in loop._chat_report({**result, "planner": {"provider": "ollama_http", "model": None, "remote_context": False}})
+
+
+def test_a_report_without_planner_facts_still_renders(isolated):
+    """Retained reports from before this packet have no planner key."""
+    text = loop._chat_report({"summary": "old", "steps": [], "mission_id": "m"})
+    assert "Planner:" not in text
+
+
+# --------------------------------------------------------------------------
+# Council 2026-09-06 (council-20260906T012701Z-c52b8002, 3 of 3 seats) on G1-IKARUS-32/33
+# --------------------------------------------------------------------------
+
+PLAN_EXTENDED = {"type": "plan", "steps": ["Read the fixture file.", "Read it again to verify.", "Summarise both reads."]}
+PLAN_CHANGED_FRONT = {"type": "plan", "steps": ["Open the fixture instead.", "Read it again to verify."]}
+
+
+def test_a_revision_that_extends_the_plan_keeps_progress_over_the_unchanged_prefix(isolated):
+    """Anthropic seat: [s1,s2,s3] executed, then [s1,s2,s3,s4] reset progress to step 1 and
+    invited re-execution. Progress now survives over the steps a revision left unchanged at
+    the front; a revision that changes the first step restarts at 0."""
+    root, ledger = isolated
+    service = Service(max_steps=10)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, READ, PLAN_EXTENDED, PLAN_CHANGED_FRONT, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    extended = prompts[4]["plan_progress"]
+    assert (extended["tool_steps_since_plan"], extended["next_step"]) == (2, "Summarise both reads.")
+    changed = prompts[5]["plan_progress"]
+    assert (changed["tool_steps_since_plan"], changed["next_step"]) == (0, "Open the fixture instead.")
+
+
+def test_a_failed_tool_step_is_not_progress_against_the_plan(isolated):
+    """Anthropic and OpenAI seats: the increment ran before the ok check. The loop ends on a
+    failed step, so the only observable is the order in the report: the plan is still in force
+    with zero executed steps recorded against it, and the mission is blocked, not completed."""
+    root, ledger = isolated
+    service = Service(max_steps=6, result={"ok": False, "state": "denied", "result": {}, "evidence": {}})
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "blocked" and result["tool_steps"] == 1
+    assert len(prompts) == 2, "no prompt is built after a failed step, so no advanced count can reach a planner"
+    # Odysseus (2026-09-06 09:04): the repair had no discriminating test because the counter
+    # was invisible. The report now carries the final progress view against the plan in force.
+    assert result["plan_progress"] == {"tool_steps_since_plan": 0, "next_step_index": 1,
+                                       "next_step": "Read the fixture file.",
+                                       "open_steps": ["Read the fixture file.", "Read it again to verify."],
+                                       "every_step_has_a_tool_step": False}
+
+
+def test_a_non_boolean_remote_flag_never_reaches_a_remote_planner(monkeypatch):
+    """Anthropic and OpenAI seats: remote_context is reported false for allow_remote_context=1.
+    The route check uses the same `is True` test, so such a policy is refused before any planner
+    call and the report line can never say 'nein' for a planner that received observations.
+    (ComputerPolicy itself refuses a non-boolean flag at construction.)"""
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    with pytest.raises(loop.ComputerLoopRefused, match="local-only"):
+        loop._require_context_route({"planner_provider": "codex_cli", "allow_remote_context": 1})
+    with pytest.raises(loop.ComputerLoopRefused, match="local-only"):
+        loop._require_context_route({"planner_provider": "codex_cli", "allow_remote_context": "true"})
+    assert loop._require_context_route({"planner_provider": "codex_cli", "allow_remote_context": True}) == "codex_cli"
+
+
+def test_directive_states_the_real_threshold():
+    text = loop._prompt("o", [], [], {}, plan={"advisory": True, "revision": 1, "steps": ["s"], "artifact": {}},
+                        progress=loop._plan_progress({"steps": ["s"]}, 0))
+    assert "three in a row end the task as stalled" in text
+    assert "ends the task as stalled" not in text.replace("three in a row end the task as stalled", "")
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-35: scheduled autonomy says whether a watcher will ever tick this root
+# --------------------------------------------------------------------------
+
+def _heartbeat(tmp_path, monkeypatch, payload):
+    import daedalus.file_bridge as fb
+    path = tmp_path / "bridge_heartbeat.json"
+    if payload is not None:
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(fb, "HEARTBEAT_PATH", path)
+    return path
+
+
+def test_watcher_projection_names_whether_this_root_is_ticked(tmp_path, monkeypatch):
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: True)  # liveness has its own tests below
+    root = tmp_path / "authority"
+    root.mkdir()
+    now = 1_000_000.0
+    _heartbeat(tmp_path, monkeypatch, None)
+    none = loop.watcher_projection(root, now=now)
+    assert (none["state"], none["ticks_this_root"], none["serves_this_root"]) == ("none", False, None)
+    assert none["restart"] == f'python -m daedalus.file_bridge watch --repo-root "{root.resolve()}"'
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 4242, "repo_root": str(root), "current": None})
+    mine = loop.watcher_projection(root, now=now)
+    assert (mine["state"], mine["ticks_this_root"], mine["serves_this_root"], mine["pid"]) == ("alive", True, True, 4242)
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 1, "repo_root": str(tmp_path / "elsewhere"), "current": None})
+    other = loop.watcher_projection(root, now=now)
+    assert (other["state"], other["ticks_this_root"], other["serves_this_root"]) == ("alive", False, False)
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 3600, "pid": 4242, "repo_root": str(root), "current": None})
+    stale = loop.watcher_projection(root, now=now)
+    assert (stale["state"], stale["ticks_this_root"]) == ("stale", False)
+
+
+def test_watcher_projection_is_a_fail_open_read(tmp_path, monkeypatch):
+    import daedalus.file_bridge as fb
+    def boom(now=None):
+        raise OSError("heartbeat unreadable")
+    monkeypatch.setattr(fb, "heartbeat_status", boom)
+    out = loop.watcher_projection(tmp_path, now=1.0)
+    assert (out["state"], out["ticks_this_root"]) == ("unknown", False)
+    assert "OSError" in out["detail"]
+
+
+def test_scheduled_and_queue_replies_state_the_watcher(monkeypatch):
+    from daedalus.orchestration.ikarus import computer_schedule
+    from daedalus.kairos import scheduler as kairos
+    monkeypatch.setattr(computer_schedule, "list_scheduled_computer", lambda root: [{"schedule_id": "s1", "state": "scheduled"}])
+    monkeypatch.setattr(loop, "watcher_projection", lambda root, now=None: {
+        "state": "none", "serves_this_root": None, "ticks_this_root": False, "age_s": None, "pid": None,
+        "watcher_root": None, "restart": "python -m daedalus.file_bridge watch --repo-root \"X\""})
+    events = list(loop.conversation_events("fixture", "/computer scheduled"))
+    final = events[-1][1]
+    assert "Watcher: nicht aktiv" in final["assistant"]
+    assert "werden nicht automatisch ausgef" in final["assistant"]
+    assert 'file_bridge watch --repo-root "X"' in final["assistant"]
+    assert final["computer"]["watcher"]["ticks_this_root"] is False
+    monkeypatch.setattr(kairos.KairosScheduler, "enqueue_computer",
+                        lambda self, root, objective, owner_confirmed=False: {"schedule_id": "q1", "state": "scheduled"})
+    monkeypatch.setattr(loop, "watcher_projection", lambda root, now=None: {
+        "state": "alive", "serves_this_root": True, "ticks_this_root": True, "age_s": 4.0, "pid": 77,
+        "watcher_root": "X", "restart": "python -m daedalus.file_bridge watch --repo-root \"X\""})
+    queued = list(loop.conversation_events("fixture", "/computer queue read the page"))[-1][1]
+    assert "Watcher: aktiv" in queued["assistant"] and "PID 77" in queued["assistant"]
+    assert queued["computer"]["watcher"]["ticks_this_root"] is True
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-42: the report says how big each prompt was and whether it exceeded the
+# planner's estimated context window (Momus 2026-09-06: measure before compacting)
+# --------------------------------------------------------------------------
+
+class LongTextService(Service):
+    def __init__(self, chars, **kwargs):
+        super().__init__(result={"ok": True, "state": "verified", "result": {"text": "x" * chars}, "evidence": {}}, **kwargs)
+
+
+def test_report_and_proposal_artifacts_carry_prompt_size_and_the_planner_window(isolated, monkeypatch):
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "6144")
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger,
+                                    propose=planner(READ, DONE), mission_id="prompt-size")
+    assert result["planner_context_tokens"] == 6144
+    assert result["context_estimate"] == "chars/4"
+    assert result["prompt_overflow_calls"] == 0
+    assert result["prompt_chars_max"] > 500
+    artifacts = (root / "control" / "ikarus-computer-artifacts").glob("*.json")
+    proposals = [json.loads(path.read_text()) for path in artifacts if '"ikarus-computer-proposal/1"' in path.read_text()]
+    assert sorted(a["prompt_chars"] for a in proposals) and all(a["context_window_exceeded_estimate"] is False for a in proposals)
+    assert max(a["prompt_chars"] for a in proposals) == result["prompt_chars_max"]
+
+
+def test_an_observation_larger_than_the_window_is_counted_and_said(isolated, monkeypatch):
+    """A browser.read may return 20,000 characters and a file.read up to max_file_bytes; the
+    7B planner runs at num_ctx 6144. The loop cannot widen the window, it says when the prompt
+    exceeded the estimate instead of letting the provider truncate silently."""
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "6144")
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=LongTextService(30_000), ledger=ledger,
+                                    propose=planner(READ, DONE))
+    assert result["state"] == "completed"
+    assert result["prompt_overflow_calls"] == 1, "the second prompt carries the 30,000-character observation"
+    assert result["prompt_chars_max"] > 30_000
+    text = loop._chat_report(result)
+    assert "1 Planner-Aufruf(e)" in text and "6144" in text and "Anfang des Prompts" in text
+    assert "Planner-Aufruf(e)" not in loop._chat_report({**result, "prompt_overflow_calls": 0})
+
+
+def test_a_remote_planner_has_no_estimated_window(isolated, monkeypatch):
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=RemoteService(), ledger=ledger, propose=planner(READ, DONE))
+    assert result["planner_context_tokens"] is None and result["prompt_overflow_calls"] is None
+    assert "Planner-Aufruf(e)" not in loop._chat_report(result)
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-43: a remote planner is an explicit owner choice; no observation reaches any
+# planner prompt past the secret floor (forward plan A4 #10, owner 2026-09-06 08:42)
+# --------------------------------------------------------------------------
+
+PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\nfixture sensitive material\n-----END PRIVATE KEY-----"
+
+
+def test_an_observation_that_trips_the_secret_floor_never_reaches_a_planner_prompt(isolated):
+    """The step is executed and retained as evidence, but the mission ends before the next
+    planner call: no prompt containing the observation is built or sent, local or remote."""
+    root, ledger = isolated
+    service = Service(result={"ok": True, "state": "verified", "result": {"text": "config:\n" + PRIVATE_KEY}, "evidence": {}})
+    propose, prompts = _capturing_planner(READ, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose, mission_id="floor-obs")
+    assert result["state"] == "blocked", result["summary"]
+    assert "secret floor" in result["summary"] and "step 1" in result["summary"]
+    assert len(prompts) == 1 and "PRIVATE KEY" not in json.dumps(prompts)
+    assert result["tool_steps"] == 1 and result["steps"][0]["withheld_from_planner"] is True
+    assert result["planner_calls"] == 1
+    assert not ledger.open_intents()
+
+
+def test_the_whole_prompt_is_floored_before_every_planner_call(isolated, monkeypatch):
+    root, ledger = isolated
+    seen = []
+    def floor(path, text=""):
+        seen.append(path)
+        return "fixture rule" if path == "computer-prompt.json" and "Read fixture" in text else None
+    monkeypatch.setattr(loop, "secret_floor_rule", floor)
+    propose, prompts = _capturing_planner(READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger, propose=propose)
+    assert result["state"] == "blocked" and "prompt" in result["summary"] and "secret floor" in result["summary"]
+    assert prompts == [] and result["planner_calls"] == 0
+    assert "computer-prompt.json" in seen
+
+
+def _planner_command_fixture(monkeypatch, *, provider="ollama_http", model=None, remote=False):
+    from daedalus.runtimes import computer
+    from daedalus.interfaces import computer_configuration
+    configuration = {"schema": "daedalus-computer-policy/1", "workspace": "W", "tools": ["browser.read"], "origins": [],
+                     "applications": {}, "planner_provider": provider, "planner_model": model,
+                     "allow_remote_context": remote, "max_steps": 16, "timeout_s": 300, "max_file_bytes": 1048576}
+    monkeypatch.setattr(computer, "computer_status", lambda root: {
+        "enabled": True, "workspace": "W", "tools": [{"name": "browser.read"}], "policy_sha256": "e" * 64,
+        "configuration": configuration})
+    calls = []
+    def configure(root, policy, *, owner_confirmed, expected_policy_sha256):
+        calls.append((policy, owner_confirmed, expected_policy_sha256))
+        return {"ok": True, "changed": True, "policy_sha256": "f" * 64, "policy": policy}
+    monkeypatch.setattr(computer_configuration, "configure_computer", configure)
+    return calls
+
+
+def test_choosing_a_remote_planner_requires_a_transient_confirmation_with_the_warning(monkeypatch):
+    calls = _planner_command_fixture(monkeypatch)
+    asked = list(loop.conversation_events("fixture", "/computer planner codex_cli"))[-1][1]
+    assert calls == [], "no policy change before the owner confirms"
+    assert asked["computer"]["planner_change"] == "confirmation_required"
+    assert "verlassen" in asked["assistant"] and "/computer planner codex_cli confirm-remote" in asked["assistant"]
+    confirmed = list(loop.conversation_events("fixture", "/computer planner codex_cli confirm-remote"))[-1][1]
+    assert len(calls) == 1
+    policy, owner_confirmed, expected = calls[0]
+    assert (policy["planner_provider"], policy["planner_model"], policy["allow_remote_context"]) == ("codex_cli", None, True)
+    assert owner_confirmed is True and expected == "e" * 64
+    assert policy["tools"] == ["browser.read"], "the rest of the policy is carried over unchanged"
+    assert "Planner: codex_cli" in confirmed["assistant"] and "Kontext hat den Rechner verlassen: ja" in confirmed["assistant"]
+    assert confirmed["computer"]["planner_change"] == "applied"
+
+
+def test_choosing_the_local_planner_narrows_without_confirmation_and_names_the_model(monkeypatch):
+    calls = _planner_command_fixture(monkeypatch, provider="codex_cli", remote=True)
+    reply = list(loop.conversation_events("fixture", "/computer planner ollama_http qwen2.5-coder:7b"))[-1][1]
+    assert len(calls) == 1
+    policy = calls[0][0]
+    assert (policy["planner_provider"], policy["planner_model"], policy["allow_remote_context"]) == ("ollama_http", "qwen2.5-coder:7b", False)
+    assert "verlassen: nein" in reply["assistant"]
+    refused = list(loop.conversation_events("fixture", "/computer planner gpt-magic"))[-1][1]
+    assert refused["computer"]["state"] == "blocked" and len(calls) == 1
+
+
+def test_status_names_the_planner_and_the_planner_command(monkeypatch):
+    _planner_command_fixture(monkeypatch, provider="codex_cli", model="gpt-6-astra", remote=True)
+    reply = list(loop.conversation_events("fixture", "/computer status"))[-1][1]["assistant"]
+    assert "Planner: codex_cli (gpt-6-astra) · Kontext hat den Rechner verlassen: ja" in reply
+    assert "/computer planner" in reply
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-44: digit-bearing tokens of a finish summary that appear in no retained
+# observation (Momus 2026-09-06 design B: a fabrication detector with no confirming power)
+# --------------------------------------------------------------------------
+
+EVIDENCE = Path(__file__).resolve().parents[1] / "docs" / "evidence" / "G1-IKARUS-32_PLANNER_PROGRESS_LIVE"
+
+
+def _measure_09_report():
+    return json.loads((EVIDENCE / "computer-loop-measure-09_browser_bounded_codex-planner.json").read_text(encoding="utf-8"))["report"]
+
+
+def test_absence_check_is_silent_on_the_retained_codex_finish_and_loud_on_a_fabricated_one():
+    """Pre-registered falsifier: no discrimination on measure-09 means the check does not ship."""
+    report = _measure_09_report()
+    clean = loop.summary_tokens_absent_from_observations(report)
+    assert clean["version"] == "v1" and clean["checked"] == 2 and clean["absent"] == []  # 15:00 and the sentinel
+    assert clean["grounded_in"]["TANGERINE-4471"] == [1, 2], "grounded in both browser observations"
+    fabricated = dict(report, planner_summary=report["planner_summary"]
+                      .replace("TANGERINE-4471", "TANGERINE-4472").replace("15:00", "16:30")
+                      + " Source: http://127.0.0.1:9/invented.html")
+    loud = loop.summary_tokens_absent_from_observations(fabricated)
+    assert {"TANGERINE-4472", "16:30"} <= set(loud["absent"])
+    assert any("invented" in token for token in loud["absent"])
+
+
+def test_absence_check_uses_only_observations_never_the_objective_plan_or_arguments():
+    report = {"planner_summary": "Order 8842 confirmed at 09:15.",
+              "objective": "Confirm order 8842 at 09:15",
+              "plan": {"steps": ["confirm order 8842"]},
+              "steps": [{"step": 1, "tool": "browser.read", "outcome": {"ok": True, "result": {"text": "no numbers here"}}}]}
+    out = loop.summary_tokens_absent_from_observations(report)
+    assert set(out["absent"]) == {"8842", "09:15"}
+    assert loop.summary_tokens_absent_from_observations({"planner_summary": None, "steps": []}) is None
+
+
+def test_chat_line_appears_only_when_a_token_is_absent():
+    absent = {"version": "v1", "checked": 2, "absent": ["8842"], "grounded_in": {"09:15": [1]}}
+    text = loop._chat_report({"summary": "s", "steps": [], "summary_tokens_absent_from_observations": absent})
+    assert "8842" in text and "in keiner Beobachtung" in text
+    silent = loop._chat_report({"summary": "s", "steps": [], "summary_tokens_absent_from_observations": {**absent, "absent": []}})
+    assert "in keiner Beobachtung" not in silent
+
+
+def test_report_carries_the_absence_check_after_a_finish(isolated):
+    root, ledger = isolated
+    finish = {"type": "finish", "summary": "The fixture says 4711."}
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger, propose=planner(READ, finish))
+    assert result["state"] == "completed"
+    assert result["summary_tokens_absent_from_observations"]["absent"] == ["4711"]
+    stalled = loop.run_computer_task(root, "Read fixture", service=Service(max_steps=8), ledger=ledger,
+                                     propose=planner(PLAN, PLAN, PLAN, READ, DONE))
+    assert stalled["summary_tokens_absent_from_observations"] is None, "no finish, nothing to check"
+
+
+# --------------------------------------------------------------------------
+# Odysseus 2026-09-06 09:04 on lane 11 (findings 1, 4, 5): pinned counter, dead-PID heartbeat,
+# heartbeat without a bound root
+# --------------------------------------------------------------------------
+
+def test_final_plan_progress_is_in_the_report_and_absent_without_a_plan(isolated):
+    root, ledger = isolated
+    done = loop.run_computer_task(root, "Read fixture", service=Service(max_steps=8), ledger=ledger,
+                                  propose=planner(PLAN_TWO, READ, READ, DONE))
+    assert done["plan_progress"]["tool_steps_since_plan"] == 2 and done["plan_progress"]["every_step_has_a_tool_step"] is True
+    plain = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger, propose=planner(READ, DONE))
+    assert plain["plan_progress"] is None
+
+
+def test_a_fresh_heartbeat_whose_process_is_gone_does_not_tick(tmp_path, monkeypatch):
+    root = tmp_path / "authority"; root.mkdir()
+    now = 1_000_000.0
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 999999, "repo_root": str(root), "current": None})
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: False)
+    gone = loop.watcher_projection(root, now=now)
+    assert (gone["state"], gone["ticks_this_root"], gone["pid_alive"]) == ("dead_pid", False, False)
+    assert "nicht aktiv (dead_pid)" in loop._watcher_line(gone)
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: True)
+    alive = loop.watcher_projection(root, now=now)
+    assert (alive["state"], alive["ticks_this_root"], alive["pid_alive"]) == ("alive", True, True)
+
+
+def test_own_process_is_alive_and_a_non_pid_is_unknown():
+    import os
+    assert loop._pid_alive(os.getpid()) is True
+    assert loop._pid_alive(None) is None and loop._pid_alive(-1) is None
+
+
+def test_a_heartbeat_without_a_bound_root_is_named_as_such(tmp_path, monkeypatch):
+    root = tmp_path / "authority"; root.mkdir()
+    now = 1_000_000.0
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 4242, "repo_root": None, "project": "p", "current": None})
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: True)
+    unbound = loop.watcher_projection(root, now=now)
+    assert (unbound["state"], unbound["serves_this_root"], unbound["ticks_this_root"]) == ("alive", False, False)
+    line = loop._watcher_line(unbound)
+    assert "ohne Ordnerbindung" in line and "None" not in line

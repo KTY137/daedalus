@@ -1,0 +1,648 @@
+{
+ "objective": "Open http://127.0.0.1:57660/notes.html in the browser, read the page, and report the page title, the three items listed under Today, and the sentinel code.",
+ "policy_sha256": "6f9242500fba9c00fc8924b39ff3198da788373471cf9d65f29285e81f6b9c66",
+ "source_sha256": "bc81ad31790c7c02ee570d9a48efe65ee3d054ff3751399692e40bc9e9cb6679",
+ "runs_per_variant": 5,
+ "order": [
+  "v1",
+  "v2",
+  "v1",
+  "v2",
+  "v1",
+  "v2",
+  "v1",
+  "v2",
+  "v1",
+  "v2"
+ ],
+ "results": [
+  {
+   "run": 1,
+   "variant": "v1",
+   "mission_id": "computer-loop-exp01-v1-r1",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 9,
+   "tool_steps": 4,
+   "replans": 4,
+   "elapsed_s": 229.1,
+   "summary": "Three consecutive identical read observations established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "92ed5dbd436e0080d66ca73e9e555f556df3aa2cf979141cff991ba4da65512c",
+    "locator": "artifact-locator:sha256:92ed5dbd436e0080d66ca73e9e555f556df3aa2cf979141cff991ba4da65512c"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "06b812e51969354bd02fffed9a29e9bee9ab7f8c50f183bc5741e71bdfbbe15c",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:57660/notes.html\"\n  }\n}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "6d3423e11788d2036d4aec78ba2598030af4db8cc83a3004372c780fd3248cbb",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 3,
+     "step": 3,
+     "sha256": "80f9b86f125f7eb358692a8de0059513912d3093ce9e40051c3c4fc6e3817d2b",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page content and extract the required information.\", \"Report the page title, the three items listed under Today, and the sentinel code.\"]\n}"
+    },
+    {
+     "call": 4,
+     "step": 3,
+     "sha256": "a0c030c3f63e7b678a365845d5c1cb5456b7d9cfe4b1e0d313a3ac14ec597737",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page content and extract the required information.\",\n    \"Report the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "f07d1d7fbb392ec2fe657b89935133ecc2e2674f5637227ce2686e5a58ae136e",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 6,
+     "step": 4,
+     "sha256": "62bf3e6d4bc7c0ad5d191fc47485ba87d081bb4760eabc4e88bc380ec9b8dd03",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page content and extract the required information.\",\n    \"Report the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 7,
+     "step": 4,
+     "sha256": "fc9bfe31ac573513f9c736191c9a587618a136aa2302e61a0e1e004f89faf61d",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page content and extract the required information.\",\n    \"Report the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 8,
+     "step": 4,
+     "sha256": "97637342972bb343ef23a0f11132dac851244240d4cc748fc3d38efcfa22a219",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Extract the page title, the three items listed under Today, and the sentinel code from the page content.\",\n    \"Report the extracted information.\"\n  ]\n}"
+    },
+    {
+     "call": 9,
+     "step": 4,
+     "sha256": "3069452484f9e233612e3c5951719372a59406198cb5c144497ae522b57c84da",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    }
+   ]
+  },
+  {
+   "run": 2,
+   "variant": "v2",
+   "mission_id": "computer-loop-exp01-v2-r1",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 8,
+   "tool_steps": 2,
+   "replans": 5,
+   "elapsed_s": 154.6,
+   "summary": "4 consecutive advisory plans proposed no tool step; the plan budget for one step is exhausted.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "97948ae9e613011f1f31913b083c33c35851f444c722c9d43ecc1cc4f6780769",
+    "locator": "artifact-locator:sha256:97948ae9e613011f1f31913b083c33c35851f444c722c9d43ecc1cc4f6780769"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "8b48cad8c62d18bbcecf370668c607bd48c4da6d4c70d44b89f4020cdf8bf848",
+     "response": "{\"type\":\"tool\",\"tool\":\"browser.navigate\",\"arguments\":{\"url\":\"http://127.0.0.1:57660/notes.html\"}}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "992bea295bada834b6e2b7b06340437f6962ddd8272465b6321b84496337dd72",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "1a9bb11567b05057ec9f0fd032f15e077b1fb2a581b387a95255b2a473b05d15",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 4,
+     "step": 2,
+     "sha256": "61b81f906ab40c422dba83cc5c20b65d29fe58ffb6f2f92857d1e589e3d767c9",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "a951117075b88545de98a5abe83e00d36f0740ac2e5b758da69e906487630a46",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"]\n}"
+    },
+    {
+     "call": 6,
+     "step": 3,
+     "sha256": "c22c7e5b5c528c11026ffa11eb422b3f86e70b27d7904749a4be3359fa700ccb",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Extract the page title, the three items listed under Today, and the sentinel code from the page.\"\n  ]\n}"
+    },
+    {
+     "call": 7,
+     "step": 3,
+     "sha256": "9ad360995a2cb31ea962fbd7f85e96de9ac6975d2a0921c116b103c110987f58",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page content and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 8,
+     "step": 3,
+     "sha256": "02086e80315b8ba2683009550cc8a0255afee99b6160b9be06b1df9f88868c44",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page content and extract the page title, the three items listed under Today, and the sentinel code.\"]\n}"
+    }
+   ]
+  },
+  {
+   "run": 3,
+   "variant": "v1",
+   "mission_id": "computer-loop-exp01-v1-r2",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 6,
+   "tool_steps": 2,
+   "replans": 3,
+   "elapsed_s": 109.3,
+   "summary": "Three consecutive identical advisory plans established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "fa6552a0bb61eb74727776493ea577f945a4d5a89280feb4d9990fb33c8ec7f6",
+    "locator": "artifact-locator:sha256:fa6552a0bb61eb74727776493ea577f945a4d5a89280feb4d9990fb33c8ec7f6"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "677b0ab26b6bbf419f2067944580ede0f26e4d0ad8fad90854009dee0e057bf2",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:57660/notes.html\"\n  }\n}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "b90fe94eb6d14584c43240b5e8fe9d310818758e972a99545fe95151bd3d92dc",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and extract the required information.\"]\n}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "a51f97e0c59980217dfd2e4eb06dac223a1085bcb9bed387e1b601531f5be27c",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 4,
+     "step": 3,
+     "sha256": "9c5ec18909316ffec099a5d4f62e83f91300186c396f72985f690ac6a10a6d27",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and extract the required information.\"]\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "7a118b9a398cefd28f2a3fc1ee06eaac9fa3eca5528128eff5c08eceed0e791e",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the required information.\"\n  ]\n}"
+    },
+    {
+     "call": 6,
+     "step": 3,
+     "sha256": "4059ffed7f7b7b1304722fa80545f9fc92b003a6db07f80111696ed99e3f49c1",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the required information.\"\n  ]\n}"
+    }
+   ]
+  },
+  {
+   "run": 4,
+   "variant": "v2",
+   "mission_id": "computer-loop-exp01-v2-r2",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 10,
+   "tool_steps": 3,
+   "replans": 6,
+   "elapsed_s": 219.5,
+   "summary": "4 consecutive advisory plans proposed no tool step; the plan budget for one step is exhausted.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "5aaedeb9f43aed12d9b002305e58582788637e626d1564dd18a5a8b69a608e16",
+    "locator": "artifact-locator:sha256:5aaedeb9f43aed12d9b002305e58582788637e626d1564dd18a5a8b69a608e16"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "f5708c2893667fd0d8d02447157d5ab5e53e9afe1dc2325589cc4f27d3466cdd",
+     "response": "{\"type\":\"tool\",\"tool\":\"browser.navigate\",\"arguments\":{\"url\":\"http://127.0.0.1:57660/notes.html\"}}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "3322a16a648507034fe4a8c5a75ca432bf141c5a60dcefe7778471909f5abd86",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page content and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "217775fa258f11f48f330bc6f5899bc8bcaab0fee1d33043950dbab216f9a6ea",
+     "response": "{\"type\":\"plan\",\"steps\":[\"Read the page content and extract the page title, the three items listed under Today, and the sentinel code.\"]}"
+    },
+    {
+     "call": 4,
+     "step": 2,
+     "sha256": "fbefe01d9624f8e4723d6974e2e12ff5530c9b9939f601f85197962a3583d57c",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "0ac086dd27d21785afaed54037c05311b9ac3889039e92b5f993faa6c49292ad",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page content and extract the page title, the three items listed under Today, and the sentinel code.\"]\n}"
+    },
+    {
+     "call": 6,
+     "step": 3,
+     "sha256": "5009a45915b9a7863ecbcde81b2d17d82451b4e1151870e4aec6619d877883f5",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 7,
+     "step": 4,
+     "sha256": "2c5e2fe675aa8f3671a7f36d7e4009183876ce9494ab5649c80f6e84f458d07f",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page content and extract the page title, the three items listed under Today, and the sentinel code.\"]\n}"
+    },
+    {
+     "call": 8,
+     "step": 4,
+     "sha256": "12057308a929812a209dc0900860eaa827e565c86322410e6c161f87528ae3b7",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Extract the page title, the three items listed under Today, and the sentinel code from the page content.\"\n  ]\n}"
+    },
+    {
+     "call": 9,
+     "step": 4,
+     "sha256": "7319daf8f0731d3c2c43999760db9d7120b9905cc833f63ff8d3f4cedfc3faf2",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Extract the page title, the three items listed under Today, and the sentinel code from the page content.\"\n  ]\n}"
+    },
+    {
+     "call": 10,
+     "step": 4,
+     "sha256": "3f89f6762e2c39490950f8d7a0d7a1e0a07dcacee84f038dbc00dc741cf85ec8",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page content and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    }
+   ]
+  },
+  {
+   "run": 5,
+   "variant": "v1",
+   "mission_id": "computer-loop-exp01-v1-r3",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 6,
+   "tool_steps": 2,
+   "replans": 3,
+   "elapsed_s": 112.7,
+   "summary": "Three consecutive identical advisory plans established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "b0c045fe53bd3b45d84d18aac7408988de2cc88788f36c32724f6148521c149c",
+    "locator": "artifact-locator:sha256:b0c045fe53bd3b45d84d18aac7408988de2cc88788f36c32724f6148521c149c"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "fc6670ee3f7514a00435f435092d8b82e1a7b3a32902b53c36dba992b984e69a",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:57660/notes.html\"\n  }\n}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "fad49875ee6bd9f5af04711b103402b7701e374b3a22fbc8ad51f99c520a615a",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the current browser DOM and receive a fresh observation token.\"\n  ]\n}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "1938c517f2bd3198dc16dbe977720bb087a9d8108a2eae5dd80c487584431389",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 4,
+     "step": 3,
+     "sha256": "4dfe5db6eae201fae169d49516a13d3505a138ea09bea5d85f7ba8d239bbae56",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current browser DOM and receive a fresh observation token.\"]\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "c0d73f5868fbed81a816bb98e347d4489d2595aac99d7c47caf95ed3b2f6946c",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current browser DOM and receive a fresh observation token.\"]\n}"
+    },
+    {
+     "call": 6,
+     "step": 3,
+     "sha256": "d9ee618ea30fa1d88ffbe33e5eb8b447d696f522406a03c1dd9ab42e6c9666ca",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current browser DOM and receive a fresh observation token.\"]\n}"
+    }
+   ]
+  },
+  {
+   "run": 6,
+   "variant": "v2",
+   "mission_id": "computer-loop-exp01-v2-r3",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 7,
+   "tool_steps": 2,
+   "replans": 4,
+   "elapsed_s": 121.7,
+   "summary": "Three consecutive identical advisory plans established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "7ebe643248ea72b37a1092b2f31eb37b223579ff22cfbbbd263f2f6e84ad483e",
+    "locator": "artifact-locator:sha256:7ebe643248ea72b37a1092b2f31eb37b223579ff22cfbbbd263f2f6e84ad483e"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "2af00dbd5a50050b145d94d197c5aa988752f907083ac10d7bd89cb4dbc392ac",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Navigate to http://127.0.0.1:57660/notes.html in the browser.\"\n  ]\n}"
+    },
+    {
+     "call": 2,
+     "step": 1,
+     "sha256": "55febcf8c59e6ba8394ec8adc39e5f77b5aac18d58c36b7a10cd139d06f22e93",
+     "response": "{\"type\":\"tool\",\"tool\":\"browser.navigate\",\"arguments\":{\"url\":\"http://127.0.0.1:57660/notes.html\"}}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "d7c4ae31f95709813cf3eabbaa51cc1506341f9bd47b42db3708b2a9c37c68db",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and extract the required information.\"]\n}"
+    },
+    {
+     "call": 4,
+     "step": 2,
+     "sha256": "a593b1d054ccc3bf9f6a0331b5ed454aa8a536d622cfd6f3d40f361769034859",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "d28c7e0548d0e8114104e433a857f195d6503088f1f9cb1ce475fd537c03a5ef",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and extract the required information.\"]\n}"
+    },
+    {
+     "call": 6,
+     "step": 3,
+     "sha256": "5004f1a61be4587dd64a98e36bc6870a3581b01dd3ad0eb9eb0637de1e0bb97b",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the required information.\"\n  ]\n}"
+    },
+    {
+     "call": 7,
+     "step": 3,
+     "sha256": "9b604a0add28523e2b9af72f2cac9cae64f55a4153f1dec294c77281e064d83b",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and extract the required information.\"]\n}"
+    }
+   ]
+  },
+  {
+   "run": 7,
+   "variant": "v1",
+   "mission_id": "computer-loop-exp01-v1-r4",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 7,
+   "tool_steps": 3,
+   "replans": 3,
+   "elapsed_s": 158.8,
+   "summary": "Three consecutive identical advisory plans established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "16815ecd7a76cbac698d9cd962dc94359f5194a2105ed577f05e5500733e578b",
+    "locator": "artifact-locator:sha256:16815ecd7a76cbac698d9cd962dc94359f5194a2105ed577f05e5500733e578b"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "58dbe928109fda0cf19e2ceebbc8f998cc6c158f21d0218ab513270180242a2f",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:57660/notes.html\"\n  }\n}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "7b56ebc037370445299e34cf7f1387faa26b7260415d8a817fbe17d0bcf9859f",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 3,
+     "step": 3,
+     "sha256": "5f88d93e688d57530d0345d87ab67a665cc5c99d69a9d5f36b5e072a6c48fb9a",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page title and list the three items under Today.\"\n  ]\n}"
+    },
+    {
+     "call": 4,
+     "step": 3,
+     "sha256": "5e7d6bc4f5facfc7823b4d4d0a58c806c6c6f855bffba40dd735c3d785aea6f4",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 5,
+     "step": 4,
+     "sha256": "8b0434ef9201873551ff58677e5492c9047d168edb9828bb0c937f10eb8bae13",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page title and list the three items under Today.\"]\n}"
+    },
+    {
+     "call": 6,
+     "step": 4,
+     "sha256": "b1d0d22b1863c97840b7dd0a92774e2b70edc549f1786bbe2421db2aa1cce0e4",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page title and list the three items under Today.\"]\n}"
+    },
+    {
+     "call": 7,
+     "step": 4,
+     "sha256": "27d9a12b011c052602b12b4e314398c5418809f701ad9f5b9e50b8da6f0a1eb2",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page title and list the three items under Today.\"\n  ]\n}"
+    }
+   ]
+  },
+  {
+   "run": 8,
+   "variant": "v2",
+   "mission_id": "computer-loop-exp01-v2-r4",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 6,
+   "tool_steps": 4,
+   "replans": 1,
+   "elapsed_s": 147.9,
+   "summary": "Three consecutive identical read observations established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "46bcd60da4730dee8f5bacd999a91e4adb20edf943f87be9077d089690ad5a66",
+    "locator": "artifact-locator:sha256:46bcd60da4730dee8f5bacd999a91e4adb20edf943f87be9077d089690ad5a66"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "6e21c8a3e6e9eccf38415afdf539e01f1d0ce4183ae9b24948d5606e977a3065",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:57660/notes.html\"\n  }\n}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "c1846482fd425fd909f0eaacb6f1afaf2f179d55c644491e28dab743ea324d0e",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the current browser DOM and receive a fresh observation token.\"\n  ]\n}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "b1691fb6bcfd52f4a00b20b3a224ede6902fa9c14f0d1de482ee1cfbf78f1cfa",
+     "response": "{\"type\":\"tool\",\"tool\":\"browser.read\",\"arguments\":{}}"
+    },
+    {
+     "call": 4,
+     "step": 3,
+     "sha256": "16d74080e044c53b3bcfd00eef8fc0b5421f96047c3ec6e53b117ecc970b0e46",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current browser DOM and receive a fresh observation token.\"]\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "ba930c4b5bb27cd03c100bde2c505e00c6cf2966dfb8610a6aa9fb3f693fdfdf",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 6,
+     "step": 4,
+     "sha256": "2e2df1f4d960d9ef24659a90d538a822da3cbaf9da65ca2b79317db8731f6115",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    }
+   ]
+  },
+  {
+   "run": 9,
+   "variant": "v1",
+   "mission_id": "computer-loop-exp01-v1-r5",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 7,
+   "tool_steps": 3,
+   "replans": 3,
+   "elapsed_s": 166.4,
+   "summary": "Three consecutive identical advisory plans established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "486c212722d95136614f8eb8b19588b63a6b56a410f6498dc16344356266ef67",
+    "locator": "artifact-locator:sha256:486c212722d95136614f8eb8b19588b63a6b56a410f6498dc16344356266ef67"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "8beeb36e7153106ad46a064a8ea4ffa8a8481bf79af87f05021352b081f7911d",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:57660/notes.html\"\n  }\n}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "6d005382addf50a27dce5377a406ecf9169e64ed63d966e2ff8b96e4e2ecd7b1",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the current browser DOM and receive a fresh observation token.\"\n  ]\n}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "2bcf746197a6a564bc9129b25989f24aca0848b3f980f728c55080c4d2cdfa01",
+     "response": "{\"type\":\"tool\",\"tool\":\"browser.read\",\"arguments\":{}}"
+    },
+    {
+     "call": 4,
+     "step": 3,
+     "sha256": "7fa25a073efee1490adb62fb56d8ba2c7ff79c8ae4aaa24e0eb6fbb5303a6e42",
+     "response": "{\"type\":\"tool\",\"tool\":\"browser.read\",\"arguments\":{}}"
+    },
+    {
+     "call": 5,
+     "step": 4,
+     "sha256": "4b293d4161a8ea4288e94c1117c2be4fb00b0e2045025149ae8aaeeb6f3f7317",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current browser DOM and receive a fresh observation token.\"]\n}"
+    },
+    {
+     "call": 6,
+     "step": 4,
+     "sha256": "e324ac6249ae6ae0ff3077f7e225d1b47c2d042900a130a0cae5469231d766e8",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the current browser DOM and receive a fresh observation token.\"\n  ]\n}"
+    },
+    {
+     "call": 7,
+     "step": 4,
+     "sha256": "d0a81a1be70e7d39ce4cd96614b25dad00018ca889bc1875aecfa1e3a171b417",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the current browser DOM and receive a fresh observation token.\"\n  ]\n}"
+    }
+   ]
+  },
+  {
+   "run": 10,
+   "variant": "v2",
+   "mission_id": "computer-loop-exp01-v2-r5",
+   "state": "stalled",
+   "finished": false,
+   "planner_calls": 7,
+   "tool_steps": 2,
+   "replans": 4,
+   "elapsed_s": 159.5,
+   "summary": "Three consecutive identical advisory plans established no progress.",
+   "planner_summary": null,
+   "report_artifact": {
+    "sha256": "b002ba65fac278697b73ef6dc0aa1f2cfceeec7735d1df69abe7a6c37da495d1",
+    "locator": "artifact-locator:sha256:b002ba65fac278697b73ef6dc0aa1f2cfceeec7735d1df69abe7a6c37da495d1"
+   },
+   "proposals": [
+    {
+     "call": 1,
+     "step": 1,
+     "sha256": "47d9d7ffb492c87e494a562a4fd80f781f845fba1853a1931b637dc59558f6e3",
+     "response": "{\"type\":\"tool\",\"tool\":\"browser.navigate\",\"arguments\":{\"url\":\"http://127.0.0.1:57660/notes.html\"}}"
+    },
+    {
+     "call": 2,
+     "step": 2,
+     "sha256": "00d62429f7f40c190e13620d066939050cb45f0b5a3dfb435e3e13923c5bf75a",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 3,
+     "step": 2,
+     "sha256": "f83e99c1eb39ac5d3dc6298f16f2e8dfbdf2edd6af4a8f8a4caf8ff1e6afde4d",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 4,
+     "step": 2,
+     "sha256": "a5642468864e8b145eed8d8afecf2b49ac2775249018c015ec944c610241b2e8",
+     "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+    },
+    {
+     "call": 5,
+     "step": 3,
+     "sha256": "f9beb025f8b8519a7d3973399f2a9ce85a03b1e600bf51041397ce137b69947d",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    },
+    {
+     "call": 6,
+     "step": 3,
+     "sha256": "994cbba9944b4d8ee743f1e1c4756485bd52f6a4c0b98935aa15baa1219d3555",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"]\n}"
+    },
+    {
+     "call": 7,
+     "step": 3,
+     "sha256": "1e180a2bd0914bf9843903da324ebc54b2df8f90d13a53cf026e866565a2c2c6",
+     "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+    }
+   ]
+  }
+ ]
+}
