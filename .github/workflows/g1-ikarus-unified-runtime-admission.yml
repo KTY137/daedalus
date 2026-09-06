@@ -55,6 +55,7 @@ on:
       - "tests/test_ikarus_stream.py"
       - "tests/test_ikarus_os_boundary.py"
       - "tests/test_llm_client.py"
+      - "tests/test_llm_client_readiness_evidence.py"
       - "tests/test_runtime_registry_claude_shim.py"
       - "tests/test_runtime_registry_fanout.py"
       - "tests/test_runtime_registry_singleflight.py"
@@ -149,6 +150,7 @@ jobs:
           tests/test_ikarus_stream.py
           tests/test_ikarus_os_boundary.py
           tests/test_llm_client.py
+          tests/test_llm_client_readiness_evidence.py
           tests/test_runtime_registry_claude_shim.py
           tests/test_runtime_registry_fanout.py
           tests/test_runtime_registry_singleflight.py
@@ -183,6 +185,7 @@ jobs:
           tests/test_ikarus_stream.py
           tests/test_ikarus_os_boundary.py
           tests/test_llm_client.py
+          tests/test_llm_client_readiness_evidence.py
           tests/test_runtime_registry_claude_shim.py
           tests/test_runtime_registry_fanout.py
           tests/test_runtime_registry_singleflight.py
