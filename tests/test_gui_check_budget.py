@@ -20,6 +20,7 @@ rather than obeyed -- otherwise a typo would be a way to remove the bound.
 from __future__ import annotations
 
 import json
+import subprocess
 
 import pytest
 
@@ -152,3 +153,47 @@ def test_fixture_cleanup_reports_a_locked_row_without_raising(tmp_path, monkeypa
     monkeypatch.setattr(gui_check.Path, "unlink", locked)
     detail = gui_check._remove_acceptance_project(path, retry_s=0)
     assert "could not remove acceptance-project row" in detail
+
+
+def test_server_output_is_file_backed_instead_of_an_undrained_pipe(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    observed = {}
+
+    class FakeProcess:
+        returncode = None
+
+        def poll(self):
+            return None
+
+    def fake_popen(*args, **kwargs):
+        observed.update(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setattr(gui_check.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        gui_check,
+        "_wait_ready",
+        lambda port, proc: (True, "<html>cockpit</html>", ""),
+    )
+
+    proc, body, entry, documented_error, output_file = gui_check._start_server(
+        tmp_path,
+        54321,
+        False,
+    )
+    try:
+        assert proc is not None
+        assert body == "<html>cockpit</html>"
+        assert entry == gui_check.SERVER_ENTRIES[0][0]
+        assert documented_error == ""
+        assert output_file is not None
+        assert observed["stdout"] is output_file
+        assert observed["stdout"] is not subprocess.PIPE
+        assert observed["stderr"] is subprocess.STDOUT
+        assert output_file.seekable()
+        assert output_file.fileno() >= 0
+    finally:
+        if output_file is not None:
+            output_file.close()
