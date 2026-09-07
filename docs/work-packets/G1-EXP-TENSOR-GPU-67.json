@@ -1,0 +1,62 @@
+{
+  "work_packet_id": "G1-EXP-TENSOR-GPU-67",
+  "title": "Freeze exact Forest/Fourfold node-partition convergence without broadening legacy semantics",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "99198d4e0dae8a8e7459ec07e8ac52f4e99e5bca",
+  "scope": "Resolve the bounded GPU-66 question before further collapsing boolean_relation_block_from_fourfold: determine how compiler/compatibility node-partition admission should converge on projection_verifier exactness without creating another graph authority or silently changing the conservative legacy Forest adapter.",
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "projection_verifier_blob": "daedalus/twin/projection_verifier.py@b02462d3e8416d475d7e785bad44505b4997026c",
+    "relation_compiler_blob": "daedalus/twin/relation_compiler.py@ac462f256c1eb673f55405f2179b996f830a7b44",
+    "relation_projection_blob": "daedalus/twin/relation_projection.py@306184edf848245ab0ba1e585f568dec239f2b76",
+    "legacy_forest_blob": "daedalus/twin/legacy_forest.py@bb220fbcab9d95f315d90cf7bbe7498dc091b19f",
+    "gpu66_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-66.json@356f5c3662fb4d275c2bbdc2e36fe68159c30252"
+  },
+  "findings": [
+    "projection_verifier already enforces the stronger node-partition contract: Forest kinds are mapped to constitutional planes, every expected node must occur in that exact plane, and Fourfold nodes absent from the Forest are rejected.",
+    "compile_relation_blocks and boolean_relation_block_from_fourfold currently enforce only a subset partition: duplicate Forest ids and Forest nodes missing anywhere from the snapshot are rejected, but an extra Fourfold node or a Forest node placed in the wrong constitutional plane can still pass this admission stage.",
+    "Calling require_forest_projection from the Tensor compiler or compatibility adapter would be too broad. The verifier also requires exact same-plane relation-digest and cross-plane binding coverage, while the current regenerable Tensor contract intentionally permits Fourfold to omit a same-plane Forest relation and then omits that row rather than readmitting raw Forest evidence.",
+    "The repository already contains two _KIND_TO_PLANE tables with intentionally different domains. projection_verifier recognizes symbol and Data-plane node kinds; legacy_forest is explicitly conservative and does not claim a canonical Data Plane. Replacing both tables with one superset would silently broaden legacy projection semantics and violate the Gardener rule against hidden invariant drift.",
+    "Therefore the missing primitive is not a new plane ontology. It is a narrow internal exact-node-partition admission extracted from the existing projection_verifier authority and reused by the compiler and Boolean compatibility surface only. legacy_forest must retain its conservative mapping until a separately evidenced migration changes that adapter contract."
+  ],
+  "gardener_decision": "Do not duplicate a third kind-to-plane map, do not call the whole projection verifier from relation compilation, and do not centralize the legacy adapter onto the verifier's broader mapping. The next implementation should extract the verifier's existing node-partition check into one private internal primitive in projection_verifier (or an equivalently existing-owner location), have verify_forest_projection consume that primitive, and reuse the same primitive from compile_relation_blocks and boolean_relation_block_from_fourfold. The primitive is admission-only: exact node membership, duplicate/unmapped Forest ids/kinds, extra snapshot nodes, and per-kind plane placement; it must not inspect relation digests, bindings, completeness, semirings, or promotion state.",
+  "non_changes": {
+    "production_code_changed": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "legacy_mapping_changed": false,
+    "relation_retention_semantics_changed": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "claim_boundaries": {
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "Implement and regression-pin the narrow exact-node-partition admission primitive in the existing projection_verifier owner, then reuse it from compile_relation_blocks and boolean_relation_block_from_fourfold. Required regressions: extra Fourfold node refuses in all three paths; wrong per-kind plane placement refuses in all three paths; valid retained and unretained same-plane relation semantics remain unchanged; legacy_forest's conservative Data-plane behavior remains unchanged. No third projector, no public API, and no call to full require_forest_projection from the Tensor compiler."
+}
