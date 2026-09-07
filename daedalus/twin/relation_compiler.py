@@ -199,18 +199,19 @@ def _require_complete_endpoint_planes(
     snapshot: FourfoldSnapshot,
     signatures: Sequence[RelationSignature],
 ) -> None:
-    plane_map = snapshot.plane_map
+    planes = snapshot.planes
     incomplete = sorted(
         {
             plane
             for signature in signatures
             for plane in (signature.source_plane, signature.target_plane)
-            if plane_map[plane].status != "complete"
+            if planes[FOURFOLD_PLANES.index(plane)].status != "complete"
         }
     )
     if incomplete:
         detail = ", ".join(
-            f"{plane}={plane_map[plane].status}" for plane in incomplete
+            f"{plane}={planes[FOURFOLD_PLANES.index(plane)].status}"
+            for plane in incomplete
         )
         raise ValueError(
             "relation compilation requires complete endpoint planes; " + detail
@@ -313,14 +314,15 @@ def compile_relation_blocks(
         )
 
     _forest_node_partition(forest, snapshot)
+    planes = snapshot.planes
     node_location: dict[str, tuple[str, int]] = {}
-    for plane in snapshot.planes:
+    for plane in planes:
         for position, node_id in enumerate(plane.node_ids):
             node_location[node_id] = (plane.plane, position)
 
     retained_relation_digests = {
         plane.plane: frozenset(plane.relation_sha256s)
-        for plane in snapshot.planes
+        for plane in planes
     }
 
     requested_signatures = (
@@ -331,6 +333,8 @@ def compile_relation_blocks(
     requested_set = (
         None if requested_signatures is None else frozenset(requested_signatures)
     )
+    if requested_signatures is not None:
+        _require_complete_endpoint_planes(snapshot, requested_signatures)
 
     for hyperedge in forest.hyperedges:
         member_planes: set[str] = set()
@@ -350,8 +354,17 @@ def compile_relation_blocks(
         if requested_set is not None:
             conflicts = any(
                 signature.relation == hyperedge.relation
-                and signature.source_plane in member_planes
-                and signature.target_plane in member_planes
+                and (
+                    (
+                        signature.source_plane == signature.target_plane
+                        and member_planes == {signature.source_plane}
+                    )
+                    or (
+                        signature.source_plane != signature.target_plane
+                        and signature.source_plane in member_planes
+                        and signature.target_plane in member_planes
+                    )
+                )
                 for signature in requested_set
             )
         if not conflicts:
@@ -457,7 +470,8 @@ def compile_relation_blocks(
         if requested_signatures is not None
         else _selected_signatures(None, discovered)
     )
-    _require_complete_endpoint_planes(snapshot, selected)
+    if requested_signatures is None:
+        _require_complete_endpoint_planes(snapshot, selected)
     selected_set = frozenset(selected)
     retain_evidence = observer_name == "evidence-dag"
 
@@ -502,9 +516,9 @@ def compile_relation_blocks(
         plane: TypedAxis(
             name=f"{plane}-nodes",
             plane=plane,
-            labels=snapshot.plane_map[plane].node_ids,
+            labels=planes[index].node_ids,
         )
-        for plane in FOURFOLD_PLANES
+        for index, plane in enumerate(FOURFOLD_PLANES)
     }
 
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
