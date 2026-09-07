@@ -1,0 +1,120 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-60",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "ec7c094509bad0ecee7a9957c9a8ac635508d120",
+    "dependencies": "G1-EXP-TENSOR-GPU-56, G1-EXP-TENSOR-GPU-59",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "result"]},
+      "scope": {"source_fields": ["domain", "research"]},
+      "contracts_and_behavior": {"source_fields": ["research", "bounded_next_step"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "bounded_next_step"],
+        "projection_note": "Research-only packet. No production or test owner is changed; deleting this record would remove only the checkpoint, not alter runtime semantics."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundaries", "research"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-60",
+  "title": "Bound Boolean projection deduplication before collapsing the strict adapter",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "ec7c094509bad0ecee7a9957c9a8ac635508d120",
+  "result": {
+    "summary": "The public strict Boolean projector and the canonical multi-relation compiler now overlap enough after GPU-59 that keeping both full implementations is a measurable drift risk, but replacing the strict projector with a direct compiler delegation in one step would silently widen validation/refusal behavior. GPU-60 freezes the remaining mismatches so the duplicate path can be removed incrementally instead of creating a third abstraction or masking semantic changes as refactoring.",
+    "production_change": false,
+    "test_change": false,
+    "deletion_target": "daedalus/twin/relation_projection.py should ultimately become a thin compatibility surface or be removed only after the remaining behavior differences are resolved and cross-projection equivalence is contract-pinned."
+  },
+  "research": {
+    "duplicated_responsibilities": [
+      "exact Forest/Fourfold subject binding validation",
+      "complete endpoint-plane closed-world checks",
+      "ProjectionSubject construction",
+      "typed source/target axis construction",
+      "same-plane retained relation admission",
+      "retained hyperedge and undirected-edge refusal",
+      "verified cross-plane binding projection into TypedRelationBlock"
+    ],
+    "already_reconciled": {
+      "same_plane_retention": "GPU-59 aligned unretained same-plane ForestEdge omission and retained Boolean row digest equivalence between compile_relation_blocks and boolean_relation_block_from_fourfold."
+    },
+    "remaining_mismatches": {
+      "cross_plane_raw_forest_edges": "boolean_relation_block_from_fourfold ignores raw cross-plane ForestEdge rows and projects matching verified FourfoldSnapshot.bindings only. compile_relation_blocks treats a conflicting raw cross-plane ForestEdge as an admission/consistency signal and fails closed unless an exact included verified binding exists. Direct delegation would therefore add new public refusal cases.",
+      "global_partition_validation": "compile_relation_blocks validates that every Forest node is present in the Fourfold plane partition before compiling one selected relation. The strict projector does not perform the same global partition scan and can succeed when unrelated malformed source material is outside the selected relation surface. Direct delegation would widen validation scope.",
+      "provenance_revision_validation": "compile_relation_blocks rejects a Forest provenance source_revision that differs from snapshot.source_revision when present. The strict projector currently checks exact Forest content digest but not this optional provenance field. Direct delegation would change error behavior.",
+      "empty_retention_cost": "For same-plane projection, the strict projector skips Forest relation hashing entirely when relation_sha256s is empty. The multi-relation compiler still canonical-hashes a relevant same-plane edge before discovering that the retention set is empty. This is semantically equivalent but prevents a zero-cost compatibility delegation and is avoidable work.",
+      "block_construction_path": "The strict projector converts already-validated endpoints directly through TypedRelationBlock._from_indexed. compile_relation_blocks reconstructs label coordinates and calls TypedRelationBlock.from_coordinates. Replacing the strict path would re-run coordinate admission and can change both cost and exact error surface."
+    },
+    "gardener_decision": "Do not introduce a shared third projector/helper layer. Keep compile_relation_blocks as the canonical multi-observer owner and use bounded compatibility/equivalence changes to shrink relation_projection.py toward a thin wrapper only after behavior is intentionally reconciled."
+  },
+  "bounded_next_step": {
+    "packet_target": "Make empty same-plane Fourfold retention a pre-hash prune in compile_relation_blocks and pin this for explicit selection and discover-all without changing output semantics.",
+    "why_first": "This removes avoidable work and one concrete divergence without changing trust/refusal authority, making later adapter consolidation smaller and safer.",
+    "must_preserve": [
+      "GPU-56 verified cross-plane authority",
+      "GPU-57 retained-hyperedge refusal",
+      "GPU-59 retained/unretained same-plane Boolean equivalence",
+      "complete endpoint-plane refusal",
+      "observer-specific provenance semantics"
+    ],
+    "not_in_scope_yet": [
+      "changing cross-plane raw-edge refusal semantics",
+      "removing provenance revision validation",
+      "weakening global Forest/Fourfold partition checks",
+      "deleting the public boolean_relation_block_from_fourfold API",
+      "introducing a new projection abstraction"
+    ]
+  },
+  "verification": {
+    "source_review": "Direct branch-head review of relation_projection.py, relation_compiler.py, test_fourfold_relation_projection.py and test_relation_compiler_relation_retention.py.",
+    "exact_closure_head_ci": "required after this packet-record commit",
+    "full_repository_suite": "not claimed"
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "strict_projection_blob": "daedalus/twin/relation_projection.py@c399d872c22b1b012930a107a48e6ab47bb9814a",
+    "multi_relation_compiler_blob": "daedalus/twin/relation_compiler.py@d6cd529fc2d499f3eb1f796050a34b9596c940e2",
+    "strict_projection_test_blob": "tests/twin/test_fourfold_relation_projection.py@ea17518e7c16415b434d2db0530a0343d6e7b2b1",
+    "retention_equivalence_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@b08673fab51620212fcbef2cf16314495531a07b",
+    "gpu59_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-59.json@fb61ae1c860d1783fc1b312102d63b0887a4bcc9",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "claim_boundaries": {
+    "correctness": "Source-backed reconciliation research only; no new runtime correctness claim beyond the already-tested GPU-59 surface.",
+    "performance": "No benchmark claim. The empty-retention pre-hash opportunity is a structural observation, not a measured latency or memory win.",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}
