@@ -1,5 +1,5 @@
 import { liveExecutionStatus } from './liveExecution';
-import type { LiveReportBrief, LiveWorkState } from './liveWork';
+import { emptyLiveWork, type LiveReportBrief, type LiveWorkState } from './liveWork';
 
 const WATCHER: Record<string, string> = {
   running: 'läuft',
@@ -25,7 +25,7 @@ function reportLine(report: LiveReportBrief): string {
  * project event stream; this card owns no task state and can start nothing.
  */
 export function WorkPulse({ project, live }: { project: string; live: LiveWorkState }) {
-  const scoped = live.project === project ? live : { project, connected: null as const };
+  const scoped = live.project === project ? live : emptyLiveWork(project);
   const execution = liveExecutionStatus({
     streamLive: scoped.connected === true,
     inFlight: scoped.inFlight,
