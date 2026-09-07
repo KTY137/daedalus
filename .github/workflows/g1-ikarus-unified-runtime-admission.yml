@@ -57,6 +57,7 @@ on:
       - "tests/test_ikarus_bridge_progress.py"
       - "tests/test_ikarus_cancellation.py"
       - "tests/test_ikarus_claude_stream_cancellation.py"
+      - "tests/test_ikarus_codex_cancellation.py"
       - "tests/test_ikarus_http_cancellation.py"
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
@@ -161,6 +162,7 @@ jobs:
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_cancellation.py
           tests/test_ikarus_claude_stream_cancellation.py
+          tests/test_ikarus_codex_cancellation.py
           tests/test_ikarus_http_cancellation.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
@@ -201,6 +203,7 @@ jobs:
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_cancellation.py
           tests/test_ikarus_claude_stream_cancellation.py
+          tests/test_ikarus_codex_cancellation.py
           tests/test_ikarus_http_cancellation.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
