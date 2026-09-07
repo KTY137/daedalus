@@ -58,6 +58,7 @@ test('bound dispatch identity is distinguishable from legacy reconstruction', ()
 
   const pulse = dispatchPulseFromConversation(conversation, PROJECT);
   expect(pulse.total).toBe(2);
+  expect(pulse.unresolved).toBe(0);
 
   const bound = pulse.items.find((item) => item.ref === 'bound-ref');
   const legacy = pulse.items.find((item) => item.ref === 'legacy-ref');
@@ -96,10 +97,43 @@ test('missing identity stays visibly unbound instead of inheriting confidence', 
 
   const pulse = dispatchPulseFromConversation(conversation, PROJECT);
   expect(pulse.total).toBe(1);
+  expect(pulse.unresolved).toBe(0);
   expect(pulse.items[0]).toMatchObject({
     ref: 'unknown-ref',
     descriptionSource: 'none'
   });
   expect(dispatchEvidenceLabel(pulse.items[0].descriptionSource)).toBe('Identität nicht gebunden');
   expect(boundExecutionLine(pulse.items[0])).toBeUndefined();
+});
+
+test('project-bound incompatible identity is visible as unresolved without leaking foreign work', () => {
+  const conversation = {
+    turns: [],
+    open_dispatches: [
+      dispatch('future-schema', 1, {
+        schema: 'conversation.dispatch.identity.v2',
+        project: PROJECT,
+        objective: 'Neue Schema-Version'
+      }),
+      dispatch('missing-objective', 2, {
+        schema: 'conversation.dispatch.identity.v1',
+        project: PROJECT,
+        lane: 'local_only'
+      }),
+      dispatch('foreign-future-schema', 3, {
+        schema: 'conversation.dispatch.identity.v9',
+        project: 'other-project',
+        objective: 'Darf nicht sichtbar werden'
+      }),
+      dispatch('unattributed-future-schema', 4, {
+        schema: 'conversation.dispatch.identity.v9',
+        objective: 'Ohne Projekt nicht zurechenbar'
+      })
+    ]
+  };
+
+  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  expect(pulse.total).toBe(0);
+  expect(pulse.items).toEqual([]);
+  expect(pulse.unresolved).toBe(2);
 });
