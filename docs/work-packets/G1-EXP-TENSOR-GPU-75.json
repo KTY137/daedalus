@@ -1,0 +1,166 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-75",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "d526e053b793f0632aeebcaed8c351d63aa622b1",
+    "dependencies": "G1-EXP-TENSOR-GPU-74 and the exact base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": ["decision", "title"]
+      },
+      "scope": {
+        "source_fields": ["scope", "audit"]
+      },
+      "contracts_and_behavior": {
+        "source_fields": ["decision", "evidence"]
+      },
+      "acceptance_matrix": {
+        "source_fields": ["verification", "evidence"]
+      },
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene"],
+        "projection_note": "Research-only gardening packet. Reverting this packet removes only the recorded audit decision; no production, test, probe, public-API or measurement behavior changes in GPU-75."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["evidence", "verification", "claim_boundaries", "governance"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-75",
+  "work_packet": "G1-EXP-TENSOR-GPU-75",
+  "title": "Audit diagnostic Boolean-CSR construction against the canonical multi-relation compiler",
+  "classification": "closed-research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "d526e053b793f0632aeebcaed8c351d63aa622b1",
+  "scope": "Audit only the two diagnostic Boolean-CSR construction probes named by GPU-74. Determine whether repeated single-signature construction is intentional measurement semantics or removable overhead now that compile_relation_blocks is the sole implementation owner. Do not change production code, probe code, public API, benchmark claims, promotion state or branch topology in this packet.",
+  "audit": {
+    "relation_cost_probe": {
+      "path": "tests/twin/test_tensor_forest_cost_probe.py",
+      "current_builder": "build_relation_block_arm",
+      "selected_signatures": 2,
+      "current_compiler_invocations_per_subject": 2,
+      "observation": "The builder calls boolean_relation_block_from_fourfold once for code:imports:code and once for code:documents:knowledge. Since GPU-71/72 the facade directly delegates each call to compile_relation_blocks, so one measured CSR subject performs two independent Forest/Fourfold admission and relation-compilation passes."
+    },
+    "heldout_csr_probe": {
+      "path": "tests/twin/test_tensor_heldout_csr_probe.py",
+      "current_builder": "_build_csr_subject",
+      "selected_signatures": 4,
+      "current_compiler_invocations_per_subject": 4,
+      "observation": "The held-out builder maps four signatures through boolean_relation_block_from_fourfold. The retained facade delegates each signature independently, so one measured held-out CSR subject performs four independent canonical compiler passes before Boolean matmul/hadamard query work begins."
+    },
+    "canonical_compiler_cost_repeated": [
+      "exact Forest/Fourfold node-partition admission",
+      "canonical node-location construction",
+      "retained relation-digest indexing",
+      "hyperedge admission scan",
+      "verified binding scan",
+      "Forest edge admission scan",
+      "ProjectionSubject and typed-axis construction"
+    ],
+    "historical_intent": {
+      "relation_arm_commit": "239cee119999a6e9bb2625e67d8855ad6187f751",
+      "relation_arm_commit_message": "G1-TENSOR-01CM add strict CSR arm to relation cost probe",
+      "heldout_arm_commit": "e1068421aece6b3f9a196dbf09c40b2c7426aa55",
+      "heldout_arm_commit_message": "G1-TENSOR-01CR add held-out Fourfold CSR falsification probe",
+      "finding": "The historical commits define the arms as strict/Fourfold Boolean CSR representations and falsification probes. They do not freeze repeated public-facade invocation count as part of the workload contract. The per-signature repetition was therefore an implementation detail of the then-available construction path, not an explicit research variable."
+    }
+  },
+  "decision": {
+    "production_change": false,
+    "test_or_probe_change": false,
+    "public_api_change": false,
+    "single_relation_compatibility_facade_retained": true,
+    "repeated_single_signature_construction_is_intentional_measurement_semantics": false,
+    "repeated_single_signature_construction_is_removable_overhead": true,
+    "canonical_replacement": "Compile the complete frozen signature tuple once with compile_relation_blocks(forest, fourfold, BooleanSemiring(), signatures=signatures), then recover blocks from that one CompiledRelationBlocks receipt in the probe's frozen signature order.",
+    "measurement_schema_rule": "Because construction cost changes materially when repeated compiler admission/scans are removed, both diagnostic probe schemas must be version-bumped in the implementation packet. Historical /5 relation-probe and /1 held-out-CSR measurements remain valid evidence for their old construction semantics and must not be silently relabelled or compared as if identical.",
+    "compatibility_rule": "Do not remove boolean_relation_block_from_fourfold. Keep its existing public compatibility coverage outside the diagnostic construction arms; the probe migration must not become a pretext for a breaking API change.",
+    "summary": "The two diagnostic CSR arms are measuring a canonical sparse representation, not the overhead of invoking the single-relation compatibility facade repeatedly. Their 2-pass and 4-pass compiler construction is removable benchmark harness overhead."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "d526e053b793f0632aeebcaed8c351d63aa622b1",
+    "relation_probe_blob": "tests/twin/test_tensor_forest_cost_probe.py@e5f9f31bd72cc2347a6ed4fd96d9bd7a54c30452",
+    "heldout_probe_blob": "tests/twin/test_tensor_heldout_csr_probe.py@7a57ec72b6ab4a9dd99071bae70d4a10e611b15e",
+    "canonical_compiler_blob": "daedalus/twin/relation_compiler.py@d70581316b9f05a9e95c63a6d3b8e74ba39f8a77",
+    "compatibility_facade_blob": "daedalus/twin/relation_projection.py@3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+    "historical_relation_arm_commit": "239cee119999a6e9bb2625e67d8855ad6187f751",
+    "historical_heldout_arm_commit": "e1068421aece6b3f9a196dbf09c40b2c7426aa55",
+    "gpu74_exact_fourfold_tensor_run": {
+      "run_id": 34150130587,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "gpu74_exact_tauri_run": {
+      "run_id": 34150130590,
+      "status": "completed",
+      "conclusion": "failure",
+      "failure_step": "Rust formatting"
+    },
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "source-plus-history audit",
+    "production_tests_run_for_packet": false,
+    "new_green_claim": false,
+    "source_contract_checked": true,
+    "historical_intent_checked": true,
+    "notes": "GPU-75 changes only the machine-readable research record. The exact GPU-74 base head subsequently completed its Fourfold/Tensor PR workflow successfully while Tauri remained independently red at Rust formatting. No executable evidence is relabelled as a GPU-75 performance result."
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "duplicated_runtime_abstraction_added": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false,
+    "next_deletion_target_identified": "2 and 4 redundant canonical compiler passes per diagnostic CSR subject"
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-76 only: migrate the two diagnostic CSR construction builders to one explicit compile_relation_blocks call per subject with their frozen signature tuple; recover blocks in the existing logical order, version-bump relation-probe schema /5 -> /6 and held-out-CSR schema /1 -> /2, pin the new compilation_basis in tests, retain the public single-relation compatibility facade and its dedicated compatibility coverage, and run focused plus exact-head Fourfold/Tensor verification. Do not interpret any changed timing or memory number as a superiority claim."
+}
