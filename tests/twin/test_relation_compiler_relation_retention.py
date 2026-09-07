@@ -11,10 +11,12 @@ from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
 from daedalus.twin.relation_blocks import RelationSignature
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
-from daedalus.twin.semiring import EvidenceDagSemiring
+from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
+from daedalus.twin.semiring import BooleanSemiring, EvidenceDagSemiring
 
 REVISION = "5" * 40
 CREATED_AT = "2026-09-06T23:00:00+02:00"
+IMPORTS = RelationSignature("code", "imports", "code")
 
 
 def _digest(label: str) -> str:
@@ -88,12 +90,7 @@ def _fixture(*, retain_code_relation: bool) -> tuple[KnowledgeForest, FourfoldSn
     return forest, snapshot
 
 
-@pytest.mark.parametrize(
-    "signatures",
-    ((RelationSignature("code", "imports", "code"),), None),
-)
-def test_matching_or_discovered_same_plane_edge_requires_fourfold_relation_retention(
-    signatures: tuple[RelationSignature, ...] | None,
+def test_unretained_same_plane_edge_matches_strict_boolean_empty_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture(retain_code_relation=False)
@@ -103,24 +100,51 @@ def test_matching_or_discovered_same_plane_edge_requires_fourfold_relation_reten
 
     monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
 
-    with pytest.raises(ValueError, match="code plane does not retain ForestEdge 'imports' digest"):
-        compile_relation_blocks(
-            forest,
-            snapshot,
-            EvidenceDagSemiring(),
-            signatures=signatures,
-        )
+    strict = boolean_relation_block_from_fourfold(forest, snapshot, IMPORTS)
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(IMPORTS,),
+    )
+    multi = compiled.block_map[relation_block_name(IMPORTS)]
+
+    assert tuple(strict.iter_entries()) == ()
+    assert tuple(multi.iter_entries()) == ()
+    assert multi.digest == strict.digest
+    assert compiled.semantic_fact_count == 0
 
 
-def test_unrelated_explicit_relation_prunes_unretained_same_plane_edge(
+def test_discover_all_does_not_discover_unretained_same_plane_edge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture(retain_code_relation=False)
+
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected evidence materialization for {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    compiled = compile_relation_blocks(forest, snapshot, EvidenceDagSemiring())
+
+    assert tuple(compiled.block_map) == ()
+    assert compiled.semantic_fact_count == 0
+    assert compiled.forest_edge_count == 1
+
+
+def test_unrelated_explicit_relation_prunes_unretained_same_plane_edge_before_hashing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture(retain_code_relation=False)
     selected = RelationSignature("code", "references", "code")
 
+    def forbidden_hash(value: object) -> str:
+        raise AssertionError(f"unselected Forest relation was hashed: {value!r}")
+
     def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
         raise AssertionError(f"unselected evidence was materialized for {edge.relation}")
 
+    monkeypatch.setattr(relation_compiler, "canonical_sha", forbidden_hash)
     monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
 
     compiled = compile_relation_blocks(
@@ -140,7 +164,6 @@ def test_retained_same_plane_edge_still_compiles_exactly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture(retain_code_relation=True)
-    selected = RelationSignature("code", "imports", "code")
     observed: list[str] = []
     original = relation_compiler._forest_edge_atoms
 
@@ -154,12 +177,30 @@ def test_retained_same_plane_edge_still_compiles_exactly(
         forest,
         snapshot,
         EvidenceDagSemiring(),
-        signatures=(selected,),
+        signatures=(IMPORTS,),
     )
 
-    block = compiled.block_map[relation_block_name(selected)]
+    block = compiled.block_map[relation_block_name(IMPORTS)]
     entries = tuple(block.iter_entries())
     assert observed == ["imports"]
     assert len(entries) == 1
     assert entries[0][:2] == ("src/api.py", "src/worker.py")
     assert compiled.semantic_fact_count == 1
+
+
+def test_retained_same_plane_boolean_row_matches_strict_projection() -> None:
+    forest, snapshot = _fixture(retain_code_relation=True)
+
+    strict = boolean_relation_block_from_fourfold(forest, snapshot, IMPORTS)
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(IMPORTS,),
+    )
+    multi = compiled.block_map[relation_block_name(IMPORTS)]
+
+    assert tuple(multi.iter_entries()) == (
+        ("src/api.py", "src/worker.py", True),
+    )
+    assert multi.digest == strict.digest
