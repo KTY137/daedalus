@@ -51,8 +51,12 @@ function watcherWord(value: string | undefined): string {
  * This is guidance only: the cockpit does not acquire execution authority and
  * never restarts a runtime by itself. Most importantly, a disconnected stream
  * cannot turn cached watcher state into a fresh operational recommendation.
- * A wedged worker is not told to restart because blind redispatch/restart can
- * duplicate work or provider spend while the original invocation is alive.
+ *
+ * `stale` is intentionally NOT treated like `stopped`: a stale heartbeat only
+ * proves that no fresh heartbeat was observed. The old process may still be
+ * alive or blocked, so showing a bare start command there can create a second
+ * watcher and duplicate work/provider spend. Only a state that explicitly says
+ * no watcher is running gets a start command.
  */
 export function watcherGuidance(
   value: string | undefined,
@@ -69,8 +73,7 @@ export function watcherGuidance(
   }
   if (state === 'stale') {
     return {
-      message: 'Aktion empfohlen: Bridge-Wächter neu starten',
-      command: `python -m daedalus.file_bridge watch --project ${project}`
+      message: 'Aktion empfohlen: Wächterprozess prüfen; erst nach bestätigtem Stillstand neu starten'
     };
   }
   if (state === 'wedged') {
