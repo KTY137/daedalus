@@ -420,3 +420,54 @@ def test_retained_same_plane_compiler_reuses_bound_indices_without_coordinate_re
     assert len(entries) == 1
     assert entries[0][:2] == ("src/api.py", "src/worker.py")
     assert compiled.semantic_fact_count == 1
+
+
+def test_missing_unrelated_forest_node_refuses_both_boolean_projection_paths() -> None:
+    forest, snapshot = _cross_plane_fixture(include_binding=False)
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane.plane,
+            source_revision=plane.source_revision,
+            status=("absent" if plane.plane == "knowledge" else plane.status),
+            node_ids=(() if plane.plane == "knowledge" else plane.node_ids),
+            relation_sha256s=(
+                () if plane.plane == "knowledge" else plane.relation_sha256s
+            ),
+            evidence_sha256s=(
+                () if plane.plane == "knowledge" else plane.evidence_sha256s
+            ),
+            reason=(
+                "fixture intentionally omits a bound Forest node"
+                if plane.plane == "knowledge"
+                else plane.reason
+            ),
+        )
+        for plane in snapshot.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-partition-mismatch.snapshot",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        input_digests=(forest.content_sha256, *(plane.digest for plane in planes)),
+        trace_id="relation-compiler-partition-mismatch-snapshot",
+    )
+    mismatched = FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=(),
+        provenance=provenance,
+    )
+    selected = RelationSignature("code", "references", "code")
+
+    with pytest.raises(ValueError, match="Forest nodes are missing from the Fourfold plane partition"):
+        boolean_relation_block_from_fourfold(forest, mismatched, selected)
+
+    with pytest.raises(ValueError, match="Forest nodes are missing from the Fourfold plane partition"):
+        compile_relation_blocks(
+            forest,
+            mismatched,
+            BooleanSemiring(),
+            signatures=(selected,),
+        )
