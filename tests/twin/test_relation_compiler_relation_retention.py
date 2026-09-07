@@ -17,6 +17,7 @@ from daedalus.twin.semiring import BooleanSemiring, EvidenceDagSemiring
 REVISION = "5" * 40
 CREATED_AT = "2026-09-06T23:00:00+02:00"
 IMPORTS = RelationSignature("code", "imports", "code")
+DOCUMENTS = RelationSignature("code", "documents", "knowledge")
 
 
 def _digest(label: str) -> str:
@@ -90,6 +91,81 @@ def _fixture(*, retain_code_relation: bool) -> tuple[KnowledgeForest, FourfoldSn
     return forest, snapshot
 
 
+def _cross_plane_fixture(
+    *,
+    include_binding: bool,
+) -> tuple[KnowledgeForest, FourfoldSnapshot]:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/api.py", "source_file"),
+            ForestNode("docs/api.md", "document"),
+        ),
+        edges=(
+            ForestEdge(
+                source="src/api.py",
+                target="docs/api.md",
+                relation="documents",
+                directed=True,
+                evidence=(_digest("documents:api:docs"),),
+            ),
+        ),
+        hyperedges=(),
+        provenance={
+            "origin": "test.relation-compiler-cross-plane-retention",
+            "source_revision": REVISION,
+        },
+    )
+    projected = fourfold_from_knowledge_forest(
+        forest,
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        trace_id="relation-compiler-cross-plane-retention",
+    )
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane.plane,
+            source_revision=plane.source_revision,
+            status=(
+                "complete"
+                if plane.plane in {"code", "knowledge"}
+                else plane.status
+            ),
+            node_ids=plane.node_ids,
+            relation_sha256s=plane.relation_sha256s,
+            evidence_sha256s=plane.evidence_sha256s,
+            reason=(
+                ""
+                if plane.plane in {"code", "knowledge"}
+                else plane.reason
+            ),
+        )
+        for plane in projected.planes
+    )
+    bindings = projected.bindings if include_binding else ()
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-cross-plane-retention.snapshot",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in bindings),
+        ),
+        trace_id="relation-compiler-cross-plane-retention-snapshot",
+    )
+    snapshot = FourfoldSnapshot(
+        repository_id=projected.repository_id,
+        source_revision=projected.source_revision,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=bindings,
+        provenance=provenance,
+    )
+    return forest, snapshot
+
+
 def test_unretained_same_plane_edge_matches_strict_boolean_empty_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -117,6 +193,21 @@ def test_unretained_same_plane_edge_matches_strict_boolean_empty_block(
     assert tuple(multi.iter_entries()) == ()
     assert multi.digest == strict.digest
     assert compiled.semantic_fact_count == 0
+
+
+def test_missing_verified_cross_plane_binding_refuses_both_boolean_projection_paths() -> None:
+    forest, snapshot = _cross_plane_fixture(include_binding=False)
+
+    with pytest.raises(ValueError, match="requires an exact verified Fourfold binding"):
+        boolean_relation_block_from_fourfold(forest, snapshot, DOCUMENTS)
+
+    with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(DOCUMENTS,),
+        )
 
 
 def test_discover_all_does_not_discover_unretained_same_plane_edge(
