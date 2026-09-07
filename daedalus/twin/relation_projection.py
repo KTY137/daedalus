@@ -74,6 +74,21 @@ def boolean_relation_block_from_fourfold(
     ):
         raise ValueError("Forest provenance revision differs from the snapshot")
 
+    snapshot_node_ids = {
+        node_id
+        for plane in snapshot.planes
+        for node_id in plane.node_ids
+    }
+    forest_node_ids = tuple(node.id for node in forest.nodes)
+    if len(set(forest_node_ids)) != len(forest_node_ids):
+        raise ValueError("Forest contains duplicate node ids")
+    missing_nodes = sorted(set(forest_node_ids) - snapshot_node_ids)
+    if missing_nodes:
+        raise ValueError(
+            "Forest nodes are missing from the Fourfold plane partition: "
+            + ", ".join(missing_nodes[:8])
+        )
+
     # FourfoldSnapshot canonicalizes planes into FOURFOLD_PLANES order once.
     # Reuse that immutable tuple instead of rebuilding ``plane_map`` per block.
     source_plane = snapshot.planes[FOURFOLD_PLANES.index(signature.source_plane)]
