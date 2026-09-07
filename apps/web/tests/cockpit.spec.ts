@@ -144,34 +144,92 @@ test.describe('cockpit', () => {
   });
 
   test('switching project replaces the map instead of relabelling it', async ({ page }) => {
+    // This is a frontend isolation invariant, not a filesystem benchmark.  The
+    // previous live-project version picked the first machine-local registry row;
+    // on Linux CI that is commonly a Windows-only checkout, so the spec waited
+    // five minutes and then skipped.  Keep the preceding spec live, but make
+    // the actual switch window deterministic with two disjoint project payloads.
+    const rows = [
+      { name: 'switch-alpha', repo_root: 'C:\\fixtures\\switch-alpha', team: {}, reachable: true },
+      { name: 'switch-beta', repo_root: 'C:\\fixtures\\switch-beta', team: {}, reachable: true }
+    ];
+    const nodes = {
+      'switch-alpha': [
+        { module: 'alpha/core.ts', language: 'typescript', loc: 20, score: 8, churn: 1, fan_in: 1 },
+        { module: 'alpha/helper.ts', language: 'typescript', loc: 12, score: 3, churn: 1, fan_in: 0 }
+      ],
+      'switch-beta': [
+        { module: 'beta/main.py', language: 'python', loc: 30, score: 9, churn: 2, fan_in: 1 },
+        { module: 'beta/data.py', language: 'python', loc: 18, score: 4, churn: 1, fan_in: 0 }
+      ]
+    } as const;
+    let secondRequestSeen = false;
+    let releaseSecond!: () => void;
+    const secondMayFinish = new Promise<void>((resolve) => { releaseSecond = resolve; });
+
+    await page.route('**/api/projects', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], projects: rows }
+    }));
+    await page.route('**/api/structure**', async (route) => {
+      const name = new URL(route.request().url()).searchParams.get('project') as keyof typeof nodes;
+      if (name === 'switch-beta') {
+        secondRequestSeen = true;
+        await secondMayFinish;
+      }
+      const graphNodes = nodes[name];
+      expect(graphNodes, `unexpected structure fixture request for ${name}`).toBeTruthy();
+      const edge = { source: graphNodes[0].module, target: graphNodes[1].module };
+      const selected = rows.find((row) => row.name === name)!;
+      await route.fulfill({
+        json: {
+          ok: true,
+          generated_at: '2026-09-07T00:00:00Z',
+          project: name,
+          warnings: [],
+          structure: {
+            backend: { tree_sitter: true, lizard: true },
+            repo_root: selected.repo_root,
+            n_files: graphNodes.length,
+            languages: {
+              fixture: {
+                files: graphNodes.length,
+                loc: graphNodes.reduce((sum, node) => sum + node.loc, 0)
+              }
+            },
+            totals: { unit_clusters: 0, window_clusters: 0, safety_fenced: 0 },
+            hotspots: [],
+            clones: [],
+            window_clones: [],
+            fan_in: [],
+            graph: {
+              nodes: graphNodes,
+              edges: [edge],
+              n_nodes_total: graphNodes.length,
+              n_edges_total: 1,
+              n_edges_eligible: 1,
+              n_edges_shown: 1,
+              n_edges_offmap: 0
+            }
+          }
+        }
+      });
+    });
+
     await openCockpit(page);
     await waitForStage(page);
 
     const first = await selectedProject(page);
+    expect(first).toBe('switch-alpha');
     const firstModules = new Set(await drawnModules(page));
+    expect([...firstModules].sort()).toEqual(nodes['switch-alpha'].map((node) => node.module).sort());
 
     await page.locator('.scope-trigger').click();
     const others = await page.locator('.scope-menu li button:not(.on)').allInnerTexts();
-    test.skip(others.length === 0, 'this machine has only one project registered — nothing to switch to');
-
+    expect(others.map((name) => name.trim())).toEqual(['switch-beta']);
     const second = others[0].trim();
 
-    // HOLD THE SECOND SCAN OPEN ON PURPOSE.
-    //
-    // The window between "the new project is selected" and "its map arrived"
-    // is exactly where the leak lives, and against a warm index that window is
-    // shorter than the poll interval — the assertion would pass by not
-    // looking. Delaying the second project's payload makes the window real and
-    // the check deterministic instead of dependent on how cold the cache is.
-    await page.route(
-      (url) => url.pathname === '/api/structure' && url.searchParams.get('project') === second,
-      async (route) => {
-        await new Promise((r) => setTimeout(r, 3_000));
-        await route.continue();
-      }
-    );
-
     await page.getByRole('button', { name: second, exact: true }).click();
+    await expect.poll(() => secondRequestSeen, { timeout: 10_000 }).toBe(true);
 
     // While the second scan is held, the first project's map must be GONE and
     // the surface must say what it is doing.
@@ -180,21 +238,15 @@ test.describe('cockpit', () => {
     });
     expect(await drawnModules(page), 'the previous map was still on screen while the next one loaded').toHaveLength(0);
 
-    // A second project means a second scan, which is minutes on a cold index.
-    // If it never lands, that is reported as NOT MEASURED rather than as a pass.
-    const arrived = await page
-      .locator('.stage-node')
-      .first()
-      .waitFor({ state: 'visible', timeout: 300_000 })
-      .then(() => true)
-      .catch(() => false);
-    test.skip(!arrived, `the map for ${second} did not finish building — cross-project check not measured`);
+    releaseSecond();
+    await waitForStage(page, 20_000);
 
     await expect
       .poll(async () => (await selectedProject(page)) === second, { timeout: 10_000 })
       .toBe(true);
 
     const secondModules = await drawnModules(page);
+    expect(secondModules.sort()).toEqual(nodes['switch-beta'].map((node) => node.module).sort());
     const leaked = secondModules.filter((m) => firstModules.has(m));
     expect(
       leaked,
