@@ -1,6 +1,6 @@
 import type { HealthPayload } from '../api';
 import type { GovernancePayload, StructurePayload, TopologyPayload } from '../types';
-import { liveExecutionStatus } from './liveExecution';
+import { liveExecutionStatus, type LiveExecutionInput } from './liveExecution';
 
 /**
  * Two lines of state, and every item in it is a fact somebody can check.
@@ -36,8 +36,9 @@ export interface StatusLineProps {
   governance?: GovernancePayload;
   structure?: StructurePayload;
   topology?: TopologyPayload;
-  inFlight?: number;
-  queued?: number;
+  /** Same evidence vocabulary as the projection; do not narrow it again here. */
+  inFlight?: LiveExecutionInput['inFlight'];
+  queued?: LiveExecutionInput['queued'];
   streamLive?: boolean;
   onOpenHealth?: () => void;
 }
