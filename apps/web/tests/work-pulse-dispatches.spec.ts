@@ -7,7 +7,7 @@ import { NOT_BUILT } from './_app';
  * conversation spine's `open_dispatches`; the live file-bus stream only tells
  * the card when that read should be refreshed.
  */
-test('work pulse projects canonical open dispatch identity and clears it after a report', async ({ page }) => {
+test('work pulse prefers bound dispatch identity, keeps legacy fallback, and clears after a report', async ({ page }) => {
   let reported = false;
 
   await page.addInitScript(() => {
@@ -179,13 +179,13 @@ test('work pulse projects canonical open dispatch identity and clears it after a
           {
             id: 42,
             project: 'jarvis-project',
-            user_message: 'Mach den Parser robuster.',
+            user_message: 'Legacy-Auftrag ausführen.',
             assistant_text: 'Ich kann das als lokalen Task ausführen.',
             intent: 'enqueue',
             provider_used: 'deterministic',
             proposed_action: {
               kind: 'queue_task',
-              args: { project: 'jarvis-project', objective: 'Parser härten', lane: 'local_only' },
+              args: { project: 'jarvis-project', objective: 'Legacy-Auftrag', lane: 'legacy_lane' },
               requires_confirmation: true
             }
           },
@@ -208,7 +208,7 @@ test('work pulse projects canonical open dispatch identity and clears it after a
             link: {
               id: 501,
               conversation_id: 'conv_jarvis_abc12345',
-              turn_id: 42,
+              turn_id: 7,
               dispatch_ref: '20260907T120000Z_parser_123456789abcdef',
               kind: 'queue_task',
               created_ts: '2026-09-07T12:00:00Z'
@@ -218,12 +218,35 @@ test('work pulse projects canonical open dispatch identity and clears it after a
               dispatch_link_id: 501,
               ts: '2026-09-07T12:00:00Z',
               lifecycle: 'dispatched',
-              summary: 'dispatched'
+              summary: 'dispatched',
+              detail: {
+                schema: 'conversation.dispatch.identity.v1',
+                project: 'jarvis-project',
+                objective: 'Parser härten',
+                lane: 'local_only'
+              }
             }
           },
           {
             link: {
               id: 502,
+              conversation_id: 'conv_jarvis_abc12345',
+              turn_id: 42,
+              dispatch_ref: 'legacy_dispatch',
+              kind: 'queue_task',
+              created_ts: '2026-09-07T11:59:00Z'
+            },
+            latest: {
+              id: 502,
+              dispatch_link_id: 502,
+              ts: '2026-09-07T11:59:00Z',
+              lifecycle: 'dispatched',
+              summary: 'dispatched'
+            }
+          },
+          {
+            link: {
+              id: 503,
               conversation_id: 'conv_jarvis_abc12345',
               turn_id: 99,
               dispatch_ref: 'foreign_dispatch',
@@ -231,11 +254,38 @@ test('work pulse projects canonical open dispatch identity and clears it after a
               created_ts: '2026-09-07T12:01:00Z'
             },
             latest: {
-              id: 502,
-              dispatch_link_id: 502,
+              id: 503,
+              dispatch_link_id: 503,
               ts: '2026-09-07T12:01:00Z',
               lifecycle: 'dispatched',
-              summary: 'dispatched'
+              summary: 'dispatched',
+              detail: {
+                schema: 'conversation.dispatch.identity.v1',
+                project: 'other-project',
+                objective: 'Fremdes Projekt ausführen',
+                lane: 'codex'
+              }
+            }
+          },
+          {
+            link: {
+              id: 504,
+              conversation_id: 'conv_jarvis_abc12345',
+              turn_id: 7,
+              dispatch_ref: 'corrupt_dispatch',
+              kind: 'queue_task',
+              created_ts: '2026-09-07T12:02:00Z'
+            },
+            latest: {
+              id: 504,
+              dispatch_link_id: 504,
+              ts: '2026-09-07T12:02:00Z',
+              lifecycle: 'dispatched',
+              summary: 'dispatched',
+              detail: {
+                schema: 'conversation.dispatch.identity.v1',
+                objective: 'Ohne Projekt darf das nicht erscheinen'
+              }
             }
           }
         ]
@@ -250,12 +300,16 @@ test('work pulse projects canonical open dispatch identity and clears it after a
 
   await expect(page.locator('.cockpit'), 'the cockpit never mounted').toBeVisible({ timeout: 20_000 });
   const pulse = page.getByRole('region', { name: 'Live-Arbeit' });
-  await expect(pulse).toContainText('1 offener Auftrag', { timeout: 20_000 });
+  await expect(pulse).toContainText('2 offene Aufträge', { timeout: 20_000 });
   await expect(pulse).toContainText('Auftrag: Parser härten');
   await expect(pulse).toContainText('Lane local_only');
   await expect(pulse).toContainText('auf Bericht wartend');
+  await expect(pulse).toContainText('Auftrag: Legacy-Auftrag');
+  await expect(pulse).toContainText('Lane legacy_lane');
   await expect(pulse).not.toContainText('Fremdes Projekt ausführen');
   await expect(pulse).not.toContainText('foreign_dispatch');
+  await expect(pulse).not.toContainText('Ohne Projekt darf das nicht erscheinen');
+  await expect(pulse).not.toContainText('corrupt_dispatch');
 
   reported = true;
   await page.evaluate(() => {
