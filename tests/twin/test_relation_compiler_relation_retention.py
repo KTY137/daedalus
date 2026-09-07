@@ -9,7 +9,7 @@ from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
 from daedalus.twin import relation_compiler
 from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
-from daedalus.twin.relation_blocks import RelationSignature
+from daedalus.twin.relation_blocks import RelationSignature, TypedRelationBlock
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
 from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
 from daedalus.twin.semiring import BooleanSemiring, EvidenceDagSemiring
@@ -212,3 +212,33 @@ def test_retained_same_plane_boolean_row_matches_strict_projection() -> None:
         ("src/api.py", "src/worker.py", True),
     )
     assert multi.digest == strict.digest
+
+
+def test_retained_same_plane_compiler_reuses_bound_indices_without_coordinate_readmission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture(retain_code_relation=True)
+
+    def unexpected_coordinate_admission(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError(
+            "retained Fourfold endpoints must reuse the canonical indexed block owner"
+        )
+
+    monkeypatch.setattr(
+        TypedRelationBlock,
+        "from_coordinates",
+        classmethod(unexpected_coordinate_admission),
+    )
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        EvidenceDagSemiring(),
+        signatures=(IMPORTS,),
+    )
+
+    block = compiled.block_map[relation_block_name(IMPORTS)]
+    entries = tuple(block.iter_entries())
+    assert len(entries) == 1
+    assert entries[0][:2] == ("src/api.py", "src/worker.py")
+    assert compiled.semantic_fact_count == 1

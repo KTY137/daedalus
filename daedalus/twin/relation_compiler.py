@@ -231,16 +231,16 @@ def _observer_name(semiring: Semiring[Any]) -> str:
 def _record_fact(
     facts: dict[
         RelationSignature,
-        dict[tuple[str, str], set[tuple[str, ...]]],
+        dict[tuple[int, int], set[tuple[str, ...]]],
     ],
     *,
     signature: RelationSignature,
-    source: str,
-    target: str,
+    source_index: int,
+    target_index: int,
     evidence_atoms: Sequence[str] | None,
 ) -> None:
     bucket = facts.setdefault(signature, {})
-    evidence_bundles = bucket.setdefault((source, target), set())
+    evidence_bundles = bucket.setdefault((source_index, target_index), set())
     if evidence_atoms is None:
         return
     atoms = tuple(sorted(set(evidence_atoms)))
@@ -283,9 +283,12 @@ def compile_relation_blocks(
     explicitly selected conflicting relation fail closed instead.
 
     Same-plane Forest edges and verified bindings are deduplicated by semantic
-    endpoint/relation identity. The evidence observer retains their canonical
-    provenance alternatives; scalar observers retain only semantic coordinate
-    presence and do not materialize provenance bundles they cannot consume.
+    endpoint/relation identity. The compiler binds retained endpoints to their
+    canonical Fourfold plane indices once and reuses the indexed block owner;
+    it does not readmit already-authoritative labels through a second coordinate
+    validation pass. The evidence observer retains canonical provenance
+    alternatives; scalar observers retain only semantic coordinate presence and
+    do not materialize provenance bundles they cannot consume.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -307,15 +310,15 @@ def compile_relation_blocks(
             "Forest provenance revision differs from the snapshot"
         )
 
-    node_plane: dict[str, str] = {}
+    node_location: dict[str, tuple[str, int]] = {}
     for plane in snapshot.planes:
-        for node_id in plane.node_ids:
-            node_plane[node_id] = plane.plane
+        for position, node_id in enumerate(plane.node_ids):
+            node_location[node_id] = (plane.plane, position)
 
     forest_node_ids = tuple(node.id for node in forest.nodes)
     if len(set(forest_node_ids)) != len(forest_node_ids):
         raise ValueError("Forest contains duplicate node ids")
-    missing_nodes = sorted(set(forest_node_ids) - set(node_plane))
+    missing_nodes = sorted(set(forest_node_ids) - set(node_location))
     if missing_nodes:
         raise ValueError(
             "Forest nodes are missing from the Fourfold plane partition: "
@@ -338,13 +341,13 @@ def compile_relation_blocks(
     for hyperedge in forest.hyperedges:
         member_planes: set[str] = set()
         for member in hyperedge.members:
-            plane = node_plane.get(member)
-            if plane is None:
+            location = node_location.get(member)
+            if location is None:
                 raise ValueError(
                     f"Forest hyperedge {hyperedge.id!r} references an endpoint "
                     "outside the Fourfold snapshot"
                 )
-            member_planes.add(plane)
+            member_planes.add(location[0])
         if not member_planes:
             raise ValueError(
                 f"Forest hyperedge {hyperedge.id!r} must retain at least one member"
@@ -370,7 +373,7 @@ def compile_relation_blocks(
         )
 
     discovered: set[RelationSignature] = set()
-    binding_records: list[tuple[CrossPlaneBinding, RelationSignature]] = []
+    binding_records: list[tuple[CrossPlaneBinding, RelationSignature, int, int]] = []
     included_binding_keys: set[tuple[str, str, str, str, str]] = set()
     if include_verified_bindings:
         for binding in snapshot.bindings:
@@ -379,7 +382,9 @@ def compile_relation_blocks(
                 binding.relation,
                 binding.target_plane,
             )
-            binding_records.append((binding, signature))
+            source_index = node_location[binding.source_node_id][1]
+            target_index = node_location[binding.target_node_id][1]
+            binding_records.append((binding, signature, source_index, target_index))
             included_binding_keys.add(
                 (
                     binding.source_plane,
@@ -391,15 +396,17 @@ def compile_relation_blocks(
             )
             discovered.add(signature)
 
-    edge_records: list[tuple[ForestEdge, RelationSignature]] = []
+    edge_records: list[tuple[ForestEdge, RelationSignature, int, int]] = []
     for edge in forest.edges:
-        source_plane = node_plane.get(edge.source)
-        target_plane = node_plane.get(edge.target)
-        if source_plane is None or target_plane is None:
+        source_location = node_location.get(edge.source)
+        target_location = node_location.get(edge.target)
+        if source_location is None or target_location is None:
             raise ValueError(
                 f"Forest edge {edge.relation!r} references an endpoint outside "
                 "the Fourfold snapshot"
             )
+        source_plane, source_index = source_location
+        target_plane, target_index = target_location
         signature = RelationSignature(
             source_plane,
             edge.relation,
@@ -448,7 +455,7 @@ def compile_relation_blocks(
                     "included verified Fourfold binding before relation compilation"
                 )
             continue
-        edge_records.append((edge, signature))
+        edge_records.append((edge, signature, source_index, target_index))
         discovered.add(signature)
 
     selected = (
@@ -462,9 +469,9 @@ def compile_relation_blocks(
 
     facts: dict[
         RelationSignature,
-        dict[tuple[str, str], set[tuple[str, ...]]],
+        dict[tuple[int, int], set[tuple[str, ...]]],
     ] = {}
-    for edge, signature in edge_records:
+    for edge, signature, source_index, target_index in edge_records:
         if signature not in selected_set:
             continue
 
@@ -472,19 +479,19 @@ def compile_relation_blocks(
         _record_fact(
             facts,
             signature=signature,
-            source=edge.source,
-            target=edge.target,
+            source_index=source_index,
+            target_index=target_index,
             evidence_atoms=atoms,
         )
 
-    for binding, signature in binding_records:
+    for binding, signature, source_index, target_index in binding_records:
         if signature not in selected_set:
             continue
         _record_fact(
             facts,
             signature=signature,
-            source=binding.source_node_id,
-            target=binding.target_node_id,
+            source_index=source_index,
+            target_index=target_index,
             evidence_atoms=(
                 (binding.digest, *binding.evidence_sha256s)
                 if retain_evidence
@@ -508,29 +515,27 @@ def compile_relation_blocks(
 
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
     for signature in selected:
-        coordinates: list[tuple[str, str, Any]] = []
-        for (source, target), evidence_bundles in sorted(
-            facts.get(signature, {}).items()
-        ):
+        entries: dict[tuple[int, int], Any] = {}
+        for coordinate, evidence_bundles in facts.get(signature, {}).items():
             if observer_name == "boolean":
                 value: Any = True
             elif observer_name == "natural":
                 value = 1
             else:
                 value = EvidenceValue(tuple(sorted(evidence_bundles)))
-            coordinates.append((source, target, value))
-        if len(coordinates) > MAX_BLOCK_ENTRIES:
+            entries[coordinate] = value
+        if len(entries) > MAX_BLOCK_ENTRIES:
             raise ValueError(
                 f"relation {relation_block_name(signature)!r} exceeds "
                 f"bounded entry limit {MAX_BLOCK_ENTRIES}"
             )
-        block = TypedRelationBlock.from_coordinates(
-            subject=subject,
-            signature=signature,
-            row_axis=axes[signature.source_plane],
-            column_axis=axes[signature.target_plane],
-            coordinates=tuple(coordinates),
-            semiring=semiring,
+        block = TypedRelationBlock._from_indexed(
+            subject,
+            signature,
+            axes[signature.source_plane],
+            axes[signature.target_plane],
+            entries,
+            semiring,
         )
         compiled.append((relation_block_name(signature), block))
 
