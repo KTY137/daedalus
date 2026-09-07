@@ -19,6 +19,7 @@ from bisect import bisect_left
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import KnowledgeForest
 from .contracts import FOURFOLD_PLANES, FourfoldSnapshot
+from .projection_verifier import _forest_node_partition
 from .relation_blocks import (
     MAX_BLOCK_ENTRIES,
     ProjectionSubject,
@@ -74,20 +75,7 @@ def boolean_relation_block_from_fourfold(
     ):
         raise ValueError("Forest provenance revision differs from the snapshot")
 
-    snapshot_node_ids = {
-        node_id
-        for plane in snapshot.planes
-        for node_id in plane.node_ids
-    }
-    forest_node_ids = tuple(node.id for node in forest.nodes)
-    if len(set(forest_node_ids)) != len(forest_node_ids):
-        raise ValueError("Forest contains duplicate node ids")
-    missing_nodes = sorted(set(forest_node_ids) - snapshot_node_ids)
-    if missing_nodes:
-        raise ValueError(
-            "Forest nodes are missing from the Fourfold plane partition: "
-            + ", ".join(missing_nodes[:8])
-        )
+    _forest_node_partition(forest, snapshot)
 
     # FourfoldSnapshot canonicalizes planes into FOURFOLD_PLANES order once.
     # Reuse that immutable tuple instead of rebuilding ``plane_map`` per block.
