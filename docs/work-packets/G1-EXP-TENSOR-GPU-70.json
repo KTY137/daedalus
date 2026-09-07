@@ -1,0 +1,94 @@
+{
+  "work_packet_id": "G1-EXP-TENSOR-GPU-70",
+  "title": "Align canonical compiler prerequisites for Boolean compatibility collapse",
+  "classification": "implementation-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-verified",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "2ca27e75d810849c6bdecec89ea9a2c8d415f97b",
+  "scope": "Implement only the three compiler-side prerequisites frozen by GPU-69 before deleting the duplicate Boolean compatibility projector: exact selected-hyperedge conflict shape, early explicit endpoint-completeness admission, and canonical snapshot-plane reuse without plane_map materialization.",
+  "implementation": {
+    "production_commit": "bdc6c555551b640f221f50e19818185dcf44df1f",
+    "production_blob": "daedalus/twin/relation_compiler.py@d70581316b9f05a9e95c63a6d3b8e74ba39f8a77",
+    "test_commit": "4c82dd984fa4a69fb8d818904b3c92830fb0f05b",
+    "test_blob": "tests/twin/test_relation_compiler_relation_retention.py@fb18a81ca1c7fa8dee6d74d3be51a01b1d95129d",
+    "changes": [
+      "For an explicitly selected same-plane signature, a same-relation ForestHyperedge conflicts only when all members are in exactly that plane; selected cross-plane signatures still conflict when both endpoint planes participate.",
+      "Explicit endpoint completeness is admitted immediately after signature validation and before Forest hyperedge/edge relation scans; discover-all still validates completeness after signatures are discovered.",
+      "The compiler reuses the canonical snapshot.planes tuple for node locations, retained-relation lookup, completeness lookup, and TypedAxis construction instead of allocating snapshot.plane_map.",
+      "No helper, cache, registry, graph authority, projector, backend, public API, fact store, or parallel abstraction was introduced."
+    ]
+  },
+  "focused_regressions": [
+    "same-plane selection ignores an unrelated same-relation cross-plane hyperedge instead of over-refusing",
+    "an explicitly selected incomplete endpoint refuses before canonical relation hashing can begin",
+    "explicit compilation succeeds when FourfoldSnapshot.plane_map is monkeypatched to refuse materialization"
+  ],
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "production_diff_additions": 24,
+    "production_diff_deletions": 10,
+    "test_diff_additions": 104,
+    "test_diff_deletions": 4,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false,
+    "duplicate_projector_ready_for_next_bounded_collapse": true
+  },
+  "verification": {
+    "implementation_head": "4c82dd984fa4a69fb8d818904b3c92830fb0f05b",
+    "fourfold_tensor_run": 34131411974,
+    "fourfold_tensor_result": "completed-success",
+    "base_main": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 completed successfully",
+    "representative_contract_result": "CPython 3.10.21 / hash 0: 413 passed, 2 skipped in 7.34s",
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "manual_complete_suite": "skipped",
+    "full_suite_green": false,
+    "tauri_run": 34131411942,
+    "tauri_result": "completed-failure",
+    "tauri_failure_step": "Rust formatting",
+    "tauri_preceding_steps": "cockpit build, frozen backend build/smoke, project/desktop contract tests and icon generation succeeded before the formatting failure"
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-71 only: collapse boolean_relation_block_from_fourfold into a thin compatibility shim over compile_relation_blocks(forest, snapshot, BooleanSemiring(), signatures=(signature,)); retarget the canonical_sha regression to the compiler owner, preserve only genuinely required compatibility error translation, and delete imports/code that exist solely for the duplicate projector. Do not add a third projection abstraction."
+}
