@@ -392,6 +392,25 @@ def test_projection_refuses_a_forest_not_bound_by_the_snapshot() -> None:
         )
 
 
+def test_projection_refuses_forest_provenance_revision_drift() -> None:
+    base = _forest()
+    forest = KnowledgeForest(
+        root=base.root,
+        nodes=base.nodes,
+        edges=base.edges,
+        hyperedges=base.hyperedges,
+        provenance={**base.provenance, "source_revision": "b" * 40},
+    )
+    snapshot = _complete_snapshot(forest)
+
+    with pytest.raises(ValueError, match="Forest provenance revision differs from the snapshot"):
+        boolean_relation_block_from_fourfold(
+            forest,
+            snapshot,
+            RelationSignature("code", "imports", "code"),
+        )
+
+
 def test_projection_refuses_retained_hyperedges_instead_of_pairwise_flattening() -> None:
     forest = _forest(with_hyperedge=True)
     snapshot = _complete_snapshot(forest)
