@@ -165,7 +165,10 @@ test('classic runtime failure revokes a stale Ikarus brain instead of reusing ca
   // action authority as soon as this source fails.
   await expect(page.getByText(/Runtime inventory could not be read/i)).toBeVisible({ timeout: 20_000 });
   await expect(brain).toHaveValue('deterministic');
-  await expect(brain.locator('option[value="claude_code_cli"]')).toBeDisabled();
+  // Cached rows stay visible in Connections for diagnosis, but stale runtime
+  // evidence is removed from the actionable picker rather than merely styled
+  // disabled: there must be no browser-selectable authority left to reuse.
+  await expect(brain.locator('option[value="claude_code_cli"]')).toHaveCount(0);
   await expect(page.getByText(/No runtimes detected yet/i)).toHaveCount(0);
 
   await page.getByRole('navigation').getByRole('button', { name: 'Connections', exact: true }).click();

@@ -310,8 +310,9 @@ interface BrainOption {
  * degrades to a different brain is the exact footgun this closes.
  *
  * Runtime rows are cached evidence. If their source cannot be read, they stay
- * visible for diagnosis but are not action authority: every runtime-derived
- * option becomes disabled until a fresh inventory read succeeds.
+ * visible in Connections for diagnosis but disappear from the actionable brain
+ * picker entirely. Stale evidence is useful to explain what was last seen; it
+ * is never an action authority.
  *
  * Also surfaces DeepSeek, which has NO runtime-registry row (registry is
  * CLI-first) but IS a real chat brain once `daedalus/ikarus_os.py` wires it —
@@ -324,27 +325,21 @@ function brainOptions(
 ): BrainOption[] {
   const readiness = (name: string) => providerStatus.find((p) => p.name === name);
 
-  const fromRuntimes: BrainOption[] = runtimes
-    .filter((r) => r.available)
-    .map((r) => {
-      if (runtimeError) {
-        return {
-          id: r.id,
-          label: r.label,
-          disabled: true,
-          reason: 'Runtime inventory unread; cached availability is stale.'
-        };
-      }
-      const row = readiness(RUNTIME_TO_PROVIDER[r.id] || r.id);
-      if (!row) return { id: r.id, label: r.label, disabled: false, reason: '' };
-      const disabled = !row.configured || !row.available;
-      const reason = !row.configured
-        ? `Needs ${row.env_keys.join(', ') || 'setup'}`
-        : !row.available
-          ? row.last_error || 'Not currently reachable'
-          : '';
-      return { id: r.id, label: r.label, disabled, reason };
-    });
+  const fromRuntimes: BrainOption[] = runtimeError
+    ? []
+    : runtimes
+      .filter((r) => r.available)
+      .map((r) => {
+        const row = readiness(RUNTIME_TO_PROVIDER[r.id] || r.id);
+        if (!row) return { id: r.id, label: r.label, disabled: false, reason: '' };
+        const disabled = !row.configured || !row.available;
+        const reason = !row.configured
+          ? `Needs ${row.env_keys.join(', ') || 'setup'}`
+          : !row.available
+            ? row.last_error || 'Not currently reachable'
+            : '';
+        return { id: r.id, label: r.label, disabled, reason };
+      });
 
   const deepseek = readiness('deepseek');
   const extra: BrainOption[] = deepseek && !fromRuntimes.some((o) => o.id === 'deepseek')
@@ -684,7 +679,6 @@ function IkarusPanel({
           <label className="brain-pick">
             <Cpu size={13} style={{ color: 'var(--accent)' }} />
             <select
-              key={runtimeError ? 'runtime-inventory-stale' : 'runtime-inventory-fresh'}
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               aria-label="Ikarus brain / provider"
@@ -1096,7 +1090,7 @@ const DOCK_VIEWS: Array<{ key: SheetView; label: string; icon: ReactNode }> = [
   { key: 'providers', label: 'Connections', icon: <KeyRound size={20} /> },
   { key: 'inbox', label: 'Draft Inbox', icon: <Inbox size={20} /> },
   { key: 'claude', label: 'Claude Code', icon: <BrainCircuit size={20} /> },
-  { key: 'codex', label: 'Codex', icon: <Terminal size={20} /> }
+  { key: 'codex', label: 'Codex Runtime', icon: <Terminal size={20} /> }
 ];
 
 const SHEET_META: Record<SheetView, { title: string; subtitle: string }> = {
