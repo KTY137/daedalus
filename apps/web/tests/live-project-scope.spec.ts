@@ -41,6 +41,11 @@ test('project switch does not relabel previous live execution evidence', async (
         }
       }
 
+      // Cockpit removes its error listener before closing the previous
+      // project's stream. The fake must implement that EventSource lifecycle
+      // surface too; otherwise a project switch throws in React effect cleanup
+      // and the test mistakes a broken fake for a cockpit regression.
+      removeEventListener(): void {}
       close(): void {}
 
       private emit(name: string, data: unknown): void {
