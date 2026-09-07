@@ -408,8 +408,11 @@ def compile_relation_blocks(
         if source_plane == target_plane:
             if requested_set is not None and signature not in requested_set:
                 continue
+            retained_digests = retained_relation_digests[source_plane]
+            if not retained_digests:
+                continue
             edge_digest = canonical_sha(edge.to_dict())
-            if edge_digest not in retained_relation_digests[source_plane]:
+            if edge_digest not in retained_digests:
                 continue
         if not edge.directed:
             reverse_signature = RelationSignature(
