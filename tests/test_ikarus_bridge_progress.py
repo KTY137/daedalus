@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,32 @@ def _write_report(inbox: Path, key: str, status: str | None) -> None:
     (inbox / f"{key}.report.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_project_report(
+    inbox: Path,
+    key: str,
+    project: str | None,
+    *,
+    arrived_ns: int,
+) -> Path:
+    request = {"lane": "local_only"}
+    if project is not None:
+        request["project"] = project
+    path = inbox / f"{key}.report.json"
+    path.write_text(
+        json.dumps(
+            {
+                "bridge_status": "done",
+                "lane": "local_only",
+                "request": request,
+                "report": {"summary": f"finished {key}"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(path, ns=(arrived_ns, arrived_ns))
+    return path
+
+
 @pytest.mark.parametrize(
     ("status", "expected"),
     (("done", True), ("failed", False), (None, None)),
@@ -77,3 +104,62 @@ def test_archived_request_without_report_is_unproven(
     assert snapshot.terminal is True
     assert snapshot.succeeded is None
     assert snapshot.applied is None
+
+
+def test_stream_state_keeps_report_evidence_on_exact_project(
+    bridge_dirs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from daedalus import file_bridge
+
+    _, inbox = bridge_dirs
+    _write_project_report(inbox, "alpha-finished", "alpha", arrived_ns=1_000_000_000)
+    monkeypatch.setattr(
+        file_bridge,
+        "heartbeat_status",
+        lambda **_: {"state": "busy", "current": {"file": "alpha-running.json"}},
+    )
+
+    before = file_bridge.stream_state("alpha")
+    assert before["reports_total"] == 1
+    assert before["latest_report"]["name"] == "alpha-finished.report.json"
+    assert before["latest_report"]["project"] == "alpha"
+    assert before["in_flight"] == 1
+    assert type(before["in_flight"]) is int
+
+    # A later report from beta must not advance alpha's report counter/event.
+    _write_project_report(inbox, "beta-finished", "beta", arrived_ns=2_000_000_000)
+    after_foreign = file_bridge.stream_state("alpha")
+    assert after_foreign["reports_total"] == before["reports_total"]
+    assert after_foreign["latest_report"] == before["latest_report"]
+
+    beta = file_bridge.stream_state("beta")
+    assert beta["reports_total"] == 1
+    assert beta["latest_report"]["name"] == "beta-finished.report.json"
+
+    global_view = file_bridge.stream_state()
+    assert global_view["reports_total"] == 2
+    assert global_view["latest_report"]["name"] == "beta-finished.report.json"
+
+    monkeypatch.setattr(file_bridge, "heartbeat_status", lambda **_: {})
+    idle = file_bridge.stream_state("alpha")
+    assert idle["in_flight"] == 0
+    assert type(idle["in_flight"]) is int
+
+
+def test_project_stream_does_not_claim_unattributed_legacy_report(
+    bridge_dirs: tuple[Path, Path],
+) -> None:
+    from daedalus import file_bridge
+
+    _, inbox = bridge_dirs
+    _write_project_report(inbox, "alpha-finished", "alpha", arrived_ns=1_000_000_000)
+    _write_project_report(inbox, "legacy-finished", None, arrived_ns=2_000_000_000)
+
+    alpha = file_bridge.stream_state("alpha")
+    assert alpha["reports_total"] == 1
+    assert alpha["latest_report"]["name"] == "alpha-finished.report.json"
+
+    global_view = file_bridge.stream_state()
+    assert global_view["reports_total"] == 2
+    assert global_view["latest_report"]["name"] == "legacy-finished.report.json"
+    assert global_view["latest_report"]["project"] == ""
