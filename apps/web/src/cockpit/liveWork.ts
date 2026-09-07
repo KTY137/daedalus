@@ -13,6 +13,7 @@ export interface LiveReportBrief {
   name: string;
   project?: string;
   lane?: string;
+  agent?: string;
   status: string;
   summary?: string;
   createdAt?: string;
@@ -58,7 +59,7 @@ function inFlight(value: unknown): number | boolean | undefined {
 }
 
 function text(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 export function reportBrief(value: unknown): LiveReportBrief | undefined {
@@ -70,6 +71,7 @@ export function reportBrief(value: unknown): LiveReportBrief | undefined {
     name,
     project: text(row.project),
     lane: text(row.lane),
+    agent: text(row.agent),
     status: text(row.status) || 'unbekannt',
     summary: text(row.summary),
     createdAt: text(row.created_at)

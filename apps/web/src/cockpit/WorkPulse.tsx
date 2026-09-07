@@ -37,8 +37,9 @@ function watcherWord(value: string | undefined): string {
 }
 
 function reportLine(report: LiveReportBrief): string {
+  const agent = report.agent ? ` · Agent ${report.agent}` : '';
   const lane = report.lane ? ` · ${report.lane}` : '';
-  return `${report.name} · ${report.status}${lane}`;
+  return `${report.name} · ${report.status}${agent}${lane}`;
 }
 
 function currentThread(project: string): string {

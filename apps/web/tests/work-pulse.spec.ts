@@ -40,6 +40,7 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
                 id: 'report-7',
                 name: 'verify-ui',
                 lane: 'local_only',
+                agent: 'qa-critic',
                 status: 'done',
                 summary: '52 browser checks green',
                 created_at: '2026-09-07T09:40:00Z'
@@ -90,7 +91,7 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
   await expect(pulse).toContainText('Ausführung live · 1 aktiv · 3 wartend');
   await expect(pulse).toContainText('Wächter: arbeitet');
   await expect(pulse).toContainText('3 braucht Aufmerksamkeit · 2 ungelesen · 1 Quarantäne');
-  await expect(pulse).toContainText('Zuletzt berichtet: verify-ui · done · local_only');
+  await expect(pulse).toContainText('Zuletzt berichtet: verify-ui · done · Agent qa-critic · local_only');
   await expect(pulse).toContainText('52 browser checks green');
 
   await page.evaluate(() => {
@@ -98,13 +99,14 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
       id: 'report-8',
       name: 'lint-core',
       lane: 'local_only',
+      agent: 'typescript-lint',
       status: 'done',
       summary: 'Typen sauber',
       created_at: '2026-09-07T09:41:00Z'
     });
   });
-  await expect(pulse).toContainText('Zuletzt berichtet: lint-core · done · local_only · Typen sauber');
-  await expect(pulse).toContainText('Davor: verify-ui · done · local_only · 52 browser checks green');
+  await expect(pulse).toContainText('Zuletzt berichtet: lint-core · done · Agent typescript-lint · local_only · Typen sauber');
+  await expect(pulse).toContainText('Davor: verify-ui · done · Agent qa-critic · local_only · 52 browser checks green');
 
   await page.evaluate(() => {
     (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('heartbeat', {
