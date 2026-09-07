@@ -273,7 +273,7 @@ def test_unretained_same_plane_edge_matches_strict_boolean_empty_block(
 def test_missing_verified_cross_plane_binding_refuses_both_boolean_projection_paths() -> None:
     forest, snapshot = _cross_plane_fixture(include_binding=False)
 
-    with pytest.raises(ValueError, match="requires an exact verified Fourfold binding"):
+    with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
         boolean_relation_block_from_fourfold(forest, snapshot, DOCUMENTS)
 
     with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
@@ -288,7 +288,7 @@ def test_missing_verified_cross_plane_binding_refuses_both_boolean_projection_pa
 def test_cross_plane_hyperedge_refuses_both_boolean_projection_paths() -> None:
     forest, snapshot = _cross_plane_hyperedge_fixture()
 
-    with pytest.raises(ValueError, match="cross-plane ForestHyperedge"):
+    with pytest.raises(ValueError, match="cannot flatten a retained ForestHyperedge"):
         boolean_relation_block_from_fourfold(forest, snapshot, DOCUMENTS)
 
     with pytest.raises(ValueError, match="cannot flatten a retained ForestHyperedge"):
