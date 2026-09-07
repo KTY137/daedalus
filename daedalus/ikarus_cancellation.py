@@ -69,22 +69,30 @@ class StopReceipt:
 
     ``request_finished`` means the exact signal that was active when cancellation
     was requested has subsequently been released by its owner.  It does *not*
-    claim that a remote vendor stopped billing or that an OS process was killed;
-    those stronger claims need provider/subprocess evidence at their own layer.
+    claim that a remote vendor stopped billing.  When an owned local CLI child
+    was terminated through :func:`terminate_owned_subprocess`, ``subprocess``
+    carries that stronger local evidence separately.
     """
 
     request_id: str
     active: bool
     newly_cancelled: bool
     request_finished: bool
+    subprocess: SubprocessStopReceipt | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "request_id": self.request_id,
             "active": self.active,
             "newly_cancelled": self.newly_cancelled,
             "request_finished": self.request_finished,
         }
+        # Preserve the existing wire shape for provider/network cancellation,
+        # where no owned local child exists.  Local process evidence is additive
+        # and appears only when it was actually observed for this exact signal.
+        if self.subprocess is not None:
+            payload["subprocess"] = self.subprocess.to_dict()
+        return payload
 
 
 @dataclass(frozen=True)
@@ -119,13 +127,20 @@ class SubprocessStopReceipt:
 class CancellationSignal:
     """Thread-safe stop signal passed directly to provider cancellation probes."""
 
-    __slots__ = ("request_id", "_event", "_finished", "_lock")
+    __slots__ = (
+        "request_id",
+        "_event",
+        "_finished",
+        "_lock",
+        "_subprocess_stop_receipt",
+    )
 
     def __init__(self, request_id: str) -> None:
         self.request_id = request_id
         self._event = threading.Event()
         self._finished = threading.Event()
         self._lock = threading.Lock()
+        self._subprocess_stop_receipt: SubprocessStopReceipt | None = None
 
     def cancelled(self) -> bool:
         """Return whether cancellation has been requested."""
@@ -157,6 +172,32 @@ class CancellationSignal:
         if timeout < 0:
             raise ValueError("timeout_s must be >= 0")
         return self._finished.wait(timeout)
+
+    def subprocess_stop_receipt(self) -> SubprocessStopReceipt | None:
+        """Return local child-stop evidence observed for this exact request.
+
+        The receipt is immutable.  Reading it under the signal lock gives the
+        cancellation endpoint a coherent snapshot without introducing another
+        registry or process table.
+        """
+        with self._lock:
+            return self._subprocess_stop_receipt
+
+    def _record_subprocess_stop_receipt(self, receipt: SubprocessStopReceipt) -> None:
+        """Attach evidence emitted by ``terminate_owned_subprocess`` only.
+
+        If a later observation proves terminal state, it may strengthen an
+        earlier non-terminal receipt.  A weaker observation never overwrites
+        positive ``process_exited`` evidence.
+        """
+        if type(receipt) is not SubprocessStopReceipt:
+            raise TypeError("receipt must be an exact SubprocessStopReceipt")
+        if receipt.request_id != self.request_id:
+            raise ValueError("subprocess receipt request_id does not match signal")
+        with self._lock:
+            current = self._subprocess_stop_receipt
+            if current is None or (not current.process_exited and receipt.process_exited):
+                self._subprocess_stop_receipt = receipt
 
     def _mark_finished(self) -> None:
         """Registry-only terminal mark for the exact live owner."""
@@ -190,11 +231,19 @@ def terminate_owned_subprocess(
     if grace < 0:
         raise ValueError("grace_s must be >= 0")
 
+    def finish(receipt: SubprocessStopReceipt) -> SubprocessStopReceipt:
+        # Only cancellation evidence belongs on a stop receipt.  A caller may
+        # probe this helper before cancellation to prove it is a no-op; that
+        # observation must never later masquerade as evidence for a stop.
+        if receipt.cancellation_requested:
+            signal._record_subprocess_stop_receipt(receipt)
+        return receipt
+
     requested = signal.cancelled()
     running = process.poll() is None
     if not requested or not running:
         code = process.poll()
-        return SubprocessStopReceipt(
+        return finish(SubprocessStopReceipt(
             request_id=signal.request_id,
             cancellation_requested=requested,
             was_running=running,
@@ -202,7 +251,7 @@ def terminate_owned_subprocess(
             kill_sent=False,
             process_exited=code is not None,
             returncode=code,
-        )
+        ))
 
     terminate_sent = False
     kill_sent = False
@@ -230,7 +279,7 @@ def terminate_owned_subprocess(
             except subprocess.TimeoutExpired:
                 returncode = process.poll()
 
-    return SubprocessStopReceipt(
+    return finish(SubprocessStopReceipt(
         request_id=signal.request_id,
         cancellation_requested=True,
         was_running=True,
@@ -238,7 +287,7 @@ def terminate_owned_subprocess(
         kill_sent=kill_sent,
         process_exited=returncode is not None,
         returncode=returncode,
-    )
+    ))
 
 
 class CancellationRegistry:
@@ -304,6 +353,10 @@ class CancellationRegistry:
         matters when a request id is later reused: terminal evidence can only be
         attributed to the signal that was live when this call requested stop,
         never to a newer owner with the same opaque id.
+
+        Local subprocess evidence, when present, is read from that same captured
+        signal after the bounded wait.  It therefore cannot be confused with a
+        child belonging to a later request that reused the same request id.
         """
         timeout = float(timeout_s)
         if timeout < 0:
@@ -319,11 +372,13 @@ class CancellationRegistry:
                     request_finished=False,
                 )
             newly_cancelled = signal.cancel()
+        request_finished = signal.wait_finished(timeout)
         return StopReceipt(
             value,
             active=True,
             newly_cancelled=newly_cancelled,
-            request_finished=signal.wait_finished(timeout),
+            request_finished=request_finished,
+            subprocess=signal.subprocess_stop_receipt(),
         )
 
     def release(self, signal: CancellationSignal) -> bool:
