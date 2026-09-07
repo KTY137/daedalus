@@ -22,7 +22,9 @@ from daedalus.twin.relation_blocks import (
     RelationSignature,
     TypedRelationBlock,
 )
+from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
 from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
+from daedalus.twin.semiring import BooleanSemiring
 from daedalus.twin.tensor import SparseTensorEntry, TensorAxis, TensorView
 
 REVISION = "a" * 40
@@ -510,15 +512,19 @@ def relation_probe(
     ]:
         forest = _relation_forest(size)
         fourfold = _complete_relation_fourfold(forest)
-        imports = boolean_relation_block_from_fourfold(
-            forest,
-            fourfold,
+        signatures = (
             RelationSignature("code", "imports", "code"),
+            RelationSignature("code", "documents", "knowledge"),
         )
-        documents = boolean_relation_block_from_fourfold(
+        compiled = compile_relation_blocks(
             forest,
             fourfold,
-            RelationSignature("code", "documents", "knowledge"),
+            BooleanSemiring(),
+            signatures=signatures,
+        )
+        block_map = compiled.block_map
+        imports, documents = (
+            block_map[relation_block_name(signature)] for signature in signatures
         )
         return forest, fourfold, imports, documents
 
@@ -537,10 +543,11 @@ def relation_probe(
         raise AssertionError("comparison arm changed the direct cross-plane Forest query subject")
 
     return {
-        "schema": "daedalus-tensor-forest-relation-cost-probe/5",
+        "schema": "daedalus-tensor-forest-relation-cost-probe/6",
         "authority": "diagnostic-only",
         "claim": "none",
         "construction_basis": "forest+complete-fourfold",
+        "compilation_basis": "single-canonical-multi-relation-compile",
         "fourfold_boolean_csr_query_basis": "shared-row-axis-occupancy",
         "source_forest_sha256": reference_forest.content_sha256,
         "source_fourfold_sha256": reference_fourfold.digest,
@@ -606,8 +613,9 @@ def test_probe_binds_tensor_to_real_fourfold_snapshot_identity() -> None:
 def test_relation_probe_matches_cross_plane_multi_relation_forest_subject() -> None:
     result = relation_probe(size=64, repeats=1, query_iterations=2)
 
-    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/5"
+    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/6"
     assert result["construction_basis"] == "forest+complete-fourfold"
+    assert result["compilation_basis"] == "single-canonical-multi-relation-compile"
     assert result["fourfold_boolean_csr_query_basis"] == "shared-row-axis-occupancy"
     assert len(result["source_forest_sha256"]) == 64
     assert len(result["source_fourfold_sha256"]) == 64
