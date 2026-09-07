@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import { getConversation } from '../api';
+import { dispatchPulseFromConversation, type DispatchPulseProjection } from './dispatchPulse';
 import { liveExecutionStatus } from './liveExecution';
 import { emptyLiveWork, type LiveReportBrief, type LiveWorkState } from './liveWork';
 
@@ -14,6 +17,20 @@ const WATCHER: Record<string, string> = {
   stopped: 'gestoppt'
 };
 
+const THREAD_KEY = 'daedalus-thread';
+
+type DispatchReadPhase = 'idle' | 'loading' | 'ready' | 'error';
+
+interface DispatchRead {
+  project: string;
+  phase: DispatchReadPhase;
+  pulse: DispatchPulseProjection;
+}
+
+function emptyDispatchRead(project = '', phase: DispatchReadPhase = 'idle'): DispatchRead {
+  return { project, phase, pulse: { total: 0, items: [] } };
+}
+
 function watcherWord(value: string | undefined): string {
   if (!value) return 'unbekannt';
   return WATCHER[value.toLowerCase()] || value;
@@ -24,13 +41,58 @@ function reportLine(report: LiveReportBrief): string {
   return `${report.name} · ${report.status}${lane}`;
 }
 
+function currentThread(project: string): string {
+  try {
+    return localStorage.getItem(`${THREAD_KEY}:${project}`) || '';
+  } catch {
+    return '';
+  }
+}
+
+function shortRef(ref: string): string {
+  if (ref.length <= 28) return ref;
+  return `${ref.slice(0, 14)}…${ref.slice(-9)}`;
+}
+
+function briefText(value: string): string {
+  return value.length <= 120 ? value : `${value.slice(0, 117)}…`;
+}
+
+function timeLabel(value: string | undefined): string {
+  if (!value) return '';
+  const when = new Date(value);
+  if (!Number.isFinite(when.getTime())) return '';
+  return when.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function dispatchStatus(read: DispatchRead): string {
+  const total = read.pulse.total;
+  const count = `${total} ${total === 1 ? 'offener Auftrag' : 'offene Aufträge'}`;
+  if (read.phase === 'loading') {
+    return total > 0
+      ? `${count} · wird mit dem kanonischen Verlauf abgeglichen`
+      : 'Offene Aufträge werden mit dem kanonischen Verlauf abgeglichen';
+  }
+  if (read.phase === 'error') {
+    return total > 0
+      ? `${count} · letzter lesbarer Stand; aktueller Verlauf nicht lesbar`
+      : 'Offene Aufträge konnten aus dem aktuellen Verlauf nicht gelesen werden';
+  }
+  return total > 0 ? `${count} · warten auf Bericht` : 'Keine offenen Aufträge im aktuellen Verlauf';
+}
+
 /**
- * A compact JARVIS-style glance: what is running, what needs attention, and
- * what most recently finished. Every datum is a projection of the canonical
- * project event stream; this card owns no task state and can start nothing.
+ * A compact JARVIS-style glance: what is running, what needs attention, what
+ * has not reported back yet, and what most recently finished.
+ *
+ * Live counters/reports remain projections of the project event stream. Open
+ * dispatch identity comes from the already-canonical conversation spine read;
+ * this card owns no task state, starts nothing and never treats the derived
+ * `open_dispatches` display as a recovery/work queue.
  */
 export function WorkPulse({ project, live }: { project: string; live: LiveWorkState }) {
   const scoped = live.project === project ? live : emptyLiveWork(project);
+  const [dispatchRead, setDispatchRead] = useState<DispatchRead>(() => emptyDispatchRead());
   const execution = liveExecutionStatus({
     streamLive: scoped.connected === true,
     inFlight: scoped.inFlight,
@@ -39,6 +101,53 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
   const attentionKnown = scoped.unread !== undefined || scoped.quarantined !== undefined;
   const attention = (scoped.unread || 0) + (scoped.quarantined || 0);
   const stale = scoped.connected === false;
+
+  /**
+   * Read the durable attribution seam whenever the cheap live bus says work
+   * changed shape. Queue depth, in-flight ownership and terminal reports cover
+   * both slow tasks and tasks that move through the queue between two snapshots.
+   * A failed read preserves the last projection but labels it as such.
+   */
+  useEffect(() => {
+    let alive = true;
+    const thread = currentThread(project);
+    if (!thread) {
+      setDispatchRead(emptyDispatchRead(project, 'ready'));
+      return () => {
+        alive = false;
+      };
+    }
+
+    setDispatchRead((previous) =>
+      previous.project === project
+        ? { ...previous, phase: 'loading' }
+        : emptyDispatchRead(project, 'loading')
+    );
+
+    getConversation(thread, 50)
+      .then((payload) => {
+        if (!alive) return;
+        setDispatchRead({
+          project,
+          phase: 'ready',
+          pulse: dispatchPulseFromConversation(payload.conversation, project)
+        });
+      })
+      .catch(() => {
+        if (!alive) return;
+        setDispatchRead((previous) =>
+          previous.project === project
+            ? { ...previous, phase: 'error' }
+            : emptyDispatchRead(project, 'error')
+        );
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [project, scoped.connected, scoped.inFlight, scoped.queued, scoped.latest?.id, scoped.latest?.name]);
+
+  const dispatches = dispatchRead.project === project ? dispatchRead : emptyDispatchRead(project);
 
   return (
     <section className="focuscard workpulse" aria-label="Live-Arbeit" data-live-project={scoped.project}>
@@ -57,6 +166,31 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
           : 'Aufmerksamkeitszähler noch nicht gemeldet'}
         {attentionKnown && stale ? ' · beim letzten Verbinden gezählt' : ''}
       </span>
+
+      <div aria-label="Offene Aufträge">
+        <div className="focuscard-counts">{dispatchStatus(dispatches)}</div>
+        {dispatches.pulse.items.map((item) => {
+          const started = timeLabel(item.startedAt);
+          const description = item.description ? briefText(item.description) : '';
+          return (
+            <div className="focuscard-counts" key={item.ref}>
+              {description
+                ? `${item.descriptionSource === 'action' ? 'Auftrag' : 'Auslöser'}: ${description}`
+                : `Auftrag · ${item.kind}`}
+              {item.lane ? ` · Lane ${item.lane}` : ''}
+              {' · auf Bericht wartend'}
+              {started ? ` · seit ${started}` : ''}
+              {' · '}
+              <code title={item.ref}>{shortRef(item.ref)}</code>
+            </div>
+          );
+        })}
+        {dispatches.pulse.total > dispatches.pulse.items.length && (
+          <div className="focuscard-counts">
+            +{dispatches.pulse.total - dispatches.pulse.items.length} weitere im kanonischen Verlauf
+          </div>
+        )}
+      </div>
 
       {scoped.recent.length > 0 ? (
         <div aria-label="Letzte Berichte">
