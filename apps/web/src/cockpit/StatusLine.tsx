@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { HealthPayload } from '../api';
 import type { GovernancePayload, StructurePayload, TopologyPayload } from '../types';
 import { liveExecutionStatus, type LiveExecutionInput } from './liveExecution';
@@ -70,13 +71,42 @@ export function StatusLine({
   streamLive,
   onOpenHealth
 }: StatusLineProps) {
+  /*
+   * SSE counters belong to the project whose stream produced them. React can
+   * render the new project once before Cockpit's old-stream cleanup flips
+   * `streamLive` to false; without a scope guard that one render relabels the
+   * previous project's counters as current work in the new project. Keep the
+   * last project with proven stream evidence and require a fresh down→live
+   * transition before binding evidence to a newly selected project.
+   */
+  const previousProject = useRef(project);
+  const previousStreamLive = useRef(Boolean(streamLive));
+  const evidenceProject = useRef('');
+  const projectChanged = previousProject.current !== project;
+  const streamBecameLive = Boolean(streamLive && !previousStreamLive.current);
+  const evidenceMatchesProject = evidenceProject.current === project;
+  const liveBelongsToProject = Boolean(
+    streamLive && !projectChanged && (evidenceMatchesProject || streamBecameLive)
+  );
+  const mayShowCounters = liveBelongsToProject || evidenceMatchesProject;
+
+  useEffect(() => {
+    if (liveBelongsToProject) evidenceProject.current = project;
+    previousProject.current = project;
+    previousStreamLive.current = Boolean(streamLive);
+  }, [liveBelongsToProject, project, streamLive]);
+
   const h = healthWord(health, healthError);
   const s = structure?.structure;
   const graph = s?.graph;
   const ignored = s?.ignored;
   const topo = topology?.topology;
   const promotionTone = !governance ? 'pending' : governance.promotion_allowed ? 'ok' : 'warn';
-  const execution = liveExecutionStatus({ streamLive, inFlight, queued });
+  const execution = liveExecutionStatus({
+    streamLive: liveBelongsToProject,
+    inFlight: mayShowCounters ? inFlight : undefined,
+    queued: mayShowCounters ? queued : undefined
+  });
 
   return (
     <div className="statusline" role="status" aria-label="Systemzustand">
