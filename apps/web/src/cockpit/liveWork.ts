@@ -135,6 +135,8 @@ export function reduceLiveWork(
 }
 
 export function markLiveWorkDisconnected(previous: LiveWorkState, project: string): LiveWorkState {
-  if (previous.project !== project) return { project, connected: false };
+  // A late `error` from a stream that was just closed during project switch
+  // must never replace the new project's state with the old project's name.
+  if (previous.project !== project) return previous;
   return previous.connected === false ? previous : { ...previous, connected: false };
 }
