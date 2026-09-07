@@ -90,7 +90,7 @@ from pathlib import Path
 
 from . import core, ikarus_act
 from .ikarus_act import ActDecision
-from .ikarus_cancellation import CancellationSignal
+from .ikarus_cancellation import CancellationSignal, terminate_owned_subprocess
 from .llm_client import IkarusLLMClient
 from .projects import resolve_repo_root
 from .providers._openai_compat import ProviderCancelled, chat_completion
@@ -1090,8 +1090,8 @@ def _egress_decision(provider_key: str, endpoint: str | None):
     DeepSeek's endpoint is a declared vendor API, so the question there is
     credentials: no key means nothing may be sent. The two CLIs open no socket
     in this process -- the vendor binary carries its own transport and its own
-    auth -- so the decision states exactly that and refuses when the binary
-    did not resolve.
+    auth -- so the decision states exactly that and refuses when the binary did
+    not resolve.
     """
     from .spine.effect_boundary import GuardDecision
 
@@ -1548,7 +1548,9 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     elif p in _CLAUDE:
         model_used = model or "claude"
         ctx = _project_context(project, message, lane="trusted")
-        streamer = _claude_stream(message, effort, model, _merge_model_context(history, ctx.text), timeout_s=selection.timeout_s)
+        streamer = _claude_stream(
+            message, effort, model, _merge_model_context(history, ctx.text),
+            timeout_s=selection.timeout_s, cancellation=cancellation)
     elif p in _DEEPSEEK and os.environ.get("DEEPSEEK_API_KEY"):
         from .providers.deepseek import DEFAULT_MODEL
 
@@ -1706,7 +1708,8 @@ def _deepseek_stream(message: str, model: str, effort: str | None, context: str 
 #   {"type":"stream_event","event":{"type":"content_block_delta",
 #    "delta":{"type":"text_delta","text":"..."}}}
 def _claude_stream(message: str, effort: str | None = None, model: str | None = None,
-                   context: str = "", *, timeout_s: float = 150.0):
+                   context: str = "", *, timeout_s: float = 150.0,
+                   cancellation: CancellationSignal | None = None):
     """Yield text deltas from `claude -p --output-format stream-json
     --include-partial-messages`.
 
@@ -1715,7 +1718,19 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     admission is shared with readiness and the sealed bridge; an unsafe or
     missing Claude launcher is a loud pre-spawn refusal rather than an empty
     stream.
+
+    With a canonical cancellation signal, one small watcher owns exactly this
+    child.  It exists solely because ``for line in proc.stdout`` can block while
+    Claude is thinking; observing cancellation in the reader thread would be too
+    late.  The watcher terminates only the exact ``Popen`` this call created via
+    ``terminate_owned_subprocess``.  No process table, ambient callback, replay,
+    or vendor-side billing claim is introduced.
     """
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus spawned Claude Code")
+
     path = _claude_command_for_chat()
     _provider_start("claude", endpoint=path, model=model)
     prompt = _claude_prompt(message, effort, context)
@@ -1725,6 +1740,9 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
         args += ["--model", model]
 
     proc = None
+    watcher = None
+    watcher_done = None
+    cancellation_receipt = None
     try:
         proc = subprocess.Popen(
             args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -1738,6 +1756,29 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
         )
         proc.stdin.write(prompt)
         proc.stdin.close()
+
+        if cancellation is not None:
+            import threading
+
+            watcher_done = threading.Event()
+
+            def _stop_on_cancel() -> None:
+                nonlocal cancellation_receipt
+                # Polling is deliberately bounded and local to this one child;
+                # CancellationSignal exposes no ambient callback registry.
+                while not watcher_done.wait(0.05):
+                    if cancellation.cancelled():
+                        cancellation_receipt = terminate_owned_subprocess(
+                            cancellation, proc, grace_s=0.5)
+                        return
+
+            watcher = threading.Thread(
+                target=_stop_on_cancel,
+                name=f"ikarus-claude-stop-{cancellation.request_id[:12]}",
+                daemon=True,
+            )
+            watcher.start()
+
         deadline = _time.time() + timeout_s
         for line in proc.stdout:
             if _time.time() > deadline:
@@ -1757,9 +1798,29 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             delta = ev.get("delta") or {}
             if delta.get("type") == "text_delta" and delta.get("text"):
                 yield delta["text"]
+
+        if cancellation is not None and cancellation.cancelled():
+            # If the watcher actually observed a live child, wait for its bounded
+            # receipt before classifying this as a known provider cancellation.
+            # A stop arriving after Claude already exited is not rewritten into
+            # a fictitious process cancellation.
+            if watcher is not None:
+                watcher.join(timeout=1.25)
+            receipt = cancellation_receipt
+            if receipt is None and proc.poll() is None:
+                receipt = terminate_owned_subprocess(cancellation, proc, grace_s=0.5)
+                cancellation_receipt = receipt
+            if receipt is not None and receipt.was_running:
+                raise ProviderCancelled(
+                    "Claude Code cancelled; local child termination was requested "
+                    f"(process_exited={receipt.process_exited})")
     except (OSError, subprocess.SubprocessError, ValueError):
         return
     finally:
+        if watcher_done is not None:
+            watcher_done.set()
+        if watcher is not None and watcher.is_alive():
+            watcher.join(timeout=1.25)
         if proc is not None:
             try:
                 if proc.poll() is None:
