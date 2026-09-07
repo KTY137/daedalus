@@ -1311,26 +1311,38 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
 
 
 def _codex(message: str, effort: str | None = None, model: str | None = None,
-           context: str = "", *, timeout_s: float = 150.0) -> str | None:
-    """Codex CLI chat brain -- the lightweight, read-only, non-agentic sibling
-    of ``CodexCLIProvider`` (providers/codex_cli.py), which stays reserved for
-    the agentic, write-capable offload/task path. Mirrors ``_claude`` above:
-    a neutral cwd (never the project repo -- codex is agentic and would
-    otherwise read whatever its cwd contains), ``--sandbox read-only`` so it
-    can never write, and the SAME ``--output-last-message`` capture convention
-    codex_cli.py already uses (no ``--output-schema`` here -- a freeform chat
-    reply is plain text, not the agent_report_v1 json)."""
+           context: str = "", *, timeout_s: float = 150.0,
+           cancellation: CancellationSignal | None = None) -> str | None:
+    """Codex CLI chat brain with exact-child cancellation ownership.
+
+    Codex has no verified token-frame format in this integration, so the
+    streaming surface still receives at most one whole-answer delta. The
+    blocking CLI wait is nevertheless cancellable: this call owns the exact
+    ``Popen`` child, polls the canonical ``CancellationSignal``, and delegates
+    termination evidence to ``terminate_owned_subprocess``. No process-table
+    scan, replay, or vendor-side billing claim is introduced.
+
+    The read-only sandbox, neutral cwd and ``--output-last-message`` capture
+    remain the same contract used by the previous blocking implementation.
+    """
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus spawned Codex CLI")
+
     path = shutil.which("codex")
     if not path:
         return None
     _provider_start("codex", endpoint=path, model=model)
-    prompt = _claude_prompt(message, effort, context)  # model-agnostic SYSTEM+context+turn assembly
+    prompt = _claude_prompt(message, effort, context)
+    proc = None
     try:
         with tempfile.TemporaryDirectory(prefix="daedalus-codex-chat-") as td:
             message_path = Path(td) / "last_message.txt"
+            neutral_cwd = _neutral_cwd()
             args = [
                 path, "exec",
-                "--cd", _neutral_cwd(),
+                "--cd", neutral_cwd,
                 "--sandbox", "read-only",
                 "--skip-git-repo-check",
                 "--color", "never",
@@ -1339,13 +1351,70 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
             if model:
                 args += ["--model", model]
             args.append(prompt)
-            subprocess.run(
-                args, capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=timeout_s, stdin=subprocess.DEVNULL, check=False,
+            proc = subprocess.Popen(
+                args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                cwd=neutral_cwd,
             )
-            return (message_path.read_text(encoding="utf-8") or "").strip() or None
-    except (OSError, subprocess.SubprocessError):
+            deadline = _time.monotonic() + max(0.0, float(timeout_s))
+            while proc.poll() is None:
+                if cancellation is not None and cancellation.cancelled():
+                    receipt = terminate_owned_subprocess(
+                        cancellation, proc, grace_s=0.5
+                    )
+                    if receipt.was_running:
+                        raise ProviderCancelled(
+                            "Codex CLI cancelled; local child termination was "
+                            "requested "
+                            f"(process_exited={receipt.process_exited})"
+                        )
+                    break
+                remaining = deadline - _time.monotonic()
+                if remaining <= 0:
+                    try:
+                        proc.kill()
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        proc.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        pass
+                    return None
+                try:
+                    proc.wait(timeout=min(0.05, remaining))
+                except subprocess.TimeoutExpired:
+                    continue
+            return (
+                (message_path.read_text(encoding="utf-8") or "").strip()
+                or None
+            )
+    except ProviderCancelled:
+        raise
+    except (OSError, subprocess.SubprocessError, TypeError, ValueError):
         return None
+    finally:
+        if proc is not None:
+            try:
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait(timeout=5.0)
+            except Exception:
+                pass
+
+
+def _codex_stream(message: str, effort: str | None = None,
+                  model: str | None = None, context: str = "", *,
+                  timeout_s: float = 150.0,
+                  cancellation: CancellationSignal | None = None):
+    """Cancellable Codex adapter for ``ask_stream`` without fake token frames."""
+    reply = _codex(
+        message, effort, model, context,
+        timeout_s=timeout_s, cancellation=cancellation,
+    )
+    if reply:
+        yield reply
 
 
 # --------------------------------------------------------------------------- #
@@ -1559,15 +1628,17 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         streamer = _deepseek_stream(
             message, model_used, effort, _merge_model_context(history, ctx.text),
             timeout_s=selection.timeout_s, cancellation=cancellation)
-    # Codex CLI has no verified streaming JSON frame format (unlike Claude's,
-    # confirmed against 2.1.201 -- see _claude_stream's comment), so an
-    # unverified parser here risks yielding garbled deltas. It deliberately
-    # stays on the blocking path via the `streamer is None` fallback below,
-    # where `ask()` -> `_llm()` still answers it correctly, just without
-    # per-token streaming. An unconfigured DeepSeek (missing key) falls
-    # through the same way on purpose: the blocking call produces the clear
-    # "not set up" reply via `_llm()`'s pre-flight check instead of this
-    # function duplicating it.
+    elif p in _CODEX:
+        model_used = model or os.environ.get("CODEX_MODEL", "") or "codex"
+        ctx = _project_context(project, message, lane="untrusted")
+        streamer = _codex_stream(
+            message, effort, model or os.environ.get("CODEX_MODEL", ""),
+            _merge_model_context(history, ctx.text),
+            timeout_s=selection.timeout_s, cancellation=cancellation)
+        # No unverified Codex token parser: this emits at most one whole-answer
+        # delta, but the owned CLI wait is cancellable and cannot auto-replay.
+    # An unconfigured DeepSeek (missing key) still falls through to the
+    # blocking setup-error path below so the existing clear remedy is kept.
 
     yield "start", {"intent": "chat",
                     "shell": SHELL_VOICE,
