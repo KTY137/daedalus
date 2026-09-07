@@ -20,55 +20,20 @@ def boolean_relation_block_from_fourfold(
     snapshot: FourfoldSnapshot,
     signature: RelationSignature,
 ) -> TypedRelationBlock[bool]:
-    """Compile one relation through the canonical Boolean relation compiler.
+    """Compile one Boolean relation through the canonical relation compiler.
 
-    The function is intentionally only a compatibility shim.  Admission,
-    endpoint completeness, exact Forest/Fourfold partitioning, retention,
-    cross-plane binding authority, hyperedge/undirected refusal and indexed
-    block construction all belong to ``compile_relation_blocks``.
-
-    A small set of legacy error strings is translated because callers and tests
-    historically used those diagnostics.  The translation changes wording
-    only; it does not reimplement admission decisions.
+    The function is intentionally only a compatibility call shape. Admission,
+    diagnostics, endpoint completeness, exact Forest/Fourfold partitioning,
+    retention, cross-plane binding authority, hyperedge/undirected refusal and
+    indexed block construction all belong to ``compile_relation_blocks``.
     """
 
-    try:
-        compiled = compile_relation_blocks(
-            forest,
-            snapshot,
-            BooleanSemiring(),
-            signatures=(signature,),
-        )
-    except ValueError as error:
-        message = str(error)
-        if message == "snapshot does not bind the supplied Forest digest":
-            raise ValueError(
-                "relation projection requires the exact Forest bound by Fourfold"
-            ) from error
-        if message == "signatures must contain RelationSignature records":
-            raise ValueError("signature must be a RelationSignature") from error
-        if "cannot flatten undirected ForestEdge" in message:
-            raise ValueError(
-                "binary relation projection requires an explicitly directed ForestEdge"
-            ) from error
-        if (
-            "requires an exact included verified Fourfold binding before relation compilation"
-            in message
-        ):
-            raise ValueError(
-                "cross-plane ForestEdge requires an exact verified Fourfold "
-                "binding before relation projection"
-            ) from error
-        if (
-            isinstance(signature, RelationSignature)
-            and signature.source_plane != signature.target_plane
-            and "cannot flatten a retained ForestHyperedge" in message
-        ):
-            raise ValueError(
-                "binary relation projection cannot flatten a cross-plane "
-                "ForestHyperedge without losing semantics"
-            ) from error
-        raise
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(signature,),
+    )
 
     # Exactly one explicit signature is requested, so the compiler returns one
     # canonical block even when the retained relation is empty.
