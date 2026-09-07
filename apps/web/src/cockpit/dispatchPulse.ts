@@ -17,6 +17,7 @@ export interface DispatchPulseProjection {
 }
 
 const DISPLAY_LIMIT = 3;
+const DISPATCH_IDENTITY_SCHEMA = 'conversation.dispatch.identity.v1';
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -44,10 +45,12 @@ interface AcceptedDispatch extends DispatchPulseItem {
  * projection and refuses to manufacture facts that are not in it:
  *
  * - lifecycle must still be exactly `dispatched`;
- * - a dispatch linked to a turn from another project is rejected;
- * - a queue action explicitly targeting another project is rejected;
- * - lane/objective are shown only when the recorded proposed action carries
- *   them; otherwise the causal turn text is labelled as such by the caller;
+ * - a versioned identity snapshot bound to the dispatch is preferred because
+ *   it survives the bounded conversation-turn window;
+ * - recognized identity snapshots must name this exact project and carry a
+ *   non-empty objective, otherwise they are rejected rather than guessed;
+ * - legacy dispatches may still derive lane/objective from their causal turn,
+ *   with the existing cross-project checks preserved;
  * - malformed rows disappear instead of becoming plausible-looking work.
  */
 export function dispatchPulseFromConversation(value: unknown, project: string): DispatchPulseProjection {
@@ -71,6 +74,24 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
 
     const ref = text(link.dispatch_ref);
     if (!ref) return;
+
+    const detail = object(latest.detail);
+    if (text(detail.schema) === DISPATCH_IDENTITY_SCHEMA) {
+      const identityProject = text(detail.project);
+      const objective = text(detail.objective);
+      if (identityProject !== project || !objective) return;
+
+      accepted.push({
+        ref,
+        kind: text(link.kind) || 'dispatch',
+        startedAt: text(link.created_ts),
+        description: objective,
+        descriptionSource: 'action',
+        lane: text(detail.lane),
+        order
+      });
+      return;
+    }
 
     const turnId = integer(link.turn_id);
     const turn = turnId === undefined ? undefined : turnsById.get(turnId);
