@@ -1,4 +1,4 @@
-export type DispatchDescriptionSource = 'action' | 'turn' | 'none';
+export type DispatchDescriptionSource = 'bound' | 'action' | 'turn' | 'none';
 
 export interface DispatchPulseItem {
   ref: string;
@@ -54,6 +54,8 @@ interface AcceptedDispatch extends DispatchPulseItem {
  *   an older turn whose attribution may no longer describe the bound dispatch;
  * - legacy dispatches with no identity schema may still derive lane/objective
  *   from their causal turn, with the existing cross-project checks preserved;
+ * - `descriptionSource` keeps bound evidence distinct from that legacy
+ *   reconstruction so the UI cannot present both with equal confidence;
  * - malformed rows disappear instead of becoming plausible-looking work.
  */
 export function dispatchPulseFromConversation(value: unknown, project: string): DispatchPulseProjection {
@@ -92,7 +94,7 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
         kind: text(link.kind) || 'dispatch',
         startedAt: text(link.created_ts),
         description: objective,
-        descriptionSource: 'action',
+        descriptionSource: 'bound',
         lane: text(detail.lane),
         order
       });
