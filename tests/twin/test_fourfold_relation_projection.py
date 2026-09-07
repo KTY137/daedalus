@@ -381,7 +381,7 @@ def test_projection_refuses_a_forest_not_bound_by_the_snapshot() -> None:
         provenance=forest.provenance,
     )
 
-    with pytest.raises(ValueError, match="exact Forest bound by Fourfold"):
+    with pytest.raises(ValueError, match="snapshot does not bind the supplied Forest digest"):
         boolean_relation_block_from_fourfold(
             other,
             snapshot,
@@ -424,7 +424,7 @@ def test_projection_refuses_undirected_edges_instead_of_inventing_orientation() 
     forest = _forest(imports_directed=False)
     snapshot = _complete_snapshot(forest)
 
-    with pytest.raises(ValueError, match="explicitly directed ForestEdge"):
+    with pytest.raises(ValueError, match="cannot flatten undirected ForestEdge"):
         boolean_relation_block_from_fourfold(
             forest,
             snapshot,
