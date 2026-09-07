@@ -1,0 +1,78 @@
+{
+  "work_packet_id": "G1-EXP-TENSOR-GPU-66",
+  "title": "Align strict Boolean whole-Forest partition admission with canonical compiler",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "218b35831bf5e8cf14ae3fc7606fec6916876a2e",
+  "finding": "boolean_relation_block_from_fourfold could continue relation-local projection when the exact bound Forest contained nodes omitted from the Fourfold plane partition, while compile_relation_blocks refused the same subject before relation materialization. That left the compatibility adapter weaker than the canonical multi-observer compiler at the Forest/Fourfold admission boundary.",
+  "gardener_decision": "Converge the existing compatibility adapter on the compiler's bounded whole-Forest subset-partition check without introducing a third projector, verifier helper, graph authority, cache, fact store, backend, registry or public API. Keep compile_relation_blocks as the canonical multi-observer owner and preserve the adapter only as a compatibility surface pending further proven convergence.",
+  "implementation": {
+    "production_commit": "2fce38a1f38a50cdf6f5bc2d92bbb4a1e22d9b26",
+    "production_blob": "daedalus/twin/relation_projection.py@306184edf848245ab0ba1e585f568dec239f2b76",
+    "regression_commit": "fd6d05f779a840d8a649f93016358e878c2449b1",
+    "regression_blob": "tests/twin/test_relation_compiler_relation_retention.py@fec3e0b3cf685446f9e013259b8b612294ed8d61",
+    "supersession_commit": "69c24e9ee34952e7a2887aa2c2553b21edf2938a",
+    "supersession_blob": "tests/twin/test_fourfold_relation_projection.py@cd38e9b6789b96eecbbc3e9ad93e0ee478e2dcb0"
+  },
+  "negative_evidence": {
+    "workflow_run": 34109692761,
+    "head": "fd6d05f779a840d8a649f93016358e878c2449b1",
+    "conclusion": "failure",
+    "representative_job": "Contracts (Python 3.12, hash 0)",
+    "result": "2 failed, 405 passed, 2 skipped in 5.30s",
+    "reason": "Two pre-existing tests asserted relation-local unknown-row/unknown-column errors from fixtures that omitted other bound Forest nodes. The new whole-Forest authority boundary correctly refused earlier. Their expectations were superseded in place; the failed run remains retained evidence rather than being hidden or rewritten."
+  },
+  "verification": {
+    "code_test_head": "69c24e9ee34952e7a2887aa2c2553b21edf2938a",
+    "workflow_run": 34109911371,
+    "conclusion": "success",
+    "merge_preview": "1e73c1b4b3ce6f7de251476d517ab7fd94514056",
+    "base_main": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "representative_result": "407 passed, 2 skipped in 7.00s",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "complete_suite_manual_only": "skipped",
+    "diagnostics": "CPU bitset and TypedRelationBlock profiles are diagnostic-only with claim=none"
+  },
+  "desktop_caveat": {
+    "workflow_run": 34109911364,
+    "head": "69c24e9ee34952e7a2887aa2c2553b21edf2938a",
+    "conclusion": "failure",
+    "failed_step": "Rust formatting",
+    "preceding_steps": "cockpit build, frozen backend build/smoke, project and desktop contract tests, and icon generation succeeded",
+    "claim": "No all-PR-checks-green claim. The Tensor/Fourfold packet does not modify Rust/Tauri sources."
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "claim_boundaries": {
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "bounded_next_step": "Before delegating or deleting boolean_relation_block_from_fourfold, reconcile the remaining exact-partition difference against projection_verifier: the verifier rejects extra Fourfold nodes and per-kind plane misplacement, while the compiler and compatibility adapter currently enforce only that every Forest node is present somewhere in the snapshot partition. Freeze one bounded convergence decision before any further collapse of the compatibility surface."
+}
