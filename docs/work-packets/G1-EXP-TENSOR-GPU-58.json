@@ -1,0 +1,99 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-58",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c36a5cb8264ce20b09ccd021e9e07b9f7e3167f8",
+    "dependencies": "G1-EXP-TENSOR-GPU-53, G1-EXP-TENSOR-GPU-57 and the exact Fourfold/Tensor source blobs retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "finding"]},
+      "scope": {"source_fields": ["domain", "decision"]},
+      "contracts_and_behavior": {"source_fields": ["finding", "implementation_target"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "decision"],
+        "projection_note": "This packet is research-only. Removing it changes no runtime behavior; all prior implementation and negative evidence remain in Git history."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["finding", "claim_boundaries", "verification"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-58",
+  "title": "Reconcile unretained same-plane ForestEdge authority before changing the canonical compiler",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "c36a5cb8264ce20b09ccd021e9e07b9f7e3167f8",
+  "finding": {
+    "summary": "The strict Boolean Fourfold projection and the canonical multi-relation compiler currently disagree on a same-plane ForestEdge whose exact canonical digest is absent from the bound PlaneSnapshot.relation_sha256s. boolean_relation_block_from_fourfold ignores that edge because Fourfold did not retain it. compile_relation_blocks, after GPU-53, instead raises for discover-all or an explicitly matching signature. GPU-57 subsequently established the Fourfold-authority rule for same-plane ForestHyperedge records: unretained source evidence cannot independently constrain the regenerable Tensor projection.",
+    "strict_projection_behavior": "daedalus.twin.relation_projection:boolean_relation_block_from_fourfold filters same-plane ForestEdge rows by exact retained relation digest and continues past non-retained rows.",
+    "multi_relation_behavior": "daedalus.twin.relation_compiler:compile_relation_blocks raises when a matching/discovered same-plane ForestEdge digest is not retained by the Fourfold plane.",
+    "prior_evidence_conflict": "GPU-53 described its refusal behavior as alignment with the strict projection contract, but the retained source blob shows the strict adapter uses omission rather than refusal. GPU-57's later hyperedge rule follows omission for unretained same-plane evidence, making the inconsistency material rather than documentary only.",
+    "authority_read": "FourfoldSnapshot is the revision-bound semantic subject. A same-plane Forest relation omitted from relation_sha256s must not be reintroduced as a Tensor fact; the unresolved question is whether omission should also block an otherwise complete closed-world relation. The two canonical projection paths must not answer that question differently."
+  },
+  "decision": {
+    "production_change": false,
+    "reason": "Do not silently reverse GPU-53 in the same activation that discovers the contradictory source evidence. Preserve the conflict as a bounded negative result and freeze one correction target for the next implementation packet.",
+    "gardener_principle": "Reconcile the two existing projection paths; do not add a third verifier, relation authority, cache, registry, adapter family or semantic plane."
+  },
+  "implementation_target": {
+    "next_packet": "Change only the existing compile_relation_blocks owner so same-plane ForestEdge admission matches the strict Fourfold projection: explicitly unrelated rows are pruned before hashing; matching rows whose canonical digest is not retained are omitted rather than allowed to constrain the Fourfold subject; retained directed rows still compile; retained undirected rows still fail closed.",
+    "required_regressions": [
+      "Boolean strict projection and Boolean multi-relation compilation produce the same empty same-plane block for a complete Fourfold plane that omits the matching ForestEdge digest.",
+      "Discover-all does not discover an unretained same-plane ForestEdge signature.",
+      "Retained directed same-plane rows remain byte/entry equivalent across both projection paths.",
+      "Retained undirected and retained hyperedge refusal semantics remain unchanged.",
+      "Explicit unrelated selection prunes an unretained same-plane edge before relation-digest or evidence materialization."
+    ],
+    "supersession_rule": "GPU-53 remains preserved as historical evidence. A later implementation may supersede its refusal behavior only with focused cross-projection regressions and exact-head CI evidence; no history rewrite or evidence deletion is allowed."
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "strict_projection_blob": "daedalus/twin/relation_projection.py@c399d872c22b1b012930a107a48e6ab47bb9814a",
+    "multi_relation_blob": "daedalus/twin/relation_compiler.py@5b5e9c19d4ec5ca3d2a2c7514e4f1ab2f9017a61",
+    "gpu53_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-53.json@63fd0301da60c9c65209a84e9cd95591634c4b66",
+    "gpu57_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-57.json@3c8977953b2bbf3312c65ed05f2ef8366c514fbc",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "type": "source-contract reconciliation",
+    "focused_tests_run": false,
+    "production_code_changed": false,
+    "ci_required_for_research_record": true,
+    "full_repository_suite": "not claimed",
+    "note": "The packet records a source-level semantic contradiction and a bounded implementation target. It does not claim the proposed correction is already implemented or benchmarked."
+  },
+  "claim_boundaries": {
+    "correctness": "Only the existence of the projection-path semantic mismatch and the frozen correction target are claimed in this research packet.",
+    "performance": "none",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}
