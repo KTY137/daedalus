@@ -287,6 +287,29 @@ test('work pulse prefers bound dispatch identity, keeps legacy fallback, and cle
                 objective: 'Ohne Projekt darf das nicht erscheinen'
               }
             }
+          },
+          {
+            link: {
+              id: 505,
+              conversation_id: 'conv_jarvis_abc12345',
+              turn_id: 42,
+              dispatch_ref: 'future_schema_dispatch',
+              kind: 'queue_task',
+              created_ts: '2026-09-07T12:03:00Z'
+            },
+            latest: {
+              id: 505,
+              dispatch_link_id: 505,
+              ts: '2026-09-07T12:03:00Z',
+              lifecycle: 'dispatched',
+              summary: 'dispatched',
+              detail: {
+                schema: 'conversation.dispatch.identity.v2',
+                project: 'jarvis-project',
+                objective: 'Neue Schema-Evidenz',
+                lane: 'future_lane'
+              }
+            }
           }
         ]
       }
@@ -310,6 +333,8 @@ test('work pulse prefers bound dispatch identity, keeps legacy fallback, and cle
   await expect(pulse).not.toContainText('foreign_dispatch');
   await expect(pulse).not.toContainText('Ohne Projekt darf das nicht erscheinen');
   await expect(pulse).not.toContainText('corrupt_dispatch');
+  await expect(pulse).not.toContainText('future_schema_dispatch');
+  await expect(pulse).not.toContainText('future_lane');
 
   reported = true;
   await page.evaluate(() => {
