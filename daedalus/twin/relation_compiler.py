@@ -20,6 +20,7 @@ from ..kernel.contracts.base import _sha256
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import ForestEdge, KnowledgeForest
 from .contracts import CrossPlaneBinding, FOURFOLD_PLANES, FourfoldSnapshot
+from .projection_verifier import _forest_node_partition
 from .relation_blocks import (
     MAX_BLOCK_ENTRIES,
     ProjectionSubject,
@@ -283,7 +284,8 @@ def compile_relation_blocks(
     explicitly selected conflicting relation fail closed instead.
 
     Same-plane Forest edges and verified bindings are deduplicated by semantic
-    endpoint/relation identity. The compiler binds retained endpoints to their
+    endpoint/relation identity. The compiler admits only an exact constitutional
+    Forest/Fourfold node partition, then binds retained endpoints to their
     canonical Fourfold plane indices once and reuses the indexed block owner;
     it does not readmit already-authoritative labels through a second coordinate
     validation pass. The evidence observer retains canonical provenance
@@ -310,20 +312,12 @@ def compile_relation_blocks(
             "Forest provenance revision differs from the snapshot"
         )
 
+    _forest_node_partition(forest, snapshot)
     node_location: dict[str, tuple[str, int]] = {}
     for plane in snapshot.planes:
         for position, node_id in enumerate(plane.node_ids):
             node_location[node_id] = (plane.plane, position)
 
-    forest_node_ids = tuple(node.id for node in forest.nodes)
-    if len(set(forest_node_ids)) != len(forest_node_ids):
-        raise ValueError("Forest contains duplicate node ids")
-    missing_nodes = sorted(set(forest_node_ids) - set(node_location))
-    if missing_nodes:
-        raise ValueError(
-            "Forest nodes are missing from the Fourfold plane partition: "
-            + ", ".join(missing_nodes[:8])
-        )
     retained_relation_digests = {
         plane.plane: frozenset(plane.relation_sha256s)
         for plane in snapshot.planes
