@@ -95,9 +95,13 @@ def test_unretained_same_plane_edge_matches_strict_boolean_empty_block(
 ) -> None:
     forest, snapshot = _fixture(retain_code_relation=False)
 
+    def forbidden_hash(value: object) -> str:
+        raise AssertionError(f"empty-retention Forest relation was hashed: {value!r}")
+
     def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
         raise AssertionError(f"unexpected evidence materialization for {edge.relation}")
 
+    monkeypatch.setattr(relation_compiler, "canonical_sha", forbidden_hash)
     monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
 
     strict = boolean_relation_block_from_fourfold(forest, snapshot, IMPORTS)
@@ -120,9 +124,13 @@ def test_discover_all_does_not_discover_unretained_same_plane_edge(
 ) -> None:
     forest, snapshot = _fixture(retain_code_relation=False)
 
+    def forbidden_hash(value: object) -> str:
+        raise AssertionError(f"empty-retention Forest relation was hashed: {value!r}")
+
     def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
         raise AssertionError(f"unexpected evidence materialization for {edge.relation}")
 
+    monkeypatch.setattr(relation_compiler, "canonical_sha", forbidden_hash)
     monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
 
     compiled = compile_relation_blocks(forest, snapshot, EvidenceDagSemiring())
