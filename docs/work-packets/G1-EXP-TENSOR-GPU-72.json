@@ -1,0 +1,101 @@
+{
+  "work_packet_id": "G1-EXP-TENSOR-GPU-72",
+  "title": "Converge Boolean compatibility diagnostics on the canonical relation compiler",
+  "classification": "implementation-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-verified",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "6663065eebff4d30683934f27e10715e3295946d",
+  "scope": "Audit the remaining error-string translations in boolean_relation_block_from_fourfold, remove test/history-only wording compatibility, and converge the public compatibility call shape on compile_relation_blocks diagnostics without reintroducing admission logic or another projection abstraction.",
+  "audit": {
+    "finding": "Repository code search found no production caller whose control flow depends on the adapter-specific diagnostic strings. The historical wording appears in the old adapter, tests and retained work-packet evidence, while the exported call shape remains available through daedalus.twin. Therefore the diagnostic translations are not retained as an independent compatibility authority.",
+    "public_call_shape_preserved": true,
+    "error_string_compatibility_preserved": false,
+    "historical_evidence_deleted": false
+  },
+  "implementation": {
+    "production_commit": "ba45b09a0f63692c7e905943e8f572fb76c67143",
+    "production_blob": "daedalus/twin/relation_projection.py@3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+    "projection_test_commit": "beab03b6cc056cec1bff4109af015265d4e95902",
+    "projection_test_blob": "tests/twin/test_fourfold_relation_projection.py@c274fdc57db3d2df5fff2b0ca48d5db355acb267",
+    "parity_test_commit": "f822c23ee2c0803bbb26bb4fe46fbef33384b80d",
+    "parity_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@21a5e799d736aa17b02c8c61d9b88935ac2d0753",
+    "changes": [
+      "Removed all legacy ValueError string translations from relation_projection.py; boolean_relation_block_from_fourfold now delegates directly to compile_relation_blocks with BooleanSemiring.",
+      "Updated the existing compatibility tests to assert the canonical compiler diagnostic surface for Forest binding mismatch, undirected edges, missing verified cross-plane bindings and retained hyperedges.",
+      "Kept the public single-relation call shape and return type unchanged; admission, refusal and diagnostics now have one implementation owner.",
+      "No helper, cache, registry, graph authority, projector, backend, public API, fact store or parallel abstraction was introduced."
+    ]
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 2,
+    "production_diff_additions": 11,
+    "production_diff_deletions": 46,
+    "production_net_lines": -35,
+    "test_diff_additions": 4,
+    "test_diff_deletions": 4,
+    "legacy_error_translation_count_before": 5,
+    "legacy_error_translation_count_after": 0,
+    "new_public_api": false,
+    "public_compatibility_call_shape_removed": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "verification": {
+    "implementation_head": "f822c23ee2c0803bbb26bb4fe46fbef33384b80d",
+    "fourfold_tensor_run": 34141843122,
+    "fourfold_tensor_result": "completed-success",
+    "base_main": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 workflow completed successfully",
+    "public_package_api": "success",
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "manual_complete_suite": "skipped",
+    "full_suite_green": false,
+    "diagnostic_profiles": "CPU bitset and TypedRelationBlock validation remain diagnostic-only; no superiority claim",
+    "tauri_run": 34141843117,
+    "tauri_result": "completed-failure",
+    "tauri_failure_step": "Rust formatting",
+    "tauri_preceding_steps": "cockpit build, frozen backend build/smoke, project/desktop contract tests and icon generation succeeded before the formatting failure"
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-73 only: audit whether the now-trivial boolean_relation_block_from_fourfold public compatibility call shape is still required by real package callers, docs or probes. If it is only a historical alias, freeze a deprecation/removal path without removing public API in that packet; otherwise keep it as the single-call shim. Do not create another projection surface."
+}
