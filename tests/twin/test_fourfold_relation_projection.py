@@ -338,27 +338,24 @@ def test_same_plane_projection_reuses_retained_endpoints_without_coordinate_read
 
 
 @pytest.mark.parametrize(
-    ("code_node_ids", "message"),
-    (
-        (("src/a.py",), "unknown column label 'src/b.py'"),
-        (("src/b.py",), "unknown row label 'src/a.py'"),
-    ),
+    "code_node_ids",
+    (("src/a.py",), ("src/b.py",)),
 )
-def test_same_plane_projection_preserves_explicit_plane_membership_errors(
+def test_same_plane_projection_refuses_incomplete_global_forest_partition(
     code_node_ids: tuple[str, ...],
-    message: str,
 ) -> None:
     forest = _forest()
     snapshot = _same_plane_snapshot(forest, code_node_ids=code_node_ids)
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(
+        ValueError,
+        match="Forest nodes are missing from the Fourfold plane partition",
+    ):
         boolean_relation_block_from_fourfold(
             forest,
             snapshot,
             RelationSignature("code", "imports", "code"),
         )
-
-    assert str(exc_info.value) == message
 
 
 def test_projection_refuses_legacy_partial_endpoint_planes() -> None:
