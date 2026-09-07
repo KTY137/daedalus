@@ -2,7 +2,7 @@
 title: Twin
 type: module
 status: living
-updated: 2026-09-06
+updated: 2026-09-07
 covers: daedalus/twin
 ---
 # Twin
@@ -39,8 +39,8 @@ Ebenen erst befuellen, liegen daneben in
 | --- | --- | --- |
 | [`relation_blocks.py`](../../../daedalus/twin/relation_blocks.py) | Kanonische typisierte Sparse-Bloecke (bounded stdlib-CSR) als ausfuehrbares Orakel fuer optionale spaetere Backends. | `TypedRelationBlock`, `TypedAxis`, `RelationSignature`, `ProjectionSubject`, `MAX_REFERENCE_OPERATIONS` |
 | [`semiring.py`](../../../daedalus/twin/semiring.py) | Deterministische Semiring-Referenzsemantik. Reine Beobachter: verifizieren keine Evidenz, mutieren keinen Snapshot, promoten nichts. | `Semiring`, `BooleanSemiring`, `NaturalSemiring`, `TropicalSemiring`, `EvidenceDagSemiring`, `EvidenceValue`, `MAX_NATURAL_BITS`, `MAX_EVIDENCE_ALTERNATIVES`, `MAX_EVIDENCE_TERM_ATOMS` |
-| [`relation_compiler.py`](../../../daedalus/twin/relation_compiler.py) | Kompiliert autoritative Forest-Kanten und verifizierte Snapshot-Bindings in typisierte Bloecke. Jede Achse ist die *vollstaendige* Ebenenzugehoerigkeit aus dem Snapshot, nicht die in einer Relation beobachteten Labels -- nur so sind unabhaengig kompilierte Relationen exakt komponierbar. | `compile_relation_blocks`, `CompiledRelationBlocks`, `relation_block_name` |
-| [`relation_projection.py`](../../../daedalus/twin/relation_projection.py) | Strikter Adapter in das Boolean-Sparse-Orakel. Verlangt, dass *beide* Endpunkt-Ebenen `complete` sind, weil `TypedRelationBlock` kein Vollstaendigkeitsfeld hat und eine partielle Beobachtung sonst zur falschen Closed-World-Relation wuerde. | `boolean_relation_block_from_fourfold` |
+| [`relation_compiler.py`](../../../daedalus/twin/relation_compiler.py) | Alleiniger Implementierungsowner der Forest/Fourfold-Relationsprojektion: prueft Admission/Completeness/Retention, kompiliert autoritative Forest-Kanten und verifizierte Snapshot-Bindings und materialisiert typisierte Bloecke. Jede Achse ist die *vollstaendige* Ebenenzugehoerigkeit aus dem Snapshot, nicht die in einer Relation beobachteten Labels -- nur so sind unabhaengig kompilierte Relationen exakt komponierbar. | `compile_relation_blocks`, `CompiledRelationBlocks`, `relation_block_name` |
+| [`relation_projection.py`](../../../daedalus/twin/relation_projection.py) | Erhaltene Public-Compatibility-Fassade fuer die historische einzelne Boolean-Relation. Delegiert direkt an `compile_relation_blocks(..., BooleanSemiring(), signatures=(signature,))` und besitzt keine eigene Admission-, Diagnose- oder Materialisierungssemantik. | `boolean_relation_block_from_fourfold` |
 | [`tensor.py`](../../../daedalus/twin/tensor.py) | Deterministische Sparse-Tensor-Sicht eines exakten Fourfold/Forest-Subjekts, als kanonischer Vertrag mit `status` und Provenienz. | `TensorView`, `TensorAxis`, `SparseTensorEntry`, `parse_tensor_view`, `TENSOR_STATUSES`, `MAX_TENSOR_AXES` |
 | [`two_category.py`](../../../daedalus/twin/two_category.py) | Minimale evidenztragende Doppelkategorie fuer Twin-Evolution: Objekte sind typisierte Grenzen, horizontale Pfeile offene Komponenten, vertikale Pfeile Grenz-Migrationen, Quadrate Transformations-2-Zellen. Verifiziert keine Quittung, plant keinen Effekt. | `TypedBoundary`, `BoundaryPort`, `BoundaryMap`, `OpenFourfoldComponent`, `Transformation2Cell`, `VerificationStatus`, `MAX_BOUNDARY_PORTS`, `MAX_CELL_REFERENCES` |
 
@@ -85,10 +85,12 @@ Die drei Autoritaetsgrenzen, die das Paket bewusst nicht ueberschreitet:
 2. **Kein Vorschlag wird Fakt.** `CrossPlaneBinding` nimmt nur verifizierte
    Kanten; der Referenz-Compiler beweist jeden Claim, bevor er ein Binding baut.
    Das ist Masterplan-Invariante 4 (Evidence-Grenze) an der Twin-Kante.
-3. **Kein Closed-World-Bluff.** `boolean_relation_block_from_fourfold`
-   verweigert, wenn eine Endpunkt-Ebene nicht `complete` ist, statt fehlende
-   Beobachtung als Sparse-Null auszugeben. Analog bleibt `PlaneSnapshot.status`
-   `absent` mit Grund, wo ein Extraktor fehlt.
+3. **Kein Closed-World-Bluff.** `compile_relation_blocks` verweigert die
+   Materialisierung einer ausgewaehlten Relation, wenn eine Endpunkt-Ebene nicht
+   `complete` ist, statt fehlende Beobachtung als Sparse-Null auszugeben.
+   `boolean_relation_block_from_fourfold` erbt diese Regel nur ueber seine
+   direkte Delegation und besitzt keine zweite Prueflogik. Analog bleibt
+   `PlaneSnapshot.status` `absent` mit Grund, wo ein Extraktor fehlt.
 
 Alle Konstruktoren sind budgetiert: `MAX_REFERENCE_OPERATIONS`,
 `MAX_TENSOR_AXES`, `MAX_BOUNDARY_PORTS`, `MAX_CELL_REFERENCES`,
