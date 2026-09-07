@@ -162,7 +162,78 @@ test('shipping Stop cancels the exact SSE request and only claims completion fro
   expect(cancelBody?.request_id).toBe(streamedRequestId);
 
   await expect(page.getByText('ABGEBROCHEN', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Request beendet · Remote-Termination nicht bewiesen', { exact: true })).toBeVisible();
   await expect(page.getByText('STOP ANGEFORDERT', { exact: true })).toHaveCount(0);
   await expect(page.getByText('STOP UNBESTÄTIGT', { exact: true })).toHaveCount(0);
   expect(replay.calls, 'Stop must never replay the turn through /api/ikarus/ask').toBe(0);
+});
+
+
+test('shipping Stop surfaces positive local child exit without claiming remote termination', async ({ page }) => {
+  let cancelBody: { request_id?: string } | undefined;
+
+  await page.addInitScript(() => {
+    class HeldEventSource {
+      onerror: ((event: Event) => unknown) | null = null;
+      constructor(_url: string | URL) { /* held open until the UI cancels */ }
+      addEventListener() { /* intentionally held open */ }
+      close() { /* observation closed; the POST is the backend stop */ }
+    }
+    Object.defineProperty(window, 'EventSource', { value: HeldEventSource, configurable: true });
+  });
+
+  await page.route('**/api/conversations', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, conversation_id: 'conv_20260907T040000Z_childbeef' })
+    });
+  });
+  await page.route('**/api/runtimes/status', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, runtimes: [] }) });
+  });
+  await page.route('**/api/ikarus/cancel', async (route) => {
+    cancelBody = route.request().postDataJSON() as { request_id?: string };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        generated_at: '2026-09-07T04:00:00Z',
+        project: null,
+        warnings: [],
+        cancellation: {
+          request_id: cancelBody.request_id,
+          active: true,
+          newly_cancelled: true,
+          request_finished: true,
+          subprocess: {
+            request_id: cancelBody.request_id,
+            cancellation_requested: true,
+            was_running: true,
+            terminate_sent: true,
+            kill_sent: false,
+            process_exited: true,
+            returncode: -15
+          }
+        }
+      })
+    });
+  });
+
+  await openCockpit(page);
+  await page.getByLabel('Nachricht an Ikarus').fill('run a local CLI until I stop it');
+  await page.getByRole('button', { name: 'Senden' }).click();
+  const stop = page.getByRole('button', { name: 'Antwort stoppen' });
+  await expect(stop).toBeVisible({ timeout: 10_000 });
+  await stop.click();
+
+  await expect.poll(() => cancelBody?.request_id || '').not.toBe('');
+  await expect(page.getByText('ABGEBROCHEN', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('lokaler CLI-Prozess beendet · Remote-Termination nicht bewiesen', { exact: true })).toBeVisible();
+  await expect(page.getByText('Request beendet · Remote-Termination nicht bewiesen', { exact: true })).toHaveCount(0);
 });
