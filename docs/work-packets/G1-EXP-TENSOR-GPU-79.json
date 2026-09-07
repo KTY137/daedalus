@@ -1,0 +1,164 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-79",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "50d604bd3e4902f360aedd60efa96b8973a8e3d5",
+    "dependencies": "G1-EXP-TENSOR-GPU-78 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["decision", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["audit", "decision"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene"],
+        "projection_note": "Research-only gardening packet. Reverting it removes only the recorded test-harness ownership decision; no production, test, probe, public-API or measurement behavior changes in GPU-79."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-79",
+  "work_packet": "G1-EXP-TENSOR-GPU-79",
+  "title": "Retain held-out workload ownership while containing transitive probe coupling",
+  "classification": "closed-research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "50d604bd3e4902f360aedd60efa96b8973a8e3d5",
+  "scope": "Audit only the remaining test-to-test runpy chain in the held-out Tensor diagnostics: test_tensor_heldout_csr_probe.py -> test_tensor_heldout_multihop_probe.py -> test_tensor_forest_cost_probe.py. Determine which dependency represents legitimate single-source workload ownership and which is generic harness coupling. Do not add a generic shared probe utility merely to deduplicate code, do not duplicate the held-out workload/query definitions, and do not change production code, public API, probe schemas, measurement semantics or performance claims.",
+  "audit": {
+    "csr_to_heldout_multihop": {
+      "consumer": "tests/twin/test_tensor_heldout_csr_probe.py",
+      "owner": "tests/twin/test_tensor_heldout_multihop_probe.py",
+      "mechanism": "runpy.run_path",
+      "reused_semantics": [
+        "held-out deterministic Forest generator",
+        "held-out direct Forest query and query-suite semantics",
+        "independent preindexed Forest baseline",
+        "derived Tensor construction and query semantics",
+        "frozen workload and query-suite digests",
+        "subject bounds",
+        "break-even diagnostic calculation",
+        "shared measurement primitive and Fourfold fixture inherited by the held-out owner"
+      ],
+      "assessment": "intentional semantic ownership",
+      "reason": "The CSR probe is an additive fourth arm over the exact held-out workload. Copying these definitions into the CSR file would create a second workload/query authority and permit silent drift between the Forest/Tensor and CSR falsification surfaces."
+    },
+    "heldout_multihop_to_forest_cost": {
+      "consumer": "tests/twin/test_tensor_heldout_multihop_probe.py",
+      "owner": "tests/twin/test_tensor_forest_cost_probe.py",
+      "mechanism": "runpy.run_path",
+      "reused_symbols": ["_measure", "_fourfold", "REVISION", "NOW"],
+      "assessment": "generic harness coupling, not workload authority",
+      "transitive_effect": "Loading the CSR probe executes the held-out multihop module, which in turn executes the forest-cost module at top level before extracting four generic harness symbols. Pytest does not collect those nested test functions through runpy, but module initialization is still transitively executed and future top-level side effects would be inherited.",
+      "alternative_costs": [
+        "Copying _measure would duplicate the only current tracemalloc/perf-counter measurement implementation and create two timing/memory semantics.",
+        "Copying _fourfold plus REVISION/NOW is small but would separate revision/provenance identity from the existing diagnostic family.",
+        "Creating a new generic probe-support module solely for these four symbols would add another abstraction and file owner before a broader reuse case exists.",
+        "Replacing runpy with another dynamic loader changes syntax, not ownership or execution coupling."
+      ]
+    },
+    "repository_search": {
+      "measurement_owner_observation": "A repository code search for tracemalloc identifies test_tensor_forest_cost_probe.py as the current Tensor probe measurement implementation; no pre-existing Twin probe-support owner was found to migrate into without adding a new abstraction.",
+      "runpy_observation": "runpy-based test reuse exists elsewhere in the repository, so runpy itself is not treated as a prohibited mechanism. The concern here is the specific transitive ownership chain, not a blanket style rule."
+    }
+  },
+  "decision": {
+    "production_change": false,
+    "test_or_probe_change": false,
+    "public_api_change": false,
+    "schema_change": false,
+    "csr_to_heldout_multihop_retained": true,
+    "heldout_workload_duplicated": false,
+    "new_shared_probe_utility_added": false,
+    "transitive_coupling_identified": true,
+    "immediate_refactor_deferred": true,
+    "reason": "The direct CSR-to-heldout dependency is the correct single source for frozen held-out workload semantics. The second hop is generic harness coupling, but every bounded replacement available in this packet either duplicates the measurement authority or creates a new generic test abstraction only to remove runpy. Under the Gardener rule, retaining one explicit known coupling is lower-bloat than introducing a second measurement implementation or premature support subsystem.",
+    "containment_rule": "Do not add further consumers to the forest-cost test module through the held-out chain. If another independent Tensor diagnostic needs the same measurement primitive, that is the threshold to extract one narrowly named test-only measurement owner and delete the transitive runpy hop in the same packet."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "50d604bd3e4902f360aedd60efa96b8973a8e3d5",
+    "csr_probe_blob": "tests/twin/test_tensor_heldout_csr_probe.py@1b2e1c991b9dc2a7499651a5207e29a32dfc6459",
+    "heldout_multihop_probe_blob": "tests/twin/test_tensor_heldout_multihop_probe.py@0f10709fc0cd819b789eb4b1c81d3818605c231e",
+    "forest_cost_probe_blob": "tests/twin/test_tensor_forest_cost_probe.py@385bad6c6451597a56ffe41b2cf8a2e1d774a268",
+    "gpu78_exact_fourfold_tensor_run": {
+      "run_id": 34165062946,
+      "head_sha": "50d604bd3e4902f360aedd60efa96b8973a8e3d5",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "gpu78_exact_tauri_run": {
+      "run_id": 34165062945,
+      "head_sha": "50d604bd3e4902f360aedd60efa96b8973a8e3d5",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "source-semantics and dependency-ownership audit",
+    "production_tests_run_for_packet": false,
+    "new_green_claim": false,
+    "source_contract_checked": true,
+    "transitive_runpy_chain_checked": true,
+    "heldout_workload_single_owner_checked": true,
+    "replacement_abstraction_cost_checked": true,
+    "notes": "GPU-79 changes only this machine-readable research record. The exact GPU-78 base head has successful Fourfold/Tensor PR contract evidence while its independent Tauri workflow remains red. No executable result is relabelled as GPU-79 superiority evidence."
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "heldout_workload_duplicate_added": false,
+    "shared_probe_helper_added": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-80 only: leave diagnostic harness plumbing alone unless a third independent consumer creates a real shared-support case. Return to the production Tensor/Fourfold target and audit the canonical sparse relation-block operations for the next deletion-oriented or bounded-memory/incremental-execution improvement. Prefer removing duplicated iteration/materialization paths inside the existing TypedRelationBlock/relation compiler owners over adding a new backend, graph abstraction, cache or public surface."
+}
