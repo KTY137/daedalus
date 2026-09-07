@@ -12,7 +12,7 @@ from daedalus.schemas import ContractProvenance
 from daedalus.structcore.forest import KnowledgeForest
 from daedalus.twin import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.relation_blocks import RelationSignature, TypedRelationBlock
-from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
+from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
 from daedalus.twin.semiring import BooleanSemiring
 from daedalus.twin.tensor import TensorView
 
@@ -92,10 +92,14 @@ def _build_csr_subject(size: int) -> CSRSubject:
         RelationSignature("code", "documents", "knowledge"),
         RelationSignature("knowledge", "mentions_type", "type"),
     )
-    blocks = tuple(
-        boolean_relation_block_from_fourfold(forest, fourfold, signature)
-        for signature in signatures
+    compiled = compile_relation_blocks(
+        forest,
+        fourfold,
+        BooleanSemiring(),
+        signatures=signatures,
     )
+    block_map = compiled.block_map
+    blocks = tuple(block_map[relation_block_name(signature)] for signature in signatures)
     return forest, fourfold, *blocks
 
 
@@ -245,11 +249,12 @@ def heldout_csr_probe(
         raise AssertionError("held-out CSR suite changed the direct Forest query subject")
 
     return {
-        "schema": "daedalus-tensor-heldout-csr-cost-probe/1",
+        "schema": "daedalus-tensor-heldout-csr-cost-probe/2",
         "authority": "diagnostic-only",
         "claim": "none",
         "held_out": True,
         "construction_basis": "forest+complete-fourfold",
+        "compilation_basis": "single-canonical-multi-relation-compile",
         "csr_query_basis": "boolean-matmul+csr-row-occupancy",
         "workload_spec_sha256": HELDOUT_WORKLOAD_SHA256,
         "query_suite_spec_sha256": HELDOUT_QUERY_SUITE_SHA256,
@@ -300,10 +305,11 @@ def heldout_csr_probe(
 def test_heldout_csr_probe_preserves_exact_subject_without_speed_claim() -> None:
     result = heldout_csr_probe(size=16, repeats=1, query_iterations=1)
 
-    assert result["schema"] == "daedalus-tensor-heldout-csr-cost-probe/1"
+    assert result["schema"] == "daedalus-tensor-heldout-csr-cost-probe/2"
     assert result["authority"] == "diagnostic-only"
     assert result["claim"] == "none"
     assert result["construction_basis"] == "forest+complete-fourfold"
+    assert result["compilation_basis"] == "single-canonical-multi-relation-compile"
     assert result["csr_query_basis"] == "boolean-matmul+csr-row-occupancy"
     assert result["node_count"] == 64
     assert result["edge_count"] == 64
