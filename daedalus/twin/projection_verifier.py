@@ -39,6 +39,81 @@ class ProjectionVerificationReport:
         return not self.findings
 
 
+def _forest_node_partition(
+    forest: KnowledgeForest,
+    snapshot: FourfoldSnapshot,
+    *,
+    findings: list[ProjectionFinding] | None = None,
+) -> dict[str, str]:
+    """Validate the exact constitutional Forest/Fourfold node partition.
+
+    This is an admission primitive only. It owns the verifier's existing
+    kind-to-plane mapping and checks duplicate/unmapped Forest nodes, exact
+    snapshot membership, and per-kind plane placement. It intentionally does
+    not inspect relation digests, bindings, plane completeness, semirings, or
+    promotion state.
+
+    ``verify_forest_projection`` supplies its findings accumulator so partition
+    divergence remains reportable. Projection consumers omit it and fail
+    closed with the same deterministic finding details.
+    """
+
+    local_findings: list[ProjectionFinding] = []
+    node_plane: dict[str, str] = {}
+    forest_nodes_by_plane = {plane: set() for plane in FOURFOLD_PLANES}
+    for node in forest.nodes:
+        if node.id in node_plane:
+            local_findings.append(ProjectionFinding(
+                "duplicate-forest-node",
+                f"Forest repeats node id {node.id!r}",
+            ))
+            continue
+        plane = _KIND_TO_PLANE.get(node.kind)
+        if plane is None:
+            local_findings.append(ProjectionFinding(
+                "unmapped-forest-node-kind",
+                f"Forest node {node.id!r} has unmapped kind {node.kind!r}",
+            ))
+            continue
+        node_plane[node.id] = plane
+        forest_nodes_by_plane[plane].add(node.id)
+
+    for plane in snapshot.planes:
+        expected = forest_nodes_by_plane[plane.plane]
+        actual = set(plane.node_ids)
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        if missing:
+            local_findings.append(ProjectionFinding(
+                "snapshot-missing-nodes",
+                f"{plane.plane} plane omits Forest nodes: {missing}",
+            ))
+        if extra:
+            local_findings.append(ProjectionFinding(
+                "snapshot-extra-nodes",
+                f"{plane.plane} plane contains nodes absent from the Forest: {extra}",
+            ))
+
+    ordered = tuple(sorted(set(local_findings)))
+    if findings is not None:
+        findings.extend(ordered)
+        return node_plane
+    if ordered:
+        details = "; ".join(
+            f"{finding.code}: {finding.message}" for finding in ordered
+        )
+        codes = {finding.code for finding in ordered}
+        if "snapshot-missing-nodes" in codes:
+            raise ValueError(
+                "Forest nodes are missing from the Fourfold plane partition: "
+                + details
+            )
+        if codes == {"duplicate-forest-node"}:
+            raise ValueError("Forest contains duplicate node ids: " + details)
+        raise ValueError("Forest/Fourfold node partition is not exact: " + details)
+    return node_plane
+
+
 def _relation_digest(edge: ForestEdge | ForestHyperedge) -> str:
     return canonical_sha(edge.to_dict())
 
@@ -82,40 +157,7 @@ def verify_forest_projection(
             "Forest provenance source_revision differs from the Fourfold revision",
         ))
 
-    node_plane: dict[str, str] = {}
-    forest_nodes_by_plane = {plane: set() for plane in FOURFOLD_PLANES}
-    for node in forest.nodes:
-        if node.id in node_plane:
-            findings.append(ProjectionFinding(
-                "duplicate-forest-node",
-                f"Forest repeats node id {node.id!r}",
-            ))
-            continue
-        plane = _KIND_TO_PLANE.get(node.kind)
-        if plane is None:
-            findings.append(ProjectionFinding(
-                "unmapped-forest-node-kind",
-                f"Forest node {node.id!r} has unmapped kind {node.kind!r}",
-            ))
-            continue
-        node_plane[node.id] = plane
-        forest_nodes_by_plane[plane].add(node.id)
-
-    for plane in snapshot.planes:
-        expected = forest_nodes_by_plane[plane.plane]
-        actual = set(plane.node_ids)
-        missing = sorted(expected - actual)
-        extra = sorted(actual - expected)
-        if missing:
-            findings.append(ProjectionFinding(
-                "snapshot-missing-nodes",
-                f"{plane.plane} plane omits Forest nodes: {missing}",
-            ))
-        if extra:
-            findings.append(ProjectionFinding(
-                "snapshot-extra-nodes",
-                f"{plane.plane} plane contains nodes absent from the Forest: {extra}",
-            ))
+    node_plane = _forest_node_partition(forest, snapshot, findings=findings)
 
     relation_digests = {plane: set() for plane in FOURFOLD_PLANES}
     forest_cross_plane: dict[
