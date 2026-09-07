@@ -1,0 +1,127 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-73",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c60c35bad77d0e0b3888d93f859617d4562018d8",
+    "dependencies": "G1-EXP-TENSOR-GPU-72 and the exact base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": ["decision", "title"]
+      },
+      "scope": {
+        "source_fields": ["scope", "audit"]
+      },
+      "contracts_and_behavior": {
+        "source_fields": ["decision", "evidence"]
+      },
+      "acceptance_matrix": {
+        "source_fields": ["verification", "evidence"]
+      },
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene"],
+        "projection_note": "Closed research packet only. Removing this packet rolls back only the audit record; it does not alter the retained public shim or production behavior."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["evidence", "verification", "claim_boundaries", "governance"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-73",
+  "work_packet": "G1-EXP-TENSOR-GPU-73",
+  "title": "Retain the public Boolean compatibility shim after live-caller audit",
+  "classification": "research-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "c60c35bad77d0e0b3888d93f859617d4562018d8",
+  "scope": "Audit whether boolean_relation_block_from_fourfold is now only historical baggage after GPU-71/72 or remains a live compatibility contract. Do not remove or deprecate public API in this packet and do not create another projection surface.",
+  "audit": {
+    "production_internal_callers": "Repository exact-name search plus branch-specific inspection found no production caller beyond relation_projection.py itself and the package re-export in daedalus/twin/__init__.py.",
+    "public_package_contract": "The symbol is explicitly re-exported in daedalus.twin.__all__, and .github/workflows/fourfold-v2.yml imports it in the Verify public package API step. Removing it now would therefore be an intentional public compatibility break rather than ordinary gardening.",
+    "live_test_and_probe_callers": [
+      "tests/twin/test_fourfold_relation_projection.py directly pins the historical single-relation call shape while now inheriting canonical compiler semantics.",
+      "tests/twin/test_tensor_forest_cost_probe.py uses the shim to construct Boolean CSR relation blocks in the diagnostic-only Forest/Tensor cost probe.",
+      "tests/twin/test_tensor_heldout_csr_probe.py uses the shim for the held-out diagnostic CSR arm.",
+      "The Fourfold/Tensor workflow runs tests/twin and separately checks the exported symbol as public package API."
+    ],
+    "documentation": "docs/wiki/architecture/twin.md still names boolean_relation_block_from_fourfold as a Twin module surface. Its wording predates GPU-71/72 and should be aligned later so compile_relation_blocks is unambiguously the implementation owner while the shim is described only as compatibility.",
+    "historical_evidence_deleted": false
+  },
+  "decision": {
+    "production_change": false,
+    "retain_public_shim": true,
+    "deprecate_public_shim": false,
+    "remove_public_shim": false,
+    "summary": "The alias is not dead historical baggage: it is an intentionally exported public call shape, is checked by CI as package API, and remains used by compatibility and diagnostic probe surfaces. Keep the already-thin shim. Do not add a deprecation wrapper, alias registry or second projector merely to make future removal easier.",
+    "gardener_note": "GPU-71/72 already removed the duplicated implementation and diagnostic authority. GPU-73 stops the deletion campaign at the correct boundary: one small compatibility facade is cheaper and safer than a breaking removal or another compatibility layer."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "compatibility_shim": "daedalus/twin/relation_projection.py@3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+    "package_export": "daedalus/twin/__init__.py@4c39ed78e92828463db3be4053d22fc95fd94e7b",
+    "public_api_workflow": ".github/workflows/fourfold-v2.yml@6bb9e05148720504b85a4c15bd298ed01998f6ca",
+    "compatibility_tests": "tests/twin/test_fourfold_relation_projection.py@c274fdc57db3d2df5fff2b0ca48d5db355acb267",
+    "forest_cost_probe": "tests/twin/test_tensor_forest_cost_probe.py@e5f9f31bd72cc2347a6ed4fd96d9bd7a54c30452",
+    "heldout_csr_probe": "tests/twin/test_tensor_heldout_csr_probe.py@7a57ec72b6ab4a9dd99071bae70d4a10e611b15e",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "source-contract and live-caller audit",
+    "production_tests_run": false,
+    "new_green_claim": false,
+    "base_code_head": "c60c35bad77d0e0b3888d93f859617d4562018d8",
+    "notes": "This packet intentionally changes no production or test behavior. Verification is exact source/blob inspection of the public export, CI API contract, compatibility tests and diagnostic probe callers. GPU-72 remains the immediately preceding tested code state; GPU-73 does not relabel that evidence as a new full-suite result."
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "new_public_api": false,
+    "public_compatibility_call_shape_removed": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false,
+    "premature_breaking_removal_avoided": true
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-74 only: repair the remaining Twin architecture documentation drift so compile_relation_blocks is named as the sole relation-projection implementation owner and boolean_relation_block_from_fourfold only as a retained public compatibility facade. Audit diagnostic probes separately before changing their construction path because batching signatures would change measured construction semantics. Do not remove the public shim, create a second compatibility layer, or widen claims."
+}
