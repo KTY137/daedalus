@@ -357,11 +357,17 @@ def compile_relation_blocks(
                 and signature.target_plane in member_planes
                 for signature in requested_set
             )
-        if conflicts:
-            raise ValueError(
-                f"cannot flatten a retained ForestHyperedge {hyperedge.id!r} "
-                "into pairwise relation blocks without losing semantics"
-            )
+        if not conflicts:
+            continue
+        if len(member_planes) == 1:
+            plane = next(iter(member_planes))
+            hyperedge_digest = canonical_sha(hyperedge.to_dict())
+            if hyperedge_digest not in retained_relation_digests[plane]:
+                continue
+        raise ValueError(
+            f"cannot flatten a retained ForestHyperedge {hyperedge.id!r} "
+            "into pairwise relation blocks without losing semantics"
+        )
 
     discovered: set[RelationSignature] = set()
     binding_records: list[tuple[CrossPlaneBinding, RelationSignature]] = []
