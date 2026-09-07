@@ -23,6 +23,7 @@ const WATCHER: Record<string, string> = {
 };
 
 const THREAD_KEY = 'daedalus-thread';
+const SAFE_PROJECT_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 type DispatchReadPhase = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -47,6 +48,17 @@ function watcherWord(value: string | undefined): string {
 }
 
 /**
+ * Build a copy/paste command only for a project identifier that is safe as one
+ * shell token on every shell we support. Project labels are still rendered by
+ * React, but they must never be interpolated into executable-looking guidance
+ * when whitespace, option prefixes or metacharacters could change argv.
+ */
+function watcherStartCommand(project: string): string | undefined {
+  if (!SAFE_PROJECT_TOKEN.test(project)) return undefined;
+  return `python -m daedalus.file_bridge watch --project ${project}`;
+}
+
+/**
  * Turn a FRESH bridge heartbeat verdict into the smallest safe next action.
  *
  * This is guidance only: the cockpit does not acquire execution authority and
@@ -67,9 +79,10 @@ export function watcherGuidance(
   if (!evidenceLive || !value) return undefined;
   const state = value.toLowerCase();
   if (state === 'none' || state === 'stopped') {
+    const command = watcherStartCommand(project);
     return {
       message: 'Aktion empfohlen: Bridge-Wächter starten',
-      command: `python -m daedalus.file_bridge watch --project ${project}`
+      ...(command ? { command } : {})
     };
   }
   if (state === 'stale') {
