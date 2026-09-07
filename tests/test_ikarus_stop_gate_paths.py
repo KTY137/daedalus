@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 
@@ -29,9 +30,28 @@ def _workflow_text() -> str:
     return WORKFLOW.read_text(encoding="utf-8")
 
 
+def _quoted_list_values(text: str) -> tuple[str, ...]:
+    """Return quoted YAML list scalars without pretending to parse all YAML."""
+    values: list[str] = []
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if not (stripped.startswith('- "') and stripped.endswith('"')):
+            continue
+        values.append(stripped[3:-1])
+    return tuple(values)
+
+
 def test_stop_seam_paths_trigger_gate_one() -> None:
-    text = _workflow_text()
-    missing = [path for path in STOP_SEAM_PATHS if f'- "{path}"' not in text]
+    # Path filters are glob patterns.  Requiring every protected file to appear
+    # as an exact literal made the guard reject the stronger, lower-drift
+    # `apps/web/src/cockpit/**` coverage.  Test the semantics GitHub applies:
+    # every protected seam must be matched by at least one configured pattern.
+    patterns = _quoted_list_values(_workflow_text())
+    missing = [
+        path
+        for path in STOP_SEAM_PATHS
+        if not any(fnmatchcase(path, pattern) for pattern in patterns)
+    ]
     assert not missing, f"Gate 1 path filter misses JARVIS Stop seam(s): {missing}"
 
 
