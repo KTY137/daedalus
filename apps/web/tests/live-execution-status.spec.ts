@@ -15,6 +15,24 @@ test.describe('live execution evidence', () => {
     });
   });
 
+  test('normalizes the legacy bridge boolean without losing active-work evidence', () => {
+    expect(liveExecutionStatus({ streamLive: true, inFlight: true, queued: 0 })).toEqual({
+      text: 'Ausführung live · 1 aktiv · 0 wartend',
+      tone: 'ok',
+      stale: false
+    });
+    expect(liveExecutionStatus({ streamLive: true, inFlight: false, queued: 0 })).toEqual({
+      text: 'Ausführung live · nichts aktiv',
+      tone: 'ok',
+      stale: false
+    });
+    expect(liveExecutionStatus({ streamLive: false, inFlight: true, queued: 2 })).toEqual({
+      text: 'Ereignisstrom getrennt · letzter Stand: 1 aktiv · 2 wartend',
+      tone: 'warn',
+      stale: true
+    });
+  });
+
   test('marks cached counters stale as soon as the event stream is gone', () => {
     expect(liveExecutionStatus({ streamLive: false, inFlight: 2, queued: 1 })).toEqual({
       text: 'Ereignisstrom getrennt · letzter Stand: 2 aktiv · 1 wartend',
