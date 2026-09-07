@@ -31,6 +31,8 @@ import { Decision } from './Decision';
 import { buildIndex, defaultFocus, neighbourhood, rankModules, searchModules, shortLabel } from './graph';
 import { Stage } from './Stage';
 import { StatusLine } from './StatusLine';
+import { WorkPulse } from './WorkPulse';
+import { emptyLiveWork, markLiveWorkDisconnected, reduceLiveWork, type LiveWorkState } from './liveWork';
 import './cockpit.css';
 
 /**
@@ -111,8 +113,8 @@ export function Cockpit() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteActive, setPaletteActive] = useState(0);
   const [query, setQuery] = useState('');
-  const [live, setLive] = useState<{ inFlight?: number; queued?: number }>({});
-  const [streamLive, setStreamLive] = useState(false);
+  /** One project-scoped observation state for both the footer and work rail. */
+  const [live, setLive] = useState<LiveWorkState>(() => emptyLiveWork());
   const [budget, setBudget] = useState<{ hidden1: number; hidden2: number; ids: string[] }>({ hidden1: 0, hidden2: 0, ids: [] });
   const [paletteScope, setPaletteScope] = useState<'all' | 'hidden'>('all');
   const [draftSignal, setDraftSignal] = useState(0);
@@ -225,27 +227,22 @@ export function Cockpit() {
     };
   }, [project]);
 
-  /* ---- live counters ---- */
+  /* ---- live work evidence ---- */
   useEffect(() => {
     if (!project) return;
+    // The project name changes before its stream has produced a frame. Clear
+    // the old project's observation immediately rather than relabelling it.
+    setLive(emptyLiveWork(project));
     const es = openEventStream(project, (name, data) => {
-      const d = (data || {}) as Record<string, number>;
-      if (name === 'hello') {
-        setStreamLive(true);
-        setLive({ inFlight: d.in_flight, queued: d.queue_depth });
-      } else if (name === 'heartbeat') {
-        setStreamLive(true);
-        setLive((prev) => ({ ...prev, inFlight: d.in_flight ?? prev.inFlight }));
-      } else if (name === 'queue') {
-        setLive((prev) => ({ ...prev, queued: d.queue_depth ?? prev.queued }));
-      } else if (name === 'report') {
-        setDraftSignal((n) => n + 1);
-      }
+      setLive((prev) => reduceLiveWork(prev, project, name, data));
+      if (name === 'report') setDraftSignal((n) => n + 1);
     });
-    es.addEventListener('error', () => setStreamLive(false));
+    const disconnected = () => setLive((prev) => markLiveWorkDisconnected(prev, project));
+    es.addEventListener('error', disconnected);
     return () => {
+      es.removeEventListener('error', disconnected);
       es.close();
-      setStreamLive(false);
+      setLive((prev) => markLiveWorkDisconnected(prev, project));
     };
   }, [project]);
 
@@ -597,6 +594,7 @@ export function Cockpit() {
             {conversation}
           </section>
           <aside className="talk-side">
+            <WorkPulse project={project} live={live} />
             {nh && (
               <div className="focuscard">
                 <span className="focuscard-eyebrow">Auf der Karte</span>
@@ -626,7 +624,7 @@ export function Cockpit() {
           topology={topology}
           inFlight={live.inFlight}
           queued={live.queued}
-          streamLive={streamLive}
+          streamLive={live.connected === true}
           onOpenHealth={() => setStudioOpen(false)}
         />
       </footer>
