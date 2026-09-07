@@ -7,6 +7,13 @@ export interface DispatchPulseItem {
   description?: string;
   descriptionSource: DispatchDescriptionSource;
   lane?: string;
+  /** Optional execution attribution copied only from durable bound evidence. */
+  workItemId?: string;
+  attemptId?: string;
+  agent?: string;
+  tool?: string;
+  runtimeId?: string;
+  phase?: string;
 }
 
 export interface DispatchPulseProjection {
@@ -52,6 +59,8 @@ interface AcceptedDispatch extends DispatchPulseItem {
  *   non-empty objective, otherwise they are rejected rather than guessed;
  * - an unsupported identity schema is also rejected instead of falling back to
  *   an older turn whose attribution may no longer describe the bound dispatch;
+ * - execution attribution (agent/tool/runtime/phase/WorkItem/Attempt) is copied
+ *   only from the bound snapshot; legacy chat turns never manufacture it;
  * - legacy dispatches with no identity schema may still derive lane/objective
  *   from their causal turn, with the existing cross-project checks preserved;
  * - `descriptionSource` keeps bound evidence distinct from that legacy
@@ -96,6 +105,12 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
         description: objective,
         descriptionSource: 'bound',
         lane: text(detail.lane),
+        workItemId: text(detail.work_item_id),
+        attemptId: text(detail.attempt_id),
+        agent: text(detail.agent),
+        tool: text(detail.tool),
+        runtimeId: text(detail.runtime_id),
+        phase: text(detail.phase),
         order
       });
       return;

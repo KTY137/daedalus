@@ -7,7 +7,7 @@ import { NOT_BUILT } from './_app';
  * conversation spine's `open_dispatches`; the live file-bus stream only tells
  * the card when that read should be refreshed.
  */
-test('work pulse prefers bound dispatch identity, keeps legacy fallback, and clears after a report', async ({ page }) => {
+test('work pulse prefers bound dispatch identity, shows bound execution evidence, keeps legacy fallback, and clears after a report', async ({ page }) => {
   let reported = false;
 
   await page.addInitScript(() => {
@@ -185,7 +185,13 @@ test('work pulse prefers bound dispatch identity, keeps legacy fallback, and cle
             provider_used: 'deterministic',
             proposed_action: {
               kind: 'queue_task',
-              args: { project: 'jarvis-project', objective: 'Legacy-Auftrag', lane: 'legacy_lane' },
+              args: {
+                project: 'jarvis-project',
+                objective: 'Legacy-Auftrag',
+                lane: 'legacy_lane',
+                agent: 'legacy-agent-must-not-render',
+                runtime_id: 'legacy-runtime-must-not-render'
+              },
               requires_confirmation: true
             }
           },
@@ -223,7 +229,13 @@ test('work pulse prefers bound dispatch identity, keeps legacy fallback, and cle
                 schema: 'conversation.dispatch.identity.v1',
                 project: 'jarvis-project',
                 objective: 'Parser härten',
-                lane: 'local_only'
+                lane: 'local_only',
+                work_item_id: 'work-parser-42',
+                attempt_id: 'attempt-parser-7',
+                agent: 'qa-critic',
+                tool: 'read-file',
+                runtime_id: 'claude-code',
+                phase: 'executing'
               }
             }
           },
@@ -327,8 +339,16 @@ test('work pulse prefers bound dispatch identity, keeps legacy fallback, and cle
   await expect(pulse).toContainText('Auftrag: Parser härten');
   await expect(pulse).toContainText('Lane local_only');
   await expect(pulse).toContainText('auf Bericht wartend');
+  await expect(pulse).toContainText('Agent qa-critic');
+  await expect(pulse).toContainText('Tool read-file');
+  await expect(pulse).toContainText('Runtime claude-code');
+  await expect(pulse).toContainText('Phase executing');
+  await expect(pulse).toContainText('WorkItem work-parser-42');
+  await expect(pulse).toContainText('Attempt attempt-parser-7');
   await expect(pulse).toContainText('Auftrag: Legacy-Auftrag');
   await expect(pulse).toContainText('Lane legacy_lane');
+  await expect(pulse).not.toContainText('legacy-agent-must-not-render');
+  await expect(pulse).not.toContainText('legacy-runtime-must-not-render');
   await expect(pulse).not.toContainText('Fremdes Projekt ausführen');
   await expect(pulse).not.toContainText('foreign_dispatch');
   await expect(pulse).not.toContainText('Ohne Projekt darf das nicht erscheinen');

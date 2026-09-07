@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { dispatchPulseFromConversation } from '../src/cockpit/dispatchPulse';
-import { dispatchEvidenceLabel } from '../src/cockpit/WorkPulse';
+import { boundExecutionLine, dispatchEvidenceLabel } from '../src/cockpit/WorkPulse';
 
 const PROJECT = 'jarvis-project';
 
@@ -29,7 +29,13 @@ test('bound dispatch identity is distinguishable from legacy reconstruction', ()
         user_message: 'Legacy-Auftrag ausführen',
         proposed_action: {
           kind: 'queue_task',
-          args: { project: PROJECT, objective: 'Legacy-Auftrag', lane: 'local_only' }
+          args: {
+            project: PROJECT,
+            objective: 'Legacy-Auftrag',
+            lane: 'local_only',
+            agent: 'legacy-agent-must-not-be-promoted',
+            runtime_id: 'legacy-runtime-must-not-be-promoted'
+          }
         }
       }
     ],
@@ -38,7 +44,13 @@ test('bound dispatch identity is distinguishable from legacy reconstruction', ()
         schema: 'conversation.dispatch.identity.v1',
         project: PROJECT,
         objective: 'Parser härten',
-        lane: 'claude'
+        lane: 'claude',
+        work_item_id: 'work-parser-42',
+        attempt_id: 'attempt-parser-7',
+        agent: 'qa-critic',
+        tool: 'read-file',
+        runtime_id: 'claude-code',
+        phase: 'executing'
       }),
       dispatch('legacy-ref', 42)
     ]
@@ -52,16 +64,28 @@ test('bound dispatch identity is distinguishable from legacy reconstruction', ()
   expect(bound).toMatchObject({
     description: 'Parser härten',
     descriptionSource: 'bound',
-    lane: 'claude'
+    lane: 'claude',
+    workItemId: 'work-parser-42',
+    attemptId: 'attempt-parser-7',
+    agent: 'qa-critic',
+    tool: 'read-file',
+    runtimeId: 'claude-code',
+    phase: 'executing'
   });
   expect(legacy).toMatchObject({
     description: 'Legacy-Auftrag',
     descriptionSource: 'action',
     lane: 'local_only'
   });
+  expect(legacy?.agent).toBeUndefined();
+  expect(legacy?.runtimeId).toBeUndefined();
 
   expect(dispatchEvidenceLabel(bound!.descriptionSource)).toBe('gebundene Evidenz');
   expect(dispatchEvidenceLabel(legacy!.descriptionSource)).toBe('aus Chatverlauf rekonstruiert');
+  expect(boundExecutionLine(bound!)).toBe(
+    'Agent qa-critic · Tool read-file · Runtime claude-code · Phase executing · WorkItem work-parser-42 · Attempt attempt-parser-7'
+  );
+  expect(boundExecutionLine(legacy!)).toBeUndefined();
 });
 
 test('missing identity stays visibly unbound instead of inheriting confidence', () => {
@@ -77,4 +101,5 @@ test('missing identity stays visibly unbound instead of inheriting confidence', 
     descriptionSource: 'none'
   });
   expect(dispatchEvidenceLabel(pulse.items[0].descriptionSource)).toBe('Identität nicht gebunden');
+  expect(boundExecutionLine(pulse.items[0])).toBeUndefined();
 });

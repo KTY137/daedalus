@@ -3,6 +3,7 @@ import { getConversation } from '../api';
 import {
   dispatchPulseFromConversation,
   type DispatchDescriptionSource,
+  type DispatchPulseItem,
   type DispatchPulseProjection
 } from './dispatchPulse';
 import { liveExecutionStatus } from './liveExecution';
@@ -143,6 +144,23 @@ function dispatchStatus(read: DispatchRead): string {
 }
 
 /**
+ * Render only execution facts that were frozen on the versioned dispatch
+ * evidence itself. Lane or chat wording never gets promoted into an agent,
+ * runtime, phase, WorkItem or Attempt identity.
+ */
+export function boundExecutionLine(item: DispatchPulseItem): string | undefined {
+  if (item.descriptionSource !== 'bound') return undefined;
+  const parts: string[] = [];
+  if (item.agent) parts.push(`Agent ${briefText(item.agent)}`);
+  if (item.tool) parts.push(`Tool ${briefText(item.tool)}`);
+  if (item.runtimeId) parts.push(`Runtime ${briefText(item.runtimeId)}`);
+  if (item.phase) parts.push(`Phase ${briefText(item.phase)}`);
+  if (item.workItemId) parts.push(`WorkItem ${shortRef(item.workItemId)}`);
+  if (item.attemptId) parts.push(`Attempt ${shortRef(item.attemptId)}`);
+  return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
+/**
  * A compact JARVIS-style glance: what is running, what needs attention, what
  * has not reported back yet, and what most recently finished.
  *
@@ -245,17 +263,25 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
         {dispatches.pulse.items.map((item) => {
           const started = timeLabel(item.startedAt);
           const description = item.description ? briefText(item.description) : '';
+          const executionEvidence = boundExecutionLine(item);
           return (
-            <div className="focuscard-counts" key={item.ref}>
-              {description
-                ? `${item.descriptionSource === 'turn' ? 'Auslöser' : 'Auftrag'}: ${description}`
-                : `Auftrag · ${item.kind}`}
-              {item.lane ? ` · Lane ${item.lane}` : ''}
-              {` · ${dispatchEvidenceLabel(item.descriptionSource)}`}
-              {' · auf Bericht wartend'}
-              {started ? ` · seit ${started}` : ''}
-              {' · '}
-              <code title={item.ref}>{shortRef(item.ref)}</code>
+            <div key={item.ref}>
+              <div className="focuscard-counts">
+                {description
+                  ? `${item.descriptionSource === 'turn' ? 'Auslöser' : 'Auftrag'}: ${description}`
+                  : `Auftrag · ${item.kind}`}
+                {item.lane ? ` · Lane ${item.lane}` : ''}
+                {` · ${dispatchEvidenceLabel(item.descriptionSource)}`}
+                {' · auf Bericht wartend'}
+                {started ? ` · seit ${started}` : ''}
+                {' · '}
+                <code title={item.ref}>{shortRef(item.ref)}</code>
+              </div>
+              {executionEvidence && (
+                <div className="focuscard-counts" aria-label="Gebundene Ausführungsevidenz">
+                  {executionEvidence}
+                </div>
+              )}
             </div>
           );
         })}
