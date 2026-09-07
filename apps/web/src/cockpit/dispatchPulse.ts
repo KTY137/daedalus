@@ -18,6 +18,7 @@ export interface DispatchPulseProjection {
 
 const DISPLAY_LIMIT = 3;
 const DISPATCH_IDENTITY_SCHEMA = 'conversation.dispatch.identity.v1';
+const DISPATCH_IDENTITY_PREFIX = 'conversation.dispatch.identity.';
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -49,8 +50,10 @@ interface AcceptedDispatch extends DispatchPulseItem {
  *   it survives the bounded conversation-turn window;
  * - recognized identity snapshots must name this exact project and carry a
  *   non-empty objective, otherwise they are rejected rather than guessed;
- * - legacy dispatches may still derive lane/objective from their causal turn,
- *   with the existing cross-project checks preserved;
+ * - an unsupported identity schema is also rejected instead of falling back to
+ *   an older turn whose attribution may no longer describe the bound dispatch;
+ * - legacy dispatches with no identity schema may still derive lane/objective
+ *   from their causal turn, with the existing cross-project checks preserved;
  * - malformed rows disappear instead of becoming plausible-looking work.
  */
 export function dispatchPulseFromConversation(value: unknown, project: string): DispatchPulseProjection {
@@ -76,7 +79,10 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
     if (!ref) return;
 
     const detail = object(latest.detail);
-    if (text(detail.schema) === DISPATCH_IDENTITY_SCHEMA) {
+    const identitySchema = text(detail.schema);
+    if (identitySchema?.startsWith(DISPATCH_IDENTITY_PREFIX)) {
+      if (identitySchema !== DISPATCH_IDENTITY_SCHEMA) return;
+
       const identityProject = text(detail.project);
       const objective = text(detail.objective);
       if (identityProject !== project || !objective) return;
