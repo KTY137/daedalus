@@ -204,6 +204,7 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
     inFlight: scoped.inFlight,
     queued: scoped.queued
   });
+  const attentionComplete = scoped.unread !== undefined && scoped.quarantined !== undefined;
   const attentionKnown = scoped.unread !== undefined || scoped.quarantined !== undefined;
   const attention = (scoped.unread || 0) + (scoped.quarantined || 0);
   const stale = scoped.connected === false;
@@ -277,11 +278,13 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
       )}
 
       <span className="focuscard-counts">
-        {attentionKnown
+        {attentionComplete
           ? attention > 0
             ? `${attention} braucht Aufmerksamkeit${scoped.unread ? ` · ${scoped.unread} ungelesen` : ''}${scoped.quarantined ? ` · ${scoped.quarantined} Quarantäne` : ''}`
             : 'Nichts als ungelesen oder quarantiniert gemeldet'
-          : 'Aufmerksamkeitszähler noch nicht gemeldet'}
+          : attentionKnown
+            ? `Aufmerksamkeitsstatus unvollständig${scoped.unread !== undefined ? ` · ${scoped.unread} ungelesen` : ' · ungelesen unbekannt'}${scoped.quarantined !== undefined ? ` · ${scoped.quarantined} Quarantäne` : ' · Quarantäne unbekannt'}`
+            : 'Aufmerksamkeitszähler noch nicht gemeldet'}
         {attentionKnown && stale ? ' · beim letzten Verbinden gezählt' : ''}
       </span>
 
