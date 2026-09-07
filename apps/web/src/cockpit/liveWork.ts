@@ -30,11 +30,16 @@ export interface LiveWorkState {
   unread?: number;
   quarantined?: number;
   watcher?: string;
+  /** Newest accepted report, kept for the compact one-line consumers. */
   latest?: LiveReportBrief;
+  /** Bounded session projection; the durable ledger remains the history. */
+  recent: LiveReportBrief[];
 }
 
+const RECENT_REPORT_LIMIT = 3;
+
 export function emptyLiveWork(project = ''): LiveWorkState {
-  return { project, connected: null };
+  return { project, connected: null, recent: [] };
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -81,6 +86,15 @@ function latestReport(previous: LiveReportBrief | undefined, next: LiveReportBri
 }
 
 /**
+ * Keep the most recent observations without turning the UI into a second
+ * history store. Report names are the bridge's stable one-line identity, so a
+ * refreshed report replaces its older projection instead of appearing twice.
+ */
+function placeReport(previous: LiveReportBrief[], next: LiveReportBrief): LiveReportBrief[] {
+  return [next, ...previous.filter((row) => row.name !== next.name)].slice(0, RECENT_REPORT_LIMIT);
+}
+
+/**
  * Fold one canonical project event into the projection.
  *
  * A project switch starts from an empty projection before applying the first
@@ -99,6 +113,7 @@ export function reduceLiveWork(
 
   if (name === 'hello') {
     const latest = reportBrief(d.latest_report);
+    const scopedLatest = latest && (!latest.project || latest.project === project) ? latest : undefined;
     return {
       project,
       connected: true,
@@ -107,7 +122,8 @@ export function reduceLiveWork(
       unread: count(d.unread_count),
       quarantined: count(d.quarantined_count),
       watcher: text(d.watcher_state),
-      latest: latest && (!latest.project || latest.project === project) ? latest : undefined
+      latest: scopedLatest,
+      recent: scopedLatest ? [scopedLatest] : []
     };
   }
 
@@ -128,7 +144,14 @@ export function reduceLiveWork(
   if (name === 'report') {
     const latest = reportBrief(d);
     if (!latest || (latest.project && latest.project !== project)) return prev;
-    return { ...prev, project, latest: latestReport(prev.latest, latest) };
+    const newest = latestReport(prev.latest, latest);
+    if (newest !== latest) return { ...prev, project, latest: newest };
+    return {
+      ...prev,
+      project,
+      latest: newest,
+      recent: placeReport(prev.recent, latest)
+    };
   }
 
   return prev;

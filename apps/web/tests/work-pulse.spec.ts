@@ -3,11 +3,11 @@ import { NOT_BUILT } from './_app';
 
 /**
  * The chat rail must consume the work facts already carried by the canonical
- * project event stream instead of inventing a second task store.  A controlled
- * EventSource makes watcher/attention/report evidence deterministic and also
- * proves that a disconnect downgrades the same facts to last-known evidence.
+ * project event stream instead of inventing a second task store. A controlled
+ * EventSource makes watcher/attention/report evidence deterministic, proves
+ * the bridge's real watcher vocabulary, and pins bounded recent-report history.
  */
-test('work pulse projects running, attention and latest-report evidence honestly', async ({ page }) => {
+test('work pulse projects canonical watcher and recent-report evidence honestly', async ({ page }) => {
   await page.addInitScript(() => {
     type Listener = EventListenerOrEventListenerObject;
 
@@ -35,7 +35,7 @@ test('work pulse projects running, attention and latest-report evidence honestly
               queue_depth: 3,
               unread_count: 2,
               quarantined_count: 1,
-              watcher_state: 'running',
+              watcher_state: 'busy',
               latest_report: {
                 id: 'report-7',
                 name: 'verify-ui',
@@ -56,7 +56,7 @@ test('work pulse projects running, attention and latest-report evidence honestly
         this.emitEvent('error', new Event('error'));
       }
 
-      private emit(name: string, data: unknown): void {
+      emit(name: string, data: unknown): void {
         this.emitEvent(name, new MessageEvent<string>(name, { data: JSON.stringify(data) }));
       }
 
@@ -84,10 +84,31 @@ test('work pulse projects running, attention and latest-report evidence honestly
   const pulse = page.locator('[aria-label="Live-Arbeit"]');
   await expect(pulse).toBeVisible({ timeout: 20_000 });
   await expect(pulse).toContainText('Ausführung live · 1 aktiv · 3 wartend');
-  await expect(pulse).toContainText('Wächter: läuft');
+  await expect(pulse).toContainText('Wächter: arbeitet');
   await expect(pulse).toContainText('3 braucht Aufmerksamkeit · 2 ungelesen · 1 Quarantäne');
   await expect(pulse).toContainText('Zuletzt berichtet: verify-ui · done · local_only');
   await expect(pulse).toContainText('52 browser checks green');
+
+  await page.evaluate(() => {
+    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('report', {
+      id: 'report-8',
+      name: 'lint-core',
+      lane: 'local_only',
+      status: 'done',
+      summary: 'Typen sauber',
+      created_at: '2026-09-07T09:41:00Z'
+    });
+  });
+  await expect(pulse).toContainText('Zuletzt berichtet: lint-core · done · local_only · Typen sauber');
+  await expect(pulse).toContainText('Davor: verify-ui · done · local_only · 52 browser checks green');
+
+  await page.evaluate(() => {
+    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('heartbeat', {
+      in_flight: true,
+      watcher_state: 'wedged'
+    });
+  });
+  await expect(pulse).toContainText('Wächter: möglicherweise festgefahren');
 
   await page.evaluate(() => {
     (window as unknown as { __workSource?: { fail(): void } }).__workSource?.fail();

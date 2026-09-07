@@ -1,12 +1,17 @@
 import { liveExecutionStatus } from './liveExecution';
 import { emptyLiveWork, type LiveReportBrief, type LiveWorkState } from './liveWork';
 
+/** Canonical heartbeat states from file_bridge. Unknown values stay verbatim. */
 const WATCHER: Record<string, string> = {
+  alive: 'bereit',
+  busy: 'arbeitet',
+  wedged: 'möglicherweise festgefahren',
+  stale: 'veraltet',
+  none: 'nicht gestartet',
+  // Compatibility aliases for older bridge projections.
   running: 'läuft',
   idle: 'wartet',
-  stopped: 'gestoppt',
-  stale: 'veraltet',
-  none: 'nicht gestartet'
+  stopped: 'gestoppt'
 };
 
 function watcherWord(value: string | undefined): string {
@@ -53,10 +58,15 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
         {attentionKnown && stale ? ' · beim letzten Verbinden gezählt' : ''}
       </span>
 
-      {scoped.latest ? (
-        <div className="focuscard-counts" aria-label="Letzter Bericht">
-          <span>Zuletzt berichtet: {reportLine(scoped.latest)}</span>
-          {scoped.latest.summary ? <span> · {scoped.latest.summary}</span> : null}
+      {scoped.recent.length > 0 ? (
+        <div aria-label="Letzte Berichte">
+          {scoped.recent.map((report, index) => (
+            <div className="focuscard-counts" key={report.id || `${report.name}:${report.createdAt || index}`}>
+              {index === 0 ? 'Zuletzt berichtet: ' : 'Davor: '}
+              {reportLine(report)}
+              {report.summary ? ` · ${report.summary}` : ''}
+            </div>
+          ))}
         </div>
       ) : (
         <span className="focuscard-counts">Noch kein Abschlussbericht beobachtet</span>
