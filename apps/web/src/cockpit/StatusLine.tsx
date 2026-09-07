@@ -1,5 +1,6 @@
 import type { HealthPayload } from '../api';
 import type { GovernancePayload, StructurePayload, TopologyPayload } from '../types';
+import { liveExecutionStatus } from './liveExecution';
 
 /**
  * Two lines of state, and every item in it is a fact somebody can check.
@@ -74,6 +75,7 @@ export function StatusLine({
   const ignored = s?.ignored;
   const topo = topology?.topology;
   const promotionTone = !governance ? 'pending' : governance.promotion_allowed ? 'ok' : 'warn';
+  const execution = liveExecutionStatus({ streamLive, inFlight, queued });
 
   return (
     <div className="statusline" role="status" aria-label="Systemzustand">
@@ -169,11 +171,12 @@ export function StatusLine({
         <span className="status-sep" aria-hidden="true" />
 
         <span className="status-group">
-          <span className="status-item">
-            <span className={`dot ${streamLive ? 'ok' : 'muted'}`} aria-hidden="true" />
-            {streamLive ? 'live' : 'kein Ereignisstrom'}
-            {typeof inFlight === 'number' ? ` · ${inFlight} laufen` : ''}
-            {typeof queued === 'number' ? ` · ${queued} in der Schlange` : ''}
+          <span
+            className={`status-item ${execution.tone}`}
+            title={execution.stale ? 'Die Zahlen sind der letzte beobachtete Stand vor dem Verbindungsverlust, nicht der aktuelle Zustand.' : undefined}
+          >
+            <span className={`dot ${execution.tone}`} aria-hidden="true" />
+            {execution.text}
           </span>
         </span>
       </div>
