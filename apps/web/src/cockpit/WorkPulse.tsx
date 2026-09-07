@@ -39,7 +39,7 @@ export interface WatcherGuidance {
 }
 
 function emptyDispatchRead(project = '', phase: DispatchReadPhase = 'idle'): DispatchRead {
-  return { project, phase, pulse: { total: 0, items: [] } };
+  return { project, phase, pulse: { total: 0, unresolved: 0, items: [] } };
 }
 
 function watcherWord(value: string | undefined): string {
@@ -140,20 +140,34 @@ function timeLabel(value: string | undefined): string {
   return when.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
+function unresolvedDispatchText(total: number): string {
+  return `${total} ${total === 1 ? 'projektgebundene Dispatch-Evidenz ist' : 'projektgebundene Dispatch-Evidenzen sind'} nicht sicher interpretierbar`;
+}
+
 function dispatchStatus(read: DispatchRead): string {
   const total = read.pulse.total;
+  const unresolved = read.pulse.unresolved;
   const count = `${total} ${total === 1 ? 'offener Auftrag' : 'offene Aufträge'}`;
+  const unresolvedText = unresolved > 0 ? unresolvedDispatchText(unresolved) : '';
   if (read.phase === 'loading') {
-    return total > 0
+    const base = total > 0
       ? `${count} · wird mit dem kanonischen Verlauf abgeglichen`
       : 'Offene Aufträge werden mit dem kanonischen Verlauf abgeglichen';
+    return unresolvedText ? `${base} · ${unresolvedText}` : base;
   }
   if (read.phase === 'error') {
-    return total > 0
+    const base = total > 0
       ? `${count} · letzter lesbarer Stand; aktueller Verlauf nicht lesbar`
       : 'Offene Aufträge konnten aus dem aktuellen Verlauf nicht gelesen werden';
+    return unresolvedText ? `${base} · ${unresolvedText}` : base;
   }
-  return total > 0 ? `${count} · warten auf Bericht` : 'Keine offenen Aufträge im aktuellen Verlauf';
+  if (total > 0) {
+    const base = `${count} · warten auf Bericht`;
+    return unresolvedText ? `${base} · ${unresolvedText}` : base;
+  }
+  return unresolvedText
+    ? `Keine verifizierbaren offenen Aufträge · ${unresolvedText}`
+    : 'Keine offenen Aufträge im aktuellen Verlauf';
 }
 
 /**
