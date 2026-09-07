@@ -684,6 +684,7 @@ function IkarusPanel({
           <label className="brain-pick">
             <Cpu size={13} style={{ color: 'var(--accent)' }} />
             <select
+              key={runtimeError ? 'runtime-inventory-stale' : 'runtime-inventory-fresh'}
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               aria-label="Ikarus brain / provider"
