@@ -42,11 +42,13 @@ def boolean_relation_block_from_fourfold(
     """Project one exact relation family into the Boolean reference block.
 
     Cross-plane relations come only from independently verified
-    ``FourfoldSnapshot.bindings``.  Same-plane relations come only from binary,
-    directed ``ForestEdge`` payloads whose exact canonical digest is retained by
-    that plane's ``relation_sha256s``.  Retained hyperedges and undirected edges
-    refuse rather than being flattened into a pairwise/directional meaning that
-    the Fourfold subject did not assert.
+    ``FourfoldSnapshot.bindings``.  Matching raw cross-plane ``ForestEdge``
+    payloads are consistency inputs only and refuse if the exact verified
+    binding is absent; they never become a second fact authority.  Same-plane
+    relations come only from binary, directed ``ForestEdge`` payloads whose
+    exact canonical digest is retained by that plane's ``relation_sha256s``.
+    Retained hyperedges and undirected edges refuse rather than being flattened
+    into a pairwise/directional meaning that the Fourfold subject did not assert.
 
     The adapter intentionally fixes Boolean existence semantics.  Forest
     weights, multiplicity, costs and evidence-bundle algebra need separate,
@@ -116,10 +118,13 @@ def boolean_relation_block_from_fourfold(
         # membership for every retained cross-plane binding.  Convert those
         # verified labels to local indices once and delegate to the existing
         # canonical indexed block owner instead of readmitting each label
-        # through ``from_coordinates``.
+        # through ``from_coordinates``.  Raw Forest edges remain consistency
+        # inputs only and cannot manufacture a fact when Fourfold omitted the
+        # exact verified binding.
         row_positions: dict[str, int] = {}
         column_positions: dict[str, int] = {}
         entries: dict[tuple[int, int], bool] = {}
+        verified_pairs: set[tuple[str, str]] = set()
         for binding in snapshot.bindings:
             if (
                 binding.source_plane == signature.source_plane
@@ -138,12 +143,33 @@ def boolean_relation_block_from_fourfold(
                         label: position
                         for position, label in enumerate(column_axis.labels)
                     }
+                verified_pairs.add((binding.source_node_id, binding.target_node_id))
                 entries[
                     (
                         row_positions[binding.source_node_id],
                         column_positions[binding.target_node_id],
                     )
                 ] = True
+
+        source_labels = frozenset(row_axis.labels)
+        target_labels = frozenset(column_axis.labels)
+        for edge in forest.edges:
+            if edge.relation != signature.relation:
+                continue
+            forward = edge.source in source_labels and edge.target in target_labels
+            reverse = edge.source in target_labels and edge.target in source_labels
+            if not edge.directed:
+                if forward or reverse:
+                    raise ValueError(
+                        "binary relation projection requires an explicitly directed ForestEdge"
+                    )
+                continue
+            if forward and (edge.source, edge.target) not in verified_pairs:
+                raise ValueError(
+                    "cross-plane ForestEdge requires an exact verified Fourfold "
+                    "binding before relation projection"
+                )
+
         return TypedRelationBlock._from_indexed(
             subject,
             signature,
