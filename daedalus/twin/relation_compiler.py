@@ -275,12 +275,14 @@ def compile_relation_blocks(
     zeroes cannot silently encode unknown partial or absent facts. Same-plane
     Forest edges must also retain their exact canonical digest in that plane's
     ``relation_sha256s``; a matching selected/discovered relation fails closed
-    when the Fourfold subject omitted that Forest relation. Retained Forest
-    hyperedges and undirected Forest edges are never flattened into
-    pairwise/directional facts; discover-all and an explicitly selected
-    conflicting relation fail closed instead.
+    when the Fourfold subject omitted that Forest relation. Cross-plane Forest
+    edges are admission checks only: an authoritative cross-plane row must come
+    from an exact included verified Fourfold binding. Retained Forest hyperedges
+    and undirected Forest edges are never flattened into pairwise/directional
+    facts; discover-all and an explicitly selected conflicting relation fail
+    closed instead.
 
-    Forest edges and matching verified bindings are deduplicated by semantic
+    Same-plane Forest edges and verified bindings are deduplicated by semantic
     endpoint/relation identity. The evidence observer retains their canonical
     provenance alternatives; scalar observers retain only semantic coordinate
     presence and do not materialize provenance bundles they cannot consume.
@@ -362,6 +364,27 @@ def compile_relation_blocks(
             )
 
     discovered: set[RelationSignature] = set()
+    binding_records: list[tuple[CrossPlaneBinding, RelationSignature]] = []
+    included_binding_keys: set[tuple[str, str, str, str, str]] = set()
+    if include_verified_bindings:
+        for binding in snapshot.bindings:
+            signature = RelationSignature(
+                binding.source_plane,
+                binding.relation,
+                binding.target_plane,
+            )
+            binding_records.append((binding, signature))
+            included_binding_keys.add(
+                (
+                    binding.source_plane,
+                    binding.source_node_id,
+                    binding.target_plane,
+                    binding.target_node_id,
+                    binding.relation,
+                )
+            )
+            discovered.add(signature)
+
     edge_records: list[tuple[ForestEdge, RelationSignature]] = []
     for edge in forest.edges:
         source_plane = node_plane.get(edge.source)
@@ -403,19 +426,25 @@ def compile_relation_blocks(
                     "into directed relation blocks without losing semantics"
                 )
             continue
+        if source_plane != target_plane:
+            conflicts = requested_set is None or signature in requested_set
+            if not conflicts:
+                continue
+            binding_key = (
+                source_plane,
+                edge.source,
+                target_plane,
+                edge.target,
+                edge.relation,
+            )
+            if binding_key not in included_binding_keys:
+                raise ValueError(
+                    f"cross-plane ForestEdge {edge.relation!r} requires an exact "
+                    "included verified Fourfold binding before relation compilation"
+                )
+            continue
         edge_records.append((edge, signature))
         discovered.add(signature)
-
-    binding_records: list[tuple[CrossPlaneBinding, RelationSignature]] = []
-    if include_verified_bindings:
-        for binding in snapshot.bindings:
-            signature = RelationSignature(
-                binding.source_plane,
-                binding.relation,
-                binding.target_plane,
-            )
-            binding_records.append((binding, signature))
-            discovered.add(signature)
 
     selected = (
         requested_signatures
