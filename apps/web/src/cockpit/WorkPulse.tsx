@@ -31,6 +31,11 @@ interface DispatchRead {
   pulse: DispatchPulseProjection;
 }
 
+export interface WatcherGuidance {
+  message: string;
+  command?: string;
+}
+
 function emptyDispatchRead(project = '', phase: DispatchReadPhase = 'idle'): DispatchRead {
   return { project, phase, pulse: { total: 0, items: [] } };
 }
@@ -38,6 +43,42 @@ function emptyDispatchRead(project = '', phase: DispatchReadPhase = 'idle'): Dis
 function watcherWord(value: string | undefined): string {
   if (!value) return 'unbekannt';
   return WATCHER[value.toLowerCase()] || value;
+}
+
+/**
+ * Turn a FRESH bridge heartbeat verdict into the smallest safe next action.
+ *
+ * This is guidance only: the cockpit does not acquire execution authority and
+ * never restarts a runtime by itself. Most importantly, a disconnected stream
+ * cannot turn cached watcher state into a fresh operational recommendation.
+ * A wedged worker is not told to restart because blind redispatch/restart can
+ * duplicate work or provider spend while the original invocation is alive.
+ */
+export function watcherGuidance(
+  value: string | undefined,
+  project: string,
+  evidenceLive: boolean
+): WatcherGuidance | undefined {
+  if (!evidenceLive || !value) return undefined;
+  const state = value.toLowerCase();
+  if (state === 'none' || state === 'stopped') {
+    return {
+      message: 'Aktion empfohlen: Bridge-Wächter starten',
+      command: `python -m daedalus.file_bridge watch --project ${project}`
+    };
+  }
+  if (state === 'stale') {
+    return {
+      message: 'Aktion empfohlen: Bridge-Wächter neu starten',
+      command: `python -m daedalus.file_bridge watch --project ${project}`
+    };
+  }
+  if (state === 'wedged') {
+    return {
+      message: 'Aktion empfohlen: laufenden Auftrag und Provider prüfen; nicht erneut dispatchen'
+    };
+  }
+  return undefined;
 }
 
 function reportLine(report: LiveReportBrief): string {
@@ -118,6 +159,7 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
   const attentionKnown = scoped.unread !== undefined || scoped.quarantined !== undefined;
   const attention = (scoped.unread || 0) + (scoped.quarantined || 0);
   const stale = scoped.connected === false;
+  const guidance = watcherGuidance(scoped.watcher, project, scoped.connected === true);
 
   /**
    * Read the durable attribution seam whenever the cheap live bus says work
@@ -174,6 +216,17 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
         Wächter: {watcherWord(scoped.watcher)}
         {stale ? ' · letzter beobachteter Stand' : scoped.connected === null ? ' · Live-Evidenz ausstehend' : ''}
       </span>
+      {guidance && (
+        <span className="focuscard-counts" aria-label="Empfohlene Wächter-Aktion">
+          {guidance.message}
+          {guidance.command ? (
+            <>
+              {' · '}
+              <code>{guidance.command}</code>
+            </>
+          ) : null}
+        </span>
+      )}
 
       <span className="focuscard-counts">
         {attentionKnown
