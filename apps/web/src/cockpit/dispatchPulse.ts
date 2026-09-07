@@ -19,6 +19,8 @@ export interface DispatchPulseItem {
 export interface DispatchPulseProjection {
   /** Exact number of project-compatible open dispatches in the conversation view. */
   total: number;
+  /** Project-bound dispatch rows whose versioned identity cannot be interpreted safely. */
+  unresolved: number;
   /** Bounded newest-first projection for the compact JARVIS rail. */
   items: DispatchPulseItem[];
 }
@@ -59,6 +61,10 @@ interface AcceptedDispatch extends DispatchPulseItem {
  *   non-empty objective, otherwise they are rejected rather than guessed;
  * - an unsupported identity schema is also rejected instead of falling back to
  *   an older turn whose attribution may no longer describe the bound dispatch;
+ * - project-bound rejected identity snapshots increment `unresolved`, so a
+ *   schema drift cannot masquerade as "no open work" in the cockpit;
+ * - foreign or unattributed rejected snapshots never increment that counter,
+ *   preserving the same fail-closed cross-project boundary as the item list;
  * - execution attribution (agent/tool/runtime/phase/WorkItem/Attempt) is copied
  *   only from the bound snapshot; legacy chat turns never manufacture it;
  * - legacy dispatches with no identity schema may still derive lane/objective
@@ -80,6 +86,7 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
   }
 
   const accepted: AcceptedDispatch[] = [];
+  let unresolved = 0;
   open.forEach((raw, order) => {
     const row = object(raw);
     const link = object(row.link);
@@ -92,11 +99,19 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
     const detail = object(latest.detail);
     const identitySchema = text(detail.schema);
     if (identitySchema?.startsWith(DISPATCH_IDENTITY_PREFIX)) {
-      if (identitySchema !== DISPATCH_IDENTITY_SCHEMA) return;
-
       const identityProject = text(detail.project);
+      if (identityProject !== project) return;
+
+      if (identitySchema !== DISPATCH_IDENTITY_SCHEMA) {
+        unresolved += 1;
+        return;
+      }
+
       const objective = text(detail.objective);
-      if (identityProject !== project || !objective) return;
+      if (!objective) {
+        unresolved += 1;
+        return;
+      }
 
       accepted.push({
         ref,
@@ -152,6 +167,7 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
 
   return {
     total: accepted.length,
+    unresolved,
     items: accepted.slice(0, DISPLAY_LIMIT).map(({ order: _order, ...item }) => item)
   };
 }
