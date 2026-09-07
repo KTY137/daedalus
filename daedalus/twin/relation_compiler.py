@@ -269,18 +269,18 @@ def compile_relation_blocks(
     """Compile selected relations under one explicit observer semiring.
 
     ``signatures`` may predeclare empty blocks, which is useful for frozen query
-    plans. When omitted, every representable binary relation signature observed
-    in the Forest or in verified cross-plane bindings is compiled. Every
+    plans. When omitted, every representable binary relation signature retained
+    by Fourfold or exposed by verified cross-plane bindings is compiled. Every
     selected relation requires ``complete`` Fourfold endpoint planes so sparse
     zeroes cannot silently encode unknown partial or absent facts. Same-plane
-    Forest edges must also retain their exact canonical digest in that plane's
-    ``relation_sha256s``; a matching selected/discovered relation fails closed
-    when the Fourfold subject omitted that Forest relation. Cross-plane Forest
-    edges are admission checks only: an authoritative cross-plane row must come
-    from an exact included verified Fourfold binding. Retained Forest hyperedges
-    and undirected Forest edges are never flattened into pairwise/directional
-    facts; discover-all and an explicitly selected conflicting relation fail
-    closed instead.
+    Forest edges are authority inputs only when their exact canonical digest is
+    retained by that plane's ``relation_sha256s``; unretained rows are omitted
+    from the regenerable Tensor view rather than readmitted or treated as a
+    second authority. Cross-plane Forest edges are admission checks only: an
+    authoritative cross-plane row must come from an exact included verified
+    Fourfold binding. Retained Forest hyperedges and undirected Forest edges are
+    never flattened into pairwise/directional facts; discover-all and an
+    explicitly selected conflicting relation fail closed instead.
 
     Same-plane Forest edges and verified bindings are deduplicated by semantic
     endpoint/relation identity. The evidence observer retains their canonical
@@ -406,14 +406,10 @@ def compile_relation_blocks(
             target_plane,
         )
         if source_plane == target_plane:
+            if requested_set is not None and signature not in requested_set:
+                continue
             edge_digest = canonical_sha(edge.to_dict())
             if edge_digest not in retained_relation_digests[source_plane]:
-                conflicts = requested_set is None or signature in requested_set
-                if conflicts:
-                    raise ValueError(
-                        f"Fourfold {source_plane} plane does not retain ForestEdge "
-                        f"{edge.relation!r} digest"
-                    )
                 continue
         if not edge.directed:
             reverse_signature = RelationSignature(
