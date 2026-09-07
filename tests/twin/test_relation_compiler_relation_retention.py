@@ -171,7 +171,10 @@ def _cross_plane_fixture(
     return forest, snapshot
 
 
-def _cross_plane_hyperedge_fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
+def _cross_plane_hyperedge_fixture(
+    *,
+    relation: str = "documents",
+) -> tuple[KnowledgeForest, FourfoldSnapshot]:
     forest = KnowledgeForest(
         root=".",
         nodes=(
@@ -181,10 +184,10 @@ def _cross_plane_hyperedge_fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]
         edges=(),
         hyperedges=(
             ForestHyperedge(
-                id="documents:api:docs",
-                relation="documents",
+                id=f"{relation}:api:docs",
+                relation=relation,
                 members=("src/api.py", "docs/api.md"),
-                evidence=(_digest("documents-hyperedge:api:docs"),),
+                evidence=(_digest(f"{relation}-hyperedge:api:docs"),),
             ),
         ),
         provenance={
@@ -471,3 +474,100 @@ def test_missing_unrelated_forest_node_refuses_both_boolean_projection_paths() -
             BooleanSemiring(),
             signatures=(selected,),
         )
+
+
+def test_same_plane_selection_ignores_same_relation_cross_plane_hyperedge() -> None:
+    forest, snapshot = _cross_plane_hyperedge_fixture(relation="imports")
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(IMPORTS,),
+    )
+
+    block = compiled.block_map[relation_block_name(IMPORTS)]
+    assert tuple(block.iter_entries()) == ()
+    assert compiled.semantic_fact_count == 0
+    assert compiled.forest_hyperedge_count == 1
+
+
+def test_explicit_incomplete_endpoint_refuses_before_relation_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture(retain_code_relation=True)
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane.plane,
+            source_revision=plane.source_revision,
+            status=("partial" if plane.plane == "code" else plane.status),
+            node_ids=plane.node_ids,
+            relation_sha256s=plane.relation_sha256s,
+            evidence_sha256s=plane.evidence_sha256s,
+            reason=(
+                "fixture intentionally makes the selected endpoint incomplete"
+                if plane.plane == "code"
+                else plane.reason
+            ),
+        )
+        for plane in snapshot.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-early-completeness.snapshot",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in snapshot.bindings),
+        ),
+        trace_id="relation-compiler-early-completeness-snapshot",
+    )
+    incomplete = FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=snapshot.bindings,
+        provenance=provenance,
+    )
+
+    def forbidden_hash(value: object) -> str:
+        raise AssertionError(f"Forest relation scan occurred before completeness: {value!r}")
+
+    monkeypatch.setattr(relation_compiler, "canonical_sha", forbidden_hash)
+
+    with pytest.raises(ValueError, match="code=partial"):
+        compile_relation_blocks(
+            forest,
+            incomplete,
+            BooleanSemiring(),
+            signatures=(IMPORTS,),
+        )
+
+
+def test_explicit_compile_reuses_canonical_planes_without_plane_map(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture(retain_code_relation=True)
+
+    def forbidden_plane_map(_snapshot: FourfoldSnapshot) -> object:
+        raise AssertionError("compile_relation_blocks materialized snapshot.plane_map")
+
+    monkeypatch.setattr(
+        FourfoldSnapshot,
+        "plane_map",
+        property(forbidden_plane_map),
+    )
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(IMPORTS,),
+    )
+
+    block = compiled.block_map[relation_block_name(IMPORTS)]
+    assert tuple(block.iter_entries()) == (
+        ("src/api.py", "src/worker.py", True),
+    )
