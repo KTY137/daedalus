@@ -1,0 +1,140 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-65",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "08cac764721a6c76252fd6dfd21c15920d1c10bd",
+    "dependencies": "G1-EXP-TENSOR-GPU-43, G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-64",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "result"]},
+      "scope": {"source_fields": ["domain", "finding", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["finding", "implementation", "bounded_next_step"]},
+      "acceptance_matrix": {"source_fields": ["verification", "focused_tests", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "implementation"],
+        "projection_note": "Rollback is the two commits recorded by this packet. No new branch, graph authority, persistence surface, backend, registry, helper layer, or public API was introduced."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundaries", "finding"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-65",
+  "title": "Align strict Boolean cross-plane hyperedge refusal with canonical Fourfold authority",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "08cac764721a6c76252fd6dfd21c15920d1c10bd",
+  "result": {
+    "summary": "The strict public Boolean compatibility projector now fails closed when a matching ForestHyperedge spans both selected Fourfold endpoint planes. This removes a lossy-success path where a higher-arity cross-plane relation could previously be ignored and returned as an empty binary block while the canonical compiler, legacy Fourfold adapter, and projection verifier already treated the same shape as unrepresentable.",
+    "production_change": true,
+    "test_change": true,
+    "new_public_api": false,
+    "parallel_projection_authority_added": false
+  },
+  "finding": {
+    "problem": "boolean_relation_block_from_fourfold handled verified cross-plane bindings and raw cross-plane ForestEdge consistency but did not inspect cross-plane ForestHyperedge evidence. A matching higher-arity relation could therefore disappear into sparse zeroes even though the binary TypedRelationBlock representation cannot preserve its semantics.",
+    "existing_authority": [
+      "fourfold_from_knowledge_forest refuses a cross-plane hyperedge because it cannot be represented as pairwise verified bindings without losing semantics.",
+      "verify_forest_projection emits cross-plane-hyperedge-unrepresentable.",
+      "compile_relation_blocks already refuses a conflicting cross-plane ForestHyperedge instead of silently omitting it.",
+      "The Fourfold/Tensor contract requires fail-closed treatment of hyperedges rather than invented pairwise semantics."
+    ],
+    "gardener_decision": "Repair the existing compatibility projector in place and pin parity with the canonical compiler. Do not add a shared third projector/helper or another relation schema."
+  },
+  "implementation": {
+    "production_commit": "8e51a0ece41aa404f9e182ef99faa0a9172aff00",
+    "code_test_head": "578729e15d05780d914af49e929247aa3a30a0e6",
+    "production_path": "daedalus/twin/relation_projection.py",
+    "production_blob": "663da4361ada49b7011ae262238eefd546ceeb86",
+    "test_path": "tests/twin/test_relation_compiler_relation_retention.py",
+    "test_blob": "deaf03a8be85b32d6501a356be6d2a696ef18a41",
+    "summary": "For a cross-plane RelationSignature, the strict Boolean adapter now scans only matching ForestHyperedge records and refuses when members intersect both selected endpoint axes. Verified Fourfold bindings remain the only cross-plane binary fact source; no hyperedge is flattened into invented pairs.",
+    "preserved_contracts": [
+      "Verified Fourfold bindings remain the sole cross-plane fact authority.",
+      "Raw directed cross-plane ForestEdge records remain consistency/admission inputs only.",
+      "Same-plane retention, empty-retention pruning, provenance revision checks, complete endpoint-plane checks, and indexed block construction remain unchanged.",
+      "No owner approval, promotion receipt, effect, or gate transition is created by projection."
+    ]
+  },
+  "focused_tests": {
+    "path": "tests/twin/test_relation_compiler_relation_retention.py",
+    "blob": "deaf03a8be85b32d6501a356be6d2a696ef18a41",
+    "coverage": [
+      "A manually constructed code-to-knowledge ForestHyperedge with matching documents relation is rejected by boolean_relation_block_from_fourfold.",
+      "The same bounded fixture is rejected by compile_relation_blocks, pinning compatibility/canonical refusal parity.",
+      "Existing same-plane retention, verified cross-plane edge, and indexed-construction regressions remain in the same owner."
+    ]
+  },
+  "verification": {
+    "verified_head": "578729e15d05780d914af49e929247aa3a30a0e6",
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "workflow_run_id": 34104249727,
+    "workflow_conclusion": "success",
+    "base_main": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+    "pr_merge_preview": "e22497b58a7f6b59c33d970a0708760503e42c7f",
+    "contract_matrix": "success for Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "representative_contract_arm": "CPython 3.12.14 / PYTHONHASHSEED=0: 406 passed, 2 skipped in 6.91s",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "full_repository_suite": "manual-only/skipped; not claimed",
+    "diagnostic_profiles": "CPU bitset and TypedRelationBlock profiles executed only on the designated Python 3.12/hash-0 arm and self-declare authority=diagnostic-only and claim=none.",
+    "desktop_check": "Tauri Desktop run 34104249704 failed at Rust formatting after cockpit build, frozen backend build/smoke, project/desktop contract tests, and icon generation succeeded. Rust library tests and Linux bundle were skipped. This check is outside the Python-only GPU-65 change and prevents any all-PR-checks-green claim.",
+    "exact_closure_head_ci": "required after this packet-record commit"
+  },
+  "bounded_next_step": {
+    "packet_target": "Reconcile the remaining global Forest/Fourfold node-partition validation difference before considering any delegation of boolean_relation_block_from_fourfold to compile_relation_blocks.",
+    "why": "GPU-61 through GPU-65 removed the bounded cost and trust/refusal mismatches identified around the duplicate Boolean adapter, but the compiler still validates the whole Forest partition while the compatibility adapter validates only the selected relation surface. Direct delegation would therefore still widen public failure behavior.",
+    "must_preserve": [
+      "No third projection abstraction.",
+      "Exact Forest/Fourfold subject and revision binding.",
+      "Complete endpoint-plane closed-world boundary.",
+      "Verified-binding-only cross-plane facts.",
+      "Fail-closed higher-arity and undirected semantics.",
+      "Existing evidence and commit history."
+    ]
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "fourfold_tensor_contract_blob": "docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md@8677ff1079311a7563a71aa4157c2d70e2f6933e",
+    "projection_verifier_blob": "daedalus/twin/projection_verifier.py@b02462d3e8416d475d7e785bad44505b4997026c",
+    "legacy_adapter_blob": "daedalus/twin/legacy_forest.py@bb220fbcab9d95f315d90cf7bbe7498dc091b19f",
+    "production_commit": "8e51a0ece41aa404f9e182ef99faa0a9172aff00",
+    "test_commit": "578729e15d05780d914af49e929247aa3a30a0e6",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "claim_boundaries": {
+    "correctness": "Focused fail-closed cross-plane hyperedge behavior and the integrated Fourfold/Tensor contract surface on the code/test head were verified in hosted PR integration.",
+    "performance": "none",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}
