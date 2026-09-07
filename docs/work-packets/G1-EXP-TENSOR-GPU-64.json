@@ -1,0 +1,119 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-64",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c04d6f6fad757cad971c9d729023e04a699c9dc8",
+    "dependencies": "G1-EXP-TENSOR-GPU-56, G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-63",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "result"]},
+      "scope": {"source_fields": ["domain", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "preserved_boundaries"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "implementation"],
+        "projection_note": "The change is confined to the existing public Boolean compatibility projector and the existing relation-retention regression owner. Reverting commits f843380d721f960f2e6d17475807d967df70197a and 2454d6e60113f45f1099d01ede20714ae4a91f20 restores the previous compatibility behavior without changing the canonical compiler, rewriting history, or introducing a parallel projection path."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundaries", "preserved_boundaries"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-64",
+  "title": "Align strict Boolean cross-plane admission with verified Fourfold authority",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "c04d6f6fad757cad971c9d729023e04a699c9dc8",
+  "result": {
+    "summary": "The public strict Boolean compatibility projector now treats matching raw cross-plane ForestEdge records only as fail-closed admission/consistency inputs, matching the canonical compile_relation_blocks trust boundary: a directed raw cross-plane edge cannot manufacture a relation row and requires the exact verified Fourfold binding; a matching undirected cross-plane edge refuses instead of acquiring invented orientation. Verified FourfoldSnapshot.bindings remain the sole cross-plane fact authority.",
+    "semantic_change": true,
+    "structural_change": "One existing compatibility path now enforces the same cross-plane authority boundary already enforced by the canonical multi-relation compiler; no new fact source is introduced.",
+    "gardener": "No helper, compiler, verifier, cache, adapter family, graph authority, fact store, backend, registry, public API, or test module was added. The focused equivalence regression was added to the existing relation-retention test owner."
+  },
+  "implementation": {
+    "production_change": true,
+    "production_commit": "f843380d721f960f2e6d17475807d967df70197a",
+    "test_commit": "2454d6e60113f45f1099d01ede20714ae4a91f20",
+    "production_blob": "daedalus/twin/relation_projection.py@8b5b319592e828284552af0281640fa164939f64",
+    "test_blob": "tests/twin/test_relation_compiler_relation_retention.py@02d33541699c8eacf93e889767d1ed71d4454962",
+    "test_strategy": "Construct an exact Forest/Fourfold pair containing one directed code-to-knowledge ForestEdge while intentionally omitting the verified binding, then prove both the strict Boolean projector and canonical compiler fail closed rather than producing a row from raw Forest evidence. Existing cross-plane positive tests retain verified-binding projection behavior."
+  },
+  "preserved_boundaries": [
+    "GPU-56 exact verified Fourfold authority for canonical compiler cross-plane rows",
+    "GPU-57 retained same-plane hyperedge refusal",
+    "GPU-59 retained/unretained same-plane Boolean projection equivalence",
+    "GPU-61 empty-retention prehash prune",
+    "GPU-62 indexed canonical block construction",
+    "GPU-63 Forest provenance revision authority",
+    "complete endpoint-plane closed-world refusal",
+    "verified Fourfold bindings remain the sole cross-plane fact source",
+    "public boolean_relation_block_from_fourfold API shape",
+    "global Forest/Fourfold partition behavior remains unchanged"
+  ],
+  "verification": {
+    "implementation_run": {
+      "run_id": 34098517564,
+      "head": "2454d6e60113f45f1099d01ede20714ae4a91f20",
+      "base": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+      "status": "completed/success",
+      "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 all completed/success",
+      "public_api": "success",
+      "isolated_wheel": "success",
+      "complete_repository_collection": "success",
+      "complete_suite_manual_only": "skipped"
+    },
+    "pr_wide_tauri": {
+      "run_id": 34098517688,
+      "status_at_packet_record": "in_progress",
+      "note": "Tauri Desktop is an independent PR-wide workflow and is not used as Fourfold/Tensor correctness evidence. Its final state is to be recorded separately without implying all PR checks are green."
+    },
+    "full_repository_suite": "not claimed",
+    "exact_closure_head_ci": "required after this packet-record commit"
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "gpu60_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-60.json@816dbf29c5e73e0eded98b22152fa9137f4704c6",
+    "canonical_compiler_blob": "daedalus/twin/relation_compiler.py@ac462f256c1eb673f55405f2179b996f830a7b44",
+    "projection_verifier_blob": "daedalus/twin/projection_verifier.py@b02462d3e8416d475d7e785bad44505b4997026c",
+    "prechange_projection_blob": "daedalus/twin/relation_projection.py@d13ad005324107d4328a2d9c6fc39296b6cad5cf",
+    "production_blob": "daedalus/twin/relation_projection.py@8b5b319592e828284552af0281640fa164939f64",
+    "prechange_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@d1a3876cc6568031e675cf256c6ca4ad50f221b8",
+    "final_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@02d33541699c8eacf93e889767d1ed71d4454962",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "claim_boundaries": {
+    "correctness": "Claimed only for the tested cross-plane admission/refusal equivalence and the adjacent Fourfold/Tensor contract surface exercised by the focused workflow.",
+    "performance": "none",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "diagnostics": "CPU bitset and TypedRelationBlock profiles remain diagnostic-only with claim=none.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}
