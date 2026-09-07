@@ -843,6 +843,29 @@ def _report_brief(path: Path) -> dict[str, Any]:
     }
 
 
+def _project_report_briefs(project: str | None = None) -> list[dict[str, Any]]:
+    """Return terminal reports in deterministic arrival order.
+
+    A project-scoped projection is deliberately exact. Legacy reports without a
+    project remain visible only in the unfiltered/global view; assigning one to
+    whichever project happens to be selected would manufacture provenance.
+    """
+    if not INBOX.exists():
+        return []
+    rows: list[tuple[int, str, dict[str, Any]]] = []
+    for path in INBOX.glob("*.report.json"):
+        try:
+            arrived_ns = path.stat().st_mtime_ns
+        except OSError:
+            continue
+        brief = _report_brief(path)
+        if project is not None and brief.get("project") != project:
+            continue
+        rows.append((arrived_ns, path.name, brief))
+    rows.sort(key=lambda row: (row[0], row[1]))
+    return [row[2] for row in rows]
+
+
 def bridge_status(project: str | None = None) -> dict[str, Any]:
     """One-call answer to: is anything queued, is anything running, and are
     there finished reports I have not read yet?"""
@@ -865,6 +888,7 @@ def bridge_status(project: str | None = None) -> dict[str, Any]:
     hb = heartbeat_status()
     in_flight = hb.get("current") if hb.get("state") in ("busy", "wedged") else None
     quarantined = quarantined_requests()
+    reports = _project_report_briefs(project)
     return {
         "project": project,
         "watcher": hb,
@@ -875,7 +899,7 @@ def bridge_status(project: str | None = None) -> dict[str, Any]:
         "unread_count": len(unread),
         "quarantined": quarantined,
         "quarantined_count": len(quarantined),
-        "reports_total": len(list(INBOX.glob("*.report.json"))) if INBOX.exists() else 0,
+        "reports_total": len(reports),
         "latest_log": str(_latest_log()),
     }
 
@@ -886,18 +910,15 @@ def stream_state(project: str | None = None) -> dict[str, Any]:
     once a second to drive the cockpit's live badges without the heavy dashboard.
     """
     st = bridge_status(project)
-    newest = None
-    if INBOX.exists():
-        reports = sorted(INBOX.glob("*.report.json"), key=lambda p: p.stat().st_mtime)
-        if reports:
-            newest = _report_brief(reports[-1])
+    reports = _project_report_briefs(project)
+    newest = reports[-1] if reports else None
     return {
         "queue_depth": st["queue_depth"],
-        "in_flight": bool(st["in_flight"]),
+        "in_flight": 1 if st["in_flight"] else 0,
         "unread_count": st["unread_count"],
         "quarantined_count": st["quarantined_count"],
         "watcher_state": (st["watcher"] or {}).get("state"),
-        "reports_total": st["reports_total"],
+        "reports_total": len(reports),
         "latest_report": newest,
     }
 
