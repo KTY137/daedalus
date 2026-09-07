@@ -60,6 +60,8 @@ export interface Turn {
   halted?: boolean;
   /** Stop-request evidence: requested != exact-owner release. */
   stopState?: 'requested' | 'finished' | 'unproven';
+  /** Stronger local evidence when this request owned a Claude/Codex child. */
+  stopProcessState?: 'exited' | 'unproven';
   /** Correlates an asynchronous stop receipt to this exact visible turn. */
   stopRequestId?: string;
   /**
@@ -959,9 +961,17 @@ export function Conversation({
 
     void active.cancel().then((payload) => {
       const finished = Boolean(payload.cancellation?.active && payload.cancellation?.request_finished);
+      const local = (payload.cancellation as typeof payload.cancellation & {
+        subprocess?: { cancellation_requested?: boolean; process_exited?: boolean };
+      })?.subprocess;
+      const stopProcessState = local
+        ? local.cancellation_requested && local.process_exited
+          ? 'exited'
+          : 'unproven'
+        : undefined;
       setTurns((prev) => prev.map((turn) =>
         turn.stopRequestId === active.requestId
-          ? { ...turn, stopState: finished ? 'finished' : 'unproven' }
+          ? { ...turn, stopState: finished ? 'finished' : 'unproven', stopProcessState }
           : turn
       ));
     }).catch(() => {
@@ -969,7 +979,7 @@ export function Conversation({
       // succeeded. Keep that uncertainty visible instead of saying stopped.
       setTurns((prev) => prev.map((turn) =>
         turn.stopRequestId === active.requestId
-          ? { ...turn, stopState: 'unproven' }
+          ? { ...turn, stopState: 'unproven', stopProcessState: undefined }
           : turn
       ));
     });
@@ -1076,6 +1086,13 @@ export function Conversation({
                 : t.stopState === 'unproven'
                   ? 'STOP UNBESTÄTIGT'
                   : 'STOP ANGEFORDERT',
+              origin: t.stopProcessState === 'exited'
+                ? 'lokaler CLI-Prozess beendet · Remote-Termination nicht bewiesen'
+                : t.stopProcessState === 'unproven'
+                  ? 'lokaler CLI-Prozess nicht terminal bewiesen'
+                  : t.stopState === 'finished'
+                    ? 'Request beendet · Remote-Termination nicht bewiesen'
+                    : undefined,
               kind: 'failed'
             }
           : t.origin
