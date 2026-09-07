@@ -53,7 +53,11 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
       close(): void {}
 
       fail(): void {
-        this.emitEvent('error', new Event('error'));
+        const event = new Event('error');
+        // useEventSource observes the EventSource.onerror property. A fake that
+        // only dispatches addEventListener callbacks cannot model disconnects.
+        this.onerror?.(event);
+        this.emitEvent('error', event);
       }
 
       emit(name: string, data: unknown): void {
