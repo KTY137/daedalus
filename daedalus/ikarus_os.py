@@ -1471,12 +1471,6 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     start+final instead of raised, because a generator that raises on its first
     ``next()`` is not something the SSE surface can render.
     """
-    # Exact type at the outer runtime boundary: a duck-typed cancellation
-    # object is executable code (its `cancelled` attribute can run anything).
-    # Reject it before provider selection, context construction, or effects.
-    if cancellation is not None and type(cancellation) is not CancellationSignal:
-        raise TypeError("cancellation must be an exact CancellationSignal")
-
     from .budget import process_guard_boundary_decision
     from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
@@ -1491,6 +1485,13 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             ASK_STREAM_ENTRYPOINT_ID, contract="budget.process_guard",
             endpoint=None, lane="n/a", provider="", reason=str(exc)))
         return
+
+    # Exact type after effect admission but before any cancellation callback,
+    # classification, context construction, or provider selection. A duck-typed
+    # cancellation object is executable code (its `cancelled` attribute can run
+    # anything), so it is still rejected before any provider-facing work.
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
 
     message = (message or "").strip()
     if not message:
