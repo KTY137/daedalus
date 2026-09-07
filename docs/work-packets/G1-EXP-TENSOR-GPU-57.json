@@ -1,0 +1,123 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-57",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "3bc246e346ae33d96a00e8da95835311e1c4e637",
+    "dependencies": "G1-EXP-TENSOR-GPU-43, G1-EXP-TENSOR-GPU-53 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": ["finding", "title"]
+      },
+      "scope": {
+        "source_fields": ["implementation", "domain"]
+      },
+      "contracts_and_behavior": {
+        "source_fields": ["implementation", "finding"]
+      },
+      "acceptance_matrix": {
+        "source_fields": ["verification", "focused_tests"]
+      },
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene"],
+        "projection_note": "The change remains inside the existing canonical relation compiler. Reverting the production commit restores the prior conservative all-Forest-hyperedge refusal; no schema, state, registry or migration is introduced."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "finding"]
+      }
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-57",
+  "title": "Bind same-plane hyperedge refusal to Fourfold-retained relation digests",
+  "classification": "implementation",
+  "domain": "tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "3bc246e346ae33d96a00e8da95835311e1c4e637",
+  "owner": {
+    "path": "daedalus/twin/relation_compiler.py",
+    "symbol": "compile_relation_blocks",
+    "parallel_compiler_added": false,
+    "new_validator_subsystem": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_public_api": false
+  },
+  "finding": {
+    "summary": "The strict Fourfold Boolean adapter refuses a same-plane ForestHyperedge only when that hyperedge's exact canonical digest is retained by the source PlaneSnapshot. The canonical multi-relation compiler instead still treated every Forest hyperedge as a projection constraint whenever discover-all or a matching explicit relation was requested, even when the bound Fourfold subject had omitted that hyperedge digest. This made the regenerable Tensor projection semantically broader and more restrictive than its Fourfold authority.",
+    "masterplan_alignment": "Fourfold remains the revision-bound semantic authority and the Tensor kernel remains a regenerable internal computational projection. Source Forest evidence that the bound Fourfold subject did not retain cannot independently constrain a same-plane Tensor relation.",
+    "existing_semantic_precedent": "daedalus/twin/relation_projection.py already gates same-plane ForestHyperedge refusal on exact membership in PlaneSnapshot.relation_sha256s. GPU-53 established the equivalent exact-retention boundary for same-plane ForestEdge rows."
+  },
+  "implementation": {
+    "production_commit": "b18db59f1f8cc41eb6a2a53177708f6536dd9cd0",
+    "code_test_head": "cbe2e3bc45d633b0369d575fe506089650aa057c",
+    "production_blob": "5b5e9c19d4ec5ca3d2a2c7514e4f1ab2f9017a61",
+    "focused_test_blob": "fd1dbe4c61ea51845767ab93288ffe95adbfa53e",
+    "production_delta": "+11/-5 in the existing relation compiler owner",
+    "summary": "compile_relation_blocks now first prunes explicitly unrelated hyperedges, then for a conflicting same-plane hyperedge computes its canonical digest and refuses pairwise projection only when that digest is retained by the corresponding Fourfold plane. A same-plane hyperedge omitted from relation_sha256s is outside the bound Fourfold subject and is ignored. Retained same-plane hyperedges and conflicting cross-plane hyperedges remain fail-closed; no pairwise semantics are invented.",
+    "preserved_contracts": [
+      "KnowledgeForest remains compiled-IR evidence and FourfoldSnapshot remains the revision-bound semantic subject consumed by the Tensor projection.",
+      "Retained same-plane ForestHyperedges remain unsupported and fail closed rather than being flattened into pairwise rows.",
+      "Conflicting cross-plane ForestHyperedges remain fail-closed; this packet does not invent a cross-plane hyperedge representation.",
+      "Explicit unrelated relation selection continues to prune unsupported higher-arity evidence.",
+      "No second compiler, verifier, cache, index, fact store, backend, registry, semantic plane or public API was introduced."
+    ]
+  },
+  "focused_tests": {
+    "path": "tests/twin/test_relation_compiler_hyperedge_retention.py",
+    "blob": "fd1dbe4c61ea51845767ab93288ffe95adbfa53e",
+    "coverage": [
+      "Discover-all ignores a same-plane ForestHyperedge whose exact digest is absent from the complete Fourfold plane and still compiles the retained binary relation.",
+      "An explicitly predeclared relation matching an unretained same-plane hyperedge produces an empty closed-world block rather than allowing omitted Forest evidence to constrain the Fourfold subject.",
+      "The same hyperedge remains fail-closed when its exact digest is retained by the Fourfold plane."
+    ]
+  },
+  "verification": {
+    "verified_head": "cbe2e3bc45d633b0369d575fe506089650aa057c",
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "workflow_run_id": 34071714242,
+    "workflow_conclusion": "success",
+    "base_main": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+    "pr_merge_preview": "4ad72e819b7fc6b1492b591f2dbb4d1ea24b968d",
+    "contract_matrix": "success for Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "representative_contract_arm": "CPython 3.12.14 / PYTHONHASHSEED=0: 401 passed, 2 skipped in 5.70s",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "full_repository_suite": "manual-only/skipped",
+    "diagnostic_profile_arm": "Python 3.12 / PYTHONHASHSEED 0 executed the bounded packed CPU bitset and canonical TypedRelationBlock validation profiles successfully; both artifacts state authority=diagnostic-only and claim=none.",
+    "evidence_scope": "Hosted pull-request integration evidence is associated with code/test head cbe2e3bc45d633b0369d575fe506089650aa057c and executed merge preview 4ad72e819b7fc6b1492b591f2dbb4d1ea24b968d against main 1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0. The closure-record commit is documentation-only and is verified separately."
+  },
+  "claim_boundaries": {
+    "correctness": "Focused Fourfold-retained hyperedge authority semantics and the existing integrated Fourfold/Tensor contract surface were verified in hosted PR integration.",
+    "performance": "none",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}
