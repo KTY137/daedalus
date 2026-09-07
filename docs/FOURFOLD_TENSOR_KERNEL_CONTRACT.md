@@ -80,13 +80,21 @@ same traversal.
 
 ## Strict Forest/Fourfold relation projection
 
-`daedalus/twin/relation_projection.py` projects one exact Forest/Fourfold subject
-into the Boolean CSR oracle without introducing another graph schema, registry
-or store.
+`daedalus/twin/relation_compiler.py` is the sole implementation owner for
+Forest/Fourfold relation admission and sparse-block materialization. It compiles
+one exact Forest/Fourfold subject into the canonical typed CSR oracle without
+introducing another graph schema, registry or store. The public
+`boolean_relation_block_from_fourfold` function in
+`daedalus/twin/relation_projection.py` is retained only as the historical
+single-relation Boolean call shape and delegates directly to
+`compile_relation_blocks`; it owns no independent admission, diagnostics or
+materialization semantics.
+
+The canonical compiler enforces:
 
 - Forest content digest must equal `FourfoldSnapshot.source_forest_sha256`.
-- Both endpoint planes must be `complete`; sparse zeroes cannot stand for
-  unknown partial/absent facts.
+- Both endpoint planes of an explicitly materialized relation must be
+  `complete`; sparse zeroes cannot stand for unknown partial/absent facts.
 - Cross-plane rows come only from verified `FourfoldSnapshot.bindings`.
 - The legacy Forest-to-Fourfold adapter refuses an undirected cross-plane
   `ForestEdge` instead of inventing a directed verified binding from endpoint
@@ -95,20 +103,23 @@ or store.
   digest is retained by the source plane.
 - Retained hyperedges and undirected edges refuse instead of being flattened
   into invented pairwise/directional semantics.
-- This strict one-relation adapter is Boolean-only; it does not infer scalar
-  meaning from Forest weights or evidence packaging.
+- Boolean, natural and `evidence-dag` observers are admitted only under the
+  explicit scalar-admission contract above. Tropical/weighted projection stays
+  refused until an explicit cost contract exists.
 
-The separate canonical multi-relation compiler may use Boolean, natural, or
-`evidence-dag` observers only under the explicit scalar-admission contract
-above. It likewise refuses retained hyperedges and undirected `ForestEdge`
-records whenever discover-all or an explicitly selected relation would require
-lossy pairwise/directional flattening. An explicitly unrelated selection may
-prune such source evidence without materializing it. The compiler does not
-broaden the strict adapter or authorize weighted/cost projection.
+Discover-all compilation and explicit signature selection share that one owner.
+Retained hyperedges and undirected `ForestEdge` records are refused whenever the
+selected relation would require lossy pairwise/directional flattening; an
+explicitly unrelated selection may prune such source evidence without
+materializing it. The Boolean compatibility facade does not broaden or narrow
+these decisions: it requests exactly one signature with `BooleanSemiring()` and
+returns the compiler-produced block.
 
-The adapter reuses canonical Fourfold plane/node tuples where possible and skips
-Forest relation hashing when the authoritative retained relation set is empty.
-These are containment/gardening changes, not a second lookup/index layer.
+The compiler reuses canonical Fourfold plane/node tuples where possible and
+skips Forest relation hashing when the authoritative retained relation set is
+empty. These are containment/gardening changes, not a second lookup/index layer.
+Keeping the small public compatibility facade avoids an unnecessary API break;
+it is not a second projector.
 
 ## Contraction-plan experiment pruned (G1-TENSOR-01CV)
 
