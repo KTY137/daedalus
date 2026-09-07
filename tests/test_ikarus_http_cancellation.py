@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import threading
 import time
 from types import SimpleNamespace
@@ -42,6 +44,61 @@ def test_cancel_endpoint_returns_positive_exact_owner_release_evidence() -> None
         "newly_cancelled": True,
         "request_finished": True,
     }
+
+
+def test_cancel_endpoint_surfaces_owned_cli_process_exit_evidence() -> None:
+    """The HTTP stop receipt must preserve stronger local child evidence.
+
+    Request-owner completion and child-process termination are different facts.
+    The endpoint already serialises ``StopReceipt.to_dict()``; this regression
+    proves a Claude/Codex-style owned child can now add its exact local terminal
+    receipt without inventing a second HTTP state store.
+    """
+    registry = ikarus_cancellation.CancellationRegistry()
+    request_id = "request-http-child-001"
+    entered = threading.Event()
+
+    def owner() -> None:
+        with registry.claim(request_id) as signal:
+            proc = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(60)"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            try:
+                entered.set()
+                while not signal.cancelled():
+                    time.sleep(0.002)
+                ikarus_cancellation.terminate_owned_subprocess(
+                    signal, proc, grace_s=0.1)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.wait(timeout=5)
+
+    thread = threading.Thread(target=owner, daemon=True)
+    thread.start()
+    assert entered.wait(1.0)
+
+    send = _post_handler({"request_id": request_id}, registry)
+    thread.join(timeout=1.0)
+    assert not thread.is_alive()
+
+    cancellation = send.call_args.args[0]["cancellation"]
+    assert cancellation["active"] is True
+    assert cancellation["newly_cancelled"] is True
+    assert cancellation["request_finished"] is True
+    assert cancellation["subprocess"] == {
+        "request_id": request_id,
+        "cancellation_requested": True,
+        "was_running": True,
+        "terminate_sent": True,
+        "kill_sent": False,
+        "process_exited": True,
+        "returncode": cancellation["subprocess"]["returncode"],
+    }
+    assert cancellation["subprocess"]["returncode"] is not None
 
 
 def test_cancel_endpoint_rejects_malformed_identity_without_owner_lookup() -> None:
