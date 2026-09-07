@@ -166,21 +166,18 @@ class _UnboundedSignatures:
         raise AssertionError("unbounded signature iterable was consumed")
 
 
-def test_explicit_signature_prunes_unselected_evidence_materialization(
+def test_explicit_cross_plane_signature_uses_verified_binding_without_forest_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
     selected = RelationSignature("code", "declares", "type")
-    observed_relations: list[str] = []
-    original = relation_compiler._forest_edge_atoms
 
-    def guarded_atoms(edge: ForestEdge) -> tuple[str, ...]:
-        observed_relations.append(edge.relation)
-        if edge.relation != "declares":
-            raise AssertionError("unselected Forest evidence was materialized")
-        return original(edge)
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(
+            f"cross-plane Forest evidence was materialized for {edge.relation}"
+        )
 
-    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", guarded_atoms)
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
 
     compiled = compile_relation_blocks(
         forest,
@@ -189,7 +186,6 @@ def test_explicit_signature_prunes_unselected_evidence_materialization(
         signatures=(selected,),
     )
 
-    assert observed_relations == ["declares"]
     assert tuple(compiled.block_map) == (relation_block_name(selected),)
     entries = tuple(compiled.block_map[relation_block_name(selected)].iter_entries())
     assert len(entries) == 1
@@ -197,7 +193,7 @@ def test_explicit_signature_prunes_unselected_evidence_materialization(
     assert compiled.semantic_fact_count == 1
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.forest_hyperedge_count == 0
-    assert compiled.verified_binding_count == len(snapshot.bindings)
+    assert compiled.verified_binding_count == len(snapshot.bindings) == 1
 
 
 def test_explicit_signature_prunes_unselected_verified_binding_facts(
@@ -234,7 +230,7 @@ def test_explicit_signature_prunes_unselected_verified_binding_facts(
     assert compiled.verified_binding_count == len(snapshot.bindings)
 
 
-def test_scalar_observers_record_selected_facts_without_provenance_bundles(
+def test_scalar_observers_record_cross_plane_binding_without_provenance_bundles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
@@ -259,7 +255,7 @@ def test_scalar_observers_record_selected_facts_without_provenance_bundles(
         )
         entries = tuple(compiled.block_map[relation_block_name(selected)].iter_entries())
         assert entries == (("src/worker.py", "type:Event", expected),)
-        assert observed_evidence_atoms == [None, None]
+        assert observed_evidence_atoms == [None]
         assert compiled.verified_binding_count == 1
 
 
@@ -329,32 +325,57 @@ def test_verified_binding_inclusion_policy_requires_exact_boolean(
         )
 
 
-def test_verified_binding_false_skips_binding_fact_materialization(
+def test_verified_binding_false_refuses_observed_cross_plane_relation_before_facts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
     selected = RelationSignature("code", "declares", "type")
-    observed_signatures: list[RelationSignature] = []
-    original = relation_compiler._record_fact
 
-    def recording_record_fact(*args: object, **kwargs: object) -> None:
-        signature = kwargs.get("signature")
-        if not isinstance(signature, RelationSignature):
-            raise AssertionError("relation fact did not carry a typed signature")
-        observed_signatures.append(signature)
-        original(*args, **kwargs)  # type: ignore[arg-type]
+    def forbidden_record_fact(*args: object, **kwargs: object) -> None:
+        raise AssertionError("cross-plane fact was materialized without included binding")
 
-    monkeypatch.setattr(relation_compiler, "_record_fact", recording_record_fact)
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected materialization of {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", forbidden_record_fact)
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(selected,),
+            include_verified_bindings=False,
+        )
+
+
+def test_unrelated_same_plane_selection_prunes_cross_plane_edge_without_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "imports", "code")
+    observed_relations: list[str] = []
+    original = relation_compiler._forest_edge_atoms
+
+    def guarded_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        observed_relations.append(edge.relation)
+        if edge.relation != "imports":
+            raise AssertionError("unrelated cross-plane evidence was materialized")
+        return original(edge)
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", guarded_atoms)
 
     compiled = compile_relation_blocks(
         forest,
         snapshot,
-        BooleanSemiring(),
+        EvidenceDagSemiring(),
         signatures=(selected,),
         include_verified_bindings=False,
     )
 
-    assert observed_signatures == [selected]
+    assert observed_relations == ["imports"]
+    assert tuple(compiled.block_map) == (relation_block_name(selected),)
     assert compiled.semantic_fact_count == 1
     assert compiled.verified_binding_count == 0
 
@@ -432,7 +453,7 @@ def test_predeclared_empty_relation_refuses_absent_endpoint_before_materializati
         )
 
 
-def test_discover_all_keeps_existing_forest_materialization_behavior(
+def test_discover_all_materializes_only_same_plane_forest_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
@@ -447,7 +468,7 @@ def test_discover_all_keeps_existing_forest_materialization_behavior(
 
     compiled = compile_relation_blocks(forest, snapshot, EvidenceDagSemiring())
 
-    assert observed_relations == ["imports", "declares"]
+    assert observed_relations == ["imports"]
     assert set(compiled.block_map) == {
         "code:imports:code",
         "code:declares:type",
@@ -455,6 +476,18 @@ def test_discover_all_keeps_existing_forest_materialization_behavior(
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.forest_hyperedge_count == 0
     assert compiled.verified_binding_count == len(snapshot.bindings)
+
+
+def test_discover_all_without_bindings_refuses_observed_cross_plane_relation() -> None:
+    forest, snapshot = _fixture()
+
+    with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            include_verified_bindings=False,
+        )
 
 
 def test_discover_all_refuses_retained_hyperedge_instead_of_lossy_omission() -> None:
