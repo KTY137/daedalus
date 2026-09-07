@@ -5,7 +5,12 @@ import hashlib
 import pytest
 
 from daedalus.schemas import ContractProvenance
-from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
+from daedalus.structcore.forest import (
+    ForestEdge,
+    ForestHyperedge,
+    ForestNode,
+    KnowledgeForest,
+)
 from daedalus.twin import relation_compiler
 from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
@@ -166,6 +171,73 @@ def _cross_plane_fixture(
     return forest, snapshot
 
 
+def _cross_plane_hyperedge_fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/api.py", "source_file"),
+            ForestNode("docs/api.md", "document"),
+        ),
+        edges=(),
+        hyperedges=(
+            ForestHyperedge(
+                id="documents:api:docs",
+                relation="documents",
+                members=("src/api.py", "docs/api.md"),
+                evidence=(_digest("documents-hyperedge:api:docs"),),
+            ),
+        ),
+        provenance={
+            "origin": "test.relation-compiler-cross-plane-hyperedge",
+            "source_revision": REVISION,
+        },
+    )
+    planes = (
+        PlaneSnapshot(
+            plane="code",
+            source_revision=REVISION,
+            status="complete",
+            node_ids=("src/api.py",),
+            evidence_sha256s=(forest.content_sha256,),
+        ),
+        PlaneSnapshot(
+            plane="type",
+            source_revision=REVISION,
+            status="absent",
+            reason="not represented by cross-plane hyperedge fixture",
+        ),
+        PlaneSnapshot(
+            plane="data",
+            source_revision=REVISION,
+            status="absent",
+            reason="not represented by cross-plane hyperedge fixture",
+        ),
+        PlaneSnapshot(
+            plane="knowledge",
+            source_revision=REVISION,
+            status="complete",
+            node_ids=("docs/api.md",),
+            evidence_sha256s=(forest.content_sha256,),
+        ),
+    )
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-cross-plane-hyperedge.snapshot",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        input_digests=(forest.content_sha256, *(plane.digest for plane in planes)),
+        trace_id="relation-compiler-cross-plane-hyperedge-snapshot",
+    )
+    snapshot = FourfoldSnapshot(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=(),
+        provenance=provenance,
+    )
+    return forest, snapshot
+
+
 def test_unretained_same_plane_edge_matches_strict_boolean_empty_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -202,6 +274,21 @@ def test_missing_verified_cross_plane_binding_refuses_both_boolean_projection_pa
         boolean_relation_block_from_fourfold(forest, snapshot, DOCUMENTS)
 
     with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(DOCUMENTS,),
+        )
+
+
+def test_cross_plane_hyperedge_refuses_both_boolean_projection_paths() -> None:
+    forest, snapshot = _cross_plane_hyperedge_fixture()
+
+    with pytest.raises(ValueError, match="cross-plane ForestHyperedge"):
+        boolean_relation_block_from_fourfold(forest, snapshot, DOCUMENTS)
+
+    with pytest.raises(ValueError, match="cannot flatten a retained ForestHyperedge"):
         compile_relation_blocks(
             forest,
             snapshot,
