@@ -94,6 +94,52 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
   await expect(pulse).toContainText('Zuletzt berichtet: verify-ui · done · Agent qa-critic · local_only');
   await expect(pulse).toContainText('52 browser checks green');
 
+  // A partially populated hello is incomplete evidence, not proof that the
+  // missing counter is zero. Keep the known side visible but label the gap.
+  await page.evaluate(() => {
+    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('hello', {
+      in_flight: true,
+      queue_depth: 3,
+      unread_count: 0,
+      watcher_state: 'busy'
+    });
+  });
+  await expect(pulse).toContainText('Aufmerksamkeitsstatus unvollständig · 0 ungelesen · Quarantäne unbekannt');
+  await expect(pulse).not.toContainText('Nichts als ungelesen oder quarantiniert gemeldet');
+
+  await page.evaluate(() => {
+    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('hello', {
+      in_flight: true,
+      queue_depth: 3,
+      quarantined_count: 0,
+      watcher_state: 'busy'
+    });
+  });
+  await expect(pulse).toContainText('Aufmerksamkeitsstatus unvollständig · ungelesen unbekannt · 0 Quarantäne');
+  await expect(pulse).not.toContainText('Nichts als ungelesen oder quarantiniert gemeldet');
+
+  // Restore a complete snapshot so the remaining report/disconnect assertions
+  // keep proving the same bounded recent-history and last-known-state contract.
+  await page.evaluate(() => {
+    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('hello', {
+      in_flight: true,
+      queue_depth: 3,
+      unread_count: 2,
+      quarantined_count: 1,
+      watcher_state: 'busy',
+      latest_report: {
+        id: 'report-7',
+        name: 'verify-ui',
+        lane: 'local_only',
+        agent: 'qa-critic',
+        status: 'done',
+        summary: '52 browser checks green',
+        created_at: '2026-09-07T09:40:00Z'
+      }
+    });
+  });
+  await expect(pulse).toContainText('3 braucht Aufmerksamkeit · 2 ungelesen · 1 Quarantäne');
+
   await page.evaluate(() => {
     (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('report', {
       id: 'report-8',
