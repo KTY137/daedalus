@@ -62,6 +62,12 @@ def boolean_relation_block_from_fourfold(
         raise ValueError("signature must be a RelationSignature")
     if forest.content_sha256 != snapshot.source_forest_sha256:
         raise ValueError("relation projection requires the exact Forest bound by Fourfold")
+    provenance_revision = forest.provenance.get("source_revision")
+    if (
+        provenance_revision is not None
+        and provenance_revision != snapshot.source_revision
+    ):
+        raise ValueError("Forest provenance revision differs from the snapshot")
 
     # FourfoldSnapshot canonicalizes planes into FOURFOLD_PLANES order once.
     # Reuse that immutable tuple instead of rebuilding ``plane_map`` per block.
