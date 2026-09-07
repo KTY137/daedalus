@@ -13,6 +13,17 @@ test.describe('watcher action guidance', () => {
     });
   });
 
+  test('never turns an unsafe project label into executable-looking shell guidance', () => {
+    const unsafe = watcherGuidance('none', 'project_tct; rm -rf .', true);
+    expect(unsafe).toEqual({
+      message: 'Aktion empfohlen: Bridge-Wächter starten'
+    });
+    expect(unsafe?.command).toBeUndefined();
+
+    expect(watcherGuidance('stopped', '-other-option', true)?.command).toBeUndefined();
+    expect(watcherGuidance('none', 'project with spaces', true)?.command).toBeUndefined();
+  });
+
   test('never starts a second watcher from stale heartbeat evidence alone', () => {
     expect(watcherGuidance('stale', 'project_tct', true)).toEqual({
       message: 'Aktion empfohlen: Wächterprozess prüfen; erst nach bestätigtem Stillstand neu starten'
