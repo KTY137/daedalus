@@ -454,7 +454,7 @@ def test_empty_same_plane_retention_skips_forest_digest_scan(monkeypatch: pytest
         raise AssertionError("empty Fourfold relation retention must not hash Forest relations")
 
     monkeypatch.setattr(
-        "daedalus.twin.relation_projection.canonical_sha",
+        "daedalus.twin.relation_compiler.canonical_sha",
         unexpected_digest_scan,
     )
 
