@@ -44,11 +44,14 @@ def boolean_relation_block_from_fourfold(
     Cross-plane relations come only from independently verified
     ``FourfoldSnapshot.bindings``.  Matching raw cross-plane ``ForestEdge``
     payloads are consistency inputs only and refuse if the exact verified
-    binding is absent; they never become a second fact authority.  Same-plane
-    relations come only from binary, directed ``ForestEdge`` payloads whose
-    exact canonical digest is retained by that plane's ``relation_sha256s``.
-    Retained hyperedges and undirected edges refuse rather than being flattened
-    into a pairwise/directional meaning that the Fourfold subject did not assert.
+    binding is absent; they never become a second fact authority.  Cross-plane
+    hyperedges also refuse whenever they intersect both selected endpoint
+    planes because a binary block cannot represent their higher-arity meaning.
+    Same-plane relations come only from binary, directed ``ForestEdge`` payloads
+    whose exact canonical digest is retained by that plane's
+    ``relation_sha256s``.  Retained hyperedges and undirected edges refuse
+    rather than being flattened into a pairwise/directional meaning that the
+    Fourfold subject did not assert.
 
     The adapter intentionally fixes Boolean existence semantics.  Forest
     weights, multiplicity, costs and evidence-bundle algebra need separate,
@@ -120,7 +123,9 @@ def boolean_relation_block_from_fourfold(
         # canonical indexed block owner instead of readmitting each label
         # through ``from_coordinates``.  Raw Forest edges remain consistency
         # inputs only and cannot manufacture a fact when Fourfold omitted the
-        # exact verified binding.
+        # exact verified binding.  Cross-plane hyperedges are unrepresentable
+        # in a binary block and therefore refuse when they span both selected
+        # endpoint planes.
         row_positions: dict[str, int] = {}
         column_positions: dict[str, int] = {}
         entries: dict[tuple[int, int], bool] = {}
@@ -153,6 +158,16 @@ def boolean_relation_block_from_fourfold(
 
         source_labels = frozenset(row_axis.labels)
         target_labels = frozenset(column_axis.labels)
+        for hyperedge in forest.hyperedges:
+            if hyperedge.relation != signature.relation:
+                continue
+            members = frozenset(hyperedge.members)
+            if members.intersection(source_labels) and members.intersection(target_labels):
+                raise ValueError(
+                    "binary relation projection cannot flatten a cross-plane "
+                    "ForestHyperedge without losing semantics"
+                )
+
         for edge in forest.edges:
             if edge.relation != signature.relation:
                 continue
