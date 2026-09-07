@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { watcherGuidance } from '../src/cockpit/WorkPulse';
 
 test.describe('watcher action guidance', () => {
-  test('turns fresh stopped watcher evidence into an exact restart action', () => {
+  test('only turns an explicitly stopped watcher into a start command', () => {
     expect(watcherGuidance('none', 'project_tct', true)).toEqual({
       message: 'Aktion empfohlen: Bridge-Wächter starten',
       command: 'python -m daedalus.file_bridge watch --project project_tct'
@@ -11,10 +11,13 @@ test.describe('watcher action guidance', () => {
       message: 'Aktion empfohlen: Bridge-Wächter starten',
       command: 'python -m daedalus.file_bridge watch --project project_tct'
     });
+  });
+
+  test('never starts a second watcher from stale heartbeat evidence alone', () => {
     expect(watcherGuidance('stale', 'project_tct', true)).toEqual({
-      message: 'Aktion empfohlen: Bridge-Wächter neu starten',
-      command: 'python -m daedalus.file_bridge watch --project project_tct'
+      message: 'Aktion empfohlen: Wächterprozess prüfen; erst nach bestätigtem Stillstand neu starten'
     });
+    expect(watcherGuidance('stale', 'project_tct', true)?.command).toBeUndefined();
   });
 
   test('never recommends blind redispatch for a wedged watcher', () => {
@@ -23,7 +26,7 @@ test.describe('watcher action guidance', () => {
     });
   });
 
-  test('does not create operational advice from stale or healthy evidence', () => {
+  test('does not create operational advice from disconnected or healthy evidence', () => {
     expect(watcherGuidance('stale', 'project_tct', false)).toBeUndefined();
     expect(watcherGuidance('none', 'project_tct', false)).toBeUndefined();
     expect(watcherGuidance('busy', 'project_tct', true)).toBeUndefined();
