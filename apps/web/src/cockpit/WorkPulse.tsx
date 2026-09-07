@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { getConversation } from '../api';
-import { dispatchPulseFromConversation, type DispatchPulseProjection } from './dispatchPulse';
+import {
+  dispatchPulseFromConversation,
+  type DispatchDescriptionSource,
+  type DispatchPulseProjection
+} from './dispatchPulse';
 import { liveExecutionStatus } from './liveExecution';
 import { emptyLiveWork, type LiveReportBrief, type LiveWorkState } from './liveWork';
 
@@ -40,6 +44,18 @@ function reportLine(report: LiveReportBrief): string {
   const agent = report.agent ? ` · Agent ${report.agent}` : '';
   const lane = report.lane ? ` · ${report.lane}` : '';
   return `${report.name} · ${report.status}${agent}${lane}`;
+}
+
+/**
+ * Confidence label for dispatch identity. A bound versioned snapshot is
+ * durable evidence on the dispatch fact itself; legacy action/turn text is a
+ * compatibility reconstruction from the bounded conversation window and must
+ * never look equally authoritative.
+ */
+export function dispatchEvidenceLabel(source: DispatchDescriptionSource): string {
+  if (source === 'bound') return 'gebundene Evidenz';
+  if (source === 'action' || source === 'turn') return 'aus Chatverlauf rekonstruiert';
+  return 'Identität nicht gebunden';
 }
 
 function currentThread(project: string): string {
@@ -176,9 +192,10 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
           return (
             <div className="focuscard-counts" key={item.ref}>
               {description
-                ? `${item.descriptionSource === 'action' ? 'Auftrag' : 'Auslöser'}: ${description}`
+                ? `${item.descriptionSource === 'turn' ? 'Auslöser' : 'Auftrag'}: ${description}`
                 : `Auftrag · ${item.kind}`}
               {item.lane ? ` · Lane ${item.lane}` : ''}
+              {` · ${dispatchEvidenceLabel(item.descriptionSource)}`}
               {' · auf Bericht wartend'}
               {started ? ` · seit ${started}` : ''}
               {' · '}
