@@ -237,7 +237,7 @@ export function Cockpit() {
         setStreamLive(true);
         setLive((prev) => ({ ...prev, inFlight: d.in_flight ?? prev.inFlight }));
       } else if (name === 'queue') {
-        setLive((prev) => ({ ...prev, queued: d.depth ?? prev.queued }));
+        setLive((prev) => ({ ...prev, queued: d.queue_depth ?? prev.queued }));
       } else if (name === 'report') {
         setDraftSignal((n) => n + 1);
       }
