@@ -50,12 +50,6 @@ def relation_block_name(signature: RelationSignature) -> str:
     )
 
 
-def _materialize_declared_sequence(values: Sequence[Any]) -> tuple[Any, ...]:
-    """Materialize exactly the cardinality declared by a bounded sequence."""
-
-    return tuple(values[index] for index in range(len(values)))
-
-
 @dataclass(frozen=True)
 class CompiledRelationBlocks(Generic[T]):
     """One deterministic relation-block projection and its compact receipt."""
@@ -164,17 +158,18 @@ def _selected_signatures(
     discovered: set[RelationSignature],
 ) -> tuple[RelationSignature, ...]:
     if requested is None:
-        values = tuple(discovered)
+        values = list(discovered)
     else:
         if isinstance(requested, (str, bytes, Mapping)) or not isinstance(
             requested, Sequence
         ):
             raise ValueError("signatures must be a bounded sequence")
-        if len(requested) > MAX_COMPILED_RELATIONS:
+        requested_count = len(requested)
+        if requested_count > MAX_COMPILED_RELATIONS:
             raise ValueError(
                 f"signatures exceed bounded limit {MAX_COMPILED_RELATIONS}"
             )
-        values = _materialize_declared_sequence(requested)
+        values = [requested[index] for index in range(requested_count)]
         if any(not isinstance(item, RelationSignature) for item in values):
             raise ValueError(
                 "signatures must contain RelationSignature records"
@@ -185,16 +180,14 @@ def _selected_signatures(
         raise ValueError(
             f"compiled relation count exceeds limit {MAX_COMPILED_RELATIONS}"
         )
-    return tuple(
-        sorted(
-            values,
-            key=lambda item: (
-                item.source_plane,
-                item.relation,
-                item.target_plane,
-            ),
+    values.sort(
+        key=lambda item: (
+            item.source_plane,
+            item.relation,
+            item.target_plane,
         )
     )
+    return tuple(values)
 
 
 def _require_complete_endpoint_planes(
