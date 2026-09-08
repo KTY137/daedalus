@@ -1144,7 +1144,29 @@ def test_the_register_is_honest_about_what_is_not_yet_wired():
         "daedalus/council/vendors.py::OllamaAdapter._dispatch",
         "daedalus/council/vendors.py::_CliAdapter._dispatch",
         "daedalus/providers/_openai_compat.py::chat_completion",
+        "daedalus/providers/_openai_compat.py::chat_completion_receipt",
     ], f"the set of scan-invisible spend sites changed: {invisible}"
+
+
+def test_both_halves_of_the_delegating_openai_entrypoint_are_registered():
+    """The register must keep naming the function that actually spends.
+
+    G1-EVAL-USAGE-01 made ``chat_completion`` a one-line wrapper over
+    ``chat_completion_receipt``: the request object and the ``_post``/``_send``
+    call moved into the sibling. Both are public entrances that spend, and a
+    register naming only the wrapper reads as coverage it no longer has.
+    Money is still accounted for either way -- both funnel through the single
+    ``_send`` the runtime interposer wraps -- but the honest accounting is the
+    point of this list.
+    """
+    registered = {
+        site["func"] for site in B.BILLABLE_SITES
+        if site["file"] == "daedalus/providers/_openai_compat.py"
+    }
+    assert {"chat_completion", "chat_completion_receipt"} <= registered, (
+        f"the OpenAI-compatible spend register no longer names both entrances: "
+        f"{sorted(registered)}"
+    )
 
 
 # ===========================================================================

@@ -78,6 +78,19 @@ SINK_FUNCTIONS = {
 }
 DOORS = {"ask", "ask_stream"}
 
+#: The identifiers whose appearance in a shell.py function makes that function
+#: an effect sink. ``_calls`` matches EXACT names, so a transport entrypoint
+#: that is not spelled here is invisible to the structural probe below --
+#: which is why ``chat_completion_receipt`` (G1-EVAL-USAGE-01) is named
+#: alongside the ``chat_completion`` wrapper that now delegates to it.
+SINK_CALL_NAMES = {
+    "subprocess.run", "subprocess.Popen", "subprocess.check_call",
+    "subprocess.check_output", "urlopen", "urllib.request.urlopen",
+    "chat_completion", "chat_completion_receipt", "chat_stream",
+    "native_chat", "native_chat_stream",
+    "socket.create_connection",
+}
+
 TURN_EFFECTS = {
     Effect.NETWORK_EGRESS,
     Effect.PROCESS_SPAWN,
@@ -537,15 +550,9 @@ def test_every_effect_sink_is_reachable_only_through_the_doors():
     registry exists to make visible.
     """
     functions = _module_functions()
-    sink_calls = {
-        "subprocess.run", "subprocess.Popen", "subprocess.check_call",
-        "subprocess.check_output", "urlopen", "urllib.request.urlopen",
-        "chat_completion", "chat_stream", "native_chat", "native_chat_stream",
-        "socket.create_connection",
-    }
 
     discovered = {
-        name for name, node in functions.items() if _calls(node) & sink_calls
+        name for name, node in functions.items() if _calls(node) & SINK_CALL_NAMES
     }
     assert discovered == SINK_FUNCTIONS, (
         "the set of effect sinks in daedalus/orchestration/ikarus/shell.py changed: "
@@ -569,6 +576,51 @@ def test_every_effect_sink_is_reachable_only_through_the_doors():
         name for name in discovered if "_provider_start" not in _calls(functions[name])
     )
     assert unguarded == [], f"effect sinks that skip the transport start: {unguarded}"
+
+
+def test_the_sink_vocabulary_names_both_halves_of_a_delegating_entrypoint():
+    """A named sink that spends only through a PUBLIC sibling hides that sibling.
+
+    ``chat_completion`` is a one-line wrapper over ``chat_completion_receipt``
+    since G1-EVAL-USAGE-01: the request object and the transport call live in
+    the sibling. ``_calls`` matches exact identifiers, so a future shell.py
+    helper calling the sibling would never enter ``discovered``, the sink-set
+    assertion above would still pass, and the ``_provider_start`` requirement
+    would silently not apply to it. The detector's own argument -- that a
+    file-level check cannot see a second entrance inside an already-registered
+    file -- applies to this name set too.
+
+    Scoped to ``_openai_compat`` because that is the module whose public
+    entrypoints this set spells, and to callees that themselves reach the
+    transport: a pure helper like ``parse_usage`` is not a second entrance.
+    """
+    module = ROOT / "daedalus" / "providers" / "_openai_compat.py"
+    tree = ast.parse(module.read_text(encoding="utf-8"))
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    transport = {"urlopen", "_send", "_post"}
+    reaching = set(transport)
+    changed = True
+    while changed:  # transitive closure over this module's call graph
+        changed = False
+        for name, node in functions.items():
+            if name not in reaching and _calls(node) & reaching:
+                reaching.add(name)
+                changed = True
+    public_sinks = {n for n in reaching if n in functions and not n.startswith("_")}
+    missing = sorted(
+        f"{name} -> {callee}"
+        for name in SINK_CALL_NAMES & public_sinks
+        for callee in _calls(functions[name]) & public_sinks
+        if callee not in SINK_CALL_NAMES
+    )
+    assert missing == [], (
+        "a named effect sink delegates to a public sibling that the sink "
+        f"vocabulary does not name: {missing}"
+    )
 
 
 def test_the_transport_start_is_the_first_statement_of_each_sink():

@@ -424,3 +424,67 @@ def test_render_line_neutralises_forged_values_in_the_usage_aggregate() -> None:
     text.encode("ascii")
     assert "provider-reported tokens" in text
     assert result == before
+
+
+# ---------------------------------------------------------------------------
+# Independent-review repairs (2026-09-08): the three tier2 defects the two
+# adversarial passes and the verifier found after the first build.
+# ---------------------------------------------------------------------------
+
+def test_ask_receipt_provider_kind_is_bounded_and_filtered_like_its_peers() -> None:
+    """``kind`` was the one ``provider_call`` member written raw.
+
+    The packet claims every ``provider_call`` string crosses the control-byte
+    filter and the 512-character bound. ``kind`` comes from
+    ``harness.detect_provider`` and is a repo-internal literal today, so this
+    was a false contract claim rather than a reachable injection -- but an
+    untested field in a retained-evidence dict is exactly what the next
+    provider-detection change would walk through.
+    """
+    hostile = "ollama\x1b[2J\nFORGED" + "z" * 4096
+    prov = dict(PROVIDER, kind=hostile)
+    with patch(RECEIPT_TARGET, return_value=_chat_receipt()):
+        receipt = tier2._ask(prov, "q", "ctx")
+    kind = receipt["provider_call"]["kind"]
+    assert len(kind) <= tier2._MAX_ERROR_CHARS
+    for control in ("\x1b", "\n", "\r", "\x00", "\x07"):
+        assert control not in kind
+    assert "\u001b" not in json.dumps(receipt)
+    assert kind.startswith("ollama")
+
+
+def test_run_tier2_reported_status_without_counts_is_unknown_not_a_crash() -> None:
+    """A foreign row that claims ``reported`` and carries nothing degrades.
+
+    ``_usage_status`` already normalises an out-of-vocabulary status to
+    ``unknown``; a status/payload pair that disagrees is the same kind of
+    foreign shape. It must land in the ``unknown`` bucket -- never crash the
+    aggregate, and never be read as zero tokens.
+    """
+    liar = _reported(10, 2)
+    liar["usage"] = None
+    result = _run([liar, _reported(100, 5)], [_task()])
+    agg = result["provider_usage"]
+    assert agg["unknown"] == 1
+    assert agg["reported"] == 1
+    assert agg["provider_input_tokens_A"] is None
+    assert agg["provider_output_tokens_A"] is None
+    assert agg["provider_input_tokens_B"] == 100
+
+
+def test_run_tier2_reported_status_with_a_bool_count_is_unknown_not_summed() -> None:
+    """``True`` is an ``int`` in Python; a bool count is not a measurement."""
+    liar = _reported(10, 2)
+    liar["usage"] = dict(liar["usage"], input_tokens=True)
+    result = _run([liar, _reported(100, 5)], [_task()])
+    agg = result["provider_usage"]
+    assert agg["unknown"] == 1 and agg["reported"] == 1
+    assert agg["provider_input_tokens_A"] is None
+
+
+def test_render_line_reports_a_missing_aggregate_key_as_na_not_none() -> None:
+    """A malformed aggregate must not print the literal ``None`` as a value."""
+    line = tier2._render_provider_usage({})
+    assert "None" not in line
+    assert line.count("n/a") == 10
+    line.encode("ascii")

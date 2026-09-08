@@ -111,7 +111,7 @@ def _usage_fields(receipt, prov: dict) -> dict:
         "usage_raw_truncated": bool(receipt.usage_raw_truncated),
         "usage_raw_sha256": receipt.usage_raw_sha256,
         "provider_call": {
-            "kind": prov["kind"],
+            "kind": _clean_field(prov["kind"]),
             "host_endpoint": _clean_field(receipt.endpoint),
             "request_model": _clean_field(receipt.request_model),
             "response_model": None if receipt.response_model is None
@@ -222,6 +222,27 @@ def _usage_evidence(receipt: dict) -> dict:
     }
 
 
+def _measured_status(row: dict, arm: str) -> str:
+    """``reported`` only when the counts that must accompany it are there.
+
+    ``_usage_status`` already degrades an unrecognised status to ``unknown``;
+    a row that claims ``reported`` but carries no usable counts is the same
+    kind of foreign shape and degrades the same way. It is never summed and
+    never silently read as zero -- ``unknown`` is its own bucket.
+    """
+    status = row[f"provider_usage_status_{arm}"]
+    if status != "reported":
+        return status
+    payload = row.get(f"provider_usage_{arm}")
+    if not isinstance(payload, dict):
+        return _USAGE_STATUS_UNKNOWN
+    for field in ("input_tokens", "output_tokens"):
+        value = payload.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):
+            return _USAGE_STATUS_UNKNOWN
+    return status
+
+
 def _provider_usage_aggregate(per_task: list[dict], scored: list[dict]) -> dict:
     """Count every call's usage status; sum reported counts over scored rows only.
 
@@ -233,7 +254,7 @@ def _provider_usage_aggregate(per_task: list[dict], scored: list[dict]) -> dict:
     from daedalus.providers._openai_compat import PROVIDER_TOKENIZER_UNKNOWN
 
     statuses = [
-        row[f"provider_usage_status_{arm}"] for row in per_task for arm in ("A", "B")
+        _measured_status(row, arm) for row in per_task for arm in ("A", "B")
     ]
     aggregate: dict = {"calls": len(statuses)}
     for status in (*_USAGE_STATUSES, _USAGE_STATUS_UNKNOWN):
@@ -241,7 +262,7 @@ def _provider_usage_aggregate(per_task: list[dict], scored: list[dict]) -> dict:
     aggregate["tokenizer"] = PROVIDER_TOKENIZER_UNKNOWN
     for arm in ("A", "B"):
         complete = bool(scored) and all(
-            row[f"provider_usage_status_{arm}"] == "reported" for row in scored
+            _measured_status(row, arm) == "reported" for row in scored
         )
         for field in ("input_tokens", "output_tokens"):
             aggregate[f"provider_{field}_{arm}"] = (
@@ -469,19 +490,17 @@ def render_tier2(result: dict) -> str:
 
 def _render_provider_usage(usage: dict) -> str:
     """One ASCII line; every value crosses the terminal boundary as text."""
-    def count(key: str) -> str:
-        return _safe_ascii(usage.get(key))
-
-    def arm(key: str) -> str:
+    def cell(key: str) -> str:
+        """A missing or null value renders as ``n/a``, never as ``None``."""
         value = usage.get(key)
         return "n/a" if value is None else _safe_ascii(value)
 
     return (
         "provider-reported tokens (tokenizer unknown): "
-        f"A in={arm('provider_input_tokens_A')} out={arm('provider_output_tokens_A')} "
-        f"B in={arm('provider_input_tokens_B')} out={arm('provider_output_tokens_B')} ; "
-        f"{count('reported')}/{count('calls')} calls reported, {count('absent')} absent, "
-        f"{count('malformed')} malformed, {count('error')} error, {count('unknown')} unknown"
+        f"A in={cell('provider_input_tokens_A')} out={cell('provider_output_tokens_A')} "
+        f"B in={cell('provider_input_tokens_B')} out={cell('provider_output_tokens_B')} ; "
+        f"{cell('reported')}/{cell('calls')} calls reported, {cell('absent')} absent, "
+        f"{cell('malformed')} malformed, {cell('error')} error, {cell('unknown')} unknown"
     )
 
 

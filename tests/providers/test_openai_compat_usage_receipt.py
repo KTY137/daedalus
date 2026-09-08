@@ -437,3 +437,57 @@ def test_exactly_one_send_per_call_and_no_new_transport_call(monkeypatch: pytest
     # 2026-09-08 at base 24e229c0: _send, chat_stream (twice), server_reachable.
     source = Path(compat.__file__).read_text(encoding="utf-8")
     assert len(re.findall(r"urlopen\(", source)) == 4
+
+
+# ---------------------------------------------------------------------------
+# Independent-review repairs (2026-09-08): two paths that could raise where an
+# absolute claim said they could not.
+# ---------------------------------------------------------------------------
+
+class _ExplodingRepr:
+    """A value whose ``repr`` raises. Not producible by ``json.loads`` -- but
+    ``parse_usage`` is a public helper and its docstring says *never raises*."""
+
+    def __repr__(self) -> str:  # pragma: no cover - the raise is the point
+        raise RuntimeError("repr exploded")
+
+
+def test_parse_usage_stays_total_when_a_value_cannot_be_repred() -> None:
+    usage, error = compat.parse_usage(
+        {"prompt_tokens": _ExplodingRepr(), "completion_tokens": 1}
+    )
+    assert usage is None
+    assert error == "prompt_tokens=<unrepresentable>"
+
+
+def test_short_repr_never_propagates_a_value_s_own_exception() -> None:
+    assert compat._short_repr(_ExplodingRepr()) == "<unrepresentable>"
+
+
+def test_endpoint_identity_survives_an_unparseable_port_without_echoing_userinfo() -> None:
+    """This runs AFTER ``_send`` returned: a raise here discards a paid answer.
+
+    ``urlsplit(...).port`` raises ``ValueError`` for a non-numeric port. The
+    replacement marker must not contain the userinfo the function exists to
+    strip, and must not be the raw ``base_url``.
+    """
+    identity = compat._endpoint_identity("http://user:s3cr3tpw@host:notaport/v1")
+    assert identity == "http://<unparseable-host>"
+    assert "s3cr3tpw" not in identity
+    assert "notaport" not in identity
+
+
+def test_a_receipt_is_still_built_when_the_host_url_has_an_unparseable_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        compat, "_send",
+        lambda request, url, timeout_s: _reply(usage=dict(REPORTED_USAGE)),
+    )
+    receipt = chat_completion_receipt(
+        base_url="http://user:s3cr3tpw@host:notaport/v1",
+        model="m", system="s", user="u",
+    )
+    assert receipt.text == "the answer"
+    assert receipt.usage == ProviderUsage(10, 2, 12)
+    assert "s3cr3tpw" not in json.dumps(dataclasses.asdict(receipt))

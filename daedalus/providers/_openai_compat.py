@@ -249,7 +249,10 @@ def _is_count(value: Any) -> bool:
 
 
 def _short_repr(value: Any) -> str:
-    text = repr(value)
+    try:
+        text = repr(value)
+    except Exception:  # a provider value is untrusted; repr() is not total
+        return "<unrepresentable>"
     if len(text) <= _MAX_USAGE_ERROR_REPR_CHARS:
         return text
     return text[: _MAX_USAGE_ERROR_REPR_CHARS - 3] + "..."
@@ -368,10 +371,16 @@ def _usage_raw_evidence(payload: dict[str, Any]) -> tuple[str | None, bool, str 
 def _endpoint_identity(base_url: str) -> str:
     """Scheme, host, port and path only: an ``OLLAMA_HOST`` may carry userinfo."""
     parts = urllib.parse.urlsplit(base_url)
+    try:
+        port = parts.port
+    except ValueError:
+        # An unparseable port would raise AFTER _send returned, discarding a
+        # paid answer. Report the failure without echoing the userinfo.
+        return f"{parts.scheme}://<unparseable-host>"
     host = parts.hostname or ""
     if ":" in host:
         host = f"[{host}]"
-    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    netloc = host if port is None else f"{host}:{port}"
     return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
 
 
