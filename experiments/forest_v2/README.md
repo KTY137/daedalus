@@ -4870,3 +4870,39 @@ Raw complete outputs are `s02-g3-base-01-corpora-a.json.gz` and
 `s02-g3-base-01-corpora-b.json.gz` under `docs/evidence/G3-BASE-01`, with
 SHA256 values in `acceptance.json` beside them. This census establishes no
 Gate closure and no Gate-3 baseline evidence.
+
+### Evening integration remeasurement (2026-09-08)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus the merged packets
+`G1-PROJECTS-01`, `G1-IKARUS-36`, `G1-UI-22`, `G1-ARIADNE-10`, `G3-BASE-01`
+and `G1-TOKENIZER-01` (branch `integration/ignite-and-gate3-20260908`). All
+fields other than wall time and root path matched across both complete
+outputs; all six corpora remain declared, five are present, and the absent
+corpus still records its reason.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 509 parsed files, 6,975 functions; annotation-only 94.42%; full resolver 94.31%; marginal 8 functions / 0.1147 pp; 46,457 type-name sites, resolution 99.93%; verified internal 4,240 / 4,665 (90.89%); 425 named-only internal sites |
+| source pin | `b217070456853496d88dc47df449ea7652bb9baaddc991b876928464f3d648e7` |
+
+The 24 additional files are the `daedalus/eval/gate3` package (G3-BASE-01);
+the 197 additional functions and 1,267 additional type-name sites are the sum
+of that package and the four smaller packets whose own rows above describe
+each contribution. The marginal contribution stays at 8 functions and moves
+to 0.1147 pp only because the denominator grew. This is a changed source
+corpus under the same probe, not measured resolver improvement. The fixed
+fixture's 15.7895 pp marginal contribution still exceeds this kernel row by
+more than two orders of magnitude. All prior retractions, failed expectations
+and measured rows above remain unchanged.
+
+The separate complete import-graph comparison measures 509 modules and 1,998
+edges; all fourteen nontrivial components and their maximum size of nineteen
+remain identical. Raw complete outputs are
+`s02-g1-integration-02-corpora-a.json.gz` and
+`s02-g1-integration-02-corpora-b.json.gz` under
+`docs/evidence/G1-INTEGRATION-02`, with SHA256 values in `acceptance.json`
+beside them. This census establishes no Gate closure and no Gate-3 baseline
+evidence.

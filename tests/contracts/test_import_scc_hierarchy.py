@@ -197,7 +197,7 @@ CURRENT_COMPONENTS_SHA256 = (
 # Genesis, Ariadne, computer-runtime, desktop-owner, contract, containment and
 # Twin projection Python modules became part of the tracked graph.  This is an
 # exact tracked-path census, not a relaxed lower bound.
-CENSUS_MODULES = 485  # re-measured 2026-09-08; cancellation owner and Hermes compatibility facade added
+CENSUS_MODULES = 509  # re-measured 2026-09-08 on the evening integration (G3-BASE-01 gate3 package + G1-PROJECTS-01/G1-ARIADNE-10/G1-IKARUS-36 edits; 14 components, max 19 unchanged)
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -487,7 +487,7 @@ CENSUS_MODULES = 485  # re-measured 2026-09-08; cancellation owner and Hermes co
 # G1-IGNITION-04: the complete comparison against accepted main 24e229c0
 # adds only ignition.gate1 -> atomic. Module count, all fourteen exact
 # components, maximum nineteen and their digest remain unchanged.
-CENSUS_EDGES = 1932
+CENSUS_EDGES = 1998  # re-measured 2026-09-08 on the evening integration
 
 
 def _module_name(path: str) -> str:

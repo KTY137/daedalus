@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 471,
+    "assigned_artifacts": 476,
     "legacy_artifacts": 204,
-    "packet_artifacts": 473,
-    "packet_ids": 408,
-    "post_index_artifacts": 269,
+    "packet_artifacts": 478,
+    "packet_ids": 413,
+    "post_index_artifacts": 274,
     "registry_artifacts": 1,
-    "tracked_files": 474,
+    "tracked_files": 479,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -5654,6 +5654,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-36_VOICE_INVOCATION_AND_MEASURED_SPEND.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "db38a762991b04cbc96c3cbed5209d6a517fa611",
+        "classification": "ALIGNED",
+        "dependencies": "none",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-36",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-36_VOICE_INVOCATION_AND_MEASURED_SPEND.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md"
       ],
       "metadata": {
@@ -6407,6 +6423,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-TOKENIZER-01_TOKENIZER_STATUS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24e229c0f34e5404bc219637b646386529f82035",
+        "classification": "ALIGNED",
+        "dependencies": "none",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-TOKENIZER-01",
+      "primary_artifact": "docs/work-packets/G1-TOKENIZER-01_TOKENIZER_STATUS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TWIN-GARDEN-01R.json"
       ],
       "metadata": {
@@ -6759,6 +6791,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-UI-22_CONVERSATION_HONESTY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "db38a762991b04cbc96c3cbed5209d6a517fa611",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-UI-05, G1-UI-06, G1-UI-08 integrated. The additive envelope",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-UI-22",
+      "primary_artifact": "docs/work-packets/G1-UI-22_CONVERSATION_HONESTY.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-WEB-01_PROJECT_SCOPED_LIVE_EVENTS.md"
       ],
       "metadata": {
@@ -6836,6 +6884,22 @@
       "origin": "post_index",
       "packet_id": "G1-WP-INDEX-01",
       "primary_artifact": "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G3-BASE-01_FROZEN_BASELINE_HARNESS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+        "classification": "EXPERIMENT",
+        "dependencies": "none",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G3-BASE-01",
+      "primary_artifact": "docs/work-packets/G3-BASE-01_FROZEN_BASELINE_HARNESS.md"
     }
   ],
   "post_index_contracts": [
@@ -9684,6 +9748,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-IKARUS-36",
+      "path": "docs/work-packets/G1-IKARUS-36_VOICE_INVOCATION_AND_MEASURED_SPEND.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-IKARUS-42",
       "path": "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md",
       "sections": [
@@ -10265,6 +10343,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-TOKENIZER-01",
+      "path": "docs/work-packets/G1-TOKENIZER-01_TOKENIZER_STATUS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-UI-01",
       "path": "docs/work-packets/G1-UI-01_SHARED_APP_BOOTSTRAP_STRANGLER.md",
       "sections": [
@@ -10559,6 +10651,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-UI-22",
+      "path": "docs/work-packets/G1-UI-22_CONVERSATION_HONESTY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-WEB-01",
       "path": "docs/work-packets/G1-WEB-01_PROJECT_SCOPED_LIVE_EVENTS.md",
       "sections": [
@@ -10603,6 +10709,20 @@
       "format": "markdown",
       "packet_id": "G1-WP-INDEX-01",
       "path": "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G3-BASE-01",
+      "path": "docs/work-packets/G3-BASE-01_FROZEN_BASELINE_HARNESS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
