@@ -1496,6 +1496,7 @@ def accept(repo_root, item: str, why: str, *, until: str = "", since: str = "",
     # above -- otherwise this is the laundry described in the docstring.
     state = {
         "ignore": snapshot.get("ignore") or {},
+        "reach_scope": snapshot.get("reach_scope") or {"status": "unknown"},
         "modules": snapshot.get("modules") or [],
         "islands": snapshot.get("islands") or [],
         "unknown": snapshot.get("unknown") or [],

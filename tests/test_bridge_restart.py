@@ -1324,7 +1324,9 @@ def test_queue_response_keeps_successful_link_true_when_projection_is_pending(
         monkeypatch.setattr(web_api, "_read_body", lambda _handler: body)
         monkeypatch.setattr(
             web_api.core, "queue_task",
-            mock.Mock(return_value={"queued": str(bridge.outbox / "task-1.json")}))
+            mock.Mock(side_effect=lambda _project, _objective, **kwargs: {
+                "queued": str(bridge.outbox / "task-1.json"), "lane": kwargs["lane"],
+            }))
         monkeypatch.setattr(conversation_mod, "default_store", lambda: store)
         monkeypatch.setattr(
             fb, "reconcile_conversation_report", mock.Mock(side_effect=pending))
@@ -1370,12 +1372,14 @@ def test_queue_response_surfaces_permanent_projection_conflict_without_retry(
 
         body = {
             "project": "p", "objective": "do it", "conversation_id": "c1",
-            "turn_id": turn.id,
+            "turn_id": turn.id, "lane": "claude",
         }
         monkeypatch.setattr(web_api, "_read_body", lambda _handler: body)
         monkeypatch.setattr(
             web_api.core, "queue_task",
-            mock.Mock(return_value={"queued": str(bridge.outbox / req.name)}))
+            mock.Mock(side_effect=lambda _project, _objective, **kwargs: {
+                "queued": str(bridge.outbox / req.name), "lane": kwargs["lane"],
+            }))
         requeue = mock.Mock(wraps=fb._requeue_for_projection)
         monkeypatch.setattr(fb, "_requeue_for_projection", requeue)
 

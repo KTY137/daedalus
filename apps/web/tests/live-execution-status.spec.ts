@@ -1,0 +1,70 @@
+import { expect, test } from '@playwright/test';
+import { liveExecutionStatus } from '../src/features/mission/live';
+
+test.describe('live execution evidence', () => {
+  test('renders current counters as live execution evidence', () => {
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 1, queued: 3 })).toEqual({
+      text: 'Ausführung live · 1 aktiv · 3 wartend',
+      tone: 'ok',
+      stale: false
+    });
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 0, queued: 0 })).toEqual({
+      text: 'Ausführung live · nichts aktiv',
+      tone: 'ok',
+      stale: false
+    });
+  });
+
+  test('normalizes the legacy bridge boolean without losing active-work evidence', () => {
+    expect(liveExecutionStatus({ streamLive: true, inFlight: true, queued: 0 })).toEqual({
+      text: 'Ausführung live · 1 aktiv · 0 wartend',
+      tone: 'ok',
+      stale: false
+    });
+    expect(liveExecutionStatus({ streamLive: true, inFlight: false, queued: 0 })).toEqual({
+      text: 'Ausführung live · nichts aktiv',
+      tone: 'ok',
+      stale: false
+    });
+    expect(liveExecutionStatus({ streamLive: false, inFlight: true, queued: 2 })).toEqual({
+      text: 'Ereignisstrom getrennt · letzter Stand: 1 aktiv · 2 wartend',
+      tone: 'warn',
+      stale: true
+    });
+  });
+
+  test('marks cached counters stale as soon as the event stream is gone', () => {
+    expect(liveExecutionStatus({ streamLive: false, inFlight: 1, queued: 1 })).toEqual({
+      text: 'Ereignisstrom getrennt · letzter Stand: 1 aktiv · 1 wartend',
+      tone: 'warn',
+      stale: true
+    });
+  });
+
+  test('does not invent execution state when no observation exists', () => {
+    expect(liveExecutionStatus({ streamLive: false })).toEqual({
+      text: 'kein Ereignisstrom · Ausführungsstand unbekannt',
+      tone: 'muted',
+      stale: true
+    });
+  });
+
+  test('rejects invalid counters instead of rendering impossible task counts', () => {
+    expect(liveExecutionStatus({ streamLive: true, inFlight: -1, queued: Number.NaN })).toEqual({
+      text: 'Ausführung live · Zähler unbekannt',
+      tone: 'warn',
+      stale: false
+    });
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 1.9, queued: 0.2 })).toEqual({
+      text: 'Ausführung live · Zähler unbekannt',
+      tone: 'warn',
+      stale: false
+    });
+  });
+
+  test('a flag is never a task total and partial zeroes never claim nothing is active', () => {
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 2 })).toMatchObject({ tone: 'warn' });
+    expect(liveExecutionStatus({ streamLive: true, queued: 0 }).text).not.toContain('nichts aktiv');
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 0 }).text).not.toContain('nichts aktiv');
+  });
+});

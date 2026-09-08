@@ -1190,9 +1190,13 @@ def _verify_container(
         if not _empty(_ci_get(host, field)):
             raise ContainmentUnavailable(f"Podman resolved forbidden {field}")
 
-    effective_caps = _ci_get(item, "EffectiveCaps")
-    bounding_caps = _ci_get(item, "BoundingCaps")
-    if effective_caps != [] or bounding_caps != []:
+    # Podman 4.9 serializes empty Go capability slices as null. Missing
+    # inspection fields are unknown; they must not share that interpretation.
+    missing = object()
+    for field in ("EffectiveCaps", "BoundingCaps"):
+        capabilities = _ci_get(item, field, missing)
+        if capabilities is None or (type(capabilities) is list and not capabilities):
+            continue
         raise ContainmentUnavailable(
             "Podman did not drop every effective and bounding Linux capability"
         )
@@ -1326,9 +1330,39 @@ def _verify_container(
             + ", ".join(sorted(unexpected))
         )
 
-    networks = _ci_get(_mapping(_ci_get(item, "NetworkSettings"), "NetworkSettings"), "Networks")
-    if not _empty(networks):
-        raise ContainmentUnavailable("Podman attached the candidate to a network")
+    networks = _ci_get(
+        _mapping(_ci_get(item, "NetworkSettings"), "NetworkSettings"), "Networks", missing
+    )
+    if not isinstance(networks, Mapping):
+        raise ContainmentUnavailable("Podman network inspection is missing or malformed")
+    if networks:
+        # Before start, Podman 4.9 represents network=none with this exact
+        # zero-valued marker. NetworkMode=none was independently required above.
+        marker = networks.get("none", missing)
+        expected_marker = {
+            "EndpointID": "",
+            "Gateway": "",
+            "IPAddress": "",
+            "IPPrefixLen": 0,
+            "IPv6Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "MacAddress": "",
+            "NetworkID": "none",
+            "DriverOpts": None,
+            "IPAMConfig": None,
+            "Links": None,
+        }
+        if (
+            set(networks) != {"none"}
+            or not isinstance(marker, Mapping)
+            or set(marker) != set(expected_marker)
+            or any(
+                type(marker[key]) is not type(expected) or marker[key] != expected
+                for key, expected in expected_marker.items()
+            )
+        ):
+            raise ContainmentUnavailable("Podman attached the candidate to a network")
 
     pid_ns = _normal_private(_ci_get(host, "PidMode"), "PID")
     ipc_ns, ipc_ns_evidence = _verified_private_ipc(

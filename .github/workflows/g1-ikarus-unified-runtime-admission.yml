@@ -12,6 +12,45 @@ on:
       - g1/ikarus-effect-bridge-06
       - main
     paths:
+      - "apps/web/playwright.config.ts"
+      - "apps/web/package.json"
+      - "apps/web/package-lock.json"
+      - "tools/gui_check.py"
+      - "apps/web/src/app/**"
+      - "apps/web/src/features/conversation/**"
+      - "apps/web/src/features/mission/**"
+      - "apps/web/src/shared/api/**"
+      - "apps/web/src/shared/contracts/**"
+      - "apps/web/tests/**"
+      - "daedalus/orchestration/ikarus/shell.py"
+      - "daedalus/orchestration/ikarus/cancellation.py"
+      - "daedalus/orchestration/conversation_requests.py"
+      - "daedalus/orchestration/genesis/**"
+      - "daedalus/kernel/attempt_ledger.py"
+      - "daedalus/kernel/attempt_spine_reader.py"
+      - "tests/kernel/test_attempt_spine_existing_wal.py"
+      - "tests/interfaces/test_http_genesis.py"
+      - "daedalus/interfaces/http/**"
+      - "daedalus/interfaces/bridge/projection.py"
+      - "daedalus/providers/_openai_compat.py"
+      - "daedalus/providers/_ollama_native.py"
+      - "daedalus/providers/ollama.py"
+      - "daedalus/orchestration/llm_client.py"
+      - "daedalus/file_bridge.py"
+      - "daedalus/progress_sources.py"
+      - "tests/test_ikarus_*cancellation.py"
+      - "tests/test_ikarus_stream_cancellation_integration.py"
+      - "tests/test_llm_client.py"
+      - "tests/test_ikarus_stop_gate_paths.py"
+      - "tests/test_ikarus_stream.py"
+      - "tests/test_conversation_requests.py"
+      - "tests/providers/*cancellation*.py"
+      - "tests/test_queue_dispatch_identity.py"
+      - "tests/test_bridge_report_execution_evidence.py"
+      - "tests/test_ikarus_bridge_progress.py"
+      - "tests/test_llm_client_readiness_evidence.py"
+      - "tests/test_runtime_registry_fanout.py"
+      - "tests/test_runtime_registry_singleflight.py"
       - "daedalus/orchestration/ikarus/effect_bridge.py"
       - "daedalus/orchestration/ikarus/oneshot.py"
       - "daedalus/orchestration/ikarus/tool_scope.py"
@@ -19,6 +58,10 @@ on:
       - "daedalus/runtimes/provider/executable_object_registry.py"
       - "daedalus/runtimes/provider/runtime_executable_binding.py"
       - "daedalus/runtimes/provider/invocation_payload.py"
+      - "daedalus/runtimes/provider/invocation.py"
+      - "daedalus/runtimes/provider/invocation_authority.py"
+      - "tests/runtimes/test_provider_invocation_subject*.py"
+      - "tests/runtimes/test_provider_invocation_authority*.py"
       - "daedalus/runtimes/provider/invocation_abi.py"
       - "daedalus/runtimes/provider/runtime_invocation_binding.py"
       - "daedalus/runtimes/broker.py"
@@ -94,9 +137,90 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e . pytest
+      - run: python -m pip install -e ".[test]"
+      - name: Provision and measure the Linux candidate runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          DAEDALUS_RUN_LINUX_OCI_INTEGRATION: "1"
+          DAEDALUS_LINUX_OCI_IMAGE: docker.io/library/python@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+        run: |
+          set -euo pipefail
+          mkdir -p runtime-evidence
+          sudo apt-get update
+          sudo apt-get install -y podman uidmap crun fuse-overlayfs slirp4netns
+          # The hosted runner image makes /usr/share recursively writable.
+          # Restore the exact authenticated package; do not bless existing bytes
+          # by relaxing the kernel guard or merely changing ownership/mode.
+          seccomp_path=/usr/share/containers/seccomp.json
+          readlink -f "$seccomp_path" > runtime-evidence/seccomp-resolved-path.txt
+          stat -c '%F uid=%u gid=%g mode=%a links=%h dev=%d inode=%i' "$seccomp_path" > runtime-evidence/seccomp-stat-before.txt
+          sha256sum "$seccomp_path" > runtime-evidence/seccomp-before.sha256
+          dpkg-query -S "$seccomp_path" > runtime-evidence/seccomp-package-owner.txt
+          test "$(cat runtime-evidence/seccomp-package-owner.txt)" = "golang-github-containers-common: $seccomp_path"
+          seccomp_version="$(dpkg-query -W -f='${Version}' golang-github-containers-common)"
+          echo "$seccomp_version" > runtime-evidence/seccomp-package-version.txt
+          dpkg-statoverride --list > runtime-evidence/dpkg-statoverrides.txt || test "$?" -eq 1
+          sudo apt-get install --reinstall -y "golang-github-containers-common=$seccomp_version"
+          sha256sum --check runtime-evidence/seccomp-before.sha256
+          stat -c '%F uid=%u gid=%g mode=%a links=%h dev=%d inode=%i' "$seccomp_path" > runtime-evidence/seccomp-stat-after.txt
+          test "$(id -u)" -ne 0
+          ci_user="$(id -un)"
+          if ! awk -F: -v user="$ci_user" '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subuid; then
+            sudo usermod --add-subuids 100000-165535 "$ci_user"
+          fi
+          if ! awk -F: -v user="$ci_user" '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subgid; then
+            sudo usermod --add-subgids 100000-165535 "$ci_user"
+          fi
+          install -d -m 0700 "$HOME/.config/containers"
+          : > "$HOME/.config/containers/mounts.conf"
+          chmod 0600 "$HOME/.config/containers/mounts.conf"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/podman-xdg"
+          install -d -m 0700 "$XDG_RUNTIME_DIR"
+          export DAEDALUS_LINUX_OCI_RUNTIME=/usr/bin/podman
+          echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" >> "$GITHUB_ENV"
+          echo "DAEDALUS_LINUX_OCI_RUNTIME=$DAEDALUS_LINUX_OCI_RUNTIME" >> "$GITHUB_ENV"
+          echo "DAEDALUS_LINUX_OCI_IMAGE=$DAEDALUS_LINUX_OCI_IMAGE" >> "$GITHUB_ENV"
+          CONTAINERS_CONF=/dev/null podman --remote=false info --format json > runtime-evidence/podman-info.json
+          CONTAINERS_CONF=/dev/null podman --remote=false pull "$DAEDALUS_LINUX_OCI_IMAGE"
+          CONTAINERS_CONF=/dev/null podman --remote=false image inspect --format json "$DAEDALUS_LINUX_OCI_IMAGE" > runtime-evidence/podman-image.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pytest
+          from daedalus.spine import linux_containment as containment
+
+          original_verify = containment._verify_container
+
+          def record_and_verify(raw, *args, **kwargs):
+              Path("runtime-evidence/candidate-container-inspect.json").write_text(
+                  json.dumps(raw, indent=2) + "\n", encoding="utf-8",
+              )
+              return original_verify(raw, *args, **kwargs)
+
+          containment._verify_container = record_and_verify
+          try:
+              raise SystemExit(pytest.main([
+                  "-q",
+                  "tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network",
+                  "--junitxml=runtime-evidence/linux-oci.xml",
+              ]))
+          finally:
+              containment._verify_container = original_verify
+          PY
+          python -c "import xml.etree.ElementTree as E; r=E.parse('runtime-evidence/linux-oci.xml').getroot(); assert len(list(r.iter('testcase'))) == 1 and not any(list(r.iter(tag)) for tag in ('failure', 'error', 'skipped'))"
       - run: >-
           python -m py_compile
+          daedalus/orchestration/ikarus/shell.py
+          daedalus/orchestration/ikarus/cancellation.py
+          daedalus/orchestration/conversation_requests.py
+          daedalus/interfaces/http/effects.py
+          daedalus/interfaces/bridge/projection.py
+          daedalus/providers/_openai_compat.py
+          daedalus/providers/_ollama_native.py
+          tests/test_ikarus_http_cancellation.py
+          tests/test_ikarus_cancellation.py
+          tests/test_ikarus_stop_gate_paths.py
           daedalus/orchestration/ikarus/effect_bridge.py
           daedalus/orchestration/ikarus/oneshot.py
           daedalus/orchestration/ikarus/tool_scope.py
@@ -140,7 +264,27 @@ jobs:
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
-          python -m pytest -q -p no:cacheprovider
+          python -m pytest -q -p no:cacheprovider --junitxml=runtime-evidence/focused.xml
+          tests/test_ikarus_cancellation.py
+          tests/test_ikarus_stream.py
+          tests/test_ikarus_http_cancellation.py
+          tests/test_ikarus_claude_stream_cancellation.py
+          tests/test_ikarus_codex_cancellation.py
+          tests/test_ikarus_stream_cancellation_integration.py
+          tests/test_ikarus_stop_gate_paths.py
+          tests/test_conversation_requests.py
+          tests/kernel/test_attempt_spine_existing_wal.py
+          tests/interfaces/test_http_genesis.py
+          tests/providers/test_openai_compat_cancellation.py
+          tests/providers/test_openai_compat_cancellation_boundary.py
+          tests/providers/test_ollama_native_stream_cancellation.py
+          tests/test_queue_dispatch_identity.py
+          tests/test_bridge_report_execution_evidence.py
+          tests/test_ikarus_bridge_progress.py
+          tests/test_llm_client_readiness_evidence.py
+          tests/test_llm_client.py
+          tests/test_runtime_registry_fanout.py
+          tests/test_runtime_registry_singleflight.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
@@ -160,6 +304,9 @@ jobs:
           tests/runtimes/test_provider_runtime_invocation_binding.py
           tests/runtimes/test_provider_runtime_invocation_binding_review.py
           tests/runtimes/test_provider_invocation_authority.py
+          tests/runtimes/test_provider_invocation_authority_review.py
+          tests/runtimes/test_provider_invocation_subject.py
+          tests/runtimes/test_provider_invocation_subject_review.py
           tests/runtimes/test_runtime_provider_broker.py
           tests/runtimes/test_runtime_provider_exact_authority_boundary.py
           tests/runtimes/test_runtime_provider_post_invoke_unknown.py
@@ -192,3 +339,48 @@ jobs:
           assert not (target / 'tests').exists();
           assert not hasattr(broker, '_run_runtime_provider_test_double');
           assert not hasattr(broker, 'run_runtime_provider_test_double')"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: g1-runtime-${{ matrix.os }}-python-${{ matrix.python }}
+          path: runtime-evidence
+          if-no-files-found: warn
+
+  cockpit:
+    name: Windows built cockpit and durable conversation browser flows
+    # The full browser contract includes a live Windows Genesis receipt.
+    # Linux OCI execution has its own matrix; skipping this Windows case
+    # would correctly make the owned GUI harness incomplete.
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: python -m pip install -e ".[test]"
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm run test:app
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+      - run: npx playwright install --with-deps chromium --only-shell
+        working-directory: apps/web
+      - name: Exercise all browser contracts through the owned server harness
+        env:
+          DAEDALUS_GUI_SUITE_TIMEOUT_S: "900"
+        run: python -m tools.gui_check --json > cockpit-evidence.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: g1-cockpit-evidence
+          path: cockpit-evidence.json
+          if-no-files-found: error

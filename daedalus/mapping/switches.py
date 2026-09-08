@@ -51,8 +51,9 @@ _SKIP_DIRS = frozenset({
 # switches and marking them dark would bury the ones that are.
 _PLATFORM_ENV = frozenset({
     "APPDATA", "COMSPEC", "HOME", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA",
-    "PATH", "PATHEXT", "PROGRAMFILES", "PYTHONPATH", "SYSTEMROOT", "TEMP",
-    "TMP", "TMPDIR", "USERNAME", "USERPROFILE", "VIRTUAL_ENV",
+    "PATH", "PATHEXT", "PROCESSOR_IDENTIFIER", "PROGRAMFILES", "PYTHONPATH",
+    "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "USER", "USERDOMAIN", "USERNAME",
+    "USERPROFILE", "VIRTUAL_ENV",
     "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
 })
 
@@ -1029,7 +1030,7 @@ def _is_subsequence(short: Sequence[str], long: Sequence[str]) -> bool:
 def _drift(documented: dict[str, list[str]], mentioned: dict[str, list[str]],
            sites_by_name: dict[str, list[EnvSite]]) -> list[DocDrift]:
     read = {name for name in sites_by_name if name not in _PLATFORM_ENV}
-    doc_names = set(documented)
+    doc_names = set(documented) - _PLATFORM_ENV
     out: list[DocDrift] = []
 
     for name in sorted(doc_names - read):
@@ -1175,7 +1176,7 @@ def analyse(repo_root: str | Path) -> SwitchReport:
     # never reads from the environment are dropped before drift is computed.
     for name in sorted(const_names - set(by_name)):
         documented.pop(name, None)
-    _augment_documented(documented, mentioned, set(by_name))
+    _augment_documented(documented, mentioned, set(by_name) - _PLATFORM_ENV)
 
     switches = tuple(
         _reconcile(name, by_name[name], name in documented)

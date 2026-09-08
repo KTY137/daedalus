@@ -60,5 +60,5 @@ def test_exact_subject_contains_every_required_binding_dimension() -> None:
 def test_subject_digest_is_canonical_and_not_caller_supplied() -> None:
     source = inspect.getsource(provider_invocation.ProviderInvocationSubject)
     assert "def digest" in source
-    assert "canonical_sha(self.to_dict())" in source
+    assert "_canonical_digest(self.to_dict())" in source
     assert "digest:" not in source

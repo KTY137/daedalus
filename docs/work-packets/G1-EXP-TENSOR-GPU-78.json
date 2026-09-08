@@ -1,0 +1,171 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-78",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "cb05912812b58b6686216882894080d9a7376ce8",
+    "dependencies": "G1-EXP-TENSOR-GPU-77 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["decision", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["audit", "decision"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene"],
+        "projection_note": "Research-only gardening packet. Reverting it removes only the recorded fixture-ownership decision; no production, test, probe, public-API or measurement behavior changes in GPU-78."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-78",
+  "work_packet": "G1-EXP-TENSOR-GPU-78",
+  "title": "Retain local complete-Fourfold fixtures after semantic divergence audit",
+  "classification": "closed-research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "cb05912812b58b6686216882894080d9a7376ce8",
+  "scope": "Audit only the repeated test-only complete-Fourfold fixture construction named by GPU-77 across tests/twin/test_tensor_forest_cost_probe.py and tests/twin/test_tensor_heldout_csr_probe.py. Determine whether exact plane-completeness, provenance, trace and relation-topology semantics match strongly enough to justify reuse. Do not introduce a shared helper merely to reduce line count, and do not change production projection, public API, probe schemas, benchmark claims, promotion state or branch topology.",
+  "audit": {
+    "relation_cost_fixture": {
+      "path": "tests/twin/test_tensor_forest_cost_probe.py",
+      "builder": "_complete_relation_fourfold",
+      "forest_planes_with_nodes": ["code", "knowledge"],
+      "planes_promoted_to_complete": ["code", "knowledge"],
+      "relation_topology": [
+        "code:imports:code",
+        "code:documents:knowledge"
+      ],
+      "provenance_origin": "test.tensor-forest-relation-cost-probe.complete-fixture",
+      "trace_id": "tensor-forest-relation-cost-probe-complete",
+      "purpose": "two-relation relation-cost diagnostic with exact code/knowledge endpoint completeness"
+    },
+    "heldout_csr_fixture": {
+      "path": "tests/twin/test_tensor_heldout_csr_probe.py",
+      "builder": "_complete_fourfold",
+      "forest_planes_with_nodes": ["code", "type", "knowledge"],
+      "planes_promoted_to_complete": ["code", "type", "knowledge"],
+      "relation_topology": [
+        "code:imports:code",
+        "code:declares:type",
+        "code:documents:knowledge",
+        "knowledge:mentions_type:type"
+      ],
+      "provenance_origin": "test.tensor-heldout-csr-probe.complete-fixture",
+      "trace_id": "tensor-heldout-csr-probe-complete",
+      "purpose": "held-out multi-hop CSR falsification diagnostic requiring complete code/type/knowledge endpoints"
+    },
+    "shared_mechanics": [
+      "derive the legacy Fourfold from the exact Forest",
+      "rebuild selected PlaneSnapshot records with status=complete while retaining node/relation/evidence digests",
+      "retain the legacy verified bindings",
+      "bind fixture provenance to Forest digest, rebuilt plane digests and binding digests"
+    ],
+    "semantic_divergences": [
+      "The selected complete-plane sets differ: code+knowledge versus code+type+knowledge.",
+      "The underlying Forest node-kind domains differ: the relation-cost fixture has no type nodes, while the held-out workload has an explicit type plane.",
+      "The relation/binding topology differs: the held-out fixture adds code->type and knowledge->type cross-plane contracts that are absent from the relation-cost workload.",
+      "The provenance origins and trace IDs are intentionally workload-specific and therefore part of distinct evidence identities.",
+      "The held-out fixture participates in a frozen workload/query-suite falsification surface; the relation-cost fixture belongs to a separate diagnostic construction/query-cost surface."
+    ],
+    "abstraction_cost": "A shared helper would need policy parameters for complete-plane selection plus workload-specific provenance/trace identity. That would convert two small explicit evidence fixtures into a configurable test abstraction whose parameters encode the very semantic differences the audit must keep visible. Moving such a helper into production code would be worse because fixture-only status promotion must not look like a production completeness upgrade path."
+  },
+  "decision": {
+    "production_change": false,
+    "test_or_probe_change": false,
+    "public_api_change": false,
+    "fixtures_semantically_identical": false,
+    "shared_helper_added": false,
+    "local_fixtures_retained": true,
+    "duplicate_mechanics_accepted": true,
+    "reason": "The duplicated mechanics are structurally similar but not semantically identical. Exact endpoint completeness, workload topology and provenance/trace identity diverge. Keeping each fixture local is lower-bloat than introducing a configurable test abstraction or a misleading production completeness helper.",
+    "summary": "Do not consolidate the complete-Fourfold fixtures. Their local explicitness preserves workload-specific endpoint and evidence semantics and avoids cross-test coupling."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "cb05912812b58b6686216882894080d9a7376ce8",
+    "relation_cost_probe_blob": "tests/twin/test_tensor_forest_cost_probe.py@385bad6c6451597a56ffe41b2cf8a2e1d774a268",
+    "heldout_csr_probe_blob": "tests/twin/test_tensor_heldout_csr_probe.py@1b2e1c991b9dc2a7499651a5207e29a32dfc6459",
+    "heldout_multihop_probe_blob": "tests/twin/test_tensor_heldout_multihop_probe.py@0f10709fc0cd819b789eb4b1c81d3818605c231e",
+    "gpu77_exact_fourfold_tensor_run": {
+      "run_id": 34162058148,
+      "head_sha": "cb05912812b58b6686216882894080d9a7376ce8",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "gpu77_exact_tauri_run": {
+      "run_id": 34162058135,
+      "head_sha": "cb05912812b58b6686216882894080d9a7376ce8",
+      "status": "completed",
+      "conclusion": "failure",
+      "failure_step": "Rust formatting"
+    },
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "source-semantics audit",
+    "production_tests_run_for_packet": false,
+    "new_green_claim": false,
+    "source_contract_checked": true,
+    "plane_set_divergence_checked": true,
+    "provenance_trace_divergence_checked": true,
+    "relation_topology_divergence_checked": true,
+    "notes": "GPU-78 changes only this machine-readable research record. The exact GPU-77 base head has successful Fourfold/Tensor PR contract evidence, while its independent Tauri workflow remains red at Rust formatting. No executable or benchmark result is relabelled as GPU-78 evidence of superiority."
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "duplicate_fixture_deleted": false,
+    "duplicate_fixture_helper_added": false,
+    "cross_test_coupling_added": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-79 only: audit the remaining test-to-test runpy coupling in the held-out Tensor probes. Determine whether loading test_tensor_heldout_multihop_probe.py (which itself loads test_tensor_forest_cost_probe.py) creates avoidable execution/collection coupling or duplicated authority. Prefer deletion or direct ownership only when semantics remain explicit; do not create a generic shared probe utility merely for deduplication, do not move fixture-only completeness promotion into production code, and do not change public API, measurement schemas or performance claims during the audit."
+}

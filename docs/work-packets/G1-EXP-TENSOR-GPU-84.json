@@ -1,0 +1,171 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-84",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "ff45b37769ac14a4bd76092a44a7673f6a4f9ae0",
+    "dependencies": "G1-EXP-TENSOR-GPU-83 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback restores the single-use declared-sequence helper plus the second sorted-container allocation and removes the focused admission contracts; no wire, public API, authority or promotion state changes are involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-84",
+  "work_packet": "G1-EXP-TENSOR-GPU-84",
+  "title": "Reuse one bounded signature list for validation and canonical ordering",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "ff45b37769ac14a4bd76092a44a7673f6a4f9ae0",
+  "scope": "Remove the remaining single-use _materialize_declared_sequence helper and avoid a second full selected-signature ordering container inside _selected_signatures. Preserve bounded Sequence admission, maximum cardinality refusal before indexed item access, complete declared materialization before requested-type validation, RelationSignature type validation before duplicate refusal, deterministic (source_plane, relation, target_plane) canonicalization and immutable tuple output. Reuse the existing compiler owner and selected-pruning test owner; do not add a shared admission subsystem, alternate collection contract, registry, cache, backend or second compiler.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_compiler.py::_selected_signatures",
+    "previous_behavior": "Explicit requested signatures were copied through the single-use _materialize_declared_sequence helper into a tuple, validated for type and duplicates, then copied again by sorted(...) before final tuple freezing. Discover-all likewise first materialized tuple(discovered), then sorted(...) into a second full container.",
+    "finding": "The ordering copy was redundant. One bounded mutable list is sufficient to retain the previous requested-sequence materialization/error precedence, perform type and duplicate validation, sort canonically in place and freeze the final tuple. After GPU-83 the helper had no other owner and could be deleted rather than generalized."
+  },
+  "implementation": {
+    "production": {
+      "commit": "93337087ba929bcf262e230443c50f334dc9c933",
+      "path": "daedalus/twin/relation_compiler.py",
+      "blob": "170e3825a7c215a7e13ae56e70932790badde85e",
+      "change": "Delete _materialize_declared_sequence. For requested catalogs, cache declared cardinality and index exactly that bounded cardinality into one list; for discovered signatures, create one list from the bounded discovered set. Retain full requested-item materialization before type/duplicate checks, then sort that same list in place by source_plane/relation/target_plane and freeze it once to a tuple."
+    },
+    "focused_test": {
+      "commit": "f7763ce08abb21e36a4f4207ccada4f681589162",
+      "path": "tests/twin/test_relation_compiler_selected_pruning.py",
+      "blob": "8376d84c84a786894645fd889a66f60cef4ee845",
+      "change": "Extend the existing selected-pruning owner with a tracking bounded Sequence. Pin indexed declared-cardinality access, canonical order without a second module-level sorted container, removal of the retired helper, preservation of full declared materialization before requested type refusal, and explicit duplicate refusal."
+    },
+    "diff_from_gpu_83": {
+      "commits": 2,
+      "production_files": 1,
+      "test_files": 1,
+      "production_additions": 10,
+      "production_deletions": 17,
+      "test_additions": 52,
+      "test_deletions": 0
+    }
+  },
+  "semantic_invariants": {
+    "bounded_admission": "Explicit signatures must remain a bounded Sequence; catalogs above MAX_COMPILED_RELATIONS are refused before item consumption.",
+    "materialization_precedence": "For accepted-cardinality requested catalogs, every declared index is still read before requested signature type validation, matching the previous declared-sequence materialization boundary.",
+    "type_before_duplicate": "Requested values are still required to be RelationSignature records before duplicate detection is evaluated.",
+    "duplicate_refusal": "Duplicate requested signatures remain an explicit ValueError.",
+    "canonical_order": "Accepted signatures are still deterministically ordered by (source_plane, relation, target_plane) and returned as an immutable tuple.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; selected relation signatures remain compiler input/planning data rather than a new authority.",
+    "public_api": "No public API, wire schema, benchmark schema, compatibility facade, promotion or authority contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": true,
+    "test_change": true,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "single_use_materialization_helper_removed": true,
+    "second_signature_ordering_container_removed": true,
+    "canonical_sort_retained": true,
+    "new_helper_added": false,
+    "new_registry_or_backend_added": false,
+    "parallel_compiler_added": false,
+    "summary": "Selected-signature admission now owns one bounded mutable list from declared/discovered input through validation and canonical ordering, then freezes it once. The obsolete single-use materialization helper and separate sorted-container allocation are gone without relaxing admission or ordering contracts."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "ff45b37769ac14a4bd76092a44a7673f6a4f9ae0",
+    "implementation_head": "f7763ce08abb21e36a4f4207ccada4f681589162",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@170e3825a7c215a7e13ae56e70932790badde85e",
+    "selected_pruning_tests": "tests/twin/test_relation_compiler_selected_pruning.py@8376d84c84a786894645fd889a66f60cef4ee845",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "implementation_head": "f7763ce08abb21e36a4f4207ccada4f681589162",
+    "fourfold_tensor_run": {
+      "run_id": 34185786579,
+      "status": "completed",
+      "conclusion": "success",
+      "python_3_12_hash_0": "420 passed, 2 skipped in 7.22s",
+      "python_contract_matrix": "Python 3.10/3.12 with PYTHONHASHSEED 0/123456 completed successfully",
+      "isolated_wheel_imports": "success",
+      "public_package_api": "success",
+      "complete_repository_collection": "success at workflow conclusion",
+      "complete_suite_manual_only": "skipped"
+    },
+    "tauri_run": {
+      "run_id": 34185786630,
+      "status_at_packet_write": "in_progress",
+      "conclusion_at_packet_write": null,
+      "claim": "No Tauri success/failure claim is made in this packet before the exact implementation-head run completes."
+    },
+    "diagnostics": "CPU bitset and TypedRelationBlock validation profiles emitted by the contract workflow remain authority=diagnostic-only and claim=none.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "single_use_helper_removed": true,
+    "second_full_ordering_container_removed": true,
+    "existing_compiler_owner_reused": true,
+    "existing_test_owner_reused": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-85 only: audit CompiledRelationBlocks.block_map and its canonical consumers for repeated dict(self.blocks) materialization. Prefer binding the existing immutable mapping view once in bounded consumers over adding a cache or second stored mapping. Change the owner only if exact block-name lookup semantics, deterministic block order, direct-constructor validation and the regenerable-view authority boundary remain explicit; do not add a registry, cache subsystem, alternate receipt family or second compiler."
+}

@@ -338,27 +338,24 @@ def test_same_plane_projection_reuses_retained_endpoints_without_coordinate_read
 
 
 @pytest.mark.parametrize(
-    ("code_node_ids", "message"),
-    (
-        (("src/a.py",), "unknown column label 'src/b.py'"),
-        (("src/b.py",), "unknown row label 'src/a.py'"),
-    ),
+    "code_node_ids",
+    (("src/a.py",), ("src/b.py",)),
 )
-def test_same_plane_projection_preserves_explicit_plane_membership_errors(
+def test_same_plane_projection_refuses_incomplete_global_forest_partition(
     code_node_ids: tuple[str, ...],
-    message: str,
 ) -> None:
     forest = _forest()
     snapshot = _same_plane_snapshot(forest, code_node_ids=code_node_ids)
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(
+        ValueError,
+        match="Forest nodes are missing from the Fourfold plane partition",
+    ):
         boolean_relation_block_from_fourfold(
             forest,
             snapshot,
             RelationSignature("code", "imports", "code"),
         )
-
-    assert str(exc_info.value) == message
 
 
 def test_projection_refuses_legacy_partial_endpoint_planes() -> None:
@@ -384,9 +381,28 @@ def test_projection_refuses_a_forest_not_bound_by_the_snapshot() -> None:
         provenance=forest.provenance,
     )
 
-    with pytest.raises(ValueError, match="exact Forest bound by Fourfold"):
+    with pytest.raises(ValueError, match="snapshot does not bind the supplied Forest digest"):
         boolean_relation_block_from_fourfold(
             other,
+            snapshot,
+            RelationSignature("code", "imports", "code"),
+        )
+
+
+def test_projection_refuses_forest_provenance_revision_drift() -> None:
+    base = _forest()
+    forest = KnowledgeForest(
+        root=base.root,
+        nodes=base.nodes,
+        edges=base.edges,
+        hyperedges=base.hyperedges,
+        provenance={**base.provenance, "source_revision": "b" * 40},
+    )
+    snapshot = _complete_snapshot(forest)
+
+    with pytest.raises(ValueError, match="Forest provenance revision differs from the snapshot"):
+        boolean_relation_block_from_fourfold(
+            forest,
             snapshot,
             RelationSignature("code", "imports", "code"),
         )
@@ -408,7 +424,7 @@ def test_projection_refuses_undirected_edges_instead_of_inventing_orientation() 
     forest = _forest(imports_directed=False)
     snapshot = _complete_snapshot(forest)
 
-    with pytest.raises(ValueError, match="explicitly directed ForestEdge"):
+    with pytest.raises(ValueError, match="cannot flatten undirected ForestEdge"):
         boolean_relation_block_from_fourfold(
             forest,
             snapshot,
@@ -438,7 +454,7 @@ def test_empty_same_plane_retention_skips_forest_digest_scan(monkeypatch: pytest
         raise AssertionError("empty Fourfold relation retention must not hash Forest relations")
 
     monkeypatch.setattr(
-        "daedalus.twin.relation_projection.canonical_sha",
+        "daedalus.twin.relation_compiler.canonical_sha",
         unexpected_digest_scan,
     )
 

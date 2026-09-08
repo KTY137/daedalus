@@ -1,0 +1,109 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-61",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "f4499863b0a1e54b80b97c8af763d86a9ce8df76",
+    "dependencies": "G1-EXP-TENSOR-GPU-59, G1-EXP-TENSOR-GPU-60",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "result"]},
+      "scope": {"source_fields": ["domain", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "preserved_boundaries"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "implementation"],
+        "projection_note": "The change is confined to the existing compile_relation_blocks owner and its existing retention regression owner. Reverting the production and test commits restores the prior eager-hash behavior without changing any authority contract or rewriting history."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundaries", "preserved_boundaries"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-61",
+  "title": "Prune empty same-plane Fourfold retention before Forest hashing",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "f4499863b0a1e54b80b97c8af763d86a9ce8df76",
+  "result": {
+    "summary": "The canonical multi-relation compiler now prunes a same-plane ForestEdge before canonical hashing when its bound Fourfold plane retained no relation digests at all. This applies to an explicitly selected matching relation and to discover-all. Semantic output is unchanged: explicit selection still yields the same empty closed-world block, while discover-all still discovers no unretained row.",
+    "semantic_change": false,
+    "structural_change": "Avoid canonical_sha(edge.to_dict()) when retained_relation_digests[source_plane] is empty after the existing selected-signature prune.",
+    "gardener": "The bounded target from GPU-60 was implemented directly in the existing compiler owner. No helper, cache, adapter, projection authority, registry, backend, fact store, public API or duplicate test module was added."
+  },
+  "implementation": {
+    "production_change": true,
+    "production_commit": "11bf44f51049f172e992680c964a562abcaaba26",
+    "production_blob": "daedalus/twin/relation_compiler.py@eaf0540ce9c8dbd8a3baf86f205b15ff53638ac0",
+    "test_commit": "2c446bf286bc00e050c14a9899d49832ee4d357b",
+    "test_blob": "tests/twin/test_relation_compiler_relation_retention.py@da30355ac112566ad554e870f4e5dbf463ed3bf3",
+    "test_strategy": "The two existing empty-retention regressions now monkeypatch relation_compiler.canonical_sha to fail on any attempted relation hash; existing evidence-materialization guards and retained-row equivalence tests remain in the same test owner."
+  },
+  "preserved_boundaries": [
+    "GPU-56 exact verified Fourfold authority for cross-plane rows",
+    "GPU-57 retained same-plane hyperedge refusal",
+    "GPU-59 retained/unretained same-plane Boolean projection equivalence",
+    "complete endpoint-plane closed-world refusal",
+    "observer-specific provenance materialization",
+    "Forest/Fourfold provenance-revision and global partition validation",
+    "public boolean_relation_block_from_fourfold compatibility surface"
+  ],
+  "verification": {
+    "implementation_run": {
+      "run_id": 34085225092,
+      "head": "2c446bf286bc00e050c14a9899d49832ee4d357b",
+      "base": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+      "status": "completed/success",
+      "representative_python_3_12_hash_0": "402 passed, 2 skipped in 6.81s",
+      "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 all completed/success",
+      "public_api": "success",
+      "isolated_wheel": "success",
+      "complete_repository_collection": "success",
+      "complete_suite_manual_only": "skipped"
+    },
+    "full_repository_suite": "not claimed",
+    "exact_closure_head_ci": "required after this packet-record commit"
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "gpu60_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-60.json@816dbf29c5e73e0eded98b22152fa9137f4704c6",
+    "prechange_compiler_blob": "daedalus/twin/relation_compiler.py@d6cd529fc2d499f3eb1f796050a34b9596c940e2",
+    "production_blob": "daedalus/twin/relation_compiler.py@eaf0540ce9c8dbd8a3baf86f205b15ff53638ac0",
+    "prechange_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@b08673fab51620212fcbef2cf16314495531a07b",
+    "final_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@da30355ac112566ad554e870f4e5dbf463ed3bf3",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "claim_boundaries": {
+    "correctness": "Claimed only for the tested empty-retention pre-hash prune and the already-covered adjacent Fourfold/Tensor contract surface.",
+    "performance": "No benchmark claim. The packet proves structurally avoided canonical hashing when the same-plane retention set is empty; it does not claim a measured latency improvement.",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "diagnostics": "CPU bitset and TypedRelationBlock profiles remain diagnostic-only with claim=none.",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}

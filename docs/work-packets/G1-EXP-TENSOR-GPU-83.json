@@ -1,0 +1,172 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-83",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "b009127da8c888435e74494689a1cde1b05eeb5e",
+    "dependencies": "G1-EXP-TENSOR-GPU-82 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback restores the receipt-only eager sequence materialization and removes the focused incremental-validation contract; no wire, public API, authority or promotion state changes are involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-83",
+  "work_packet": "G1-EXP-TENSOR-GPU-83",
+  "title": "Validate compiled receipts incrementally without eager sequence copy",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "b009127da8c888435e74494689a1cde1b05eeb5e",
+  "scope": "Remove the receipt-only eager full Sequence-to-tuple materialization in CompiledRelationBlocks.__post_init__ while preserving bounded admission, direct-construction validation, duplicate-name refusal, TypedRelationBlock subject/semiring/signature checks, deterministic block-name canonicalization and semantic_fact_count validation. Reuse the existing receipt owner and existing focused receipt-bounds test module; do not add a registry, alternate collection type, second compiler or public API.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_compiler.py::CompiledRelationBlocks.__post_init__",
+    "previous_behavior": "After bounded Sequence and cardinality checks, the receipt first materialized every declared element into a tuple through _materialize_declared_sequence(self.blocks), then iterated that tuple to validate names/blocks and build a second list for deterministic sorting and final tuple storage.",
+    "finding": "The first tuple was redundant for receipt construction. A bounded Sequence already provides len/index admission, while the ordered list remains necessary to validate, sort by logical block name and freeze the canonical final tuple. Eagerly copying every declared item also meant a malformed first item could not fail until all later declared items had already been read.",
+    "retained_helper_scope": "_materialize_declared_sequence remains in use by requested RelationSignature admission in _selected_signatures; GPU-83 does not broaden scope into that separate contract."
+  },
+  "implementation": {
+    "production": {
+      "commit": "9385d7b0cc5d3a654ceea4f743766529b05d546a",
+      "path": "daedalus/twin/relation_compiler.py",
+      "blob": "4799970b701446aebdf9492796cccbfffcddc78b",
+      "change": "Cache the already-bounded declared block count, then index and validate one declared item at a time directly from self.blocks before appending it to the one ordering list. The redundant _materialize_declared_sequence receipt copy is removed; deterministic ordered.sort and final tuple freezing remain."
+    },
+    "focused_test": {
+      "commit": "ccbb578cb2def8570ea5efaa4b143eb0ea481bcc",
+      "path": "tests/twin/test_relation_compiler_receipt_bounds.py",
+      "blob": "e8ce93cfa2eda066c19e8eaae590e12917d4b2db",
+      "change": "Extend the existing bounded-receipt owner with a two-item Sequence whose first item is invalid and whose second item raises if read. The contract pins failure on the first malformed block name before any later declared item is consumed."
+    },
+    "diff_from_gpu_82": {
+      "commits": 2,
+      "production_files": 1,
+      "test_files": 1,
+      "production_additions": 4,
+      "production_deletions": 2,
+      "test_additions": 23,
+      "test_deletions": 0
+    }
+  },
+  "semantic_invariants": {
+    "bounded_admission": "blocks must remain a bounded Sequence and catalogs above MAX_COMPILED_RELATIONS are refused before item consumption.",
+    "direct_constructor_validation": "Every declared item still validates non-empty string name, duplicate-name refusal and TypedRelationBlock type before canonical storage.",
+    "binding": "Every block must still bind the exact receipt ProjectionSubject and semiring.",
+    "signature_name": "relation_block_name(block.signature) must still equal the declared block name.",
+    "canonical_order": "Accepted blocks are still deterministically sorted by logical block name and frozen as a tuple.",
+    "fact_count": "semantic_fact_count must still equal the sum of final block entry counts.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; compiled relation blocks remain a regenerable computational receipt/view.",
+    "public_api": "No public API, wire schema, benchmark schema, compatibility facade, promotion or authority contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": true,
+    "test_change": true,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "eager_receipt_sequence_copy_removed": true,
+    "incremental_item_validation_pinned": true,
+    "deterministic_sort_retained": true,
+    "new_helper_added": false,
+    "new_registry_or_backend_added": false,
+    "parallel_compiler_added": false,
+    "summary": "CompiledRelationBlocks no longer creates a complete temporary tuple merely to begin receipt validation. It consumes the already-bounded Sequence one indexed item at a time, fails malformed early items before touching later entries, and retains the single ordering list needed for deterministic name sorting and final immutable storage."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "b009127da8c888435e74494689a1cde1b05eeb5e",
+    "implementation_head": "ccbb578cb2def8570ea5efaa4b143eb0ea481bcc",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@4799970b701446aebdf9492796cccbfffcddc78b",
+    "receipt_bounds_tests": "tests/twin/test_relation_compiler_receipt_bounds.py@e8ce93cfa2eda066c19e8eaae590e12917d4b2db",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "implementation_head": "ccbb578cb2def8570ea5efaa4b143eb0ea481bcc",
+    "fourfold_tensor_run": {
+      "run_id": 34182387168,
+      "status": "completed",
+      "conclusion": "success",
+      "python_3_12_hash_0": "417 passed, 2 skipped in 5.73s",
+      "python_contract_matrix": "Python 3.10/3.12 with PYTHONHASHSEED 0/123456 completed successfully",
+      "isolated_wheel_imports": "success",
+      "public_package_api": "success",
+      "complete_repository_collection": "success at workflow conclusion",
+      "complete_suite_manual_only": "skipped"
+    },
+    "tauri_run": {
+      "run_id": 34182387164,
+      "status_at_packet_write": "in_progress",
+      "conclusion_at_packet_write": null,
+      "claim": "No Tauri success/failure claim is made in this packet before the run completes."
+    },
+    "diagnostics": "CPU bitset and TypedRelationBlock validation profiles emitted by the contract workflow remain authority=diagnostic-only and claim=none.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "redundant_full_sequence_materialization_removed": true,
+    "existing_validation_owner_reused": true,
+    "existing_test_owner_reused": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-84 only: audit _selected_signatures for the remaining _materialize_declared_sequence(requested) full tuple before type/duplicate validation and deterministic signature sorting. Remove or narrow that transient only if bounded Sequence cardinality, RelationSignature type validation, duplicate refusal, deterministic (source_plane, relation, target_plane) ordering and existing error precedence remain explicit. Do not introduce a shared admission subsystem, alternate collection contract or second compiler."
+}

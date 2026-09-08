@@ -477,6 +477,8 @@ def report_brief(path: Path) -> dict[str, Any]:
         "status": payload.get("bridge_status") or "?",
         "lane": payload.get("lane") or request.get("lane") or "?",
         "project": request.get("project") or "",
+        # Attribution comes from terminal execution evidence, never the request.
+        "agent": payload.get("agent") or "",
         "summary": " ".join(str(summary).split())[:160],
     }
 

@@ -1,0 +1,181 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-77",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "646b5a114880a4eaeed9130fdb6af2182ff0a7a9",
+    "dependencies": "G1-EXP-TENSOR-GPU-76 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "compatibility"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["implementation", "branch_hygiene"],
+        "projection_note": "This packet changes only diagnostic test ownership. Rollback restores the benchmark-file compatibility-facade import and duplicate assertion; production projection semantics and the public facade are unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-77",
+  "work_packet": "G1-EXP-TENSOR-GPU-77",
+  "title": "Remove the Boolean compatibility facade dependency from the relation-cost benchmark harness",
+  "classification": "closed-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "646b5a114880a4eaeed9130fdb6af2182ff0a7a9",
+  "implementation_head": "8e62a4af8fe43a4bd8ff5b1ad5e0fddbcb81ca8b",
+  "scope": "Implement only the GPU-76 frozen Gardener step. Remove the retained boolean_relation_block_from_fourfold facade from the relation-cost diagnostic module when it is used only by compatibility assertions, keep the CSR occupancy assertion on the canonical multi-relation compiler already measured by that harness, delete duplicate compatibility coverage already owned by tests/twin/test_fourfold_relation_projection.py, and make no production, public-API, schema, promotion, branch-topology or performance-claim change.",
+  "implementation": {
+    "path": "tests/twin/test_tensor_forest_cost_probe.py",
+    "commit": "8e62a4af8fe43a4bd8ff5b1ad5e0fddbcb81ca8b",
+    "blob": "385bad6c6451597a56ffe41b2cf8a2e1d774a268",
+    "compatibility_facade_import_removed": true,
+    "csr_row_occupancy_assertion_compiler": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "csr_row_occupancy_assertion_observer": "BooleanSemiring",
+    "duplicate_snapshot_binding_test_removed": true,
+    "duplicate_snapshot_binding_owner": "tests/twin/test_fourfold_relation_projection.py::test_projection_matches_direct_forest_relations_and_composes",
+    "complete_endpoint_refusal_owner": "tests/twin/test_fourfold_relation_projection.py::test_projection_refuses_legacy_partial_endpoint_planes",
+    "production_files_changed": 0,
+    "public_api_changed": false,
+    "measurement_schema_changed": false,
+    "measured_builder_changed": false,
+    "new_test_helper_added": false,
+    "new_runtime_abstraction_added": false,
+    "parallel_projector_added": false
+  },
+  "compatibility": {
+    "boolean_relation_block_from_fourfold_removed": false,
+    "public_package_contract_changed": false,
+    "dedicated_compatibility_surface_retained": "tests/twin/test_fourfold_relation_projection.py",
+    "public_api_workflow_import_retained": true,
+    "reason": "GPU-73 retained the public single-relation facade. GPU-77 only removes an unnecessary benchmark-harness dependency and duplicate assertion; compatibility behavior remains tested in its existing dedicated owner."
+  },
+  "result": {
+    "closed": true,
+    "benchmark_harness_compatibility_dependency_removed": true,
+    "duplicate_test_removed": true,
+    "canonical_multi_relation_compiler_reused": true,
+    "public_facade_retained": true,
+    "performance_claim": false,
+    "summary": "The relation-cost benchmark module no longer imports the public Boolean compatibility facade. Its CSR row-occupancy assertion now uses the same canonical multi-relation compiler owner as the measured arm, while duplicate snapshot-binding coverage was deleted because the dedicated relation-projection compatibility tests already own that contract."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "646b5a114880a4eaeed9130fdb6af2182ff0a7a9",
+    "implementation_commit": "8e62a4af8fe43a4bd8ff5b1ad5e0fddbcb81ca8b",
+    "implementation_blob": "tests/twin/test_tensor_forest_cost_probe.py@385bad6c6451597a56ffe41b2cf8a2e1d774a268",
+    "dedicated_compatibility_blob": "tests/twin/test_fourfold_relation_projection.py@c274fdc57db3d2df5fff2b0ca48d5db355acb267",
+    "implementation_compare": {
+      "base": "646b5a114880a4eaeed9130fdb6af2182ff0a7a9",
+      "head": "8e62a4af8fe43a4bd8ff5b1ad5e0fddbcb81ca8b",
+      "commits": 1,
+      "files": 1,
+      "additions": 9,
+      "deletions": 21,
+      "net_lines": -12
+    },
+    "implementation_fourfold_tensor_run": {
+      "run_id": 34161838003,
+      "head_sha": "8e62a4af8fe43a4bd8ff5b1ad5e0fddbcb81ca8b",
+      "status": "completed",
+      "conclusion": "success",
+      "python_3_10_hash_0": "success",
+      "python_3_10_hash_123456": "success",
+      "python_3_12_hash_0": "success",
+      "python_3_12_hash_123456": "success",
+      "complete_repository_collection": "success",
+      "isolated_wheel_imports": "success",
+      "python_3_12_hash_0_contract_result": "412 passed, 2 skipped in 6.94s",
+      "complete_suite_manual_only": "skipped",
+      "public_package_api": "success"
+    },
+    "implementation_tauri_run": {
+      "run_id": 34161837997,
+      "head_sha": "8e62a4af8fe43a4bd8ff5b1ad5e0fddbcb81ca8b",
+      "status": "completed",
+      "conclusion": "failure",
+      "successful_before_failure": [
+        "Build cockpit",
+        "Build frozen Daedalus backend",
+        "Smoke-test frozen backend and cockpit",
+        "Project and desktop contract tests",
+        "Generate desktop icons"
+      ],
+      "failure_step": "Rust formatting",
+      "skipped_after_failure": [
+        "Rust library tests",
+        "Build Linux validation desktop bundle"
+      ]
+    },
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "test-owner gardening plus hosted PR contract verification",
+    "implementation_workflow_run": 34161838003,
+    "implementation_workflow_conclusion": "success",
+    "tauri_workflow_run": 34161837997,
+    "tauri_workflow_conclusion": "failure",
+    "tauri_failure_is_tensor_change_evidence": false,
+    "full_suite_green": false,
+    "notes": "The exact implementation head passed the Fourfold/Tensor PR contract matrix, public package API, isolated wheel imports and complete repository collection. Complete-suite/manual-only execution was skipped. The independent Tauri workflow remained red at Rust formatting. Diagnostic timing/memory outputs remain authority=diagnostic-only and claim=none."
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_probe_files_changed": 1,
+    "documentation_files_changed": 1,
+    "test_probe_additions": 9,
+    "test_probe_deletions": 21,
+    "test_probe_net_lines": -12,
+    "benchmark_facade_import_removed": true,
+    "duplicate_compatibility_test_removed": true,
+    "compatibility_facade_removed_from_public_api": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-78 only: audit the repeated test-only complete-Fourfold fixture construction across the relation-cost and held-out CSR probe surfaces. Determine whether their plane sets, provenance and trace semantics are truly identical enough to consolidate without cross-test coupling. Prefer deletion/reuse only if exact semantics match; otherwise retain the local fixtures and close the research packet with the divergence evidence. Do not introduce a shared fixture helper merely to reduce line count, and do not change production projection, public API, measurement schemas or performance claims."
+}

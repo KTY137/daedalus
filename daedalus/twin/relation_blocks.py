@@ -447,10 +447,9 @@ class TypedRelationBlock(Generic[T]):
     ) -> "TypedRelationBlock[T]":
         if len(entries) > MAX_BLOCK_ENTRIES:
             raise ValueError(f"block entries exceed bounded limit {MAX_BLOCK_ENTRIES}")
-        ordered = list(entries.items())
         row_count = len(row_axis.labels)
         column_count = len(column_axis.labels)
-        for (row, column), _value in ordered:
+        for row, column in entries:
             if type(row) is not int:
                 raise ValueError("indexed block row indices must contain integers")
             if not 0 <= row < row_count:
@@ -459,13 +458,13 @@ class TypedRelationBlock(Generic[T]):
                 raise ValueError("indexed block column indices must contain integers")
             if not 0 <= column < column_count:
                 raise ValueError("indexed block contains an out-of-range column index")
-        ordered.sort()
+        ordered = sorted(entries)
         offsets, indices, values, cursor = [0], [], [], 0
         for row in range(row_count):
-            while cursor < len(ordered) and ordered[cursor][0][0] == row:
-                (_, column), value = ordered[cursor]
-                indices.append(column)
-                values.append(value)
+            while cursor < len(ordered) and ordered[cursor][0] == row:
+                key = ordered[cursor]
+                indices.append(key[1])
+                values.append(entries[key])
                 cursor += 1
             offsets.append(len(values))
         return cls(

@@ -403,12 +403,13 @@ class ClaudeStreamFrameTest(unittest.TestCase):
         self.assertIn("--include-partial-messages", args)
         self.assertIn("--verbose", args)  # required with stream-json in -p mode
 
-    def test_missing_cli_yields_nothing(self):
+    def test_missing_cli_refuses_before_effect_or_spawn(self):
         with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value=None), \
              mock.patch.object(ikarus_os, "_provider_start") as provider_start, \
              mock.patch("subprocess.Popen") as popen:
-            self.assertEqual(list(ikarus_os._claude_stream("hello")), [])
+            with self.assertRaises(ikarus_os.ProviderStartRefused):
+                list(ikarus_os._claude_stream("hello"))
         provider_start.assert_not_called()
         popen.assert_not_called()
 

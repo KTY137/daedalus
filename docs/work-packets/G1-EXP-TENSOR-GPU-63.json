@@ -1,0 +1,120 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-63",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "7af74744f59190df97aaac05fd6839777b6866f2",
+    "dependencies": "G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-62",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "result"]},
+      "scope": {"source_fields": ["domain", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "preserved_boundaries"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "implementation"],
+        "projection_note": "The change is confined to the existing public Boolean compatibility projector and its existing regression owner. Reverting commits 2d112b8aeb794aba1ccea264eac723e87ee07725 and 64d9110e55542e5d2ef5fd0efb5e8fe59146a96f restores the previous compatibility behavior without changing the canonical compiler, rewriting history, or introducing a parallel projection path."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundaries", "preserved_boundaries"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-63",
+  "title": "Align strict Boolean projection with Fourfold provenance revision authority",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "7af74744f59190df97aaac05fd6839777b6866f2",
+  "result": {
+    "summary": "The public strict Boolean compatibility projector now rejects a Forest whose optional provenance source_revision disagrees with the exact Fourfold snapshot revision, matching the canonical compile_relation_blocks trust boundary and the projection verifier's atomic-revision model. This removes one GPU-60 adapter/compiler mismatch without adding a third projection abstraction.",
+    "semantic_change": true,
+    "structural_change": "One existing compatibility path now enforces the same revision-coherence check already enforced by the canonical multi-relation compiler.",
+    "gardener": "No helper, verifier, cache, adapter family, graph authority, fact store, backend, registry, test module, or public API was added. The focused regression was added to the existing strict-projection test owner."
+  },
+  "implementation": {
+    "production_change": true,
+    "production_commit": "2d112b8aeb794aba1ccea264eac723e87ee07725",
+    "test_commit": "64d9110e55542e5d2ef5fd0efb5e8fe59146a96f",
+    "production_blob": "daedalus/twin/relation_projection.py@d13ad005324107d4328a2d9c6fc39296b6cad5cf",
+    "test_blob": "tests/twin/test_fourfold_relation_projection.py@4163463b183f66aeece10aa75a6ef351e91a9cc2",
+    "test_strategy": "Construct an exact digest-bound Forest/Fourfold pair whose Forest provenance source_revision differs from the snapshot source_revision and prove the strict Boolean projector refuses it with the same revision-coherence boundary as compile_relation_blocks."
+  },
+  "preserved_boundaries": [
+    "GPU-56 exact verified Fourfold authority for cross-plane rows",
+    "GPU-57 retained same-plane hyperedge refusal",
+    "GPU-59 retained/unretained same-plane Boolean projection equivalence",
+    "GPU-61 empty-retention prehash prune",
+    "GPU-62 indexed canonical block construction",
+    "complete endpoint-plane closed-world refusal",
+    "public boolean_relation_block_from_fourfold API shape",
+    "cross-plane raw-Forest-edge behavior remains unchanged",
+    "global Forest/Fourfold partition behavior remains unchanged"
+  ],
+  "verification": {
+    "implementation_run": {
+      "run_id": 34094666435,
+      "head": "64d9110e55542e5d2ef5fd0efb5e8fe59146a96f",
+      "base": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+      "status": "completed/success",
+      "representative_python_3_12_hash_0": "404 passed, 2 skipped in 4.94s",
+      "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 all completed/success",
+      "public_api": "success",
+      "isolated_wheel": "success",
+      "complete_repository_collection": "success",
+      "complete_suite_manual_only": "skipped"
+    },
+    "pr_wide_tauri": {
+      "run_id": 34094666465,
+      "status": "completed/failure",
+      "failed_step": "Rust formatting",
+      "note": "The independent desktop workflow reaches successful cockpit build, frozen backend build, smoke test, project/desktop contracts, and icon generation before the known Rust-formatting failure. The same failure was already recorded on the GPU-62 line and is not treated as Tensor/Fourfold success evidence."
+    },
+    "full_repository_suite": "not claimed",
+    "exact_closure_head_ci": "required after this packet-record commit"
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "gpu60_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-60.json@816dbf29c5e73e0eded98b22152fa9137f4704c6",
+    "gpu62_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-62.json@fe9b612e1d98aaca161be9f5a3ff1c31e79b3d9f",
+    "projection_verifier_blob": "daedalus/twin/projection_verifier.py@b02462d3e8416d475d7e785bad44505b4997026c",
+    "prechange_projection_blob": "daedalus/twin/relation_projection.py@c399d872c22b1b012930a107a48e6ab47bb9814a",
+    "production_blob": "daedalus/twin/relation_projection.py@d13ad005324107d4328a2d9c6fc39296b6cad5cf",
+    "prechange_test_blob": "tests/twin/test_fourfold_relation_projection.py@ea17518e7c16415b434d2db0530a0343d6e7b2b1",
+    "final_test_blob": "tests/twin/test_fourfold_relation_projection.py@4163463b183f66aeece10aa75a6ef351e91a9cc2",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "claim_boundaries": {
+    "correctness": "Claimed only for the tested revision-coherence refusal and the adjacent existing Fourfold/Tensor contract surface exercised by the focused workflow.",
+    "performance": "none",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "diagnostics": "CPU bitset and TypedRelationBlock profiles remain diagnostic-only with claim=none.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}

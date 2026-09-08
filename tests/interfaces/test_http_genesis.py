@@ -859,3 +859,96 @@ def test_web_server_freezes_invocation_cwd_as_genesis_authority_root(
         "authority_root": tmp_path.resolve(),
         "closed": True,
     }
+
+
+@pytest.mark.parametrize("delivery", ["archive", "preview"])
+def test_genesis_delivery_reads_existing_uncheckpointed_wal_without_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, delivery: str,
+) -> None:
+    """A live web ledger must not hide its committed candidate in the WAL."""
+    import hashlib
+    import sqlite3
+    from daedalus.kernel.attempt_ledger import AttemptLedger
+    from daedalus.kernel.source_trees import SourceTreeStore
+    from daedalus.orchestration.genesis import service
+    from daedalus.spine.ledger import SpineLedger
+
+    authority = tmp_path / "authority"
+    authority.mkdir()
+    database = authority / "runs" / "spine" / "spine.sqlite3"
+    monkeypatch.setenv("DAEDALUS_SPINE_DB", str(database))
+    monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(tmp_path / "control" / "killswitch"))
+    keeper = SpineLedger(database)
+    keeper._conn.execute("PRAGMA wal_autocheckpoint=0")
+    try:
+        result = service.run_genesis(
+            "Build a local task board with search",
+            request_key=f"genesis:http-live-wal:{delivery}", repo_root=authority,
+        )
+        assert result["status"] == "preview-ready", result.get("blockers")
+        digest = result["candidate"]["sha256"]
+        wal = Path(str(database) + "-wal")
+        shm = Path(str(database) + "-shm")
+        assert wal.is_file() and wal.stat().st_size > 32 and shm.is_file()
+        # The schema itself remains in the WAL, reproducing the fresh server
+        # failure independently of whether a particular row was checkpointed.
+        frozen = sqlite3.connect(database.as_uri() + "?mode=ro&immutable=1", uri=True)
+        try:
+            assert frozen.execute("SELECT name FROM sqlite_master WHERE name='intents'").fetchall() == []
+        finally:
+            frozen.close()
+        before_db = database.read_bytes()
+        before_wal = wal.read_bytes()
+        before_files = {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()}
+        statements = []
+        original_connect = sqlite3.connect
+
+        def read_connection(path, *args, **kwargs):
+            assert "mode=ro" in str(path), "delivery attempted a writable SQLite open"
+            connection = original_connect(path, *args, **kwargs)
+            connection.set_trace_callback(statements.append)
+            return connection
+
+        def forbidden(*args, **kwargs):
+            pytest.fail("delivery attempted writer construction, initialization or execution")
+
+        monkeypatch.setattr(sqlite3, "connect", read_connection)
+        monkeypatch.setattr(SpineLedger, "__init__", forbidden)
+        monkeypatch.setattr(AttemptLedger, "__init__", forbidden)
+        monkeypatch.setattr(SourceTreeStore, "__init__", forbidden)
+        monkeypatch.setattr(service, "acquire_effect_lease", forbidden)
+        monkeypatch.setattr(service, "_ensure_genesis_switch", forbidden)
+        monkeypatch.setattr(service, "_run_command", forbidden)
+        with _server(authority_root=authority) as (_, httpd):
+            if delivery == "archive":
+                path = f'/api/genesis/{result["run_id"]}/source.zip?candidate_sha256={digest}'
+            else:
+                cap = web_api._genesis_preview_capability(httpd, result["run_id"])
+                path = f'/api/genesis/{result["run_id"]}/preview/~cap-{cap}/index.html'
+            status, headers, body = _source_response(httpd, path=path)
+        assert status == 200, body.decode("utf-8", errors="replace")
+        if delivery == "archive":
+            assert headers["X-Daedalus-Candidate-Sha256"] == digest
+            with zipfile.ZipFile(io.BytesIO(body)) as archive:
+                manifest = archive.read("source-tree.json")
+                assert hashlib.sha256(manifest).hexdigest() == digest
+                for entry in json.loads(manifest)["entries"]:
+                    source = archive.read("source/" + entry["path"])
+                    assert hashlib.sha256(source).hexdigest() == entry["blob_sha256"]
+        else:
+            assert headers["Content-Type"].startswith("text/html")
+            store = SourceTreeStore.open_existing(service.control_root(authority) / "genesis" / "source-cas")
+            manifest = store.load_tree(service.ArtifactRef.from_sha256(digest))
+            entry = next(row for row in manifest.entries if row.path == "index.html")
+            assert body == store.read_bytes(service.ArtifactRef.from_sha256(entry.blob_sha256), max_bytes=entry.size)
+        assert database.read_bytes() == before_db
+        assert wal.read_bytes() == before_wal
+        assert {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()} == before_files
+        assert statements and any(sql.upper() == "BEGIN" for sql in statements)
+        assert all(sql.lstrip().split()[0].upper() in {"SELECT", "PRAGMA", "BEGIN"} for sql in statements)
+        assert all("checkpoint" not in sql.lower() for sql in statements)
+        # Existing SHM state may change through SQLite bookkeeping, including
+        # first-reader reconstruction. Durable DB/WAL contents stay unchanged;
+        # the stable keeper/pair in this test also preserves the file set.
+    finally:
+        keeper.close()

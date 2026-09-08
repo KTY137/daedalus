@@ -5,6 +5,7 @@ import hashlib
 
 import pytest
 
+from daedalus.schemas import ContractProvenance
 from daedalus.structcore.forest import (
     ForestEdge,
     ForestHyperedge,
@@ -12,11 +13,11 @@ from daedalus.structcore.forest import (
     KnowledgeForest,
 )
 from daedalus.twin import relation_compiler
-from daedalus.twin.contracts import FourfoldSnapshot
+from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
 from daedalus.twin.relation_blocks import RelationSignature
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
-from daedalus.twin.semiring import BooleanSemiring
+from daedalus.twin.semiring import BooleanSemiring, EvidenceDagSemiring, NaturalSemiring
 
 REVISION = "4" * 40
 CREATED_AT = "2026-09-06T11:00:00+02:00"
@@ -33,6 +34,52 @@ def _edge(source: str, target: str, relation: str) -> ForestEdge:
         relation=relation,
         directed=True,
         evidence=(_digest(f"{relation}:{source}:{target}"),),
+    )
+
+
+def _with_plane_statuses(
+    forest: KnowledgeForest,
+    snapshot: FourfoldSnapshot,
+    statuses: dict[str, str],
+) -> FourfoldSnapshot:
+    planes = tuple(
+        (
+            PlaneSnapshot(
+                plane=plane.plane,
+                source_revision=plane.source_revision,
+                status=statuses[plane.plane],
+                node_ids=plane.node_ids,
+                relation_sha256s=plane.relation_sha256s,
+                evidence_sha256s=plane.evidence_sha256s,
+                reason=(
+                    "test fixture intentionally incomplete"
+                    if statuses[plane.plane] == "partial"
+                    else ""
+                ),
+            )
+            if plane.plane in statuses
+            else plane
+        )
+        for plane in snapshot.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-selected-pruning.status-fixture",
+        source_revision=snapshot.source_revision,
+        created_at=CREATED_AT,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in snapshot.bindings),
+        ),
+        trace_id="relation-compiler-selected-pruning-status",
+    )
+    return FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=snapshot.bindings,
+        provenance=provenance,
     )
 
 
@@ -61,7 +108,11 @@ def _fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
         created_at=CREATED_AT,
         trace_id="relation-compiler-selected-pruning",
     )
-    return forest, snapshot
+    return forest, _with_plane_statuses(
+        forest,
+        snapshot,
+        {"code": "complete", "type": "complete"},
+    )
 
 
 def _fixture_with_hyperedge() -> tuple[KnowledgeForest, FourfoldSnapshot]:
@@ -87,7 +138,11 @@ def _fixture_with_hyperedge() -> tuple[KnowledgeForest, FourfoldSnapshot]:
         created_at=CREATED_AT,
         trace_id="relation-compiler-selected-pruning-hyperedge",
     )
-    return forest, snapshot
+    return forest, _with_plane_statuses(
+        forest,
+        snapshot,
+        {"code": "complete", "type": "complete"},
+    )
 
 
 class _DeclaredSignatureCatalog(Sequence[RelationSignature]):
@@ -106,43 +161,55 @@ class _DeclaredSignatureCatalog(Sequence[RelationSignature]):
         raise AssertionError("declared signature catalog iterator was consumed")
 
 
+class _TrackingSignatureCatalog(Sequence[object]):
+    def __init__(self, *values: object) -> None:
+        self._values = values
+        self.indices: list[int] = []
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def __getitem__(self, index: int) -> object:
+        self.indices.append(index)
+        return self._values[index]
+
+    def __iter__(self) -> Iterator[object]:
+        raise AssertionError("tracking signature catalog iterator was consumed")
+
+
 class _UnboundedSignatures:
     def __iter__(self) -> Iterator[RelationSignature]:
         raise AssertionError("unbounded signature iterable was consumed")
 
 
-def test_explicit_signature_prunes_unselected_evidence_materialization(
+def test_explicit_cross_plane_signature_uses_verified_binding_without_forest_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
     selected = RelationSignature("code", "declares", "type")
-    observed_relations: list[str] = []
-    original = relation_compiler._forest_edge_atoms
 
-    def guarded_atoms(edge: ForestEdge) -> tuple[str, ...]:
-        observed_relations.append(edge.relation)
-        if edge.relation != "declares":
-            raise AssertionError("unselected Forest evidence was materialized")
-        return original(edge)
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(
+            f"cross-plane Forest evidence was materialized for {edge.relation}"
+        )
 
-    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", guarded_atoms)
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
 
     compiled = compile_relation_blocks(
         forest,
         snapshot,
-        BooleanSemiring(),
+        EvidenceDagSemiring(),
         signatures=(selected,),
     )
 
-    assert observed_relations == ["declares"]
     assert tuple(compiled.block_map) == (relation_block_name(selected),)
-    assert tuple(compiled.block_map[relation_block_name(selected)].iter_entries()) == (
-        ("src/worker.py", "type:Event", True),
-    )
+    entries = tuple(compiled.block_map[relation_block_name(selected)].iter_entries())
+    assert len(entries) == 1
+    assert entries[0][:2] == ("src/worker.py", "type:Event")
     assert compiled.semantic_fact_count == 1
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.forest_hyperedge_count == 0
-    assert compiled.verified_binding_count == len(snapshot.bindings)
+    assert compiled.verified_binding_count == len(snapshot.bindings) == 1
 
 
 def test_explicit_signature_prunes_unselected_verified_binding_facts(
@@ -179,6 +246,35 @@ def test_explicit_signature_prunes_unselected_verified_binding_facts(
     assert compiled.verified_binding_count == len(snapshot.bindings)
 
 
+def test_scalar_observers_record_cross_plane_binding_without_provenance_bundles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "declares", "type")
+    observed_evidence_atoms: list[object] = []
+    original = relation_compiler._record_fact
+
+    def recording_record_fact(*args: object, **kwargs: object) -> None:
+        if kwargs.get("signature") == selected:
+            observed_evidence_atoms.append(kwargs.get("evidence_atoms"))
+        original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", recording_record_fact)
+
+    for semiring, expected in ((BooleanSemiring(), True), (NaturalSemiring(), 1)):
+        observed_evidence_atoms.clear()
+        compiled = compile_relation_blocks(
+            forest,
+            snapshot,
+            semiring,
+            signatures=(selected,),
+        )
+        entries = tuple(compiled.block_map[relation_block_name(selected)].iter_entries())
+        assert entries == (("src/worker.py", "type:Event", expected),)
+        assert observed_evidence_atoms == [None]
+        assert compiled.verified_binding_count == 1
+
+
 def test_explicit_signature_contract_is_validated_before_edge_materialization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -210,6 +306,42 @@ def test_explicit_signature_catalog_materializes_declared_cardinality_only() -> 
     )
 
     assert tuple(compiled.block_map) == (relation_block_name(selected),)
+
+
+def test_selected_signature_admission_reuses_one_materialized_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    imports = RelationSignature("code", "imports", "code")
+    declares = RelationSignature("code", "declares", "type")
+    catalog = _TrackingSignatureCatalog(imports, declares)
+
+    def forbidden_sorted(*args: object, **kwargs: object) -> object:
+        raise AssertionError("selected signatures allocated a second sorted container")
+
+    monkeypatch.setattr(relation_compiler, "sorted", forbidden_sorted, raising=False)
+
+    selected = relation_compiler._selected_signatures(catalog, set())  # type: ignore[arg-type]
+
+    assert selected == (declares, imports)
+    assert catalog.indices == [0, 1]
+    assert not hasattr(relation_compiler, "_materialize_declared_sequence")
+
+
+def test_selected_signature_type_error_keeps_declared_materialization_precedence() -> None:
+    valid = RelationSignature("code", "imports", "code")
+    catalog = _TrackingSignatureCatalog(object(), valid)
+
+    with pytest.raises(ValueError, match="RelationSignature records"):
+        relation_compiler._selected_signatures(catalog, set())  # type: ignore[arg-type]
+
+    assert catalog.indices == [0, 1]
+
+
+def test_selected_signature_duplicate_refusal_remains_explicit() -> None:
+    signature = RelationSignature("code", "imports", "code")
+
+    with pytest.raises(ValueError, match="signatures must not contain duplicates"):
+        relation_compiler._selected_signatures((signature, signature), set())
 
 
 def test_explicit_signature_catalog_rejects_unbounded_iterable_before_consumption() -> None:
@@ -245,37 +377,135 @@ def test_verified_binding_inclusion_policy_requires_exact_boolean(
         )
 
 
-def test_verified_binding_false_skips_binding_fact_materialization(
+def test_verified_binding_false_refuses_observed_cross_plane_relation_before_facts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
     selected = RelationSignature("code", "declares", "type")
-    observed_signatures: list[RelationSignature] = []
-    original = relation_compiler._record_fact
 
-    def recording_record_fact(*args: object, **kwargs: object) -> None:
-        signature = kwargs.get("signature")
-        if not isinstance(signature, RelationSignature):
-            raise AssertionError("relation fact did not carry a typed signature")
-        observed_signatures.append(signature)
-        original(*args, **kwargs)  # type: ignore[arg-type]
+    def forbidden_record_fact(*args: object, **kwargs: object) -> None:
+        raise AssertionError("cross-plane fact was materialized without included binding")
 
-    monkeypatch.setattr(relation_compiler, "_record_fact", recording_record_fact)
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected materialization of {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", forbidden_record_fact)
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(selected,),
+            include_verified_bindings=False,
+        )
+
+
+def test_unrelated_same_plane_selection_prunes_cross_plane_edge_without_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "imports", "code")
+    observed_relations: list[str] = []
+    original = relation_compiler._forest_edge_atoms
+
+    def guarded_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        observed_relations.append(edge.relation)
+        if edge.relation != "imports":
+            raise AssertionError("unrelated cross-plane evidence was materialized")
+        return original(edge)
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", guarded_atoms)
 
     compiled = compile_relation_blocks(
         forest,
         snapshot,
-        BooleanSemiring(),
+        EvidenceDagSemiring(),
         signatures=(selected,),
         include_verified_bindings=False,
     )
 
-    assert observed_signatures == [selected]
+    assert observed_relations == ["imports"]
+    assert tuple(compiled.block_map) == (relation_block_name(selected),)
     assert compiled.semantic_fact_count == 1
     assert compiled.verified_binding_count == 0
 
 
-def test_discover_all_keeps_existing_forest_materialization_behavior(
+@pytest.mark.parametrize(
+    "signatures",
+    ((RelationSignature("code", "declares", "type"),), None),
+)
+def test_selected_relation_requires_complete_endpoint_planes_before_materialization(
+    signatures: tuple[RelationSignature, ...] | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    snapshot = _with_plane_statuses(forest, snapshot, {"type": "partial"})
+
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected materialization of {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    with pytest.raises(ValueError, match="type=partial"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=signatures,
+        )
+
+
+def test_explicit_complete_relation_ignores_unselected_partial_plane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    snapshot = _with_plane_statuses(forest, snapshot, {"type": "partial"})
+    selected = RelationSignature("code", "imports", "code")
+    observed_relations: list[str] = []
+    original = relation_compiler._forest_edge_atoms
+
+    def guarded_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        observed_relations.append(edge.relation)
+        if edge.relation != "imports":
+            raise AssertionError("unselected partial-plane evidence was materialized")
+        return original(edge)
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", guarded_atoms)
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        EvidenceDagSemiring(),
+        signatures=(selected,),
+    )
+
+    assert observed_relations == ["imports"]
+    assert tuple(compiled.block_map) == (relation_block_name(selected),)
+
+
+def test_predeclared_empty_relation_refuses_absent_endpoint_before_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "feeds", "data")
+
+    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
+        raise AssertionError(f"unexpected materialization of {edge.relation}")
+
+    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+
+    with pytest.raises(ValueError, match="data=absent"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(selected,),
+        )
+
+
+def test_discover_all_materializes_only_same_plane_forest_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
@@ -288,9 +518,9 @@ def test_discover_all_keeps_existing_forest_materialization_behavior(
 
     monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", recording_atoms)
 
-    compiled = compile_relation_blocks(forest, snapshot, BooleanSemiring())
+    compiled = compile_relation_blocks(forest, snapshot, EvidenceDagSemiring())
 
-    assert observed_relations == ["imports", "declares"]
+    assert observed_relations == ["imports"]
     assert set(compiled.block_map) == {
         "code:imports:code",
         "code:declares:type",
@@ -298,6 +528,18 @@ def test_discover_all_keeps_existing_forest_materialization_behavior(
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.forest_hyperedge_count == 0
     assert compiled.verified_binding_count == len(snapshot.bindings)
+
+
+def test_discover_all_without_bindings_refuses_observed_cross_plane_relation() -> None:
+    forest, snapshot = _fixture()
+
+    with pytest.raises(ValueError, match="requires an exact included verified Fourfold binding"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            include_verified_bindings=False,
+        )
 
 
 def test_discover_all_refuses_retained_hyperedge_instead_of_lossy_omission() -> None:

@@ -113,5 +113,17 @@ export function runMissionSpec(): MissionSpecResult[] {
   check('a dropped stream keeps its numbers and stops claiming to be current', dropped.connected === false && dropped.queued === 9 && dropped.watcher === 'idle');
   check('the empty state claims nothing', EMPTY_LIVE.queued === undefined && EMPTY_LIVE.watcher === undefined && EMPTY_LIVE.connected === false && EMPTY_LIVE.recent.length === 0);
 
+  const booleanHello = reduceLiveEvent(afterHello, 'hello', { in_flight: true, queue_depth: 0 });
+  check('legacy boolean ownership is normalized to the single-task flag', booleanHello.inFlight === 1);
+  check('a reconnect cannot re-certify missing counters from an older hello', booleanHello.unread === undefined && booleanHello.quarantined === undefined && booleanHello.watcher === undefined);
+  const invalidCounts = reduceLiveEvent(EMPTY_LIVE, 'hello', { in_flight: 2, queue_depth: -1, unread_count: 0.5, quarantined_count: '0' });
+  check('impossible counts and non-boolean ownership remain unknown', invalidCounts.inFlight === undefined && invalidCounts.queued === undefined && invalidCounts.unread === undefined && invalidCounts.quarantined === undefined);
+  const dated = reduceLiveEvent(EMPTY_LIVE, 'report', { name: 'dated', project: 'atlas', status: 'done', agent: 'qa', created_at: '2026-09-08T12:00:00Z' }, false, 'atlas');
+  check('terminal agent and timestamp are preserved as observed evidence', dated.recent[0].agent === 'qa' && dated.recent[0].createdAt === '2026-09-08T12:00:00Z');
+  const older = reduceLiveEvent(dated, 'report', { name: 'dated', project: 'atlas', status: 'running', created_at: '2026-09-08T11:00:00Z' }, false, 'atlas');
+  check('an older report cannot overwrite newer terminal evidence', older === dated);
+  const foreign = reduceLiveEvent(dated, 'report', { name: 'foreign', project: 'other', status: 'done' }, false, 'atlas');
+  check('foreign terminal reports do not enter this project view', foreign === dated);
+
   return results;
 }

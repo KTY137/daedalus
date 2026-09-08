@@ -1,0 +1,130 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-74",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "509b0ff6da42781c77e9ba719efee7d9a8085cca",
+    "dependencies": "G1-EXP-TENSOR-GPU-73 and the exact base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": ["decision", "title"]
+      },
+      "scope": {
+        "source_fields": ["scope", "documentation_changes"]
+      },
+      "contracts_and_behavior": {
+        "source_fields": ["decision", "evidence"]
+      },
+      "acceptance_matrix": {
+        "source_fields": ["verification", "evidence"]
+      },
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene"],
+        "projection_note": "Documentation-only gardening packet. Reverting the two documentation commits and this packet restores the prior wording without altering production or test behavior."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["evidence", "verification", "claim_boundaries", "governance"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-74",
+  "work_packet": "G1-EXP-TENSOR-GPU-74",
+  "title": "Converge Twin relation-projection documentation on the canonical compiler owner",
+  "classification": "documentation-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "509b0ff6da42781c77e9ba719efee7d9a8085cca",
+  "scope": "Repair the documentation drift identified by GPU-73. Name compile_relation_blocks as the sole implementation owner of Forest/Fourfold relation admission and sparse-block materialization, and describe boolean_relation_block_from_fourfold only as the retained public single-Boolean compatibility facade. Do not change production code, diagnostic probe construction, public API, or relation semantics.",
+  "documentation_changes": {
+    "kernel_contract": "The Strict Forest/Fourfold relation projection section now assigns admission, completeness, retention, cross-plane binding authority, refusal semantics and materialization to relation_compiler.py. relation_projection.py is explicitly documented as a direct compatibility facade with no independent semantics.",
+    "twin_architecture": "The module table and Closed-World trust-boundary text now identify relation_compiler.py as the sole implementation owner and state that boolean_relation_block_from_fourfold inherits the compiler rule through direct delegation.",
+    "diagnostic_probes_changed": false,
+    "historical_work_packet_evidence_rewritten": false
+  },
+  "decision": {
+    "production_change": false,
+    "test_change": false,
+    "public_api_change": false,
+    "single_relation_compatibility_facade_retained": true,
+    "canonical_relation_projection_owner": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "compatibility_surface": "daedalus/twin/relation_projection.py::boolean_relation_block_from_fourfold",
+    "summary": "Documentation now matches the post-GPU-71/72 implementation: one canonical compiler owns relation projection semantics; the public Boolean function is a thin call-shape compatibility facade rather than a second projector."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "509b0ff6da42781c77e9ba719efee7d9a8085cca",
+    "kernel_contract_commit": "ba5f8b958e19d22668f20ad11aa199085ac4353d",
+    "kernel_contract_blob": "docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md@84cbb7ff88faea93134070d67bfdc2e2de86dbf8",
+    "twin_architecture_commit": "eea5a12f41251fbf72cf68aa5212953f621c1774",
+    "twin_architecture_blob": "docs/wiki/architecture/twin.md@1d178c904b9dff289134573a6a516d2c0858230b",
+    "implementation_facade": "daedalus/twin/relation_projection.py@3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+    "base_to_docs_compare": {
+      "commits": 2,
+      "files_changed": 2,
+      "additions": 41,
+      "deletions": 28,
+      "production_files_changed": 0,
+      "test_files_changed": 0
+    },
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "documentation-to-source contract audit",
+    "production_tests_run_for_packet": false,
+    "new_green_claim": false,
+    "source_contract_checked": true,
+    "notes": "The retained relation_projection.py docstring and function body directly delegate to compile_relation_blocks with BooleanSemiring and one explicit signature. The packet changes only documentation, so it does not relabel prior executable evidence as a new full-suite result. Exact PR workflow status, if triggered for the closure head, is recorded externally on PR #317 rather than inferred here."
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "documentation_files_changed": 2,
+    "parallel_projection_owner_removed_from_docs": true,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-75 only: audit the two diagnostic Boolean-CSR construction probes against the now-canonical multi-relation compiler and determine whether any duplicated per-signature construction cost is intentional measurement semantics or removable overhead. Keep the probes diagnostic-only, do not convert their results into promotion/performance claims, and do not remove the retained public compatibility facade."
+}

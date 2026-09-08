@@ -15,6 +15,7 @@ integration are separate reviewed packets.
 from __future__ import annotations
 
 import dataclasses
+import json
 import hashlib
 import hmac
 from dataclasses import dataclass
@@ -31,7 +32,24 @@ from daedalus.runtimes.provider.observation import (
     _normalize_keyring,
     verify_provider_observation_authority,
 )
-from daedalus.spine.envelope import canonical_sha
+
+
+def _canonical_digest(value: Any) -> str:
+    """Hash trust-boundary evidence without a mutable project helper seam.
+
+    The byte contract intentionally matches ``spine.envelope.canonical_sha`` so
+    existing authority/signature identities remain stable. Keeping the tiny
+    primitive local prevents a later monkeypatch or helper replacement outside
+    this module from redirecting what an already-admitted invocation signs.
+    """
+
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class ProviderInvocationAuthorityError(RuntimeError):
@@ -205,7 +223,7 @@ class ProviderInvocationObservationAuthority:
 
     @property
     def invocation_contract_sha256(self) -> str:
-        return canonical_sha(
+        return _canonical_digest(
             {
                 "schema": "daedalus-provider-invocation-contract/1",
                 "invocation_contract_id": self.invocation_contract_id,
@@ -218,11 +236,11 @@ class ProviderInvocationObservationAuthority:
     def signing_digest(self) -> str:
         body = self.to_dict()
         body["signature_sha256"] = "0" * 64
-        return canonical_sha(body)
+        return _canonical_digest(body)
 
     @property
     def digest(self) -> str:
-        return canonical_sha(self.to_dict())
+        return _canonical_digest(self.to_dict())
 
 
 def issue_provider_invocation_observation_authority(

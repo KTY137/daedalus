@@ -1,9 +1,11 @@
 import type { EffortLevel, IkarusAskAction, IkarusAskPayload } from '@/shared/contracts';
+import { projectDispatches, type DispatchEvidence } from './dispatch';
 import type {
   ConversationCancellationStatus,
   ConversationDispatch,
   ConversationTurn,
   ConversationView,
+  SubprocessCancellationEvidence,
   TaskSnapshot
 } from '@/shared/api';
 
@@ -140,6 +142,7 @@ export interface Turn {
   requestId?: number;
   /** An explicit server cancellation request is a separate fact from closing observation. */
   cancellation?: ConversationCancellationStatus;
+  cancellationProcess?: SubprocessCancellationEvidence;
   /** Project-bound editor artifacts actually attached to this request. */
   contextRefs?: string[];
   /** When the spine recorded the turn; present only on a resumed turn. */
@@ -404,8 +407,7 @@ export function resumedTurns(view: ConversationView, threadId: string): Turn[] {
  * docstring calls it a display of what has not been heard from, never an
  * instruction to redo it. Nothing rendered it until the work rail.
  */
-export interface OpenDispatch {
-  ref: string;
+export interface OpenDispatch extends DispatchEvidence {
   turnId?: number;
   /** when the dispatch was linked, from the link row */
   since?: string;
@@ -413,17 +415,21 @@ export interface OpenDispatch {
   summary?: string;
 }
 
-export function openDispatchesFrom(view: ConversationView | undefined): OpenDispatch[] {
-  const rows = view?.open_dispatches || [];
-  const out: OpenDispatch[] = [];
-  for (const row of rows) {
-    const ref = typeof row.link?.dispatch_ref === 'string' ? row.link.dispatch_ref : '';
-    if (!ref) continue;
-    const summary = typeof row.latest?.summary === 'string' && row.latest.summary ? row.latest.summary : undefined;
-    const since = typeof row.link?.created_ts === 'string' && row.link.created_ts ? row.link.created_ts : undefined;
-    out.push({ ref, turnId: positiveTurnId(row.link?.turn_id), since, summary });
-  }
-  return out;
+export function openDispatchesFrom(view: ConversationView | undefined, project = ''): {
+  items: OpenDispatch[];
+  unresolved: number;
+} {
+  const projected = projectDispatches(view, project);
+  const byRef = new Map((view?.open_dispatches || []).map((row) => [row.link?.dispatch_ref, row]));
+  return {
+    unresolved: projected.unresolved,
+    items: projected.items.map((item) => ({
+      ...item,
+      turnId: positiveTurnId(byRef.get(item.ref)?.link?.turn_id),
+      since: item.startedAt,
+      summary: item.description || str(byRef.get(item.ref)?.latest?.summary)
+    }))
+  };
 }
 
 /* ---------------------------------------------------------------- labels */
@@ -818,7 +824,15 @@ function cancelRow(turn: Turn): LedgerRow | undefined {
       : turn.cancellation === 'confirmed' || turn.cancellation === 'already_terminal'
         ? 'info'
         : 'bad';
-  return { key: 'cancel', label: 'Abbruch', datum: cancellationLabel(turn.cancellation), tone };
+  const localExit = turn.requestId !== undefined
+    && turn.cancellationProcess?.request_id === turn.requestId
+    && turn.cancellationProcess.process_exited === true;
+  return {
+    key: 'cancel', label: 'Abbruch', datum: cancellationLabel(turn.cancellation), tone,
+    detail: [localExit
+      ? 'Lokaler CLI-Prozess beendet · Remote-Termination nicht bewiesen'
+      : 'Lokaler Prozessabbruch und Remote-Termination nicht bewiesen']
+  };
 }
 
 /**
@@ -861,6 +875,6 @@ export function settleTurn(turn: Turn, payload: IkarusAskPayload, seconds: numbe
     streaming: false,
     backendTurnId: positiveTurnId(payload.turn_id),
     conversationPersisted: payload.conversation_persisted,
-    offer: offerIsOpen && payload.action ? payload.action : undefined
+    offer: offerIsOpen && !payload.stream_interrupted && payload.action ? payload.action : undefined
   };
 }

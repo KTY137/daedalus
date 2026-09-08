@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 424,
+    "assigned_artifacts": 468,
     "legacy_artifacts": 204,
-    "packet_artifacts": 426,
-    "packet_ids": 361,
-    "post_index_artifacts": 222,
+    "packet_artifacts": 470,
+    "packet_ids": 405,
+    "post_index_artifacts": 266,
     "registry_artifacts": 1,
-    "tracked_files": 427,
+    "tracked_files": 471,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -3046,6 +3046,630 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-48.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-47 and the exact base_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-48",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-48.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-49.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b49f6ad73b3543041f6db454a38946ca6de3338f",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-48 and the exact base_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-49",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-49.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-50.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c1f728d45fa411d3784527f249314849cbe70f95",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-49 and the exact base_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-50",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-50.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-51.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1198e213115a02f9aa227f50dda251f3ef321aa3",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-50 and the exact implementation head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-51",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-51.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-52.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b89a8a43c73a49483d9428a09875071c4df9aa26",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-51 and the strict Forest/Fourfold relation-projection contract",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-52",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-52.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-53.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "68aa0b11cb6718e0627b3a359a0d0d86bf39cfdf",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-52 and the strict Forest/Fourfold same-plane relation-retention contract",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-53",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-53.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-54.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c198d6a27dc7add4300fd54d683db79596be9916",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-52, G1-EXP-TENSOR-GPU-53 and the canonical legacy Forest/Fourfold verified-binding boundary",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-54",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-54.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-55.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "701d0434356ec43e1893e4e0a43d0bc396af0cb1",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-54 and the strict Forest/Fourfold verified cross-plane authority contract",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-55",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-55.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-56.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "bb65fa5aa0d3897d7184b95483011a28d8e0e139",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-55 and the canonical verified cross-plane Fourfold authority boundary",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-56",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-56.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-57.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "3bc246e346ae33d96a00e8da95835311e1c4e637",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-43, G1-EXP-TENSOR-GPU-53 and the exact pre_head/base_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-57",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-57.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-58.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c36a5cb8264ce20b09ccd021e9e07b9f7e3167f8",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-53, G1-EXP-TENSOR-GPU-57 and the exact Fourfold/Tensor source blobs retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-58",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-58.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-59.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "255964fef0848c81ff7181e893f48aeeb0a439d6",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-53, G1-EXP-TENSOR-GPU-57 and G1-EXP-TENSOR-GPU-58",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-59",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-59.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-60.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "ec7c094509bad0ecee7a9957c9a8ac635508d120",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-56, G1-EXP-TENSOR-GPU-59",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-60",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-60.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-61.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "f4499863b0a1e54b80b97c8af763d86a9ce8df76",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-59, G1-EXP-TENSOR-GPU-60",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-61",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-61.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-62.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "124927e43750f584e894c6dc68e8c7c9cc993d21",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-61",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-62",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-62.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-63.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "7af74744f59190df97aaac05fd6839777b6866f2",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-62",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-63",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-63.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-64.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c04d6f6fad757cad971c9d729023e04a699c9dc8",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-56, G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-63",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-64",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-64.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-65.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "08cac764721a6c76252fd6dfd21c15920d1c10bd",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-43, G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-64",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-65",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-65.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-66.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "218b35831bf5e8cf14ae3fc7606fec6916876a2e",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-65; exact base_head and retained inputs in this artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-66",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-66.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-67.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "99198d4e0dae8a8e7459ec07e8ac52f4e99e5bca",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-66; exact base_head and retained inputs in this artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-67",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-67.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-68.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "472c23e9bcef9aecd43c9314015c1ef5c2fcf84d",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-67; exact base_head and retained inputs in this artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-68",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-68.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-69.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "441e53a2e69e6f17993f0ec2b3459c3ad05e5e8d",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-68; exact base_head and retained inputs in this artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-69",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-69.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-70.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "2ca27e75d810849c6bdecec89ea9a2c8d415f97b",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-69; exact base_head and retained inputs in this artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-70",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-70.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-71.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "7c8cfa6b5ddec95f8e9ef5a46ec18f8367d1dd58",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-70; exact base_head and retained inputs in this artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-71",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-71.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-72.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "6663065eebff4d30683934f27e10715e3295946d",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-71; exact base_head and retained inputs in this artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-72",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-72.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-73.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c60c35bad77d0e0b3888d93f859617d4562018d8",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-72 and the exact base_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-73",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-73.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-74.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "509b0ff6da42781c77e9ba719efee7d9a8085cca",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-73 and the exact base_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-74",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-74.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-75.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "d526e053b793f0632aeebcaed8c351d63aa622b1",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-74 and the exact base_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-75",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-75.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-76.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "17a37f70e7b58cca875fa766741f4ca6e890b7d8",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-75 and the exact implementation/closure evidence retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-76",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-76.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-77.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "646b5a114880a4eaeed9130fdb6af2182ff0a7a9",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-76 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-77",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-77.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-78.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cb05912812b58b6686216882894080d9a7376ce8",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-77 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-78",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-78.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-79.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "50d604bd3e4902f360aedd60efa96b8973a8e3d5",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-78 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-79",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-79.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-80.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "d755959fa4930ed3e9b24b3cdb2611b014450fc1",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-79 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-80",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-80.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-81.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "f007f0eaa8d1ad0581ee59ab910ebd37c695f320",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-80 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-81",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-81.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-82.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "f132a01d6ad79ad8cbdafec072391f5650273b2d",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-81 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-82",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-82.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-83.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b009127da8c888435e74494689a1cde1b05eeb5e",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-82 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-83",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-83.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-84.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "ff45b37769ac14a4bd76092a44a7673f6a4f9ae0",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-83 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-84",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-84.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-85.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "f8d3f1fd27c0314cb67949d8930c93485d30ae3b",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-84 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-85",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-85.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-86.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "97e5e66a07028060005e071270d201a31a28b98b",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-85 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-86",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-86.json"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-01.json"
       ],
       "metadata": {
@@ -3155,6 +3779,22 @@
       "origin": "post_index",
       "packet_id": "G1-EXP-TENSOR-LATENT-CEILING-07",
       "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-07.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-FOURFOLD-DIRECTIONALITY-01_VERIFIER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "97e5e66a07028060005e071270d201a31a28b98b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-EXP-TENSOR-GPU-54 directionality contract and the existing canonical projection verifier",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-FOURFOLD-DIRECTIONALITY-01",
+      "primary_artifact": "docs/work-packets/G1-FOURFOLD-DIRECTIONALITY-01_VERIFIER.md"
     },
     {
       "artifacts": [
@@ -3363,6 +4003,22 @@
       "origin": "post_index",
       "packet_id": "G1-GENESIS-03",
       "primary_artifact": "docs/work-packets/G1-GENESIS-03_VERIFIED_SOURCE_DOWNLOAD.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-GENESIS-04_WAL_EVIDENCE_READS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b605586b2778659a119b25fa7d05938a986356e3",
+        "classification": "ALIGNED",
+        "dependencies": "Master Plan Revision 13; G1-GENESIS-03; G1-INTEGRATION-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-GENESIS-04",
+      "primary_artifact": "docs/work-packets/G1-GENESIS-04_WAL_EVIDENCE_READS.md"
     },
     {
       "artifacts": [
@@ -5078,6 +5734,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-INTEGRATION-01_REMOTE_BRANCH_CONSOLIDATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+        "classification": "ALIGNED",
+        "dependencies": "Master Plan Revision 13; reviewed tensor packets GPU-48 through GPU-85; current canonical provider and conversation contracts",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-INTEGRATION-01",
+      "primary_artifact": "docs/work-packets/G1-INTEGRATION-01_REMOTE_BRANCH_CONSOLIDATION.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md"
       ],
       "metadata": {
@@ -5203,6 +5875,22 @@
       "origin": "legacy",
       "packet_id": "G1-LOOP-TERMINAL-250",
       "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MAP-INTEGRATION-03_SELECTIVE_PERIPHERY_AND_SWITCH_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "97e5e66a07028060005e071270d201a31a28b98b",
+        "classification": "ALIGNED",
+        "dependencies": "Master Plan Revision 13; reviewed MAP-02 remote audit; existing project-center and env-helper reintegration",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MAP-INTEGRATION-03",
+      "primary_artifact": "docs/work-packets/G1-MAP-INTEGRATION-03_SELECTIVE_PERIPHERY_AND_SWITCH_PORT.md"
     },
     {
       "artifacts": [
@@ -5444,6 +6132,22 @@
       "origin": "post_index",
       "packet_id": "G1-RUNTIME-03",
       "primary_artifact": "docs/work-packets/G1-RUNTIME-03_STALE_FIXTURE_NOT_A_BROKEN_GUARD.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "eb7834d52949ad10b2bb8c51fccd2a81c48aab20",
+        "classification": "ALIGNED",
+        "dependencies": "Master Plan Revision 13; G1-INTEGRATION-01; existing Linux OCI containment boundary",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-04",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.md"
     },
     {
       "artifacts": [
@@ -6998,6 +7702,552 @@
     {
       "artifact_role": "primary",
       "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-48",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-48.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-49",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-49.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-50",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-50.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-51",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-51.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-52",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-52.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-53",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-53.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-54",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-54.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-55",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-55.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-56",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-56.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-57",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-57.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-58",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-58.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-59",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-59.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-60",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-60.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-61",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-61.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-62",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-62.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-63",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-63.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-64",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-64.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-65",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-65.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-66",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-66.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-67",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-67.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-68",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-68.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-69",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-69.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-70",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-70.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-71",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-71.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-72",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-72.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-73",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-73.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-74",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-74.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-75",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-75.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-76",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-76.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-77",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-77.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-78",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-78.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-79",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-79.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-80",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-80.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-81",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-81.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-82",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-82.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-83",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-83.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-84",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-84.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-85",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-85.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-86",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-86.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
       "packet_id": "G1-EXP-TENSOR-LATENT-CEILING-01",
       "path": "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-01.json",
       "sections": [
@@ -7084,6 +8334,20 @@
       "format": "json",
       "packet_id": "G1-EXP-TENSOR-LATENT-CEILING-07",
       "path": "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-07.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-FOURFOLD-DIRECTIONALITY-01",
+      "path": "docs/work-packets/G1-FOURFOLD-DIRECTIONALITY-01_VERIFIER.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -7266,6 +8530,20 @@
       "format": "markdown",
       "packet_id": "G1-GENESIS-03",
       "path": "docs/work-packets/G1-GENESIS-03_VERIFIED_SOURCE_DOWNLOAD.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-GENESIS-04",
+      "path": "docs/work-packets/G1-GENESIS-04_WAL_EVIDENCE_READS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -8412,6 +9690,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-INTEGRATION-01",
+      "path": "docs/work-packets/G1-INTEGRATION-01_REMOTE_BRANCH_CONSOLIDATION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-ISO-01",
       "path": "docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md",
       "sections": [
@@ -8470,6 +9762,20 @@
       "format": "markdown",
       "packet_id": "G1-KERNEL-02",
       "path": "docs/work-packets/G1-KERNEL-02_PROVIDER_CALL_CANCELLATION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MAP-INTEGRATION-03",
+      "path": "docs/work-packets/G1-MAP-INTEGRATION-03_SELECTIVE_PERIPHERY_AND_SWITCH_PORT.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -8659,6 +9965,20 @@
       "format": "markdown",
       "packet_id": "G1-RUNTIME-03",
       "path": "docs/work-packets/G1-RUNTIME-03_STALE_FIXTURE_NOT_A_BROKEN_GUARD.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-04",
+      "path": "docs/work-packets/G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

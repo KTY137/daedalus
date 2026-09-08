@@ -52,6 +52,8 @@ WIRE_LITERAL_CONTRACTS = {
         740,
         "fff96cbdbe9fce8d5ac91658581ebbdc0e90733d6de1035b7e50424977a1a395",
     ),
+    # G1-INTEGRATION-01 adds only six dispatch identity literals: schema,
+    # version, project, objective and two lane references. Existing guards stay.
     "effects": (
         (
             "same_origin_request",
@@ -64,8 +66,8 @@ WIRE_LITERAL_CONTRACTS = {
             "handle_put",
             "handle_post",
         ),
-        588,
-        "d91a5262e3b825f71c5150e4d3660e38e800d87822d2ff2c340a424ea221eeb3",
+        594,
+        "fccc61de723c7b4f256d1fd06e1e9b2327e4160901b750e87b61b9090621b56d",
     ),
     "sse": (
         (

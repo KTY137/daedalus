@@ -4672,3 +4672,46 @@ the movement is source-size only and carries no retraction or restatement of
 the headline.  The exact source digest moves from
 `c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7` to
 `08c3c28455dbcdd05a7cc87d0c6f78af4c7631a86121bd31b7015812071a883b`.
+
+## Remote integration remeasurement (2026-09-08, Windows)
+
+The complete declared s02 probe ran twice with repository-venv CPython 3.12.13
+on the reviewed integration of runtime, tensor through GPU-86, mapping and the
+Genesis WAL reader correction. All corpus fields other than wall time matched
+between runs. Exact source identity is the normalized Python corpus pin below;
+the working tree was based on `b605586b2778659a119b25fa7d05938a986356e3` with
+the reviewed correction diff. Both complete outputs, including the absent
+external corpus reason, are retained as `s02-final-corpora-a.json.gz` and
+`s02-final-corpora-b.json.gz` in `docs/evidence/G1-INTEGRATION-01`, with hashes
+in `acceptance.json`. Command: repository Python followed by
+`experiments/forest_v2/s02_types/probe_external_corpora.py`.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,765 functions; annotation-only 94.35%; full resolver 94.24%; marginal 8 functions / 0.1183 pp; 45,059 type-name sites, resolution 99.93%; verified internal 4,044 / 4,463 (90.61%); 419 named-only internal sites |
+| source pin | `924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df` |
+
+Relative to the preceding 483-file row, source integration adds two files,
+36 functions and 258 type-name sites. This is corpus drift under an unchanged
+probe, not evidence that resolver quality improved. The eight marginal
+functions remain a small contribution; the hand-answered fixture remains over
+100 times larger in percentage-point contribution. Previous retractions,
+failed expectations and raw negative counts above are retained. This
+remeasurement establishes no Gate 2 or Gate 3 acceptance.
+
+
+### Podman inspection correction remeasurement (2026-09-08)
+
+The bounded `G1-RUNTIME-04` correction changes only the existing containment
+verifier body. Two complete s02 runs on CPython 3.12.13 have identical fields
+apart from wall time. All counts and rates in the preceding integration row
+remain unchanged; the exact normalized corpus pin moves from
+`924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df` to
+`b88367227824e604fb252435f759c64abc391b5f2c8a114b2bd45607c749fdbe`.
+Both complete results are retained as `s02-podman-corpora-a.json.gz` and
+`s02-podman-corpora-b.json.gz` under `docs/evidence/G1-INTEGRATION-01`, with
+hashes in `acceptance.json`. The frozen production file SHA256 is
+`7f52a56da9d01731e4de141a2f51fcdfc9ba80e524cd41c1f972a2e3b1371871`;
+base is `eb7834d52949ad10b2bb8c51fccd2a81c48aab20` plus the reviewed packet.
+This source census retains the prior negative research conclusions and carries
+no resolver improvement or Gate closure claim.

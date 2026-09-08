@@ -16,6 +16,7 @@ const project = { name: 'atlas', repo_root: 'C:\\work\\atlas', team: {}, reachab
 const storedView = {
   conversation_id: 'conv_1',
   exists: true,
+  project_binding: { state: 'bound', project: project.name, row_count: 2 },
   turn_count: 2,
   narrative: '',
   turns: [
@@ -296,6 +297,7 @@ test.describe('Verlauf and commands', () => {
         ok: true, generated_at: '', project: alpha.name, warnings: [],
         conversation: {
           conversation_id: 'conv_alpha', exists: true, turn_count: 1, turns_returned: 1,
+          project_binding: { state: 'bound', project: alpha.name, row_count: 1 },
           turns: [{ user_message: 'Alpha Frage', assistant_text: 'Nur Alpha', project: alpha.name }]
         }
       } });
@@ -304,6 +306,7 @@ test.describe('Verlauf and commands', () => {
       ok: true, generated_at: '', project: beta.name, warnings: [],
       conversation: {
         conversation_id: 'conv_beta', exists: true, turn_count: 1, turns_returned: 1,
+        project_binding: { state: 'bound', project: beta.name, row_count: 1 },
         turns: [{ user_message: 'Beta Frage', assistant_text: 'Nur Beta', project: beta.name }]
       }
     } }));
@@ -347,12 +350,14 @@ test.describe('Verlauf and commands', () => {
       route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], conversations: [] } })
     );
     await page.route((url) => /^\/api\/conversations\/conv_new_(alpha|beta)$/.test(url.pathname), (route) => {
+      const url = new URL(route.request().url());
       const selected = url.pathname.endsWith('beta') ? beta : alpha;
       const id = url.pathname.slice('/api/conversations/'.length);
       return route.fulfill({ json: {
         ok: true, generated_at: '', project: selected.name, warnings: [],
         conversation: {
           conversation_id: id, exists: true, turn_count: 1, turns_returned: 1,
+          project_binding: { state: 'bound', project: selected.name, row_count: 1 },
           turns: [{ user_message: `${selected.name} Frage`, assistant_text: `${selected.name} Antwort`, project: selected.name }]
         }
       } });
@@ -390,6 +395,7 @@ test.describe('Verlauf and commands', () => {
       ok: true, generated_at: '', project: 'foreign-alpha', warnings: [],
       conversation: {
         conversation_id: 'conv_foreign', exists: true, turn_count: 1, turns_returned: 1,
+        project_binding: { state: 'bound', project: 'foreign-alpha', row_count: 1 },
         turns: [{ user_message: 'Geheimnis A', assistant_text: 'Antwort A', project: 'foreign-alpha' }]
       }
     } }));

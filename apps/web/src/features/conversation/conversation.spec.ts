@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ConversationView } from '@/shared/api';
+import { subprocessCancellationFrom, type ConversationView } from '@/shared/api';
 import type { IkarusAskPayload } from '@/shared/contracts';
 import { COMMANDS, helpText, looksLikeCommand, matchCommands, parseCommand } from './commands';
 import { MarkdownMessage } from './MarkdownMessage';
@@ -191,6 +191,11 @@ export function runConversationSpec(): ConversationSpecResult[] {
   const offeredRows = ledgerFor(offered, labelOf);
   check('an open offer is a live Angebot row', offeredRows.find((r) => r.key === 'offer')?.tone === 'live');
   check('the open offer names the objective', offeredRows.find((r) => r.key === 'offer')?.datum === 'Aufgabe · Parser härten');
+  const interrupted = settleTurn({ ...offered, streaming: true }, {
+    ok: true, project: 'p', intent: 'enqueue', assistant: 'Teilantwort', provider_used: 'deterministic',
+    stream_interrupted: true, action: offered.offer
+  }, 1, true);
+  check('an interrupted final preserves partial text and refuses an executable action', interrupted.text === 'Teilantwort' && interrupted.offer === undefined && interrupted.envelope?.stream_interrupted === true);
 
   const dispatched: Turn = {
     ...offered,
@@ -295,11 +300,21 @@ export function runConversationSpec(): ConversationSpecResult[] {
       { link: { dispatch_ref: 'req_bare' }, latest: null }
     ]
   };
-  const open = openDispatchesFrom(openView);
-  check('an open dispatch is read from the link and its dispatched event', open.length === 2 && open[0].ref === 'req_open' && open[0].turnId === 44 && open[0].since === '2026-09-02T11:00:00+00:00' && open[0].summary === 'Parser härten', JSON.stringify(open));
+  const open = openDispatchesFrom(openView).items;
+  check('an open dispatch requires a dispatched lifecycle and leaves an unbound identity explicit', open.length === 1 && open[0].ref === 'req_open' && open[0].turnId === 44 && open[0].since === '2026-09-02T11:00:00+00:00' && open[0].descriptionSource === 'none' && open[0].summary === 'Parser härten', JSON.stringify(open));
   check('a dispatch with no ref is not a row', open.every((d) => d.ref !== ''));
-  check('a dispatch with no event still counts, with nothing invented', open[1].ref === 'req_bare' && open[1].summary === undefined && open[1].since === undefined);
-  check('no open dispatches is an empty list, never undefined', openDispatchesFrom(undefined).length === 0 && openDispatchesFrom({ ...openView, open_dispatches: [] }).length === 0);
+  check('a dispatch without a dispatched lifecycle is not open work evidence', !open.some((row) => row.ref === 'req_bare'));
+  check('no open dispatches is an empty list, never undefined', openDispatchesFrom(undefined).items.length === 0 && openDispatchesFrom({ ...openView, open_dispatches: [] }).items.length === 0);
+
+  const childExit = { request_id: 12, cancellation_requested: true, was_running: true, terminate_sent: true, kill_sent: false, process_exited: true, returncode: -15 };
+  check('local child evidence requires the exact durable request identity', subprocessCancellationFrom(childExit, 13) === undefined && subprocessCancellationFrom({ ...childExit, request_id: '12' }, 12) === undefined);
+  check('malformed child-exit evidence is not coerced into confirmation', subprocessCancellationFrom({ ...childExit, process_exited: 'true' }, 12) === undefined && subprocessCancellationFrom({ ...childExit, returncode: Number.NaN }, 12) === undefined);
+  check('child-exit evidence requires a coherent observed return code', subprocessCancellationFrom({ ...childExit, returncode: null }, 12) === undefined && subprocessCancellationFrom({ ...childExit, process_exited: false }, 12) === undefined);
+  check('a process that was not cancelled is not cancellation evidence', subprocessCancellationFrom({ ...childExit, cancellation_requested: false }, 12) === undefined);
+  check('signed Windows process return codes remain exact', subprocessCancellationFrom({ ...childExit, returncode: -1073741510 }, 12)?.returncode === -1073741510);
+  const childTurn: Turn = { role: 'ikarus', text: '', requestId: 12, cancellation: 'confirmed', cancellationProcess: subprocessCancellationFrom(childExit, 12) };
+  const childRow = ledgerFor(childTurn, labelOf).find((row) => row.key === 'cancel');
+  check('observed local child exit never becomes remote-termination proof', childRow?.detail?.includes('Lokaler CLI-Prozess beendet · Remote-Termination nicht bewiesen') === true);
 
   /* ---- relative time ---- */
   const now = Date.parse('2026-09-02T12:00:00Z');

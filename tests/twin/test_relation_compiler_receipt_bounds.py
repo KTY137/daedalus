@@ -4,17 +4,32 @@ from collections.abc import Iterator, Sequence
 
 import pytest
 
-from daedalus.twin.relation_blocks import ProjectionSubject, TypedRelationBlock
+from daedalus.twin.relation_blocks import (
+    ProjectionSubject,
+    RelationSignature,
+    TypedAxis,
+    TypedRelationBlock,
+)
 from daedalus.twin.relation_compiler import (
     MAX_COMPILED_RELATIONS,
     CompiledRelationBlocks,
 )
+from daedalus.twin.semiring import BooleanSemiring
 
 
 SUBJECT = ProjectionSubject(
     repository_id="KTY137/daedalus",
     source_revision="4" * 40,
     source_fourfold_sha256="a" * 64,
+)
+AXIS = TypedAxis(name="code-nodes", plane="code", labels=("node-a",))
+BLOCK = TypedRelationBlock.from_coordinates(
+    subject=SUBJECT,
+    signature=RelationSignature("code", "imports", "code"),
+    row_axis=AXIS,
+    column_axis=AXIS,
+    coordinates=(("node-a", "node-a", True),),
+    semiring=BooleanSemiring(),
 )
 
 
@@ -38,6 +53,21 @@ class _DeclaredEmptyBlocks(Sequence[tuple[str, TypedRelationBlock[bool]]]):
 
     def __iter__(self) -> Iterator[tuple[str, TypedRelationBlock[bool]]]:
         raise AssertionError("declared-empty block catalog iterator was consumed")
+
+
+class _InvalidFirstBlocks(Sequence[object]):
+    def __len__(self) -> int:
+        return 2
+
+    def __getitem__(self, index: int) -> object:
+        if index == 0:
+            return ("", object())
+        raise AssertionError(
+            "receipt validation eagerly materialized a later declared block"
+        )
+
+    def __iter__(self) -> Iterator[object]:
+        raise AssertionError("invalid block catalog iterator was consumed")
 
 
 class _UnboundedBlocks:
@@ -72,3 +102,19 @@ def test_compiled_receipt_materializes_only_declared_sequence_cardinality() -> N
     receipt = _receipt(_DeclaredEmptyBlocks())
 
     assert receipt.blocks == ()
+
+
+def test_compiled_receipt_validates_each_item_before_reading_the_next() -> None:
+    with pytest.raises(
+        ValueError,
+        match="compiled block names must be non-empty strings",
+    ):
+        _receipt(_InvalidFirstBlocks())
+
+
+def test_compiled_receipt_still_validates_semantic_fact_count() -> None:
+    with pytest.raises(
+        ValueError,
+        match="semantic_fact_count does not match compiled entries",
+    ):
+        _receipt((("code:imports:code", BLOCK),))

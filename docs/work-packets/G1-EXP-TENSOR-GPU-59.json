@@ -1,0 +1,115 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-59",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "255964fef0848c81ff7181e893f48aeeb0a439d6",
+    "dependencies": "G1-EXP-TENSOR-GPU-53, G1-EXP-TENSOR-GPU-57 and G1-EXP-TENSOR-GPU-58",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "result"]},
+      "scope": {"source_fields": ["domain", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "supersession"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "supersession"],
+        "projection_note": "The change is confined to the existing compile_relation_blocks owner. Reverting the implementation and test-consolidation commits restores the prior GPU-53 refusal behavior without rewriting history."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundaries", "supersession"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-59",
+  "title": "Align same-plane ForestEdge admission with retained Fourfold authority",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "255964fef0848c81ff7181e893f48aeeb0a439d6",
+  "result": {
+    "summary": "The canonical multi-relation compiler now matches the strict Boolean Fourfold projection for same-plane ForestEdge retention. A matching same-plane ForestEdge whose canonical digest is absent from PlaneSnapshot.relation_sha256s is omitted from the regenerable Tensor view rather than failing the projection or being reintroduced as a second authority.",
+    "discover_all": "Unretained same-plane ForestEdge signatures are not discovered.",
+    "explicit_selection": "An explicitly selected same-plane signature still yields a valid empty closed-world block when its complete Fourfold plane retained no matching edge digest.",
+    "retained_rows": "Retained directed same-plane rows continue to compile and Boolean output is digest-equivalent to boolean_relation_block_from_fourfold.",
+    "refusal_boundaries": "Retained undirected ForestEdge and retained ForestHyperedge refusal semantics remain owned by the existing compiler/projection tests; cross-plane verified-binding authority is unchanged."
+  },
+  "implementation": {
+    "production_change": true,
+    "production_commit": "d03deb37a3d662d127fc0d0c233d93e6954a15c8",
+    "production_blob": "daedalus/twin/relation_compiler.py@d6cd529fc2d499f3eb1f796050a34b9596c940e2",
+    "behavior": "compile_relation_blocks prunes explicitly unrelated same-plane edges before relation hashing, hashes relevant same-plane edges once for Fourfold retention, skips unretained rows, and only adds retained directed rows to discovery/fact materialization.",
+    "gardener": "The correction stays in the existing compiler owner. No third projection authority, verifier, cache, registry, adapter family, fact store, backend or public API was introduced. A temporary duplicate regression file created in the first implementation commit was removed in the follow-up test-consolidation commit; its commit remains reachable as negative/fixup evidence."
+  },
+  "supersession": {
+    "gpu53": "GPU-53 remains immutable historical evidence of the earlier fail-closed interpretation. GPU-59 supersedes only its same-plane unretained ForestEdge refusal expectation with cross-projection regression evidence; no history was rewritten or deleted.",
+    "gpu58": "GPU-58's frozen correction target is implemented: align compile_relation_blocks with the strict Fourfold projector rather than creating another authority.",
+    "test_consolidation_commit": "cba81293ad72e7a43b8b318e853ce19c293dd9ed",
+    "final_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@b08673fab51620212fcbef2cf16314495531a07b"
+  },
+  "verification": {
+    "first_run": {
+      "run_id": 34078598341,
+      "head": "d03deb37a3d662d127fc0d0c233d93e6954a15c8",
+      "status": "completed/failure",
+      "representative_python_3_12_hash_0": "2 failed, 405 passed, 2 skipped in 7.20s",
+      "failure_interpretation": "The implementation exposed the preserved GPU-53 regression that still required the old ValueError for unretained same-plane edges. The production semantics were not weakened to satisfy that obsolete expectation."
+    },
+    "corrective_run": {
+      "run_id": 34078761918,
+      "head": "cba81293ad72e7a43b8b318e853ce19c293dd9ed",
+      "status": "completed/success",
+      "representative_python_3_12_hash_0": "402 passed, 2 skipped in 6.09s",
+      "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 all completed/success",
+      "public_api": "success",
+      "isolated_wheel": "success",
+      "complete_repository_collection": "success",
+      "complete_suite_manual_only": "skipped"
+    },
+    "full_repository_suite": "not claimed",
+    "exact_closure_head_ci": "required after this packet-record commit"
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "gpu58_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-58.json@7b6ee13cf89367593d790931c22b8804c170dfce",
+    "strict_projection_blob": "daedalus/twin/relation_projection.py@c399d872c22b1b012930a107a48e6ab47bb9814a",
+    "prechange_compiler_blob": "daedalus/twin/relation_compiler.py@5b5e9c19d4ec5ca3d2a2c7514e4f1ab2f9017a61",
+    "production_blob": "daedalus/twin/relation_compiler.py@d6cd529fc2d499f3eb1f796050a34b9596c940e2",
+    "prechange_gpu53_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@9407aca0b9bee014c614214ceaedfa3fed41eb78",
+    "final_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@b08673fab51620212fcbef2cf16314495531a07b",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "claim_boundaries": {
+    "correctness": "Claimed only for the tested same-plane retention reconciliation and preserved adjacent refusal/admission contract surface.",
+    "performance": "none",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "diagnostics": "CPU bitset and TypedRelationBlock profiles remain diagnostic-only with claim=none.",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "temporary_duplicate_test_removed_from_tip": true,
+    "temporary_duplicate_test_preserved_in_commit_history": "d03deb37a3d662d127fc0d0c233d93e6954a15c8",
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}

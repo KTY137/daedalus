@@ -4,6 +4,9 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
+import stat
+import struct
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -25,6 +28,94 @@ from .attempt_contracts import (
 )
 
 _MAX_TRANSITION_SKEW_SECONDS = 60.0
+
+
+def _wal_checksum(data: bytes, byteorder: str) -> tuple[int, int]:
+    """SQLite's header checksum; this is admission, not WAL replay."""
+    words = struct.unpack(("<" if byteorder == "little" else ">") + "I" * (len(data) // 4), data)
+    first = second = 0
+    for index in range(0, len(words), 2):
+        first = (first + words[index] + second) & 0xFFFFFFFF
+        second = (second + words[index + 1] + first) & 0xFFFFFFFF
+    return first, second
+
+
+def _existing_wal_is_live(database: Path) -> bool:
+    """Perform bounded header/pair admission before a live SQLite read.
+
+    No sidecars means the immutable checkpointed projection. Missing partners,
+    partial pages and invalid or inconsistent headers refuse before SQLite can
+    silently ignore WAL state or recover those headers. This is not a complete
+    frame or SHM-index integrity check; SQLite owns snapshot and frame validity.
+    Sidecars must remain present during open: these entry-time checks do not
+    retain their lifecycle against last-writer cleanup or hostile replacement.
+    SQLite may update existing transient SHM state, including first-reader index
+    reconstruction. No application checkpoint or repair is requested.
+    """
+    wal = Path(str(database) + "-wal")
+    shm = Path(str(database) + "-shm")
+    metadata = []
+    try:
+        for sidecar in (wal, shm):
+            try:
+                info = sidecar.lstat()
+            except FileNotFoundError:
+                info = None
+            if info is not None and (
+                not stat.S_ISREG(info.st_mode)
+                or getattr(info, "st_file_attributes", 0) & 0x400
+            ):
+                raise ValueError("sidecar is not a regular file")
+            metadata.append(info)
+        if metadata == [None, None]:
+            return False
+        if any(info is None for info in metadata):
+            raise ValueError("WAL and SHM must both already exist")
+        wal_size, shm_size = (info.st_size for info in metadata)
+        if shm_size < 32768 or shm_size % 32768:
+            raise ValueError("SHM has an incomplete page")
+        with shm.open("rb") as handle:
+            index_header = handle.read(96)
+        header = index_header[:48]
+        native = "<" if sys.byteorder == "little" else ">"
+        if (
+            len(index_header) != 96
+            or header != index_header[48:]
+            or int.from_bytes(header[:4], sys.byteorder) != 3007000
+            or header[12] != 1
+            or header[13] not in (0, 1)
+            or _wal_checksum(header[:40], sys.byteorder) != struct.unpack(native + "II", header[40:48])
+        ):
+            raise ValueError("SHM header is uninitialized or inconsistent")
+        frames = int.from_bytes(header[16:20], sys.byteorder)
+        if wal_size == 0:
+            if frames:
+                raise ValueError("SHM refers to frames in an empty WAL")
+            return True
+        with wal.open("rb") as handle:
+            wal_header = handle.read(32)
+        if len(wal_header) != 32:
+            raise ValueError("WAL header is incomplete")
+        magic, version, page_size, _, _, _, first, second = struct.unpack(">8I", wal_header)
+        if (
+            magic not in (0x377F0682, 0x377F0683)
+            or version != 3007000
+            or page_size < 512 or page_size > 65536 or page_size & (page_size - 1)
+            or (wal_size - 32) % (page_size + 24)
+            or frames > (wal_size - 32) // (page_size + 24)
+            or _wal_checksum(wal_header[:24], "big" if magic & 1 else "little") != (first, second)
+        ):
+            raise ValueError("WAL header or frame extent is malformed")
+        index_page_size = int.from_bytes(header[14:16], sys.byteorder)
+        if (
+            (65536 if index_page_size == 1 else index_page_size) != page_size
+            or header[13] != magic & 1
+            or header[32:40] != wal_header[16:24]
+        ):
+            raise ValueError("WAL and SHM headers disagree")
+        return True
+    except (OSError, ValueError, struct.error) as exc:
+        raise AttemptStateError("cannot read attempt lifecycle: existing WAL pair is invalid") from exc
 
 
 def _transition_time(
@@ -73,6 +164,7 @@ def read_attempt_intents(
     *,
     effect_key: str | None = None,
     immutable: bool = False,
+    existing_wal: bool = False,
 ) -> list[Intent]:
     """Strictly project lifecycle rows from the canonical spine tables.
 
@@ -87,10 +179,19 @@ def read_attempt_intents(
     from creating WAL/SHM sidecars beside the authority database.  That mode is
     deliberately a point-in-time projection; writers use the normal read-only
     URI so their own uncheckpointed WAL remains visible.
+
+    ``existing_wal=True`` explicitly selects live read-only delivery when a
+    valid WAL/SHM pair already exists, and immutable delivery when neither
+    exists. With a stable sidecar lifecycle it creates no files. It never
+    requests checkpoint or repair, or retries after failed admission or a failed
+    read. SQLite transient SHM bookkeeping, including first-reader index
+    reconstruction, is allowed without DB/WAL writes.
     """
     connection: sqlite3.Connection | None = None
     try:
         database = Path(path).resolve()
+        if existing_wal:
+            immutable = not _existing_wal_is_live(database)
         uri = f"file:{_uri_path(database)}?mode=ro"
         if immutable:
             uri += "&immutable=1"
@@ -103,6 +204,8 @@ def read_attempt_intents(
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout=30000")
         connection.execute("PRAGMA query_only=ON")
+        # Bind intent rows and their transition events to one committed view.
+        connection.execute("BEGIN")
         if effect_key is None:
             rows = connection.execute(
                 """

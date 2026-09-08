@@ -694,7 +694,11 @@ def handle_post(handler: Any, *, ports: EffectPorts) -> None:
                 link = conv.default_store().link_dispatch(
                     str(conversation_id), task_id,
                     turn_id=linked_turn_id,
-                    kind="queue_task")
+                    kind="queue_task", detail={
+                        "schema": "conversation.dispatch.identity.v1",
+                        "project": project, "objective": objective,
+                        "lane": str(result["lane"]),
+                    })
                 link_view = {
                     "conversation_id": link.conversation_id,
                     "turn_id": link.turn_id, "dispatch_ref": link.dispatch_ref,

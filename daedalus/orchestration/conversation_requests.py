@@ -284,7 +284,7 @@ class ConversationRequestManager:
                 if current is not None and current.state == STATE_INTENDED:
                     self.spine.mark_completed(
                         intent_id, effect_id=str(runtime.request_id),
-                        result={"status": status})
+                        result={"status": status, **self._subprocess_evidence(runtime)})
             except Exception:
                 # The generation outcome remains authoritative even if this
                 # informational cancellation projection cannot be closed.
@@ -384,6 +384,17 @@ class ConversationRequestManager:
             return str(outcome)
         return None
 
+    @staticmethod
+    def _subprocess_evidence(runtime: _Runtime) -> dict[str, Any]:
+        # Only the canonical stream can issue exact-owned-child evidence.
+        if type(runtime.stream) is not ikarus_os._CancellableAskStream:
+            return {}
+        receipt = runtime.stream.subprocess_stop_receipt
+        if receipt is None:
+            return {}
+        return {"subprocess": {**receipt, "request_id": runtime.request_id},
+                "provider_process_terminated": receipt["process_exited"]}
+
     def _finish_cancelled(self, runtime: _Runtime, request_id: int) -> str:
         """Durably expose local cancellation without guessing a terminal race."""
         current = self.spine.get(request_id)
@@ -416,6 +427,7 @@ class ConversationRequestManager:
             "scope": "local_generation_delivery_persistence",
             "provider_process_terminated": None,
             "request_id": request_id,
+            **self._subprocess_evidence(runtime),
         })
         self._resolve_cancellations(runtime, "confirmed")
         return "confirmed"
@@ -819,6 +831,9 @@ class ConversationRequestManager:
             "status": status or result.get("status") or "requested",
             "created_at": intent.created_ts,
             "resolved_at": intent.resolved_ts,
+            **({"subprocess": result["subprocess"],
+                "provider_process_terminated": result.get("provider_process_terminated")}
+               if isinstance(result.get("subprocess"), dict) else {}),
         }
 
 

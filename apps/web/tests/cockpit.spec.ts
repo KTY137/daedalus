@@ -505,19 +505,19 @@ test.describe('cockpit', () => {
     await expect(page.locator('.statusline')).toContainText('Promotion offen');
     await expect.poll(() => sourceCount('epoch-alpha')).toBe(1);
     await emit('epoch-alpha', 0, 'hello', { queue_depth: 7, unread_count: 0, quarantined_count: 0 });
-    await expect(page.locator('.statusline')).toContainText('7 in der Schlange');
+    await expect(page.locator('.statusline')).toContainText('7 wartend');
 
     await chooseProject('epoch-beta');
     await expect.poll(() => betaStructureSeen && betaGovernanceSeen).toBe(true);
     const betaPending = page.locator('.statusline');
     await expect(betaPending).not.toContainText('C:\\fixtures\\epoch-alpha');
     await expect(betaPending).not.toContainText('Promotion offen');
-    await expect(betaPending).not.toContainText('7 in der Schlange');
+    await expect(betaPending).not.toContainText('7 wartend');
 
     // An alpha callback queued before close must not become beta's live state.
     await emit('epoch-alpha', 0, 'hello', { queue_depth: 91, unread_count: 0, quarantined_count: 0 });
     await page.waitForTimeout(100);
-    await expect(betaPending).not.toContainText('91 in der Schlange');
+    await expect(betaPending).not.toContainText('91 wartend');
 
     releaseBetaStructure();
     releaseBetaGovernance();
@@ -525,19 +525,19 @@ test.describe('cockpit', () => {
     await expect(betaPending).toContainText('Promotion gesperrt');
     await expect.poll(() => sourceCount('epoch-beta')).toBe(1);
     await emit('epoch-beta', 0, 'hello', { queue_depth: 2, unread_count: 0, quarantined_count: 0 });
-    await expect(betaPending).toContainText('2 in der Schlange');
+    await expect(betaPending).toContainText('2 wartend');
 
     await chooseProject('epoch-alpha');
     await expect.poll(() => sourceCount('epoch-alpha')).toBe(2);
-    await expect(page.locator('.statusline')).not.toContainText('2 in der Schlange');
+    await expect(page.locator('.statusline')).not.toContainText('2 wartend');
 
     // Project name alone is insufficient after A -> B -> A: the first alpha
     // stream belongs to an obsolete generation and must remain inert.
     await emit('epoch-alpha', 0, 'hello', { queue_depth: 93, unread_count: 0, quarantined_count: 0 });
     await page.waitForTimeout(100);
-    await expect(page.locator('.statusline')).not.toContainText('93 in der Schlange');
+    await expect(page.locator('.statusline')).not.toContainText('93 wartend');
     await emit('epoch-alpha', 1, 'hello', { queue_depth: 3, unread_count: 0, quarantined_count: 0 });
-    await expect(page.locator('.statusline')).toContainText('3 in der Schlange');
+    await expect(page.locator('.statusline')).toContainText('3 wartend');
   });
 
   test('the theme decides the composition, and switching one re-lays the surface', async ({ page }) => {
@@ -568,7 +568,7 @@ test.describe('cockpit', () => {
     await expect(builtIns).toHaveCount(BUILT_INS.length);
     for (const spec of BUILT_INS) {
       await expect(
-        page.locator('.studio-body .theme-list').first().locator('.theme-name', { hasText: spec.name }),
+        page.locator('.studio-body .theme-list').first().getByText(spec.name, { exact: true }),
         `the built-in ${spec.id} is not listed`
       ).toHaveCount(1);
     }

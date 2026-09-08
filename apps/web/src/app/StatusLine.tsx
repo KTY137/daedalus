@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { promotionChip } from '@/features/system/promotion';
+import { liveExecutionStatus } from '@/features/mission/live';
 import type { HealthPayload } from '@/shared/api';
 import type { GovernancePayload, StructurePayload, TopologyPayload } from '@/shared/contracts';
 
@@ -91,6 +92,7 @@ export function StatusLine({
    * shape that produced a green "Promotion offen" while a gate was absent.
    */
   const promo = promotionChip(governance);
+  const execution = liveExecutionStatus({ streamLive, inFlight, queued });
   const s = structure?.structure;
   const graph = s?.graph;
   const ignored = s?.ignored;
@@ -220,11 +222,9 @@ export function StatusLine({
         <span className="status-sep" aria-hidden="true" />
 
         <span className="status-group">
-          <span className="status-item">
-            <span className={`dot ${streamLive ? 'ok' : 'muted'}`} aria-hidden="true" />
-            {streamLive ? 'live' : 'kein Ereignisstrom'}
-            {typeof inFlight === 'number' ? ` · ${inFlight} laufen` : ''}
-            {typeof queued === 'number' ? ` · ${queued} in der Schlange` : ''}
+          <span className={`status-item ${execution.tone}`}>
+            <span className={`dot ${execution.tone}`} aria-hidden="true" />
+            {execution.text}
           </span>
         </span>
       </div>

@@ -1,0 +1,144 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-71",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "7c8cfa6b5ddec95f8e9ef5a46ec18f8367d1dd58",
+    "dependencies": "G1-EXP-TENSOR-GPU-70; exact base_head and retained inputs in this artifact",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "implementation",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "focused_regressions"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "bounded_next_step"
+        ],
+        "projection_note": "Metadata projection only. Explicitly revert the retained implementation commit(s) to restore prior compiler behavior; keep this evidence and its negative results. No schema/store migration or gate transition is authorized."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-71",
+  "title": "Collapse Boolean compatibility projection onto the canonical relation compiler",
+  "classification": "implementation-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-verified",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "7c8cfa6b5ddec95f8e9ef5a46ec18f8367d1dd58",
+  "scope": "Delete the duplicate Forest/Fourfold Boolean projection implementation and preserve boolean_relation_block_from_fourfold only as a thin compatibility shim over compile_relation_blocks(..., BooleanSemiring(), signatures=(signature,)); retain only diagnostic wording compatibility and move the empty-retention canonical_sha regression to the canonical compiler owner.",
+  "implementation": {
+    "production_commit": "227b568d82b0f13b5463920096bc1f3afe668b88",
+    "production_blob": "daedalus/twin/relation_projection.py@6329a20c2764d98678db8fad2e81eb0c5ab855af",
+    "test_commit": "0b9c43fc772f30ff07cc2ef327a15da1a2f00b73",
+    "test_blob": "tests/twin/test_fourfold_relation_projection.py@1daa46ddff154200c3d3830566c0752c5800a001",
+    "changes": [
+      "boolean_relation_block_from_fourfold now delegates one explicit signature to compile_relation_blocks with BooleanSemiring and returns the canonical compiled block.",
+      "Duplicate node partition, endpoint completeness, binding admission, Forest hyperedge/edge scans, retention hashing, index construction and TypedRelationBlock materialization were deleted from relation_projection.py.",
+      "Only legacy error-string translations remain in the compatibility shim; they change diagnostics only and do not decide admission or manufacture facts.",
+      "The empty-retention hash guard now monkeypatches daedalus.twin.relation_compiler.canonical_sha, making the canonical compiler the explicit hashing owner.",
+      "No helper, cache, registry, graph authority, projector, backend, public API, fact store or parallel abstraction was introduced."
+    ]
+  },
+  "focused_regressions": [
+    "the existing strict Boolean projection surface continues through the canonical compiler for same-plane and verified cross-plane relations",
+    "legacy exact-Forest, invalid-signature, undirected-edge, missing-binding and cross-plane-hyperedge diagnostics remain translated without duplicating admission logic",
+    "empty same-plane Fourfold retention still avoids Forest relation hashing, now asserted against relation_compiler.canonical_sha"
+  ],
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "production_diff_additions": 57,
+    "production_diff_deletions": 229,
+    "production_net_lines": -172,
+    "test_diff_additions": 1,
+    "test_diff_deletions": 1,
+    "duplicate_projection_path_removed": true,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "verification": {
+    "implementation_head": "0b9c43fc772f30ff07cc2ef327a15da1a2f00b73",
+    "fourfold_tensor_run": 34136623569,
+    "fourfold_tensor_result": "completed-success",
+    "base_main": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 workflow completed successfully",
+    "public_package_api": "success",
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "manual_complete_suite": "skipped",
+    "full_suite_green": false,
+    "diagnostic_profiles": "CPU bitset and TypedRelationBlock validation remain diagnostic-only; no superiority claim",
+    "tauri_run": 34136623586,
+    "tauri_result": "completed-failure",
+    "tauri_failure_step": "Rust formatting",
+    "tauri_preceding_steps": "cockpit build, frozen backend build/smoke, project/desktop contract tests and icon generation succeeded before the formatting failure"
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-72 only: audit the remaining compatibility error-string translations in relation_projection.py against actual callers/tests. If they are test-only historical wording, migrate those assertions to canonical compile_relation_blocks diagnostics and delete the translations; if an external compatibility obligation exists, freeze the minimal mapping explicitly. Do not reintroduce admission logic or another projection abstraction."
+}

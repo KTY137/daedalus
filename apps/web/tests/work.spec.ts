@@ -43,7 +43,7 @@ const storedView = {
   open_dispatches: [
     {
       link: { turn_id: 44, dispatch_ref: 'req_open', created_ts: '2026-09-03T05:12:00+00:00', kind: 'queue_task' },
-      latest: { lifecycle: 'dispatched', summary: 'Parser härten', outcome_state: null, detail: { lane: 'local_only' } }
+      latest: { lifecycle: 'dispatched', summary: 'Parser härten', outcome_state: null, detail: { schema: 'conversation.dispatch.identity.v1', project: project.name, objective: 'Parser h\u00e4rten', lane: 'local_only' } }
     }
   ]
 };
@@ -93,7 +93,7 @@ const progress = {
   fraction_hint: 'one unit has no honest denominator; use batch_snapshot() for a real N-of-M fraction',
   facts: [],
   narrative: [
-    { unit_id: 'req_open', kind: 'queued', ts: '2026-09-03T09:54:00+00:00', source: 'web_api', detail: { lane: 'local_only' }, batch_id: null },
+    { unit_id: 'req_open', kind: 'queued', ts: '2026-09-03T09:54:00+00:00', source: 'web_api', detail: { schema: 'conversation.dispatch.identity.v1', project: project.name, objective: 'Parser h\u00e4rten', lane: 'local_only' }, batch_id: null },
     { unit_id: 'req_open', kind: 'claimed', ts: '2026-09-03T09:55:00+00:00', source: 'watcher', detail: {}, batch_id: null },
     { unit_id: 'req_open', kind: 'disk_changed', ts: '2026-09-03T09:59:00+00:00', source: 'offload', detail: { basis: 'git_status', paths: 2 }, batch_id: null }
   ]
