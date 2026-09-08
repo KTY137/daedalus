@@ -5,6 +5,7 @@ Ported from MAP-02; historical measurement prose remains on the source branch.
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 from pathlib import Path
 
 import pytest
@@ -282,6 +283,86 @@ def test_periphery_read_change_has_a_distinct_scope_fingerprint(repo: Path) -> N
     assert before.get("runs/artifact_script.py").shell is True
     assert after.get("runs/artifact_script.py").shell is False
     assert {row.module for row in before.modules} == {row.module for row in after.modules}
+
+
+def _ranking_artifact(repo: Path, report, consumer: str) -> dict:
+    from daedalus.mapping import drift, inventory, switches
+
+    if consumer == "drift":
+        state = drift.scan(repo, reach_report=report).state
+        return json.loads(drift.snapshot_bytes(state, ()))
+    return inventory.build(
+        repo, reports=(report, switches.analyse(repo)),
+        head="fixture", branch="fixture", dirty=False,
+    )
+
+
+@pytest.mark.parametrize("consumer", ["drift", "inventory"])
+@pytest.mark.parametrize("initially_withheld", [False, True])
+def test_rankings_refuse_a_report_from_a_different_scope(
+    repo: Path, consumer: str, initially_withheld: bool,
+) -> None:
+    ignore_file = repo / ".daedalusignore"
+    ignore_file.write_text("mini/stranded.py\n" if initially_withheld else "", encoding="utf-8")
+    before = analyse(repo)
+    ignore_file.write_text("" if initially_withheld else "mini/stranded.py\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="reach report scope changed"):
+        _ranking_artifact(repo, before, consumer)
+
+    after = analyse(repo)
+    fresh = _ranking_artifact(repo, after, consumer)
+    assert fresh["reach_scope"]["fingerprint"] == after.scope["fingerprint"]
+    assert fresh["reach_scope"]["fingerprint"] != before.scope["fingerprint"]
+    assert ("mini/stranded.py" in fresh["islands"]) is initially_withheld
+
+
+@pytest.mark.parametrize("consumer", ["drift", "inventory"])
+def test_ranked_scope_is_portable_and_digest_bound(repo: Path, consumer: str) -> None:
+    from daedalus.mapping import drift, inventory
+
+    report = analyse(repo)
+    artifact = _ranking_artifact(repo, report, consumer)
+    assert artifact["reach_scope"]["source"] == ".daedalusignore"
+    assert artifact["reach_scope"]["fingerprint"] == report.scope["fingerprint"]
+    verifies = drift.digest_ok if consumer == "drift" else inventory.digest_ok
+    assert verifies(artifact)
+    artifact["reach_scope"]["ignore_patterns"].append("another/")
+    assert not verifies(artifact)
+    assert "another/" not in report.scope["ignore_patterns"]
+
+
+@pytest.mark.parametrize("consumer", ["drift", "inventory"])
+def test_legacy_unscoped_reports_are_explicitly_unknown(repo: Path, consumer: str) -> None:
+    report = analyse(repo)
+    legacy = replace(report, scope={}, modules=tuple(replace(row, shell=False) for row in report.modules))
+    artifact = _ranking_artifact(repo, legacy, consumer)
+    assert artifact["reach_scope"] == {"status": "unknown"}
+    assert artifact["counts"]["shell_withheld"] == 0
+    assert "thirdparty/unused.py" in artifact["islands"]
+
+
+@pytest.mark.parametrize("consumer", ["drift", "inventory"])
+def test_unknown_scope_cannot_withhold_rows(repo: Path, consumer: str) -> None:
+    report = replace(analyse(repo), scope={})
+    with pytest.raises(ValueError, match="withheld rows have no scope provenance"):
+        _ranking_artifact(repo, report, consumer)
+
+
+def test_historical_baseline_without_scope_is_valid_but_not_current(repo: Path) -> None:
+    from daedalus.mapping import drift
+
+    report = analyse(repo)
+    artifact = _ranking_artifact(repo, report, "drift")
+    del artifact["reach_scope"]
+    artifact["digest"] = drift._digest(artifact)
+    assert drift.digest_ok(artifact)
+    snapshot = repo / "snapshot.json"
+    snapshot.write_text(json.dumps(artifact), encoding="utf-8")
+
+    checked = drift.check(repo, snapshot, reach_report=report)
+    assert not checked.ok
+    assert any(item.key == "ignore:reach-scope" for item in checked.items)
 
 
 # --------------------------------------------------- the tree this was found in

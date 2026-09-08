@@ -928,6 +928,37 @@ def _func_closure(src: _Src, start: str) -> set[str]:
 # the engine
 # --------------------------------------------------------------------------
 
+def _census_scope(repo_root) -> ProjectScope:
+    return ProjectScope(center=(), ignore=load_ignore_rules(repo_root))
+
+
+def ranking_scope(repo_root, report: ReachReport) -> dict:
+    """Bind rankings to the scope the consumed report actually used.
+
+    A cached report cannot be labelled with a freshly read ignore file after
+    that file changes. Refuse before withholding any rows, so consumers must
+    analyse again. This checks declared scope, not source-tree freshness or
+    caller authenticity. Legacy synthetic reports with no scope can still
+    describe the full population, explicitly without provenance.
+    """
+    if not report.scope:
+        if any(row.shell for row in report.modules):
+            raise ValueError("withheld rows have no scope provenance; analyse again")
+        return {"status": "unknown"}
+    current = _census_scope(Path(repo_root).resolve())
+    used = dict(report.scope)
+    if used != {**current.describe(), "fingerprint": current.fingerprint}:
+        raise ValueError("reach report scope changed since analysis; analyse again")
+    # Artefacts must remain portable across checkouts. Copy mutable fields so
+    # serialised evidence cannot mutate the report it describes.
+    return {
+        **used,
+        "center": list(used["center"]),
+        "ignore_patterns": list(used["ignore_patterns"]),
+        "source": ".daedalusignore" if used["source"] else "",
+    }
+
+
 def analyse(repo_root, index: Mapping | None = None) -> ReachReport:
     """Classify every Python module in ``repo_root`` by reachability.
 
@@ -954,7 +985,7 @@ def analyse(repo_root, index: Mapping | None = None) -> ReachReport:
     # periphery, so a metric consumer can withhold them while every edge that
     # points into a vendored tree still resolves. Narrowing the walk instead
     # would turn those true edges into missing ones.
-    scope = ProjectScope(center=(), ignore=load_ignore_rules(root))
+    scope = _census_scope(root)
     rels = _iter_py(root)
     known_rels = set(rels)
 

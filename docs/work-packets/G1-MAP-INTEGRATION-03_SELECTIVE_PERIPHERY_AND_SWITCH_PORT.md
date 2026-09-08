@@ -23,7 +23,8 @@ optional coverage-guided gate can be installed through the existing test extra.
 ## Scope
 
 Allowed: `.daedalusignore`; `daedalus/mapping/reach.py`, `drift.py`,
-`inventory.py`, `switches.py`; `pyproject.toml`; `uv.lock`;
+`inventory.py`, `switches.py`; preservation of consumed scope in the existing
+`render.py` acceptance writer; `pyproject.toml`; `uv.lock`;
 `tests/test_mapping_scope.py`, `tests/test_mapping_switches_platform.py`, and
 the relevant assertion in `tests/test_mapping_drift.py`; this packet.
 
@@ -42,6 +43,16 @@ per module and record the ignore-scope fingerprint. Only the repository's
 hotspot-ranking center declaration do not narrow this census. Drift/inventory
 withhold periphery rankings while disclosing their counts. Disagreement edges
 are withheld only when both endpoints are known periphery.
+
+Ranking validates the consumed reach report against the current declared
+ProjectScope before withholding rows. A changed declaration refuses with a
+request to analyse again, rather than labelling stale results as current.
+Both ranking artifacts retain `reach_scope` under their existing digests,
+using a repository-relative declaration path. Legacy synthetic reports without
+scope remain readable only when they withhold no rows and explicitly report
+`status: unknown`. Historical schema-3 snapshot digests stay readable, but a
+missing or different consumed scope is an ignore-drift finding that an
+acceptance cannot suppress.
 
 Keep main's stronger indirect env-reader discovery unchanged. Add only USER,
 USERDOMAIN and PROCESSOR_IDENTIFIER to the OS-owned set, and use that same
@@ -70,6 +81,9 @@ spend. Dependency lock resolution may read package-registry metadata.
 8. Scoped diff/whitespace checks pass; the new primary's registry metadata
    validates. A pre-existing GPU-66 registry rendering blocker is reported
    separately and may be handled by the parent integration packet.
+9. Cached reports refuse ranking after scope changes in either direction;
+   fresh runs bind their actual scope in both digests. Missing legacy scope
+   cannot suppress rows and cannot masquerade as a current scoped baseline.
 
 ## Migration and rollback
 
@@ -108,8 +122,39 @@ Measured 2026-09-08 with the main repository venv, CPython 3.12.13:
   metadata and all required sections. Full `tools/index_work_packets.py --check`
   refuses the pre-existing `docs/work-packets/G1-EXP-TENSOR-GPU-66.json`:
   `new Work Packet artifact lacks artifact_role`. Registry rendering is
-  explicitly blocked on that parent integration repair; this packet does not
+   explicitly blocked on that parent integration repair; this packet does not
   rewrite the GPU packet or bypass the checker. The generated index is untouched.
+
+Independent review after commit `d54bd41f` reproduced a second defect: an
+injected reach report could still withhold `mini/stranded.py` after removing
+its ignore rule, while drift reported the current empty ignore fingerprint.
+Inventory also omitted the consumed scope. Ten focused review regressions
+failed on that commit (10 failed in 0.64s); the review fix refuses stale
+scope before ranking and retains consumed provenance. The first combined
+scope, inventory and drift regression run passed (168 passed in 49.05s).
+The next full focused run retained 309 passing tests and two failing CLI
+acceptance tests: the writer's explicit field copy dropped `reach_scope`.
+The fix carries that existing field forward without rescanning or accepting
+unrelated drift. This failure is retained alongside the initial review defect.
+The original commit and this negative finding are retained; the fix is a
+separate follow-up commit for independent review.
+
+The corrected scope and CLI suites passed (78 passed in 26.30s). An
+independent reviewer ran scope, CLI and inventory tests (130 passed in 26.50s)
+and found no remaining blocker. Repeating the precise CLI mutation with
+only scope preservation removed produced 2 failed in 1.17s; exact byte
+restoration in `finally` followed by the same two nodes produced 2 passed in
+0.66s. Their genuine logs and JUnit files are retained as
+`cli-scope-red-mutation.{log,xml}` and `cli-scope-corrected.{log,xml}` under
+`%LOCALAPPDATA%/Temp/daedalus-map03-review-evidence-20260908/` for parent
+integration archival. Earlier invocation counts above are measured tool
+outputs; separate raw log files were not retained for those earlier runs.
+The follow-up wheel build and `uv lock --check` also pass.
+The final combined baseline and acceptance command, including all eleven new
+review regressions, passes: 311 passed in 91.99s. Its unchanged output and JUnit
+report are retained in that same evidence directory as `map-final.log` and
+`map-final.xml`. Scope/source authentication and atomic filesystem snapshots
+remain outside this ranking-provenance claim.
 
 The upstream mixed-edge filter used `not any(shell endpoint)`, suppressing
 project/periphery disagreements despite its stated contract. This packet
