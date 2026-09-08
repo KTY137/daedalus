@@ -620,3 +620,39 @@ def test_dispatch_refuses_foreign_provider_identity_before_work_item_projection(
         match="does not name the canonical Attempt",
     ):
         composition.dispatch_mission_bound_claude_invocation(invocation)
+
+
+def test_dispatch_refuses_foreign_provider_name_with_valid_runtime_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    monkeypatch.setattr(
+        composition,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: object(),
+    )
+    invocation = _compose_bound(subjects)
+    body = _provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    monkeypatch.setattr(
+        composition,
+        "ask_claude",
+        lambda *args, **kwargs: {
+            "provider": "codex_cli",
+            "runtime_id": CLAUDE_RUNTIME_ID,
+            "attempt_id": subjects[1].attempt_id,
+            "phase": "terminal",
+            "terminal_receipt_sha256": "d" * 64,
+        },
+    )
+
+    with pytest.raises(
+        composition.IkarusClaudeCompositionRefused,
+        match="does not name the canonical Claude provider",
+    ):
+        composition.dispatch_mission_bound_claude_invocation(invocation)
