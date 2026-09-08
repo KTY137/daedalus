@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from unittest.mock import patch
 
 import daedalus
+import daedalus.providers as providers
 from daedalus.spine.effect_boundary import REGISTRY_BY_ID, Wiring
 
 
@@ -73,3 +75,18 @@ def test_canonical_registry_activation_remains_an_explicit_blocker() -> None:
     # lease issuance remains blocked until canonical registry activation is
     # completed and proven on exact-head evidence.
     assert REGISTRY_BY_ID["provider.claude"].wiring is Wiring.INVENTORY_ONLY
+
+
+def test_provider_readiness_refuses_installed_but_inventory_only_claude() -> None:
+    # Runtime discovery answers only whether the executable itself can spawn.
+    # Ikarus must not turn that weaker fact into a promise that Daedalus can
+    # dispatch Claude through its canonical effect boundary.
+    with patch(
+        "daedalus.runtime_registry.cached_runtime_status",
+        return_value={"available": True, "last_error": ""},
+    ):
+        available, error = providers._availability_probe("claude_cli")
+
+    assert available is False
+    assert "canonical dispatch is not activated" in error
+    assert "provider.claude wiring=inventory_only" in error
