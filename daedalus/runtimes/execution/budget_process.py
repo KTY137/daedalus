@@ -8,6 +8,8 @@ documented monkeypatch seams without reverse-importing the facade.
 
 from __future__ import annotations
 
+import json
+import math
 import os
 import threading
 from contextlib import contextmanager
@@ -24,6 +26,7 @@ def guard(
     label: str,
     calls: int = 1,
     host: str | None = None,
+    cli_budget_cap_usd: float | None = None,
     led: Ledger | None = None,
 ) -> Iterator[Reservation]:
     """Reserve, run the body, settle.
@@ -35,7 +38,8 @@ def guard(
     happened over-counts by at most one call; the reverse under-counts without
     bound.
     """
-    res = reserve(vendor, model, label=label, calls=calls, host=host, led=led)
+    res = reserve(vendor, model, label=label, calls=calls, host=host,
+                  cli_budget_cap_usd=cli_budget_cap_usd, led=led)
     token = _enter_explicit()
     try:
         yield res
@@ -267,7 +271,16 @@ def _guarded_spawn(
         if vendor is None:
             return original(*args, **kwargs)
         label = f"{kind}: {_render(argv)}"
-        res = reserve_call(vendor, label=label)
+        # The child may declare its own ceiling. Reserving the flat vendor
+        # worst case against an argv that carries ``--max-budget-usd 0.50``
+        # closes the day for calls that cannot cost that (MEASURED 2026-09-08:
+        # one $0.21 Ikarus voice turn booked at $3.00 exhausted the $5.00
+        # period ceiling after two turns).
+        cap = cli_budget_cap_usd(argv)
+        res = reserve_call(
+            vendor, label=label,
+            **({"cli_budget_cap_usd": cap} if cap is not None else {}))
+        result: Any = None
         # ``subprocess.run`` calls ``subprocess.Popen`` through the MODULE
         # GLOBAL, which this function has also replaced -- without this the same
         # spawn would be reserved twice. Standing the interposer down for the
@@ -275,7 +288,8 @@ def _guarded_spawn(
         # site that already reserved explicitly.
         _enter_explicit()
         try:
-            return original(*args, **kwargs)
+            result = original(*args, **kwargs)
+            return result
         except FileNotFoundError as exc:
             # The executable does not exist: no process, no vendor bytes. This is
             # the one provable no-call case ``release`` exists for. Measured
@@ -286,7 +300,17 @@ def _guarded_spawn(
             raise
         finally:
             _exit_explicit()
-            res.settle()
+            # ``subprocess.run`` RETURNS the child's captured stdout, so on
+            # this branch -- unlike Popen -- the vendor's own price report is
+            # in hand at settle time. Settling there replaces a $3.00 worst
+            # case with what the call actually cost; an absent or malformed
+            # report settles at the estimate, because an unknown price is not
+            # a free price.
+            measured = (
+                claude_reported_cost_usd(getattr(result, "stdout", None))
+                if vendor == "anthropic_cli" else None
+            )
+            res.settle(measured)
     wrapper.__wrapped__ = original           # type: ignore[attr-defined]
     wrapper.__daedalus_budget__ = True       # type: ignore[attr-defined]
     return wrapper
@@ -341,9 +365,20 @@ def _guarded_popen(
             if vendor is None:
                 super().__init__(*args, **kwargs)
                 return
+            # NO MEASURED SETTLEMENT IS POSSIBLE HERE, and that is structural,
+            # not an omission: this reservation is opened AND closed inside
+            # ``__init__``, i.e. after the child exists but before one byte of
+            # its stdout does. Holding it open until the caller happens to read
+            # the pipe would mean holding a ledger reservation across an
+            # unbounded, possibly never-awaited process lifetime. This branch
+            # therefore settles at the (now cap-derived) estimate -- which is
+            # exactly why the Ikarus voice path reserves EXPLICITLY around its
+            # streaming spawn instead of relying on this interposition.
+            cap = cli_budget_cap_usd(argv)
             res = reserve_call(
                 vendor,
                 label=f"subprocess.Popen: {_render(argv)}",
+                **({"cli_budget_cap_usd": cap} if cap is not None else {}),
             )
             _enter_explicit()
             try:
@@ -396,6 +431,109 @@ def _render(argv: Any) -> str:
         return " ".join(str(t) for t in argv)[:200]
     except TypeError:
         return repr(argv)[:200]
+
+
+# --------------------------------------------------------------------------
+# what the child itself declares about its own spend
+# --------------------------------------------------------------------------
+
+_CAP_FLAG = "--max-budget-usd"
+# Bodies larger than this are not scanned for a cost report: a vendor result
+# JSON is a few kilobytes, and an unbounded json.loads over a child's stdout is
+# a denial-of-service surface, not accounting.
+_CLAUDE_STDOUT_SCAN_MAX = 2_000_000
+
+
+def cli_budget_cap_usd(argv: Any) -> float | None:
+    """The child's own ``--max-budget-usd X`` / ``--max-budget-usd=X``, or None.
+
+    Returns the MAXIMUM over several occurrences. Which occurrence the CLI
+    honours when a flag repeats is UNVERIFIED, and the guard must never
+    under-reserve, so the largest declared cap wins.
+
+    A missing, unparseable, zero, negative or non-finite cap is None -- i.e.
+    the caller prices at the flat vendor worst case exactly as before.
+    """
+    if argv is None or isinstance(argv, (str, bytes)):
+        return None
+    try:
+        tokens = [str(t) for t in argv]
+    except TypeError:
+        return None
+    best: float | None = None
+    for i, tok in enumerate(tokens):
+        raw = None
+        if tok == _CAP_FLAG and i + 1 < len(tokens):
+            raw = tokens[i + 1]
+        elif tok.startswith(_CAP_FLAG + "="):
+            raw = tok[len(_CAP_FLAG) + 1:]
+        if raw is None:
+            continue
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(val) or val <= 0:
+            continue
+        best = val if best is None else max(best, val)
+    return best
+
+
+def claude_reported_cost_usd(stdout: Any) -> float | None:
+    """``total_cost_usd`` from a ``claude -p`` body, or None.
+
+    Accepts both shapes the CLI emits: a single JSON object
+    (``--output-format json``) and the LAST ``{"type":"result",...}`` line of
+    ``--output-format stream-json``.
+
+    Returns None -- meaning "settle at the estimate" -- for an absent, null,
+    NaN, infinite, negative, non-numeric, oversized or unparseable body. An
+    unknown price is not a free price, so this never returns 0.0 as a stand-in
+    for "no report"; a genuinely reported 0.0 is returned as 0.0.
+    """
+    if isinstance(stdout, bytes):
+        try:
+            stdout = stdout.decode("utf-8", "replace")
+        except Exception:
+            return None
+    if not isinstance(stdout, str):
+        return None
+    text = stdout.strip()
+    if not text or len(text) > _CLAUDE_STDOUT_SCAN_MAX:
+        return None
+
+    def _cost(obj: Any) -> float | None:
+        if not isinstance(obj, dict):
+            return None
+        raw = obj.get("total_cost_usd")
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            return None
+        val = float(raw)
+        if not math.isfinite(val) or val < 0:
+            return None
+        return val
+
+    if text.startswith("{"):
+        try:
+            found = _cost(json.loads(text))
+        except (ValueError, TypeError, RecursionError):
+            found = None
+        if found is not None:
+            return found
+    best: float | None = None
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except (ValueError, TypeError, RecursionError):
+            continue
+        if isinstance(obj, dict) and obj.get("type") == "result":
+            found = _cost(obj)
+            if found is not None:
+                best = found            # LAST result frame wins
+    return best
 
 
 def install_process_guard(
@@ -528,12 +666,18 @@ BILLABLE_SITES: tuple[dict[str, Any], ...] = (
     {"file": "daedalus/council/vendors.py", "func": "OllamaAdapter._dispatch",
      "vendor": "remote_inference", "how": "_chat->_ollama_native.urlopen",
      "explicit": False, "static_visible": False},
+    # G1-IKARUS-36 (2026-09-08): both voice spawns reserve for themselves
+    # through ``guard("anthropic_cli", ..., cli_budget_cap_usd=...)`` and
+    # settle at the CLI's reported ``total_cost_usd``. The blocking path could
+    # in principle be left to the interposer (which now settles measured for
+    # ``subprocess.run``); the streaming path could NOT -- see GuardedPopen --
+    # and both are explicit so the two halves of one voice turn account alike.
     {"file": "daedalus/orchestration/ikarus/shell.py", "func": "_claude",
-     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": False},
+     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": True},
     {"file": "daedalus/orchestration/ikarus/shell.py", "func": "_codex",
      "vendor": "openai_cli", "how": "subprocess.run", "explicit": False},
     {"file": "daedalus/orchestration/ikarus/shell.py", "func": "_claude_stream",
-     "vendor": "anthropic_cli", "how": "subprocess.Popen", "explicit": False},
+     "vendor": "anthropic_cli", "how": "subprocess.Popen", "explicit": True},
     {"file": "runs/council/room.py", "func": "ask_codex",
      "vendor": "openai_cli", "how": "subprocess.run", "explicit": False},
     {"file": "runs/council/room.py", "func": "ask_fable",
@@ -559,8 +703,10 @@ BILLABLE_SITES: tuple[dict[str, Any], ...] = (
 
 __all__ = [
     "BILLABLE_SITES",
+    "claude_reported_cost_usd",
     "classify_argv",
     "classify_url",
+    "cli_budget_cap_usd",
     "guard",
     "install_process_guard",
     "uninstall_process_guard",

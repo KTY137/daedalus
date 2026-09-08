@@ -1,0 +1,17 @@
+import json, os, sys, time
+from pathlib import Path
+from daedalus import budget
+from daedalus.orchestration.ikarus import shell as live
+
+tel = {}
+t0 = time.monotonic()
+deltas = list(live._claude_stream("verbessere Daedalus", "low", telemetry=tel))
+tel["wall_seconds"] = round(time.monotonic() - t0, 3)
+out = Path(sys.argv[1])
+out.write_text(json.dumps(
+    {"streaming": tel, "text_chars": len("".join(deltas)),
+     "text_head": "".join(deltas)[:200],
+     "ledger": json.loads(budget.ledger().path.read_text("utf-8"))},
+    indent=2, sort_keys=True), encoding="utf-8")
+print(tel.get("stop_reason"), tel.get("num_turns"), tel.get("subtype"),
+      tel.get("cost_usd_measured"), tel["wall_seconds"], len("".join(deltas)))

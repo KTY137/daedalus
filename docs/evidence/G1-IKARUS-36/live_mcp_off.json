@@ -1,0 +1,133 @@
+{
+  "as_of": "2026-09-08",
+  "host": "owner workstation, Windows, claude 2.1.263",
+  "runs": [
+    {
+      "path": "_claude_stream",
+      "seconds": 8.394,
+      "delta_frames": 3,
+      "chars": 138,
+      "telemetry": {
+        "duration_ms": 5558,
+        "stop_reason": "end_turn",
+        "subtype": "success",
+        "terminal_reason": "completed",
+        "num_turns": 1,
+        "cost_usd_measured": 0.0859258,
+        "cost_basis": "provider_reported",
+        "cost_usd_reserved": 1.5,
+        "cli_budget_cap_usd": 0.5,
+        "model_used": "claude-sonnet-5",
+        "tokens": {
+          "input": 2,
+          "output": 276,
+          "cache_creation": 20626,
+          "cache_read": 3289
+        },
+        "stderr_tail": "",
+        "failure_reason_code": null,
+        "failure_detail": null,
+        "flags": [
+          "--tools",
+          "--model",
+          "--max-turns",
+          "--max-budget-usd",
+          "--no-session-persistence",
+          "--strict-mcp-config",
+          "--mcp-config",
+          "--output-format",
+          "--include-partial-messages",
+          "--verbose"
+        ]
+      },
+      "text_head": "Ich schaue mir zuerst an, was im aktuellen Arbeitsverzeichnis liegt, um zu verstehen, worauf sich \"Daedalus\" hier bezieht.\n\n**Tool: bash**"
+    },
+    {
+      "path": "_claude",
+      "seconds": 6.942,
+      "chars": 385,
+      "telemetry": {
+        "duration_ms": 4223,
+        "stop_reason": "end_turn",
+        "subtype": "success",
+        "terminal_reason": "completed",
+        "num_turns": 1,
+        "cost_usd_measured": 0.0655792,
+        "cost_basis": "provider_reported",
+        "cost_usd_reserved": 1.5,
+        "cli_budget_cap_usd": 0.5,
+        "model_used": "claude-sonnet-5",
+        "tokens": {
+          "input": 2,
+          "output": 182,
+          "cache_creation": 15518,
+          "cache_read": 8416
+        },
+        "stderr_tail": "",
+        "failure_reason_code": null,
+        "failure_detail": null,
+        "flags": [
+          "--tools",
+          "--model",
+          "--max-turns",
+          "--max-budget-usd",
+          "--no-session-persistence",
+          "--strict-mcp-config",
+          "--mcp-config",
+          "--output-format"
+        ]
+      },
+      "reply_head": "Ich helfe dir, deine Codebase zu verstehen und gezielt zu bearbeiten – ich kartiere das Repo, ziehe genau den relevanten Ausschnitt für deine Aufgabe heran und übergebe die eigentliche Arbeit an deine konfigurierten Coding-Agents. Dabei behalte ich Kontrolle über Sicherheits-, Bestätigungs- und Budg"
+    }
+  ],
+  "ledger_entries": [
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "estimate_usd": null,
+      "basis": "worst_case",
+      "label": "subprocess.Popen: C:\\Users\\Administrator\\.local\\bin\\claude.exe -p --output-format stream-json --include-partial-messages --verbose"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "estimate_usd": 3.0,
+      "basis": null,
+      "label": "subprocess.Popen: C:\\Users\\Administrator\\.local\\bin\\claude.exe -p --output-format stream-json --include-partial-messages --verbose"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 1.5,
+      "estimate_usd": null,
+      "basis": "cli_budget_cap",
+      "label": "ikarus voice stream: claude.exe -p"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.0859258,
+      "estimate_usd": 1.5,
+      "basis": null,
+      "label": "ikarus voice stream: claude.exe -p"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 1.5,
+      "estimate_usd": null,
+      "basis": "cli_budget_cap",
+      "label": "ikarus voice: claude.exe -p"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.0655792,
+      "estimate_usd": 1.5,
+      "basis": null,
+      "label": "ikarus voice: claude.exe -p"
+    }
+  ]
+}
