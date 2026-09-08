@@ -1,0 +1,148 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-100",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c52d5ab0fbd95d283fa1deab09aa57a50dd92edc",
+    "dependencies": "G1-EXP-TENSOR-GPU-99 and canonical compile_relation_blocks/Fourfold owners",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "measurement"]},
+      "contracts_and_behavior": {"source_fields": ["measurement", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only this diagnostic probe, its focused contracts, workflow artifact retention and research record. No production authority, compiler API, promotion contract or persisted runtime state is added."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-100",
+  "work_packet": "G1-EXP-TENSOR-GPU-100",
+  "title": "Measure full-rebuild amplification for one deterministic relation delta",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "implemented-measuring",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "c52d5ab0fbd95d283fa1deab09aa57a50dd92edc",
+  "implementation_head": "3a491cc78af06724391aab63f12e6be9044d9f09",
+  "scope": "Stop constructor micro-optimization and quantify the current full-rebuild tax for a tiny same-plane Boolean relation delta without implementing an incremental backend. Reuse KnowledgeForest, FourfoldSnapshot and compile_relation_blocks as the only semantic/projection owners. Keep axis membership fixed, add exactly one retained relation fact, and separately pin fail-closed behavior for partial endpoint planes.",
+  "measurement": {
+    "authority": "diagnostic only; KnowledgeForest/Fourfold remain semantic authority and compile_relation_blocks remains the only projection owner",
+    "probe": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "schema": "daedalus-tensor-relation-delta-rebuild/1",
+    "ci_case": {
+      "nodes": 512,
+      "row_width": 16,
+      "base_edges": 8192,
+      "delta_edges": 8193,
+      "changed_coordinate_count": 1,
+      "deterministic_rebuild_entries_per_changed_coordinate": 8193.0,
+      "deterministic_edge_scan_per_changed_coordinate": 8193.0,
+      "changed_coordinate_fraction_of_delta_output": 0.00012205541315757354,
+      "repeats": 7,
+      "warmup": 2
+    },
+    "semantic_delta": "The base and delta Forests have identical 512-node code-plane membership. The delta revision adds exactly src/node_0000.py -> src/node_0017.py with relation imports; no coordinate is removed.",
+    "unsupported_behavior": "The same delta Forest bound to a partial code plane must be refused with the canonical complete-endpoint-plane error before sparse zeroes can be interpreted as complete facts.",
+    "wall_timing": "pending retained exact workflow artifact before this packet can close",
+    "finding_so_far": "Even before wall timing, the present full rebuild deterministically re-scans/re-materializes 8193 selected Forest facts to represent one changed semantic coordinate in this frozen case. This is work-scope amplification evidence only; no incremental-speedup claim is made."
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; the probe never becomes a graph or fact owner.",
+    "projection_owner": "compile_relation_blocks is invoked unchanged for base, delta and refusal cases.",
+    "closed_world": "Selected relation endpoint planes must remain complete; partial code is refused.",
+    "fixed_axes": "Base and delta snapshots retain identical code node membership so the measurement isolates one relation-fact delta rather than axis churn.",
+    "canonical_output": "No trusted constructor, validation bypass, persistent cache, second block type or production delta API is introduced.",
+    "bounded_memory": "The diagnostic materializes only two bounded synthetic Forest/Snapshot inputs plus ordinary compiler outputs and timing samples.",
+    "public_api": "No public API, wire schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": false,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": true,
+    "workflow_change": true,
+    "work_packet_record_added": true,
+    "incremental_backend_implemented": false,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-100 now has a bounded deterministic probe and focused contracts that quantify full-rebuild work amplification for a one-fact relation delta while preserving canonical Fourfold/Forest authority and closed-world refusal. Closure waits only for the retained CI measurement artifact."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "c52d5ab0fbd95d283fa1deab09aa57a50dd92edc",
+    "probe_commit": "e5201a913030b2eb2ebb50829018af52130c27b6",
+    "test_commit": "478634c29b13750e2e5e64239c20e4deaafebbc7",
+    "workflow_commit": "3a491cc78af06724391aab63f12e6be9044d9f09",
+    "probe_path": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "test_path": "tests/twin/test_tensor_relation_delta_rebuild_probe.py",
+    "workflow_path": ".github/workflows/fourfold-v2.yml",
+    "code_test_head_fourfold_tensor_run": "34267104045:completed/success on 478634c29b13750e2e5e64239c20e4deaafebbc7",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "focused_probe_contracts_added": true,
+    "all_existing_twin_contracts_on_code_test_head": true,
+    "code_test_head_fourfold_tensor_ci": "Run 34267104045 completed/success after probe and focused tests were added.",
+    "exact_measurement_artifact": "pending",
+    "closure_head_ci_requirement": "A final documentation closure commit requires its own hosted evidence before any exact-head green statement is made.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 1,
+    "workflow_files_changed": 1,
+    "documentation_files_changed": 1,
+    "new_production_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "After the retained GPU-100 artifact exists, close this packet by recording exact timing/evidence only. A later GPU-101 may design an incremental contract only if the measured full-rebuild amplification remains material and the design preserves revision binding, complete-plane semantics, canonical digest/error behavior and a single graph authority."
+}
