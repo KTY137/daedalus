@@ -103,6 +103,12 @@ function placeReport(previous: LiveReportBrief[], next: LiveReportBrief): LiveRe
  * event, so counters can never be relabelled from project A to project B.
  * `hello` is an authoritative snapshot: absent fields clear older evidence on
  * reconnect instead of laundering it as freshly measured.
+ *
+ * Terminal reports have a stricter boundary than aggregate counters: their
+ * project attribution must equal the selected project byte-for-byte. A
+ * schemaless/legacy report with no project is not safe to assign to whichever
+ * project happens to own the EventSource connection, and a foreign project is
+ * never accepted even if a backend stream is accidentally misrouted.
  */
 export function reduceLiveWork(
   previous: LiveWorkState,
@@ -115,7 +121,7 @@ export function reduceLiveWork(
 
   if (name === 'hello') {
     const latest = reportBrief(d.latest_report);
-    const scopedLatest = latest && (!latest.project || latest.project === project) ? latest : undefined;
+    const scopedLatest = latest?.project === project ? latest : undefined;
     return {
       project,
       connected: true,
@@ -145,7 +151,7 @@ export function reduceLiveWork(
 
   if (name === 'report') {
     const latest = reportBrief(d);
-    if (!latest || (latest.project && latest.project !== project)) return prev;
+    if (!latest || latest.project !== project) return prev;
     const newest = latestReport(prev.latest, latest);
     if (newest !== latest) return { ...prev, project, latest: newest };
     return {
