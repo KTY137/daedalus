@@ -1,0 +1,150 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-96",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "83e0dfddc9c91738387ca7f94a327a8f624c4713",
+    "dependencies": "G1-EXP-TENSOR-GPU-95 and its exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["audit", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only this research record. Production, tests, probes, public API, wire schemas, benchmark schemas, authority and promotion state are unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-96",
+  "work_packet": "G1-EXP-TENSOR-GPU-96",
+  "title": "Retain single-pass Tropical scalar canonicalizer after tuple-reuse audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "83e0dfddc9c91738387ca7f94a327a8f624c4713",
+  "scope": "Audit _stored_values Tropical persistence for the concrete case where an already canonical exact tuple of finite non-negative float values is copied through a temporary list and a new tuple. Permit an in-owner tuple-reuse path only if it preserves int-to-float normalization, negative-zero canonicalization, finite/non-negative and semiring-zero refusal, first-error behavior and direct/from_dict constructor semantics without adding a second scalar-validation path, cache, alternate semiring adapter or trusted constructor.",
+  "audit": {
+    "current_owner": {
+      "path": "daedalus/twin/relation_blocks.py::_stored_values",
+      "finding": "Tropical persistence deliberately differs from Boolean, Natural and EvidenceDag: every accepted scalar is normalized to an exact float and signed zero is canonicalized to +0.0. A single bounded pass both validates caller order and builds the canonical immutable value tuple."
+    },
+    "candidate_fast_path": {
+      "finding": "Reusing an exact tuple is only sound when every element is already an exact finite non-negative float and no element is -0.0. Determining that fact requires scanning the whole tuple. If any int, signed zero, foreign scalar, infinity, NaN or negative value is encountered, the existing canonicalization/refusal logic must still run in original caller order."
+    },
+    "duplicate_validation_cost": {
+      "finding": "A preflight tuple-reuse scan followed by the existing canonicalizer on fallback would duplicate Tropical type/finite/sign predicates and can traverse non-canonical tuples twice. That is a second admission surface inside the same helper for a speculative allocation win with no measured workload evidence."
+    },
+    "lazy_copy_alternative": {
+      "finding": "A lazy-copy variant would need extra state to retain the already-validated prefix and would either slice/copy that prefix when normalization first becomes necessary or retain a parallel builder path. This increases code and branch complexity while leaving mutable inputs, integer costs and signed-zero inputs on the allocation path."
+    },
+    "semantic_zero_boundary": {
+      "finding": "Tropical additive zero is non-finite positive infinity; persisted relation blocks already refuse non-finite values before storage. Numeric cost 0.0 is a valid multiplicative identity and must remain storable, with -0.0 normalized to +0.0."
+    },
+    "gardener_conclusion": "Do not add an unmeasured tuple-reuse fast path. Retain the current one-pass Tropical canonicalizer as the single scalar admission/normalization owner. The extra list+tuple materialization is bounded and buys one simple error-ordered implementation; optimization requires a measured allocation hotspot or backend-level evidence first."
+  },
+  "semantic_invariants": {
+    "numeric_contract": "Only exact int/float Tropical costs are admitted; bool and foreign numeric-like objects remain refused.",
+    "normalization": "Accepted ints normalize to float, -0.0 canonicalizes to +0.0, and already-positive finite floats retain their numeric value.",
+    "finite_non_negative": "NaN, infinities, negative costs and float-overflowing integers remain refused in caller order.",
+    "tropical_zero": "Semiring additive zero (+inf) remains unpersistable while numeric 0.0 remains a valid persisted multiplicative identity.",
+    "constructor_boundary": "TypedRelationBlock.__post_init__ remains the single persisted scalar-sequence owner for direct, builder and from_dict construction.",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; relation blocks remain regenerable internal computational views.",
+    "public_api": "No public API, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "tuple_reuse_fast_path_added": false,
+    "single_pass_tropical_owner_retained": true,
+    "negative_gardener_evidence_retained": true,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-96 rejects a speculative Tropical tuple-reuse preflight because it duplicates scalar admission predicates and makes fallback inputs pay a second traversal without measured hotspot evidence. The existing bounded one-pass list-to-tuple canonicalizer remains the simpler single owner for float normalization, signed-zero canonicalization and refusal precedence."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "83e0dfddc9c91738387ca7f94a327a8f624c4713",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "semiring": "daedalus/twin/semiring.py@21d46382d84562f97feac2b2b4301d1f00450e70",
+    "scalar_sequence_tests": "tests/twin/test_relation_scalar_sequence_admission.py@7fd6e0d6a6f60a6f32c344bd74c764f39c9c628c",
+    "prior_exact_head_fourfold_tensor_run": "34235985016:completed/success",
+    "prior_exact_head_tauri_run": "34235984491:completed/success",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "static_audit": "The candidate identity path needs a complete canonicality scan before it can safely return the original tuple. Fallback then either repeats Tropical predicates/conversion or introduces a prefix-copy/builder path. Existing tests already pin int-to-float normalization, negative-zero digest canonicalization, first-error refusal and identity reuse for the non-normalizing semiring families.",
+    "new_test_required": false,
+    "reason": "No executable behavior changes. Adding a test that Tropical canonical tuples are intentionally copied would overspecify an implementation detail and make a future measured optimization harder without strengthening semantics.",
+    "prior_head_ci": "GPU-95 exact head 83e0dfddc9c91738387ca7f94a327a8f624c4713 has Fourfold/Tensor run 34235985016 completed/success and Tauri run 34235984491 completed/success.",
+    "closure_head_ci_requirement": "This documentation-only closure commit requires its own hosted run evidence before any exact-head green statement is made.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "speculative_fast_path_rejected": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 22,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-97 only: audit TypedRelationBlock.to_dict/to_json/digest serialization for one concrete repeated full materialization that can be removed or shared without caching mutable state, changing canonical wire shape, weakening EvidenceValue encoding, or creating a second digest/serialization owner. If no safe deletion exists, retain the boundary and move to measured sparse/incremental hotspots rather than adding serializer abstractions."
+}
