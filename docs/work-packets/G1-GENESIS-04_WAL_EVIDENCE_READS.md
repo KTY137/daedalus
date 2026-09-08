@@ -184,3 +184,24 @@ state; it is not a new browser acceptance run.
 All filenames above are relative to `runs/integration-20260908/`. Root owns
 retained evidence packaging, the final commit and the separate browser gate.
 No scientific Gate advancement, comparative result or promotion is claimed.
+
+
+## Frozen full-suite correction: source transport and mutation target binding
+
+2026-09-08, before corrective writes: the final full suite on integrated
+`0e8b` retained three failures, 13420 passes, 419 skips and 23 xfails. Two
+failures are in the existing event-time mutation transport contract: this WAL
+patch accidentally left mixed CRLF/LF source, and its expected target blob still
+names the pre-WAL reader. Root authorized uniform LF for the current reader and
+only the expected target blob update in
+`tests/contracts/test_attempt_event_time_mutation_transport.py`.
+
+The normalized current reader blob is
+`0c9949bcc2ea849d0cd4cb3c03d035066c57d76c`; LF normalization must preserve it.
+All three exact mutation IDs, anchors, replacements, order, five-file test
+selection, semantic digest, legacy-unbounded execution and exit classifications
+remain unchanged. The real canonical mutation campaign must kill all three
+mutants and preserve the authoritative source bytes. No historical evidence,
+mutation spec, common runner, clock bound, evaluator or policy is rewritten.
+The third full-suite failure concerns a separate temporary audit script and is
+owned by root. This correction is source transport and baseline binding only.

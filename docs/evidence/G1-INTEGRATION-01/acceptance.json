@@ -163,10 +163,52 @@
       "archive_sha256": "7fd6b3dc70d935aa2ee8a1ce3fcf121742c8fc79b0e7e465cd515ca0bf73961c"
     },
     {
+      "source": "runs/integration-20260908/envelope-without-local-helper.xml",
+      "sha256": "3c984fd9543983c6ef47af89305174eb3022ec1b0b3a9b834e6f64e852428d70",
+      "archive": "envelope-without-local-helper.xml.gz",
+      "archive_sha256": "37c1cbaacc5a832b64666889ccba08a1831e441ec220b9693b2baa698eb6ae97"
+    },
+    {
       "source": "evaluator-closure-bytes.xml",
       "sha256": "e4fbe882ae161ff399066942004714d1a754d6523858cf43e34e63a4391bcf57",
       "archive": "evaluator-closure-bytes.xml.gz",
       "archive_sha256": "b9a8e54a2441b5a882f0ef3bf8c466322228db79bb22f8aaf73cf761dc014531"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-archive.log",
+      "sha256": "4665f7b437fb8a53854580b0ad29c85d9d26fa04ef9e78b98763411912a91a46",
+      "archive": "frontend-real-gui-final-archive.log.gz",
+      "archive_sha256": "618dc7f4cca6bfa7c2223b5d12c1c906f0cb87e3c6709e93f82ea47471459c4e"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-archive.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-final-archive.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-cleanup.json",
+      "sha256": "ebd3d278c8e64985336b42c553da219d1446665355e95d44f79ae855a7979db4",
+      "archive": "frontend-real-gui-final-cleanup.json.gz",
+      "archive_sha256": "cf2ec2a9e10d6a4d16231ac90e867a5842e88e504c9de44789ae94f6df1dc041"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-source.json",
+      "sha256": "d46fdb56ad8aa0f1146260d2ca0b91bfc981f8f7bea4e7be9c2cb97a5af6de4a",
+      "archive": "frontend-real-gui-final-source.json.gz",
+      "archive_sha256": "5f3fc0b2881e360f98fe781c11418bda9624d5b81d8802c1d35b9859c5dc9c52"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final.json",
+      "sha256": "407d4f64717f68d0ec96093f1701db521ccde1ff7da583167284bb9e6fca025c",
+      "archive": "frontend-real-gui-final.json.gz",
+      "archive_sha256": "cf53e0f90444284c65cedcfab865a2db5bbdb8e14daca2a18c45e9a5b5fb8f8d"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-final.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
     },
     {
       "source": "frontend-real-gui-integrated-first-archive.log",
@@ -349,6 +391,30 @@
       "archive_sha256": "83d4baca558ca6bf3d057336a61496029e96ad5e561ef5e34d503d5add32ae2d"
     },
     {
+      "source": "runs/integration-20260908/integrated-final-result.json",
+      "sha256": "b60ea6a60cb1d992392f520908ad7b78e0c442cc1612619bae267b32d8ff7f5b",
+      "archive": "integrated-final-result.json.gz",
+      "archive_sha256": "c03036ce90aa4ca5eb8aea5ab1c79c2b6e7e7494ae042eca3a958f9bc5958a82"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-final-source.json",
+      "sha256": "e9b1a818a28fe5cebe1591e0ea3630d6ab825c776932e235f59fefc678d45735",
+      "archive": "integrated-final-source.json.gz",
+      "archive_sha256": "53355d5676af726cb1aba8042997fca7d22510d32e12816d43acab1268a57b0e"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-final.log",
+      "sha256": "5cdedcbd43134b560f40895de39dbfc8d6b0bfd99e6e7e68fc9bbcfddc651a70",
+      "archive": "integrated-final.log.gz",
+      "archive_sha256": "845ba0f1bf34959732821997bf4109088dbc4fa0e03e449ea503a956b6235876"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-final.xml",
+      "sha256": "7c686e80adddf8c971b3a16b9466a7640faf8cb510b28a8a7dc96e53dcbcc2e5",
+      "archive": "integrated-final.xml.gz",
+      "archive_sha256": "1ccdaadb52ea57501eb74b733094c87f13fccd3f626e7003d8e69f3f7d11cde0"
+    },
+    {
       "source": "integrated-full.log",
       "sha256": "1ac34b65da8948c0a1a8602ef3cbcd68febcc2061b7d61360234f0a674a0f12d",
       "archive": "integrated-full.log.gz",
@@ -419,6 +485,11 @@
     },
     "registry_llm_http_literals_final": {
       "passed": 47
+    },
+    "envelope_without_local_helper": {
+      "passed": 8,
+      "helper_sha256": "4e581bebd24dc2ae6452ef19836240213042c5141cb46234c7d579580ba3c768",
+      "helper_preserved_at": "C:/Users/Administrator/AppData/Local/Temp/daedalus-integration-20260908-helpers/measure-import-scc.py"
     }
   },
   "genesis_wal_review": {
@@ -460,5 +531,33 @@
     "linux_http_genesis": "Both Linux matrices reach four real-build cases without configured canonical rootless OCI runtime/image, so containment refuses before delivery; WAL reader tests pass. Per Python3.12 job:596passed,4failed,4skipped,6passing subtests.",
     "correction": "Provision canonical rootless Podman with the already pinned Debian image; require one real unskipped confinement test before HTTP Genesis builds. Host Python and guest image interpreter are distinct.",
     "linux_canvas": "Relevant scene source, assets, dependency lock and test bytes are identical to frozen main. No cause established without DOM/trace; failure remains retained and is not labelled flaky or fixed."
+  },
+  "second_full_run": {
+    "start_head": "0e8b2325311876298ac73a6be2123c2880720d5b",
+    "passed": 13420,
+    "failed": 3,
+    "skipped": 419,
+    "xfailed": 23,
+    "passing_subtests": 2237,
+    "seconds": 575.67,
+    "changed_source_files": [],
+    "remaining_failures": [
+      "An untracked local SCC measurement helper is detected as a record producer; preserved outside the repository and coverage rechecked without weakening the inventory",
+      "Attempt reader has mixed checkout line endings after patching",
+      "Mutation transport target pin still names the pre-WAL reader blob; mutation semantics and budgets stay frozen"
+    ]
+  },
+  "final_windows_gui": {
+    "source_head": "0e8b2325311876298ac73a6be2123c2880720d5b",
+    "ending_head": "f12c1bd9f1eb66fb16edf374a0bb6dffe3624287",
+    "passed": 257,
+    "failed": 0,
+    "skipped": 0,
+    "server_entry": "daedalus web",
+    "source_subtrees_identical": true,
+    "cleanup_pass": true,
+    "archive_reports": 2,
+    "local_artifact_files": 247,
+    "linux_canvas_result": "separate earlier unresolved negative"
   }
 }
