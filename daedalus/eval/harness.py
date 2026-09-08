@@ -229,8 +229,26 @@ def _focus_withheld_row(task: dict, res: dict) -> dict:
     }
 
 
-def _plane_unindexed_reason(target: object) -> str | None:
-    """Why this target cannot be sliced at all, or None if it can be tried.
+def _plane_unindexed_reason(task: dict) -> str | None:
+    """Why this task's target cannot be sliced at all, or None if it can be tried.
+
+    THE REASON DEPENDS ON THE ARTIFACT EXISTING, NOT ON ITS NAME. That is the
+    whole contract, and it was wrong at first: the original version was a pure
+    string test on the target's extension, evaluated before ``resolve_task_repo``
+    and before any existence check, so a nonexistent or typo'd target
+    (``data/does_not_exist.csv``, ``schemas/tpyo.json``, ``wiki/DoesNotExist.md``)
+    was downgraded from a gate-FAILING errored row to a reported-only
+    PLANE-UNINDEXED row -- and ``run_gate`` then returned PASS on a corpus in
+    which nothing resolved at all (pinned by
+    tests/test_eval_oracle.py::MissingTargetIsNeverDowngradedTest). "This plane
+    has no retrieval path" is a claim about a file that is really there; a file
+    that is not there is a broken task, and must keep screaming.
+
+    So the order is: resolve the repo, find the file (an optional ``::Section``
+    suffix is stripped -- a document's section lives inside its file), and only
+    then classify. An unresolvable ``repo`` label or an absent file returns
+    None, which drops the task into the caller's existing try block and out
+    through ``_task_error_row``.
 
     Two cases, both structural properties of the DEFAULT index rather than
     measurements of anything:
@@ -257,18 +275,33 @@ def _plane_unindexed_reason(target: object) -> str | None:
     loudly through ``_task_error_row`` -- turning "unresolvable" into a tidy
     reported bucket is how a broken corpus stops screaming.
     """
+    target = task.get("target") if isinstance(task, dict) else None
     if not isinstance(target, str) or not target:
         return None
     path = target.split("::", 1)[0]
     ext = os.path.splitext(path)[1].lower()
+    # Classify FIRST only to decide whether existence is even worth a stat: a
+    # .toml/.py/unknown target has no reason at all, so it never resolves a
+    # repo and never touches the disk here -- byte-identical cost for every
+    # task that was already going the error/slice route.
     if ext in _DATA_PLANE_EXTENSIONS:
-        return (f"data-plane target ({ext}): the structural index carries source "
-                "units and (opt-in) documents, never data artifacts")
-    if doc_spec_for(path) is not None:
-        return ("document target: documents are opt-in in the structural index "
-                "(structcore.index.documents_enabled, default off) and this "
-                "harness never enables them")
-    return None
+        reason = (f"data-plane target ({ext}): the structural index carries source "
+                  "units and (opt-in) documents, never data artifacts")
+    elif doc_spec_for(path) is not None:
+        reason = ("document target: documents are opt-in in the structural index "
+                  "(structcore.index.documents_enabled, default off) and this "
+                  "harness never enables them")
+    else:
+        return None
+    # The existence gate. Cheap (a path map plus one stat -- no index is built)
+    # and fail-closed: anything that cannot be resolved, cannot be stat'ed, or
+    # is not a regular file falls through to the caller's error path.
+    try:
+        root = resolve_task_repo(task["repo"])
+        exists = os.path.isfile(os.path.join(root, *path.split("/")))
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
+    return reason if exists else None
 
 
 def _plane_unindexed_row(task: dict, reason: str) -> dict:
@@ -330,7 +363,7 @@ def eval_task_tier1(task: dict, idx: dict | None = None) -> dict:
     ``_plane_unindexed_reason``/``_plane_unindexed_row``."""
     if is_correctness_task(task):
         return _correctness_task_row(task)
-    reason = _plane_unindexed_reason(task.get("target"))
+    reason = _plane_unindexed_reason(task)
     if reason is not None:
         return _plane_unindexed_row(task, reason)
     try:
@@ -412,11 +445,14 @@ def run_tier1(tasks: list[dict] | None = None) -> dict:
         if is_correctness_task(task):
             per_task.append(_correctness_task_row(task))
             continue
-        # Refused BEFORE the repo is resolved and an index is built, for the
-        # same reason the correctness refusal is: nothing here will be sliced,
-        # so paying for an index (or failing on a repo label) would report the
-        # wrong thing about a task that was never going to be measured.
-        reason = _plane_unindexed_reason(task.get("target"))
+        # Refused BEFORE an index is built: nothing here will be sliced, so
+        # paying for an index would report the wrong thing about a task that
+        # was never going to be measured. The repo IS resolved -- inside
+        # _plane_unindexed_reason, which stats the target -- because the reason
+        # depends on the artifact existing; an unresolvable repo label or an
+        # absent file returns None and falls into the try below, out through
+        # _task_error_row.
+        reason = _plane_unindexed_reason(task)
         if reason is not None:
             per_task.append(_plane_unindexed_row(task, reason))
             continue
@@ -705,7 +741,7 @@ def eval_task_arms(task: dict, idx: dict | None = None,
     """
     if is_correctness_task(task):
         return _correctness_task_row(task)
-    reason = _plane_unindexed_reason(task.get("target"))
+    reason = _plane_unindexed_reason(task)
     if reason is not None:
         return _plane_unindexed_row(task, reason)
     try:
@@ -791,7 +827,7 @@ def run_arms(tasks: list[dict] | None = None) -> dict:
         if is_correctness_task(task):   # see run_tier1's loop for why it is here
             per_task.append(_correctness_task_row(task))
             continue
-        reason = _plane_unindexed_reason(task.get("target"))  # ditto
+        reason = _plane_unindexed_reason(task)  # ditto
         if reason is not None:
             per_task.append(_plane_unindexed_row(task, reason))
             continue

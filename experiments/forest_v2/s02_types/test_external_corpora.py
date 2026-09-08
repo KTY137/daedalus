@@ -72,9 +72,19 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # exactly as the older fixtures/sunny_garden files are already counted.
     # Prior measured rows remain in the README; this moving corpus census is
     # NOT a resolver superiority claim -- the resolver did not change.
+    #
+    # RE-PINNED 2026-09-08 (review fixes on the same packet): the file COUNT is
+    # unchanged at 490 and every resolver number below is byte-identical; only
+    # the content digest moved, because the review fix to
+    # daedalus/eval/harness.py::_plane_unindexed_reason edited a file inside
+    # the censused package tree. Two fresh probe runs
+    # (runs/g1-eval-corpus-01/s02-fixer-{c,d}.json) matched on everything except
+    # corpora[*].wall_seconds/root; non-timing canonical SHA256
+    # eaf4808c4207d67b50f8b30556ad77af9a24a8172c98eca5804c7d422ada2eeb.
+    # Superseded digest: 966aff67...aac1fc57a (frozen source, before the fix).
     assert entry["corpus_pin"] == {
         "files": 490,
-        "sha256": "966aff674b23088e6ea830aa32e69594215b8b1655a384b2ecc3f92aac1fc57a",
+        "sha256": "9861df4379037a00b0951191a986717c8b3dc5a6c692af0a2da4a6c00e645e45",
     }
     assert entry["functions"] == 6801
     assert entry["annotation_only_pct"] == 94.35  # the control, unmoved

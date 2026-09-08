@@ -762,6 +762,104 @@ class PlaneUnindexedRowTest(unittest.TestCase):
         self.assertFalse(gate["passed"])   # primary + errored -> loud
 
 
+class MissingTargetIsNeverDowngradedTest(unittest.TestCase):
+    """A target that does not EXIST must ERROR, whatever its extension.
+
+    The defect this pins (found by review + independent verification, fixed
+    2026-09-08): ``_plane_unindexed_reason`` used to be a pure string test on
+    the target's extension, evaluated BEFORE ``resolve_task_repo`` and before
+    any existence check. So ``data/does_not_exist.csv`` -- a typo, a deleted
+    fixture, a renamed schema -- was downgraded from a gate-FAILING errored row
+    to a reported-only PLANE-UNINDEXED row, and ``run_gate`` returned PASS on a
+    corpus in which nothing resolved at all. "Unresolvable" must never become a
+    tidy reported bucket; that is how a broken corpus stops screaming.
+
+    The reason now depends on the artifact EXISTING under the resolved repo
+    root. These three cases cover both branches of the reason (data extension
+    and ``doc_spec_for``) plus an unresolvable repo label.
+    """
+
+    MISSING = (
+        ("missing_csv", "data/does_not_exist.csv"),
+        ("missing_json", "schemas/tpyo.json"),
+        ("missing_md", "wiki/DoesNotExist.md"),
+    )
+
+    @staticmethod
+    def _task(task_id: str, target: str, repo: str = "fourfold_wiki_app") -> dict:
+        return {"id": task_id, "label_provenance": "hand_reachable",
+                "tier": "primary", "repo": repo, "target": target,
+                "must_include": ["anything"]}
+
+    def test_the_reason_is_none_for_a_nonexistent_target(self):
+        for task_id, target in self.MISSING:
+            with self.subTest(target=target):
+                self.assertIsNone(
+                    harness._plane_unindexed_reason(self._task(task_id, target)))
+
+    def test_tier1_errors_on_each_missing_target(self):
+        for task_id, target in self.MISSING:
+            with self.subTest(target=target):
+                row = harness.eval_task_tier1(self._task(task_id, target))
+                self.assertIn("error", row)
+                self.assertNotIn("plane_unindexed", row)
+                self.assertNotIn("recall", row)
+
+    def test_arms_errors_on_each_missing_target(self):
+        for task_id, target in self.MISSING:
+            with self.subTest(target=target):
+                row = harness.eval_task_arms(self._task(task_id, target))
+                self.assertIn("error", row)
+                self.assertNotIn("plane_unindexed", row)
+
+    def test_run_tier1_and_run_arms_count_them_as_errored(self):
+        tasks = [self._task(i, t) for i, t in self.MISSING]
+        tier1 = harness.run_tier1(tasks)
+        self.assertEqual(tier1["n_errored_tasks"], 3)
+        self.assertEqual(tier1["n_plane_unindexed"], 0)
+        arms = harness.run_arms(tasks)
+        self.assertEqual(arms["n_errored_tasks"], 3)
+        self.assertEqual(arms["n_plane_unindexed"], 0)
+
+    def test_run_gate_fails_on_a_corpus_of_missing_targets(self):
+        # The headline defect: this used to be PASS.
+        tasks = [self._task(i, t) for i, t in self.MISSING]
+        with tempfile.TemporaryDirectory() as tmp:
+            gate = harness.run_gate(tasks, baseline_path=str(Path(tmp) / "b.json"))
+        self.assertFalse(gate["passed"])
+        self.assertEqual(len(gate["errored_primary"]), 3)
+        self.assertEqual(gate["plane_unindexed"], [])
+
+    def test_each_missing_target_alone_fails_the_gate(self):
+        for task_id, target in self.MISSING:
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as tmp:
+                gate = harness.run_gate([self._task(task_id, target)],
+                                         baseline_path=str(Path(tmp) / "b.json"))
+                self.assertFalse(gate["passed"])
+
+    def test_an_unresolvable_repo_label_errors_rather_than_reporting(self):
+        # The repo label is checked before the extension can decide anything:
+        # a data/document extension under a repo that cannot be resolved is a
+        # broken task, not a structural gap in the retrieval universe.
+        task = self._task("bad_repo", "data/articles.csv", repo="no_such_repo_label")
+        self.assertIsNone(harness._plane_unindexed_reason(task))
+        row = harness.eval_task_tier1(task)
+        self.assertIn("error", row)
+        self.assertIn("cannot resolve task repo label", row["error"])
+        self.assertEqual(harness.run_tier1([task])["n_plane_unindexed"], 0)
+
+    def test_the_four_real_tasks_are_still_plane_unindexed(self):
+        # The narrowing must not swallow the packet's own claim: an artifact
+        # that DOES exist and whose plane the index does not carry still comes
+        # back reported-only, with no recall key.
+        result = harness.run_tier1(list(_ARTIFACT_PARSED))
+        self.assertEqual(result["n_plane_unindexed"], 4)
+        self.assertEqual(result["n_errored_tasks"], 0)
+        for task in _ARTIFACT_PARSED:
+            with self.subTest(task=task["id"]):
+                self.assertIsNotNone(harness._plane_unindexed_reason(task))
+
+
 class PlaneUnindexedAggregationTest(unittest.TestCase):
     def setUp(self):
         self.tasks = list(_ARTIFACT_PARSED)

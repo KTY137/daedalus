@@ -72,6 +72,44 @@
   },
   "measured_utc_date": "2026-09-08",
   "packet_id": "G1-EVAL-CORPUS-01",
+  "review_fixes": {
+    "defects_fixed": [
+      "_plane_unindexed_reason was a pure string test on the target extension, run before resolve_task_repo and before any existence check, so a nonexistent target was downgraded from an ERRORED row to a reported-only PLANE-UNINDEXED row and run_gate PASSED on a broken corpus",
+      "report.py printed 'verified plane-exclusive by test' with no test asserting it (mutation M1b survived)",
+      "the anti-vacuity filter removed zero candidates on the committed corpus, so deleting it changed nothing (mutation M9 survived)",
+      "the packet doc cited a superseded, never-committed s02 pin c2e4150f...",
+      "test_a_hand_written_subset_is_refused was a tautology cited as evidence for acceptance row A6",
+      "test_no_label_is_a_single_bm25_token guarded its only assertion and could never have been observed to run"
+    ],
+    "focused_suites_after_fixes": "371 passed, 2 skipped, 535 subtests passed (14 suites); experiments s02 8 passed; tools/index_work_packets.py --check clean",
+    "measured_utc_date": "2026-09-08",
+    "mutations_now_caught": {
+      "M1b": "delete the plane-exclusivity filter from derive_labels AND regenerate must_include -> V1PlaneExclusivityTest::test_every_committed_label_is_plane_exclusive_in_the_fixture fails on required, properties, fourfold-overview",
+      "M9": "delete 'if candidate in target_text: continue' -> V3NonVacuityTest::test_the_anti_vacuity_filter_drops_a_candidate_found_in_the_target fails"
+    },
+    "note": "Independent review + adversarial verification of the frozen source at c6e1c499. The fields above are the measurement of THAT source and are not rewritten; these are the measurements after the fixes.",
+    "s02_probe_after_fixes": {
+      "command": "experiments/forest_v2/s02_types/probe_external_corpora.py (run twice)",
+      "identical_except": [
+        "corpora[*].wall_seconds",
+        "corpora[*].root"
+      ],
+      "kernel_corpus_pin": {
+        "files": 490,
+        "sha256": "9861df4379037a00b0951191a986717c8b3dc5a6c692af0a2da4a6c00e645e45"
+      },
+      "non_timing_sha256": "eaf4808c4207d67b50f8b30556ad77af9a24a8172c98eca5804c7d422ada2eeb",
+      "raw_outputs": [
+        "runs/g1-eval-corpus-01/s02-fixer-c.json",
+        "runs/g1-eval-corpus-01/s02-fixer-d.json"
+      ],
+      "superseded_kernel_corpus_pin": {
+        "files": 490,
+        "sha256": "966aff674b23088e6ea830aa32e69594215b8b1655a384b2ecc3f92aac1fc57a"
+      },
+      "why_it_moved": "daedalus/eval/harness.py is inside the censused package tree; file count and every resolver number unchanged"
+    }
+  },
   "s02_probe": {
     "claim": "changed source corpus under an unchanged resolver; NOT a resolver improvement",
     "command": "experiments/forest_v2/s02_types/probe_external_corpora.py (run twice)",

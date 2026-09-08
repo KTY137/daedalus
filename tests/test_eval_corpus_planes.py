@@ -7,12 +7,17 @@ slice at all (they come back as PLANE-UNINDEXED rows -- that contract is
 tested in tests/test_eval_oracle.py). What has to be proven here is that the
 labels are worth having when a retrieval arm for those planes finally exists:
 
-  V1  the fixture's planes are disjoint under the walked classification, and
-      the fixture's own manifest declares nothing outside that walked universe;
+  V1  the fixture's planes are disjoint under the walked classification, the
+      fixture's own manifest declares nothing outside that walked universe,
+      and every committed label is PLANE-EXCLUSIVE inside the fixture -- the
+      last one asserted from the fixture bytes without calling
+      ``derive_labels``, so the derivation cannot vouch for itself;
   V2  every committed ``must_include`` is EXACTLY what the derivation grammar
       re-derives -- no hand-written subset, no unknown kind;
   V3  no label occurs in its own task's target unit (else a retrieval arm
-      could satisfy it by returning the target itself);
+      could satisfy it by returning the target itself), and the filter that
+      enforces that is tested DIRECTLY on a synthetic fixture built to make it
+      fire, not only on a corpus where it happens never to fire;
   V4  an INDEPENDENT oracle -- the twin's reference compiler, which knows
       nothing about this eval -- sees the same cross-plane structure the
       knowledge-plane tasks assume;
@@ -117,6 +122,44 @@ class V1PlaneExclusivityTest(unittest.TestCase):
             ]
             self.assertEqual(sum(1 for a in answers if a), 1, rel)
 
+    def test_every_committed_label_is_plane_exclusive_in_the_fixture(self):
+        """The claim `report._PROVENANCE_NOTE["artifact_parsed"]` prints on
+        every render -- "verified plane-exclusive by test" -- asserted here,
+        and asserted INDEPENDENTLY of ``derive_labels``.
+
+        Until 2026-09-08 nothing asserted it: this class only checked the plane
+        MAP, and `V2DerivationTest` only checked `must_include ==
+        derive_labels(task)`, which is the derivation agreeing with itself. So
+        the mutation "delete filter 4 from ``derive_labels`` AND regenerate
+        ``must_include`` to match" (M1b) left the whole suite green while the
+        rendered report kept advertising a property the corpus no longer had.
+
+        This test never calls ``derive_labels``. It reads the committed
+        ``must_include`` and the fixture bytes, and asserts the property from
+        first principles: every fixture file whose TEXT contains a label lies
+        in the SAME plane as that task's own target. That is what a
+        cross-plane label would have to violate.
+        """
+        texts = {rel: (Path(FOURFOLD_WIKI_FIXTURE) / rel).read_text(encoding="utf-8")
+                 for rel in self.planes}
+        self.assertEqual(len(texts), 18)   # guard the guard: no empty walk
+        checked = 0
+        for task in ARTIFACT_PARSED:
+            target_file = task["target"].split("::", 1)[0]
+            self.assertIn(target_file, self.planes, task["id"])
+            target_plane = self.planes[target_file]
+            for label in task["must_include"]:
+                holders = sorted(rel for rel, text in texts.items() if label in text)
+                with self.subTest(task=task["id"], label=label[:40]):
+                    # Non-vacuous: the label must occur SOMEWHERE, else the
+                    # "same plane" check below would pass over an empty set.
+                    self.assertTrue(holders, "label occurs in no fixture file")
+                    off_plane = [rel for rel in holders
+                                 if self.planes[rel] != target_plane]
+                    self.assertEqual(off_plane, [], (task["id"], label[:60]))
+                checked += 1
+        self.assertEqual(checked, 17)   # 5 + 4 + 4 + 4 committed labels
+
     def test_manifest_declares_nothing_outside_the_walked_universe(self):
         import json
         manifest = json.loads(
@@ -157,14 +200,16 @@ class V2DerivationTest(unittest.TestCase):
             derive_labels(task)
         self.assertIn("closed", str(ctx.exception))
 
-    def test_a_hand_written_subset_is_refused(self):
-        # The exact failure this packet exists to prevent: someone keeps the
-        # derivation but trims must_include to the labels that happen to pass.
-        for task in ARTIFACT_PARSED:
-            mutated = dict(task)
-            mutated["must_include"] = list(task["must_include"])[:1]
-            with self.subTest(task=task["id"]):
-                self.assertNotEqual(tuple(mutated["must_include"]), derive_labels(mutated))
+    # DELETED 2026-09-08: `test_a_hand_written_subset_is_refused` was a
+    # tautology. `derive_labels` never reads `must_include` (it re-executes
+    # `label_derivation`), so trimming a COPY of the committed list and
+    # comparing it to `derive_labels(copy)` asserted nothing about the corpus
+    # -- only that every derived label set has >= 2 entries. The refusal it
+    # claimed is really pinned by
+    # `test_every_committed_label_set_is_exactly_the_derived_one` above, which
+    # compares the COMMITTED `must_include` to the derivation and therefore
+    # fails on any subset, superset or reordering. The acceptance matrix cites
+    # that test now.
 
     def test_a_task_without_a_derivation_cannot_be_derived(self):
         with self.assertRaises(ValueError):
@@ -178,6 +223,59 @@ class V2DerivationTest(unittest.TestCase):
 
 
 class V3NonVacuityTest(unittest.TestCase):
+    def test_the_anti_vacuity_filter_drops_a_candidate_found_in_the_target(self):
+        """Filter 5 (``if candidate in target_text: continue``) tested DIRECTLY,
+        on a synthetic fixture built to make it fire.
+
+        Why this exists (independent verification, 2026-09-08): on the
+        committed corpus filter 5 removes ZERO candidates, so deleting the two
+        lines changed nothing and no test noticed (mutation M9 survived). The
+        corpus is evidence that the filter did not need to fire, not evidence
+        that it works. This fixture makes it need to fire.
+
+        The fixture isolates filter 5 on purpose: both files are `.csv`, so
+        they share a plane and filter 4 (cross-plane) has an EMPTY other-plane
+        set; both candidates are >= MIN_LABEL_CHARS and single-line, so filters
+        2 and 3 are inert; the two values are distinct, so filter 1 is inert.
+        The only difference between them is that one occurs in the target unit.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "data").mkdir()
+            (root / "data" / "rows.csv").write_text(
+                "slug\nalpha-shared-token\nbeta-unique-token\n", encoding="utf-8")
+            # The TARGET quotes the first slug -- a retrieval arm that returned
+            # the target itself would satisfy that label for free.
+            (root / "data" / "target.csv").write_text(
+                "id,note\n1,see alpha-shared-token\n", encoding="utf-8")
+            task = {
+                "id": "synthetic_anti_vacuity",
+                "label_provenance": "artifact_parsed",
+                "tier": "primary",
+                "repo": str(root),
+                "target": "data/target.csv",
+                "label_derivation": {"kind": "csv_column_values",
+                                     "file": "data/rows.csv", "column": "slug"},
+            }
+            planes = fixture_plane_map(str(root))
+            self.assertEqual(planes, {"data/rows.csv": "data",
+                                      "data/target.csv": "data"})
+            # The candidate really is produced by the grammar -- so its absence
+            # below is the filter removing it, not an extraction that never
+            # made it.
+            self.assertEqual(
+                eval_tasks._extract_candidates(task["label_derivation"], str(root)),
+                ["alpha-shared-token", "beta-unique-token"])
+            self.assertIn(
+                "alpha-shared-token",
+                eval_tasks._target_unit_text(str(root), task["target"]))
+
+            derived = derive_labels(task, fixture_root=str(root))
+
+            self.assertNotIn("alpha-shared-token", derived)   # the bite
+            # Non-vacuous: the derivation is not simply empty.
+            self.assertEqual(derived, ("beta-unique-token",))
+
     def test_no_label_occurs_in_its_own_target_unit(self):
         for task in ARTIFACT_PARSED:
             unit = eval_tasks._target_unit_text(FOURFOLD_WIKI_FIXTURE, task["target"])
@@ -196,15 +294,37 @@ class V3NonVacuityTest(unittest.TestCase):
         for label in task["must_include"]:
             self.assertIn(label, whole_file)
 
-    def test_no_label_is_a_single_bm25_token(self):
-        # Recorded, not aspirational: harness._bm25_tokenize splits on
-        # non-identifier characters, so a hyphenated slug or a prose line is
-        # never one token. A BM25 arm cannot match these labels by luck.
+    def test_no_hyphenated_or_multiword_label_is_a_single_bm25_token(self):
+        """Recorded, not aspirational: ``harness._bm25_tokenize`` splits on
+        non-identifier characters, so a hyphenated slug or a prose line is
+        never one token. A BM25 arm cannot match THOSE labels by luck.
+
+        The claim is deliberately narrower than the old test name suggested,
+        and the guard's precondition is now asserted. Previously the assertion
+        sat behind ``if "-" in label or " " in label`` with nothing checking
+        that the branch was ever entered -- and unconditionally the assertion
+        would FAIL: four of the five ``json_keys`` labels
+        (``pattern``/``enum``/``minLength``/``additionalProperties``) ARE
+        single BM25 tokens that match themselves. (``$schema`` is not, because
+        ``_bm25_tokenize`` strips the ``$``; it is still outside the claim,
+        being neither hyphenated nor multi-word.) Asserting the exact split
+        records that honestly instead of letting a silent skip read as a
+        stronger property.
+        """
         from daedalus.eval.harness import _bm25_tokenize
+        multi, single = [], []
         for task in ARTIFACT_PARSED:
             for label in task["must_include"]:
                 if "-" in label or " " in label:
-                    self.assertNotEqual(_bm25_tokenize(label), [label.lower()])
+                    multi.append(label)
+                    with self.subTest(label=label[:40]):
+                        self.assertNotEqual(_bm25_tokenize(label), [label.lower()])
+                else:
+                    single.append(label)
+        # The guard fired, and on exactly the labels it is claimed for.
+        self.assertEqual((len(multi), len(single)), (12, 5))
+        self.assertEqual(sorted(single), ["$schema", "additionalProperties",
+                                          "enum", "minLength", "pattern"])
 
 
 class V4TwinOracleTest(unittest.TestCase):

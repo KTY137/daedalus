@@ -4850,3 +4850,27 @@ their stderr logs, the comparison log and the label-plane census log are
 retained under `runs/g1-eval-corpus-01` and archived with SHA256s in
 `docs/evidence/G1-EVAL-CORPUS-01/acceptance.json`. This census establishes no
 Gate closure and no Gate-3 baseline.
+
+#### Re-pin after the G1-EVAL-CORPUS-01 review fixes (2026-09-08, same day)
+
+The measurement above stands as recorded and is NOT rewritten: it is the census
+of the frozen source at `c6e1c499`. Independent review and adversarial
+verification then required a change to
+`daedalus/eval/harness.py::_plane_unindexed_reason` (a nonexistent target was
+downgraded to a reported-only row instead of erroring, so `run_gate` passed on
+a broken corpus). That file is inside the censused package tree, so the source
+pin moved. The same complete command ran twice again; all fields except
+`corpora[*].wall_seconds`/`root` matched.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 490 parsed files, 6,801 functions; annotation-only 94.35%; full resolver 94.24%; marginal 8 functions / 0.1176 pp; 45,296 type-name sites; 425 named-only internal sites; verified internal share 90.52% |
+| source pin | `9861df4379037a00b0951191a986717c8b3dc5a6c692af0a2da4a6c00e645e45` (was `966aff67...aac1fc57a`) |
+| non-timing canonical SHA256 | `eaf4808c4207d67b50f8b30556ad77af9a24a8172c98eca5804c7d422ada2eeb` (was `b6e04216...4739f281`) |
+
+Only the content digest moved. The file count (490), every resolver number, the
+annotation-only control, the `fixture_alias` row, and the import census
+(490 modules / 1,943 edges / fourteen components / digest `841a5a97...c2140a78`)
+are byte-identical to the block above. This is a re-pin of a moving content
+census, not a resolver result. Raw outputs `s02-fixer-c.json` and
+`s02-fixer-d.json` are retained under `runs/g1-eval-corpus-01`.
