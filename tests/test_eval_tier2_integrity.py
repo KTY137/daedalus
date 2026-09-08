@@ -15,6 +15,7 @@ from unittest.mock import patch
 from daedalus.eval import harness, report
 from daedalus.eval import tier2
 from daedalus.eval.tasks import TASKS
+from daedalus.providers._openai_compat import ChatReceipt
 
 
 PROVIDER = {
@@ -22,6 +23,18 @@ PROVIDER = {
     "host": "http://127.0.0.1:11434",
     "model": "nemesis-test",
 }
+
+# G1-EVAL-USAGE-01: tier2._ask calls chat_completion_receipt, so the patch
+# sites below return a ChatReceipt whose text is what the string used to be.
+RECEIPT_TARGET = "daedalus.providers._openai_compat.chat_completion_receipt"
+
+
+def _receipt(text: str) -> ChatReceipt:
+    return ChatReceipt(
+        text=text, usage=None, usage_error=None, usage_raw_json=None,
+        usage_raw_truncated=False, usage_raw_sha256=None, response_model=None,
+        finish_reason=None, endpoint=PROVIDER["host"] + "/v1", request_model=PROVIDER["model"],
+    )
 
 
 def _ok(text: str) -> dict:
@@ -155,10 +168,7 @@ class ValidatorCoverageTest(unittest.TestCase):
 
 class StructuredAskReceiptTest(unittest.TestCase):
     def test_provider_exception_is_not_an_empty_answer(self):
-        with patch(
-            "daedalus.providers._openai_compat.chat_completion",
-            side_effect=TimeoutError("boom\x1b[2J"),
-        ):
+        with patch(RECEIPT_TARGET, side_effect=TimeoutError("boom\x1b[2J")):
             receipt = harness._ask(PROVIDER, "question?", "context")
         self.assertFalse(receipt["ok"])
         self.assertIsNone(receipt["text"])
@@ -166,7 +176,7 @@ class StructuredAskReceiptTest(unittest.TestCase):
         self.assertNotIn("\x1b", receipt["error"])
 
     def test_empty_provider_response_is_measurement_error(self):
-        with patch("daedalus.providers._openai_compat.chat_completion", return_value="  "):
+        with patch(RECEIPT_TARGET, return_value=_receipt("  ")):
             receipt = tier2._ask(PROVIDER, "q", "ctx")
         self.assertFalse(receipt["ok"])
         self.assertIsNone(receipt["text"])
@@ -174,10 +184,7 @@ class StructuredAskReceiptTest(unittest.TestCase):
 
     def test_oversized_answer_is_bounded_and_marked(self):
         answer = "A" * (tier2._MAX_AUDIT_CHARS + 1000)
-        with patch(
-            "daedalus.providers._openai_compat.chat_completion",
-            return_value=answer,
-        ):
+        with patch(RECEIPT_TARGET, return_value=_receipt(answer)):
             receipt = harness._ask(PROVIDER, "question?", "context")
         self.assertTrue(receipt["ok"])
         self.assertTrue(receipt["text_truncated"])

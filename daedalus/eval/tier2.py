@@ -70,10 +70,56 @@ _BUILTIN_VALIDATORS: dict[str, _ValidatorSpec] = {
 }
 
 
-def _clean_error(exc: Exception) -> str:
-    text = " ".join(str(exc).split())
-    text = "".join(ch if (ch == "\t" or ord(ch) >= 32) else "?" for ch in text)
+def _strip_controls(text: str) -> str:
+    return "".join(ch if (ch == "\t" or ord(ch) >= 32) else "?" for ch in text)
+
+
+def _clean_field(text: str) -> str:
+    text = _strip_controls(" ".join(text.split()))
     return text if len(text) <= _MAX_ERROR_CHARS else text[: _MAX_ERROR_CHARS - 3] + "..."
+
+
+def _clean_error(exc: Exception | str) -> str:
+    return _clean_field(str(exc))
+
+
+# Provider-usage vocabulary of one _ask receipt. ``error`` is the exception
+# path (no provider observation at all); the other three come from the
+# provider module. A receipt that carries no ``usage_status`` -- or an
+# unrecognised one -- is ``unknown`` in run_tier2: not a provider observation,
+# never folded into ``absent``.
+_USAGE_STATUSES = ("reported", "absent", "malformed", "error")
+_USAGE_STATUS_UNKNOWN = "unknown"
+_NO_USAGE_FIELDS = {
+    "usage": None, "usage_error": None, "usage_raw_json": None,
+    "usage_raw_truncated": False, "usage_raw_sha256": None, "provider_call": None,
+}
+
+
+def _usage_fields(receipt, prov: dict) -> dict:
+    """Project a ChatReceipt's usage provenance into the bounded _ask receipt."""
+    usage = receipt.usage
+    return {
+        "usage": None if usage is None else {
+            "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens,
+            "total_tokens": usage.total_tokens, "tokenizer": usage.tokenizer,
+        },
+        "usage_status": receipt.usage_status,
+        "usage_error": None if receipt.usage_error is None else _clean_error(receipt.usage_error),
+        "usage_raw_json": None if receipt.usage_raw_json is None
+        else _strip_controls(receipt.usage_raw_json),
+        "usage_raw_truncated": bool(receipt.usage_raw_truncated),
+        "usage_raw_sha256": receipt.usage_raw_sha256,
+        "provider_call": {
+            "kind": _clean_field(prov["kind"]),
+            "host_endpoint": _clean_field(receipt.endpoint),
+            "request_model": _clean_field(receipt.request_model),
+            "response_model": None if receipt.response_model is None
+            else _clean_field(receipt.response_model),
+            "finish_reason": None if receipt.finish_reason is None
+            else _clean_field(receipt.finish_reason),
+        },
+    }
 
 
 def _bounded_answer(text: str) -> tuple[str, bool]:
@@ -129,9 +175,9 @@ def _ask(prov: dict, question: str, context: str) -> dict:
     )
     user = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     try:
-        from daedalus.providers._openai_compat import chat_completion
+        from daedalus.providers._openai_compat import chat_completion_receipt
 
-        text = chat_completion(
+        receipt = chat_completion_receipt(
             base_url=prov["host"] + "/v1", model=prov["model"],
             system=system, user=user, force_json=False, temperature=0.0,
             timeout_s=120,
@@ -140,22 +186,90 @@ def _ask(prov: dict, question: str, context: str) -> dict:
         return {
             "ok": False, "text": None, "text_chars": 0, "text_sha256": None,
             "text_truncated": False, "error_type": type(exc).__name__,
-            "error": _clean_error(exc),
+            "error": _clean_error(exc), "usage_status": "error", **_NO_USAGE_FIELDS,
         }
 
-    raw = (text or "").strip()
+    usage_fields = _usage_fields(receipt, prov)
+    raw = (receipt.text or "").strip()
     if not raw:
+        # The spend happened even though no answer came back: usage stays.
         return {
             "ok": False, "text": None, "text_chars": 0, "text_sha256": None,
             "text_truncated": False, "error_type": "EmptyProviderResponse",
-            "error": "provider returned no answer text",
+            "error": "provider returned no answer text", **usage_fields,
         }
     preview, truncated = _bounded_answer(raw)
     return {
         "ok": True, "text": preview, "text_chars": len(raw),
         "text_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
         "text_truncated": truncated, "error_type": None, "error": None,
+        **usage_fields,
     }
+
+
+def _usage_status(receipt: dict) -> str:
+    status = receipt.get("usage_status", _USAGE_STATUS_UNKNOWN)
+    return status if status in _USAGE_STATUSES else _USAGE_STATUS_UNKNOWN
+
+
+def _usage_evidence(receipt: dict) -> dict:
+    return {
+        "error": receipt.get("usage_error"),
+        "raw_json": receipt.get("usage_raw_json"),
+        "raw_truncated": bool(receipt.get("usage_raw_truncated", False)),
+        "raw_sha256": receipt.get("usage_raw_sha256"),
+        "call": receipt.get("provider_call"),
+    }
+
+
+def _measured_status(row: dict, arm: str) -> str:
+    """``reported`` only when the counts that must accompany it are there.
+
+    ``_usage_status`` already degrades an unrecognised status to ``unknown``;
+    a row that claims ``reported`` but carries no usable counts is the same
+    kind of foreign shape and degrades the same way. It is never summed and
+    never silently read as zero -- ``unknown`` is its own bucket.
+    """
+    status = row[f"provider_usage_status_{arm}"]
+    if status != "reported":
+        return status
+    payload = row.get(f"provider_usage_{arm}")
+    if not isinstance(payload, dict):
+        return _USAGE_STATUS_UNKNOWN
+    for field in ("input_tokens", "output_tokens"):
+        value = payload.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):
+            return _USAGE_STATUS_UNKNOWN
+    return status
+
+
+def _provider_usage_aggregate(per_task: list[dict], scored: list[dict]) -> dict:
+    """Count every call's usage status; sum reported counts over scored rows only.
+
+    A per-arm sum exists only when EVERY scored call of that arm was
+    ``reported``; otherwise it is None, never a partial number. Local
+    estimates (``tokens_A``/``tokens_B``) are a different measurement in a
+    different tokenizer and are never added to these.
+    """
+    from daedalus.providers._openai_compat import PROVIDER_TOKENIZER_UNKNOWN
+
+    statuses = [
+        _measured_status(row, arm) for row in per_task for arm in ("A", "B")
+    ]
+    aggregate: dict = {"calls": len(statuses)}
+    for status in (*_USAGE_STATUSES, _USAGE_STATUS_UNKNOWN):
+        aggregate[status] = statuses.count(status)
+    aggregate["tokenizer"] = PROVIDER_TOKENIZER_UNKNOWN
+    for arm in ("A", "B"):
+        complete = bool(scored) and all(
+            _measured_status(row, arm) == "reported" for row in scored
+        )
+        for field in ("input_tokens", "output_tokens"):
+            aggregate[f"provider_{field}_{arm}"] = (
+                sum(row[f"provider_usage_{arm}"][field] for row in scored)
+                if complete else None
+            )
+    return aggregate
 
 
 def run_tier2(
@@ -219,6 +333,11 @@ def run_tier2(
             "provider_error_B": None if b["ok"] else {
                 "type": b["error_type"], "message": b["error"],
             },
+            "provider_usage_A": a.get("usage"), "provider_usage_B": b.get("usage"),
+            "provider_usage_status_A": _usage_status(a),
+            "provider_usage_status_B": _usage_status(b),
+            "provider_usage_evidence_A": _usage_evidence(a),
+            "provider_usage_evidence_B": _usage_evidence(b),
         }
 
         if not a["ok"] or not b["ok"] or a["text_truncated"] or b["text_truncated"]:
@@ -271,6 +390,7 @@ def run_tier2(
         "tokens_B": sum(row["tokens_B"] for row in scored),
         "tokens_B_true": sum(row["tokens_B_true"] for row in scored),
         "b_truncated_any": any(row["b_truncated"] for row in scored),
+        "provider_usage": _provider_usage_aggregate(per_task, scored),
         "per_task": per_task, "measurement_errors": measurement_errors,
         "unvalidated": unvalidated, "n_errored_tasks": len(errored),
         "errored": sorted(errored, key=lambda row: row["id"]),
@@ -329,6 +449,8 @@ def render_tier2(result: dict) -> str:
             "  WARNING: B was truncated for at least one scored task; B-sent is a "
             "weaker baseline than the true whole-repo context."
         )
+    if "provider_usage" in result:
+        lines.append(_render_provider_usage(result["provider_usage"]))
 
     measurement_errors = result.get("measurement_errors") or []
     if measurement_errors:
@@ -364,6 +486,22 @@ def render_tier2(result: dict) -> str:
                 f"{_safe_ascii(row['label_tier'])}): {_safe_ascii(row['error'])}"
             )
     return "\n".join(lines)
+
+
+def _render_provider_usage(usage: dict) -> str:
+    """One ASCII line; every value crosses the terminal boundary as text."""
+    def cell(key: str) -> str:
+        """A missing or null value renders as ``n/a``, never as ``None``."""
+        value = usage.get(key)
+        return "n/a" if value is None else _safe_ascii(value)
+
+    return (
+        "provider-reported tokens (tokenizer unknown): "
+        f"A in={cell('provider_input_tokens_A')} out={cell('provider_output_tokens_A')} "
+        f"B in={cell('provider_input_tokens_B')} out={cell('provider_output_tokens_B')} ; "
+        f"{cell('reported')}/{cell('calls')} calls reported, {cell('absent')} absent, "
+        f"{cell('malformed')} malformed, {cell('error')} error, {cell('unknown')} unknown"
+    )
 
 
 def builtin_validator_coverage() -> tuple[list[str], list[str]]:

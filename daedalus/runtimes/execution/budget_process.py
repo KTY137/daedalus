@@ -648,6 +648,13 @@ BILLABLE_SITES: tuple[dict[str, Any], ...] = (
     {"file": "daedalus/providers/_openai_compat.py", "func": "chat_completion",
      "vendor": "deepseek", "how": "urlopen(base_url)",
      "explicit": False, "static_visible": False},
+    # G1-EVAL-USAGE-01: ``chat_completion`` is now a one-line wrapper over this
+    # sibling, so the request object and the transport call live HERE. Both are
+    # public entrances that spend; a register naming only the wrapper would
+    # stop naming the spender. Same single ``_send``, same interposer coverage.
+    {"file": "daedalus/providers/_openai_compat.py", "func": "chat_completion_receipt",
+     "vendor": "deepseek", "how": "urlopen(base_url)",
+     "explicit": False, "static_visible": False},
     # STATICALLY INVISIBLE. The argv is built here but SPAWNED in
     # spine/cancel.py::ManagedProcess (subprocess.Popen), so no text scan of
     # this file finds a spawn, and no text scan of cancel.py finds a vendor.
