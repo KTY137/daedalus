@@ -146,6 +146,32 @@ export function terminalEvidenceStatus(report: LiveReportBrief): string | undefi
 }
 
 /**
+ * Show whether the sealed provider boundary actually started a new invocation
+ * or returned already-terminal replay evidence. This is observation only: no
+ * lane/status inference, no receipt inspection and no repair of contradictory
+ * producer facts. A closed terminal spine can therefore still be labelled as
+ * a replay instead of looking like fresh work.
+ */
+export function providerExecutionLine(report: LiveReportBrief): string | undefined {
+  const parts: string[] = [];
+  if (report.provider) parts.push(`Provider ${briefText(report.provider)}`);
+
+  if (report.replay === true && report.executionExecuted === true) {
+    parts.push('Ausführungsevidenz widersprüchlich: Replay und neuer Lauf zugleich');
+  } else if (report.replay === true && report.executionExecuted === false) {
+    parts.push('Replay · kein neuer Provider-Lauf');
+  } else if (report.replay === true) {
+    parts.push('Replay · Ausführungsstatus nicht mitgeliefert');
+  } else if (report.executionExecuted === true) {
+    parts.push('neuer Provider-Lauf belegt');
+  } else if (report.executionExecuted === false) {
+    parts.push('kein neuer Provider-Lauf belegt');
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
+/**
  * Confidence label for dispatch identity. A bound versioned snapshot is
  * durable evidence on the dispatch fact itself; legacy action/turn text is a
  * compatibility reconstruction from the bounded conversation window and must
@@ -368,6 +394,7 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
           {scoped.recent.map((report, index) => {
             const executionEvidence = terminalExecutionLine(report);
             const evidenceStatus = terminalEvidenceStatus(report);
+            const providerExecution = providerExecutionLine(report);
             return (
               <div key={report.id || `${report.name}:${report.createdAt || index}`}>
                 <div className="focuscard-counts">
@@ -375,6 +402,11 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
                   {reportLine(report)}
                   {report.summary ? ` · ${report.summary}` : ''}
                 </div>
+                {providerExecution && (
+                  <div className="focuscard-counts" aria-label="Beobachteter Provider-Lauf">
+                    {providerExecution}
+                  </div>
+                )}
                 {evidenceStatus && (
                   <div className="focuscard-counts" aria-label="Status der Ausführungsevidenz">
                     {evidenceStatus}

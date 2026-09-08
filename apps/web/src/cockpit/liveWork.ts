@@ -14,6 +14,11 @@ export interface LiveReportBrief {
   project?: string;
   lane?: string;
   agent?: string;
+  provider?: string;
+  /** Exact provider-owned replay evidence; false is meaningful and retained. */
+  replay?: boolean;
+  /** Exact runtime_receipt.executed projection; never inferred from status/lane. */
+  executionExecuted?: boolean;
   runtimeId?: string;
   workItemId?: string;
   attemptId?: string;
@@ -94,6 +99,10 @@ function terminalReceiptSha256(value: unknown): string | undefined {
   return candidate && LOWER_SHA256.test(candidate) ? candidate : undefined;
 }
 
+function exactBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 export function reportBrief(value: unknown): LiveReportBrief | undefined {
   const row = object(value);
   const name = text(row.name);
@@ -104,6 +113,9 @@ export function reportBrief(value: unknown): LiveReportBrief | undefined {
     project: exactText(row.project),
     lane: canonicalEvidenceText(row.lane),
     agent: canonicalEvidenceText(row.agent),
+    provider: canonicalEvidenceText(row.provider),
+    replay: exactBoolean(row.replay),
+    executionExecuted: exactBoolean(row.execution_executed),
     runtimeId: canonicalEvidenceText(row.runtime_id),
     workItemId: canonicalEvidenceText(row.work_item_id),
     attemptId: canonicalEvidenceText(row.attempt_id),

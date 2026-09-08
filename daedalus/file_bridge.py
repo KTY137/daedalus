@@ -834,6 +834,19 @@ def _report_brief(path: Path) -> dict[str, Any]:
     request = payload.get("request") or {}
     summary = ((payload.get("report") or {}).get("summary")
                or payload.get("error") or "")
+    # Provider execution mode is terminal evidence too. Keep exact booleans
+    # only: False means something here (the sealed broker reused a terminal
+    # invocation instead of starting a new provider run), so truthiness would
+    # erase the distinction. Request/chat metadata is intentionally ignored.
+    replay = payload.get("replay")
+    replay = replay if type(replay) is bool else None
+    runtime_receipt = payload.get("runtime_receipt")
+    execution_executed = (
+        runtime_receipt.get("executed")
+        if type(runtime_receipt) is dict
+        and type(runtime_receipt.get("executed")) is bool
+        else None
+    )
     return {
         "name": path.name,
         "status": payload.get("bridge_status") or "?",
@@ -843,6 +856,9 @@ def _report_brief(path: Path) -> dict[str, Any]:
         # itself. Request/chat metadata must never be promoted into an
         # execution identity because routing may change after enqueue.
         "agent": payload.get("agent") or "",
+        "provider": payload.get("provider") or "",
+        "replay": replay,
+        "execution_executed": execution_executed,
         "runtime_id": payload.get("runtime_id") or "",
         "work_item_id": payload.get("work_item_id") or "",
         "attempt_id": payload.get("attempt_id") or "",

@@ -209,12 +209,17 @@ test('terminal reports require exact project evidence before entering Work Pulse
       attempt_id: 'attempt-0123456789abcdef',
       phase: 'terminal',
       terminal_receipt_sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      provider: 'claude_cli',
+      replay: true,
+      execution_executed: false,
       summary: 'verified terminal evidence'
     });
   }, project);
   await expect(pulse).toContainText('bound.report.json');
   await expect(pulse).toContainText('Agent qa-critic');
   await expect(pulse).toContainText('verified terminal evidence');
+  const providerRun = pulse.getByLabel('Beobachteter Provider-Lauf').first();
+  await expect(providerRun).toContainText('Provider claude_cli · Replay · kein neuer Provider-Lauf');
   const evidenceStatus = pulse.getByLabel('Status der Ausführungsevidenz').first();
   await expect(evidenceStatus).toContainText('Terminale Evidenz: geschlossen');
   const observed = pulse.getByLabel('Beobachtete Ausführungsevidenz').first();
