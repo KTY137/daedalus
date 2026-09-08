@@ -1,4 +1,4 @@
-name: Temporary Ikarus dispatch identity patch
+name: Temporary Ikarus dispatch identity cleanup
 
 on:
   push:
@@ -24,133 +24,50 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - name: Apply focused producer cut
+      - name: Admit regression and retire stale one-shot scaffolding
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("daedalus/web_api.py")
+          path = Path(".github/workflows/g1-ikarus-unified-runtime-admission.yml")
           text = path.read_text(encoding="utf-8")
-          old = '                        kind="queue_task")\n'
-          new = (
-              '                        kind="queue_task",\n'
-              '                        detail={\n'
-              '                            "schema": "conversation.dispatch.identity.v1",\n'
-              '                            "project": project,\n'
-              '                            "objective": objective,\n'
-              '                            "lane": str(result["lane"]),\n'
-              '                        })\n'
-          )
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected one queue dispatch link seam, found {count}")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          pr_line = '      - "tests/test_llm_client_readiness_evidence.py"\n'
+          pr_new = pr_line + '      - "tests/test_queue_dispatch_identity.py"\n'
+          if text.count(pr_line) != 1:
+              raise SystemExit("expected one PR-path insertion seam")
+          text = text.replace(pr_line, pr_new, 1)
+
+          gate_line = '          tests/test_llm_client_readiness_evidence.py\n'
+          gate_new = gate_line + '          tests/test_queue_dispatch_identity.py\n'
+          if text.count(gate_line) != 2:
+              raise SystemExit("expected compile + pytest gate insertion seams")
+          text = text.replace(gate_line, gate_new)
+          path.write_text(text, encoding="utf-8")
           PY
-          cat > tests/test_queue_dispatch_identity.py <<'PY'
-          from types import SimpleNamespace
-
-          from daedalus import conversation as conv
-          from daedalus import web_api
-
-
-          def test_queue_binds_canonical_dispatch_identity_from_real_enqueue_result(monkeypatch):
-              body = {
-                  "project": "project_tct",
-                  "objective": "  inspect runtime identity  ",
-                  "lane": "auto",
-                  "source": "webapp",
-                  "strategy": "single",
-                  "paths": ["daedalus/web_api.py"],
-                  "conversation_id": "conv-1",
-                  "turn_id": 7,
-              }
-              queue_call = {}
-              link_call = {}
-              sent = {}
-
-              def fake_queue_task(project, objective, lane, source, strategy, paths):
-                  queue_call.update(
-                      project=project,
-                      objective=objective,
-                      lane=lane,
-                      source=source,
-                      strategy=strategy,
-                      paths=paths,
-                  )
-                  # Deliberately differ from the request lane. The durable identity
-                  # must describe what enqueue returned, not reconstruct the request.
-                  return {"queued": "/tmp/task-identity-123.json", "lane": "claude"}
-
-              def fake_link_dispatch(conversation_id, dispatch_ref, **kwargs):
-                  link_call.update(
-                      conversation_id=conversation_id,
-                      dispatch_ref=dispatch_ref,
-                      **kwargs,
-                  )
-                  return SimpleNamespace(
-                      conversation_id=conversation_id,
-                      turn_id=kwargs["turn_id"],
-                      dispatch_ref=dispatch_ref,
-                  )
-
-              monkeypatch.setattr(web_api, "_read_body", lambda _handler: body)
-              monkeypatch.setattr(web_api.core, "queue_task", fake_queue_task)
-              monkeypatch.setattr(
-                  conv,
-                  "default_store",
-                  lambda: SimpleNamespace(link_dispatch=fake_link_dispatch),
-              )
-
-              handler = object.__new__(web_api.DaedalusHandler)
-              handler.path = "/api/queue"
-              handler._send_json = (
-                  lambda payload, status=200: sent.update(payload=payload, status=status)
-              )
-
-              handler._handle_post()
-
-              assert queue_call == {
-                  "project": "project_tct",
-                  "objective": "inspect runtime identity",
-                  "lane": "auto",
-                  "source": "webapp",
-                  "strategy": "single",
-                  "paths": ["daedalus/web_api.py"],
-              }
-              assert link_call == {
-                  "conversation_id": "conv-1",
-                  "dispatch_ref": "task-identity-123",
-                  "turn_id": 7,
-                  "kind": "queue_task",
-                  "detail": {
-                      "schema": "conversation.dispatch.identity.v1",
-                      "project": "project_tct",
-                      "objective": "inspect runtime identity",
-                      "lane": "claude",
-                  },
-              }
-              assert sent["status"] == 200
-              assert sent["payload"]["conversation_link"] == {
-                  "conversation_id": "conv-1",
-                  "turn_id": 7,
-                  "dispatch_ref": "task-identity-123",
-                  "linked": True,
-              }
-          PY
+          test -f .github/workflows/tmp-ikarus-stop-patch.yml
+          test -f .github/ikarus_stop_patch.py
+          test -f .github/ikarus_stop_retry
+          git rm \
+            .github/workflows/tmp-ikarus-stop-patch.yml \
+            .github/ikarus_stop_patch.py \
+            .github/ikarus_stop_retry
       - name: Install focused test dependencies
         run: python -m pip install -e . pytest
-      - name: Verify focused cut
+      - name: Verify queue identity regression
         run: |
           python -m py_compile daedalus/web_api.py tests/test_queue_dispatch_identity.py
           python -m pytest -q -p no:cacheprovider tests/test_queue_dispatch_identity.py
-      - name: Commit verified product delta only
+      - name: Commit gate and cleanup delta
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add daedalus/web_api.py tests/test_queue_dispatch_identity.py
+          git add .github/workflows/g1-ikarus-unified-runtime-admission.yml
           git diff --cached --check
-          test "$(git diff --cached --name-only | wc -l)" -eq 2
-          git diff --cached --name-only | grep -Fxq 'daedalus/web_api.py'
-          git diff --cached --name-only | grep -Fxq 'tests/test_queue_dispatch_identity.py'
-          git commit -m "feat(web): bind canonical dispatch identity at enqueue"
+          git diff --cached --name-only | grep -Fxq '.github/workflows/g1-ikarus-unified-runtime-admission.yml'
+          git diff --cached --name-only | grep -Fxq '.github/workflows/tmp-ikarus-stop-patch.yml'
+          git diff --cached --name-only | grep -Fxq '.github/ikarus_stop_patch.py'
+          git diff --cached --name-only | grep -Fxq '.github/ikarus_stop_retry'
+          test "$(git diff --cached --name-only | wc -l)" -eq 4
+          git commit -m "test(ci): admit queue identity regression"
           git push origin HEAD:g1/ikarus-runtime-invocation-binding-07d3
