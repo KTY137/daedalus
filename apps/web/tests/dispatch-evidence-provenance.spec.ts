@@ -206,3 +206,45 @@ test('optional bound execution attribution is omitted rather than normalized int
   expect(pulse.items[0].phase).toBeUndefined();
   expect(boundExecutionLine(pulse.items[0])).toBeUndefined();
 });
+
+test('identity-shaped detail without a valid schema cannot fall back to causal chat reconstruction', () => {
+  const causalTurn = {
+    id: 42,
+    project: PROJECT,
+    user_message: 'Dieser Text darf kaputte Dispatch-Evidenz nicht retten',
+    proposed_action: {
+      kind: 'queue_task',
+      args: {
+        project: PROJECT,
+        objective: 'Legacy-Fallback darf hier nicht erscheinen',
+        lane: 'claude'
+      }
+    }
+  };
+  const conversation = {
+    turns: [causalTurn],
+    open_dispatches: [
+      dispatch('missing-schema', 42, {
+        project: PROJECT,
+        objective: 'Producer hat Identitätsfelder, aber kein Schema geschrieben',
+        lane: 'local_only'
+      }),
+      dispatch('non-string-schema', 42, {
+        schema: 1,
+        project: PROJECT,
+        objective: 'Kaputtes Schema',
+        lane: 'local_only'
+      }),
+      dispatch('foreign-missing-schema', 42, {
+        project: 'other-project',
+        objective: 'Fremde kaputte Evidenz darf weder sichtbar noch gezählt werden',
+        lane: 'local_only'
+      })
+    ]
+  };
+
+  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  expect(pulse.total).toBe(0);
+  expect(pulse.items).toEqual([]);
+  expect(pulse.unresolved).toBe(2);
+});
