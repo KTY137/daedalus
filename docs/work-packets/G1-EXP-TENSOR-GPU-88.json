@@ -1,0 +1,183 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-88",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "3d4ab24d0ade87980edd6717a0c23613cd1cc92d",
+    "dependencies": "G1-EXP-TENSOR-GPU-87 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback restores admission-key insertion before explicit selected-signature pruning. No wire, public API, authority, benchmark or promotion state changes are involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-88",
+  "work_packet": "G1-EXP-TENSOR-GPU-88",
+  "title": "Prune unselected verified-binding admission keys in explicit compilation",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "3d4ab24d0ade87980edd6717a0c23613cd1cc92d",
+  "scope": "Reduce explicit selected-signature admission staging inside the existing compile_relation_blocks owner. When a verified binding's RelationSignature is outside an explicit requested set, do not retain its exact admission key because no cross-plane ForestEdge of that unrequested signature reaches binding admission. Preserve discover-all admission, exact selected cross-plane ForestEdge refusal/admission, verified_binding_count source semantics, include_verified_bindings=False behavior, validation precedence and the separation between admission identity and fact-record storage. Do not add another binding index, cache, backend, registry, compiler or public API.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "gpu_87_state": "GPU-87 already stopped source/target index and binding-record tuple staging for verified bindings outside an explicit requested signature set, but included_binding_keys was still populated before that pruning boundary.",
+    "cross_plane_edge_control_flow": "A directed cross-plane ForestEdge reaches exact binding-key membership only when requested_set is None or its own RelationSignature is explicitly requested. Under explicit selection, unrequested cross-plane edge signatures continue before binding admission and therefore cannot consume admission keys from unrequested binding signatures.",
+    "selected_admission_proof": "For an explicitly requested cross-plane signature, matching verified bindings pass the same RelationSignature filter before their exact source-plane/source-node/target-plane/target-node/relation key is inserted, so exact admission remains available for every edge that can reach the check.",
+    "discover_all_boundary": "When requested_set is None the filter is inactive, so every included verified binding still contributes its exact admission key and record as before.",
+    "false_policy_boundary": "When include_verified_bindings is False the key set remains empty, so selected or discover-all cross-plane Forest relations still fail closed before fact materialization.",
+    "receipt_boundary": "verified_binding_count remains the independent source count len(snapshot.bindings) when bindings are included and zero otherwise; admission-key pruning does not reinterpret it as a selected count.",
+    "error_precedence": "Hyperedge validation and endpoint-completeness checks still precede binding staging. Every included binding still constructs its RelationSignature before explicit pruning; the moved set insertion itself had no independent validation or refusal behavior.",
+    "safe_deletion": "Move the existing explicit signature filter directly after RelationSignature construction and before included_binding_keys.add. Keep included_binding_keys separate from binding_records rather than merging admission identity with fact storage."
+  },
+  "implementation": {
+    "production": {
+      "commit": "652a891adb2651e0d7668f432566f2e6b461eaab",
+      "path": "daedalus/twin/relation_compiler.py",
+      "blob": "30b481a5115dd4505a0af9809583327c4c53bf84",
+      "change": "Move the existing explicit requested-signature refusal ahead of exact admission-key insertion. Unselected verified bindings now retain neither source/target index tuples nor admission keys; selected and discover-all paths retain the same exact key shape and fact records."
+    },
+    "focused_existing_contract": {
+      "path": "tests/twin/test_relation_compiler_selected_pruning.py",
+      "blob": "8376d84c84a786894645fd889a66f60cef4ee845",
+      "coverage": [
+        "An explicitly selected cross-plane relation is admitted by its exact included verified binding.",
+        "An explicitly selected unrelated same-plane relation prunes the unselected cross-plane Forest edge even when verified bindings are excluded.",
+        "include_verified_bindings=False refuses a selected observed cross-plane relation before fact materialization.",
+        "verified_binding_count remains the complete source binding count under explicit selected-signature pruning.",
+        "Discover-all continues to materialize all observed relation families and requires exact included bindings for cross-plane Forest relations."
+      ],
+      "new_test_abstraction_added": false,
+      "reason_no_new_test_file": "The change is a control-flow reorder inside the existing selected-pruning contract surface. Existing focused integration contracts pin every externally observable admission/refusal and receipt boundary affected by the move; a tracking-set test would couple tests to an internal container implementation without adding semantic coverage."
+    },
+    "diff_from_gpu_87": {
+      "commits_before_closure": 1,
+      "production_files": 1,
+      "test_files": 0,
+      "production_additions": 2,
+      "production_deletions": 2
+    }
+  },
+  "semantic_invariants": {
+    "discover_all": "When signatures is None, every included verified binding still contributes exact admission identity, is discovered and can be compiled as before.",
+    "binding_admission": "Every cross-plane ForestEdge that can reach admission under explicit selection still checks the exact selected verified-binding key; unrequested edge signatures are pruned before the check and no longer justify unrelated key retention.",
+    "verified_binding_count": "The receipt remains a source count: len(snapshot.bindings) when include_verified_bindings is True and zero when False, independent of explicit signature selection.",
+    "refusal_precedence": "Endpoint completeness and retained-hyperedge refusal remain ahead of binding staging; include_verified_bindings=False and missing exact selected bindings still fail before fact materialization.",
+    "evidence_dag": "Selected binding digest/evidence alternatives and selected Forest evidence semantics are unchanged; only unreachable admission keys for unselected binding signatures are no longer retained.",
+    "scalar_observers": "Boolean remains True and natural remains unit 1 per deduplicated semantic coordinate.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; compiled tensor relation blocks remain regenerable computational views.",
+    "public_api": "No public API, compatibility facade, wire schema, benchmark schema, promotion or authority contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": true,
+    "test_change": false,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "unselected_binding_admission_key_staging_removed": true,
+    "admission_identity_still_separate_from_fact_storage": true,
+    "selected_exact_binding_admission_preserved": true,
+    "discover_all_full_admission_preserved": true,
+    "verified_binding_source_count_preserved": true,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_receipt_or_compiler_added": false,
+    "summary": "Explicit selected-signature compilation no longer retains exact admission keys for verified bindings whose signatures cannot reach cross-plane ForestEdge admission. Selected exact admission, discover-all behavior, source receipt counting and fail-closed binding exclusion remain in the same canonical compiler owner."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "3d4ab24d0ade87980edd6717a0c23613cd1cc92d",
+    "implementation_commit": "652a891adb2651e0d7668f432566f2e6b461eaab",
+    "implementation_head": "652a891adb2651e0d7668f432566f2e6b461eaab",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@30b481a5115dd4505a0af9809583327c4c53bf84",
+    "selected_pruning_tests": "tests/twin/test_relation_compiler_selected_pruning.py@8376d84c84a786894645fd889a66f60cef4ee845",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "implementation_head": "652a891adb2651e0d7668f432566f2e6b461eaab",
+    "static_diff": "GPU-87 closure..implementation head is exactly one commit touching daedalus/twin/relation_compiler.py (+2/-2), solely moving the existing explicit-signature filter before included_binding_keys.add.",
+    "fourfold_tensor_run": {
+      "run_id": 34196453725,
+      "status": "completed",
+      "conclusion": "success",
+      "scope": "Hosted pull-request integration on the implementation head; Python contract arms, public-package checks, isolated-wheel imports and complete repository collection completed successfully.",
+      "claim": "This is focused/integration evidence, not a complete-suite or superiority claim."
+    },
+    "tauri_run": {
+      "run_id": 34196453726,
+      "status": "completed",
+      "conclusion": "failure",
+      "detail": "Linux x86-64 PR validation completed cockpit build, frozen backend build, smoke test, project/desktop contract tests and icon generation successfully, then failed at Rust formatting; Rust library tests and Linux bundle validation were skipped afterward.",
+      "claim": "No all-PR-checks-green claim."
+    },
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "unreachable_explicit_admission_keys_removed": true,
+    "admission_fact_store_separation_retained": true,
+    "existing_test_owner_reused": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-89 only: audit discovered-signature staging under explicit requested signatures. In explicit mode selected is already the canonical requested tuple, yet selected binding and same-plane edge paths still add their signatures to discovered even though that set is consumed only by discover-all. Determine whether those explicit-mode insertions can be deleted without changing discover-all relation discovery, hyperedge/edge refusal precedence, endpoint-completeness checks or receipt semantics. Prefer a small conditional deletion in the existing compiler; do not add a lazy discovery abstraction, second set owner, cache, backend or compiler."
+}
