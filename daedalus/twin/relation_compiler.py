@@ -233,18 +233,26 @@ def _observer_name(semiring: Semiring[Any]) -> str:
 def _record_fact(
     facts: dict[
         RelationSignature,
-        dict[tuple[int, int], set[tuple[str, ...]]],
+        dict[tuple[int, int], Any],
     ],
     *,
     signature: RelationSignature,
     source_index: int,
     target_index: int,
+    scalar_value: bool | int | None,
     evidence_atoms: Sequence[str] | None,
 ) -> None:
     bucket = facts.setdefault(signature, {})
-    evidence_bundles = bucket.setdefault((source_index, target_index), set())
+    coordinate = (source_index, target_index)
+    if coordinate not in bucket and len(bucket) >= MAX_BLOCK_ENTRIES:
+        raise ValueError(
+            f"relation {relation_block_name(signature)!r} exceeds "
+            f"bounded entry limit {MAX_BLOCK_ENTRIES}"
+        )
     if evidence_atoms is None:
+        bucket.setdefault(coordinate, scalar_value)
         return
+    evidence_bundles = bucket.setdefault(coordinate, set())
     atoms = tuple(sorted(set(evidence_atoms)))
     evidence_bundles.add(atoms)
 
@@ -290,8 +298,9 @@ def compile_relation_blocks(
     canonical Fourfold plane indices once and reuses the indexed block owner;
     it does not readmit already-authoritative labels through a second coordinate
     validation pass. The evidence observer retains canonical provenance
-    alternatives; scalar observers retain only semantic coordinate presence and
-    do not materialize provenance bundles they cannot consume.
+    alternatives; scalar observers keep their final semiring scalars in the
+    same bounded per-signature coordinate map and do not allocate provenance
+    bundle sets or a second coordinate-value materialization they cannot use.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -474,10 +483,17 @@ def compile_relation_blocks(
         _require_complete_endpoint_planes(snapshot, selected)
     selected_set = frozenset(selected)
     retain_evidence = observer_name == "evidence-dag"
+    scalar_value: bool | int | None
+    if observer_name == "boolean":
+        scalar_value = True
+    elif observer_name == "natural":
+        scalar_value = 1
+    else:
+        scalar_value = None
 
     facts: dict[
         RelationSignature,
-        dict[tuple[int, int], set[tuple[str, ...]]],
+        dict[tuple[int, int], Any],
     ] = {}
     for edge, signature, source_index, target_index in edge_records:
         if signature not in selected_set:
@@ -489,6 +505,7 @@ def compile_relation_blocks(
             signature=signature,
             source_index=source_index,
             target_index=target_index,
+            scalar_value=scalar_value,
             evidence_atoms=atoms,
         )
 
@@ -500,6 +517,7 @@ def compile_relation_blocks(
             signature=signature,
             source_index=source_index,
             target_index=target_index,
+            scalar_value=scalar_value,
             evidence_atoms=(
                 (binding.digest, *binding.evidence_sha256s)
                 if retain_evidence
@@ -523,20 +541,11 @@ def compile_relation_blocks(
 
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
     for signature in selected:
-        entries: dict[tuple[int, int], Any] = {}
-        for coordinate, evidence_bundles in facts.get(signature, {}).items():
-            if observer_name == "boolean":
-                value: Any = True
-            elif observer_name == "natural":
-                value = 1
-            else:
-                value = EvidenceValue(tuple(sorted(evidence_bundles)))
-            entries[coordinate] = value
-        if len(entries) > MAX_BLOCK_ENTRIES:
-            raise ValueError(
-                f"relation {relation_block_name(signature)!r} exceeds "
-                f"bounded entry limit {MAX_BLOCK_ENTRIES}"
-            )
+        entries = facts.get(signature, {})
+        if retain_evidence:
+            for coordinate in entries:
+                evidence_bundles = entries[coordinate]
+                entries[coordinate] = EvidenceValue(tuple(sorted(evidence_bundles)))
         block = TypedRelationBlock._from_indexed(
             subject,
             signature,
