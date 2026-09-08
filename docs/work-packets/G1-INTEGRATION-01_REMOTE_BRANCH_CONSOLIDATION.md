@@ -166,3 +166,31 @@ its independent review, including the limits of SQLite transient SHM behavior.
 Full acceptance must run again on a fixed revision after these corrections;
 `docs/evidence/G1-INTEGRATION-01/acceptance.json` retains the prior outcomes and
 compressed artifacts instead of replacing them with later passes.
+
+Local acceptance is now complete on fixed production source. The full Python
+run at `a0e5dd701bd625ff8daabfa8d1d410953ef43007` passed 13,423 tests, retained
+419 skips and 23 expected failures, and passed 2,237 subtests in 489.36 seconds.
+All tracked Python/test/experiment bytes matched the before-run manifest after
+completion. The real Windows GUI passed all 257 cases without failures or
+skips; its production subtrees are identical to this revision. Process, port,
+temporary workspace and test-registration cleanup passed. Earlier failures
+remain in `acceptance.json` and its hashed archives.
+
+The reader's unchanged three event-time mutants were all caught by the actual
+isolated mutation campaign. Its mutation definitions, five-file selection and
+budget policy did not change. A temporary local measurement helper was moved
+with identical bytes outside the repository after the record-producer census
+correctly found it; that inventory and its production declarations were not
+weakened. Uniform source line endings and the current normalized reader blob
+correct the remaining transport assertions without changing Python semantics.
+
+The Linux GitHub matrix now exercises real Genesis creation. Its first two
+failures exposed missing rootless OCI provisioning and the hosted runner's
+writable packaged seccomp file. Exact runner-image source documents recursive
+`chmod 777` on `/usr/share` after package installation. CI reinstalls the exact
+installed package through authenticated Apt, requires unchanged policy bytes,
+and retains file metadata before rerunning the unchanged kernel admission.
+The existing release job uses the same repair and provisions its images before
+real Genesis tests. These workflow changes await their final remote checks.
+The separate Linux release GUI still contains a Windows-only live case and
+therefore has no release-acceptance claim here; its strict skip refusal remains.

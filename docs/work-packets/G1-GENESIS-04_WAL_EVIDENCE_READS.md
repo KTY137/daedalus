@@ -205,3 +205,21 @@ mutants and preserve the authoritative source bytes. No historical evidence,
 mutation spec, common runner, clock bound, evaluator or policy is rewritten.
 The third full-suite failure concerns a separate temporary audit script and is
 owned by root. This correction is source transport and baseline binding only.
+
+
+Transport correction measured: `genesis-wal-transport-correction.json` records
+356 LF / 246 CRLF before and 356 LF / 0 CRLF after, identical normalized Git
+blob `0c9949bcc2ea849d0cd4cb3c03d035066c57d76c`, and final raw SHA-256
+`dc59f4aa25120a15c4b5f53c7de9dd80e157028c461222cfda775e0e119e5084`.
+The transport and WAL-boundary contracts passed 23 cases in 0.74s
+(`genesis-wal-transport-corrected.xml/log`).
+
+The real canonical isolated campaign (`genesis-wal-event-time-mutations.json/log`)
+had a green baseline in 17.7s and caught all three unchanged mutants with zero
+survivors, not-applicable, timeout or inconclusive cases; process exit 0.
+Historical-time acceptance caused exactly the historical start/terminal tests
+to fail; future-time acceptance caused exactly the future start/terminal tests
+to fail; omitted terminal binding caused exactly the future/historical terminal
+tests to fail. Each used the unchanged five-file selection and legacy-unbounded
+policy. The shared authoritative reader retained the final raw SHA-256 after
+the entire campaign. These results cover those three mutations only.

@@ -385,6 +385,81 @@ jobs:
           set -euo pipefail
           npm run build | tee "$GITHUB_WORKSPACE/release-evidence/web-build.txt"
 
+      - name: Install and preflight rootless Podman
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman uidmap crun fuse-overlayfs slirp4netns
+          # The hosted runner image makes /usr/share recursively writable.
+          # Restore the exact authenticated package; do not bless existing bytes
+          # by relaxing the kernel guard or merely changing ownership/mode.
+          seccomp_path=/usr/share/containers/seccomp.json
+          readlink -f "$seccomp_path" > release-evidence/seccomp-resolved-path.txt
+          stat -c '%F uid=%u gid=%g mode=%a links=%h dev=%d inode=%i' "$seccomp_path" > release-evidence/seccomp-stat-before.txt
+          sha256sum "$seccomp_path" > release-evidence/seccomp-before.sha256
+          dpkg-query -S "$seccomp_path" > release-evidence/seccomp-package-owner.txt
+          test "$(cat release-evidence/seccomp-package-owner.txt)" = "golang-github-containers-common: $seccomp_path"
+          seccomp_version="$(dpkg-query -W -f='${Version}' golang-github-containers-common)"
+          echo "$seccomp_version" > release-evidence/seccomp-package-version.txt
+          dpkg-statoverride --list > release-evidence/dpkg-statoverrides.txt
+          sudo apt-get install --reinstall -y "golang-github-containers-common=$seccomp_version"
+          sha256sum --check release-evidence/seccomp-before.sha256
+          stat -c '%F uid=%u gid=%g mode=%a links=%h dev=%d inode=%i' "$seccomp_path" > release-evidence/seccomp-stat-after.txt
+          test "$(id -u)" -ne 0
+          user="$(id -un)"
+          if ! awk -F: -v user="$user" \
+            '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subuid; then
+            sudo usermod --add-subuids 100000-165535 "$user"
+          fi
+          if ! awk -F: -v user="$user" \
+            '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subgid; then
+            sudo usermod --add-subgids 100000-165535 "$user"
+          fi
+          install -d -m 0700 "$HOME/.config/containers"
+          : > "$HOME/.config/containers/mounts.conf"
+          chmod 0600 "$HOME/.config/containers/mounts.conf"
+          xdg_runtime="$RUNNER_TEMP/podman-xdg"
+          install -d -m 0700 "$xdg_runtime"
+          export XDG_RUNTIME_DIR="$xdg_runtime"
+          echo "XDG_RUNTIME_DIR=$xdg_runtime" >> "$GITHUB_ENV"
+          echo "DAEDALUS_LINUX_OCI_RUNTIME=/usr/bin/podman" >> "$GITHUB_ENV"
+          CONTAINERS_CONF=/dev/null podman --remote=false info --format json \
+            > release-evidence/podman-info.json
+
+      - name: Run live Debian-family containment receipt
+        shell: bash
+        env:
+          DAEDALUS_RUN_LINUX_OCI_INTEGRATION: "1"
+          DAEDALUS_LINUX_OCI_IMAGE: docker.io/library/python@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+        run: |
+          set -euo pipefail
+          CONTAINERS_CONF=/dev/null podman --remote=false pull "$DAEDALUS_LINUX_OCI_IMAGE"
+          echo "DAEDALUS_LINUX_OCI_IMAGE=$DAEDALUS_LINUX_OCI_IMAGE" >> "$GITHUB_ENV"
+          printf '%s\n' "$DAEDALUS_LINUX_OCI_IMAGE" \
+            > release-evidence/podman-debian-image-reference.txt
+          CONTAINERS_CONF=/dev/null podman --remote=false image inspect --format json \
+            "$DAEDALUS_LINUX_OCI_IMAGE" > release-evidence/podman-debian-image.json
+          python -m pytest -q \
+            tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network \
+            --junitxml=release-evidence/podman-debian.xml
+
+      - name: Run live RHEL-family containment receipt
+        shell: bash
+        env:
+          DAEDALUS_RUN_LINUX_OCI_INTEGRATION: "1"
+          DAEDALUS_LINUX_OCI_IMAGE: registry.access.redhat.com/ubi9/python-312@sha256:f9a256f5dc66ac635d854b4d80cb720846d6120606422fccbd35de1d69affd86
+        run: |
+          set -euo pipefail
+          CONTAINERS_CONF=/dev/null podman --remote=false pull "$DAEDALUS_LINUX_OCI_IMAGE"
+          printf '%s\n' "$DAEDALUS_LINUX_OCI_IMAGE" \
+            > release-evidence/podman-rhel-image-reference.txt
+          CONTAINERS_CONF=/dev/null podman --remote=false image inspect --format json \
+            "$DAEDALUS_LINUX_OCI_IMAGE" > release-evidence/podman-rhel-image.json
+          python -m pytest -q \
+            tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network \
+            --junitxml=release-evidence/podman-rhel.xml
+
       - name: Run release-critical Gate-1 surfaces
         run: >-
           python -m pytest -q
@@ -458,65 +533,6 @@ jobs:
             --wheel "$wheel" \
             --project "$project" \
             > release-evidence/packaged-resource-smoke.json
-
-      - name: Install and preflight rootless Podman
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y podman uidmap crun fuse-overlayfs slirp4netns
-          test "$(id -u)" -ne 0
-          user="$(id -un)"
-          if ! awk -F: -v user="$user" \
-            '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subuid; then
-            sudo usermod --add-subuids 100000-165535 "$user"
-          fi
-          if ! awk -F: -v user="$user" \
-            '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subgid; then
-            sudo usermod --add-subgids 100000-165535 "$user"
-          fi
-          install -d -m 0700 "$HOME/.config/containers"
-          : > "$HOME/.config/containers/mounts.conf"
-          chmod 0600 "$HOME/.config/containers/mounts.conf"
-          xdg_runtime="$RUNNER_TEMP/podman-xdg"
-          install -d -m 0700 "$xdg_runtime"
-          export XDG_RUNTIME_DIR="$xdg_runtime"
-          echo "XDG_RUNTIME_DIR=$xdg_runtime" >> "$GITHUB_ENV"
-          echo "DAEDALUS_LINUX_OCI_RUNTIME=/usr/bin/podman" >> "$GITHUB_ENV"
-          CONTAINERS_CONF=/dev/null podman --remote=false info --format json \
-            > release-evidence/podman-info.json
-
-      - name: Run live Debian-family containment receipt
-        shell: bash
-        env:
-          DAEDALUS_RUN_LINUX_OCI_INTEGRATION: "1"
-          DAEDALUS_LINUX_OCI_IMAGE: docker.io/library/python@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
-        run: |
-          set -euo pipefail
-          CONTAINERS_CONF=/dev/null podman --remote=false pull "$DAEDALUS_LINUX_OCI_IMAGE"
-          printf '%s\n' "$DAEDALUS_LINUX_OCI_IMAGE" \
-            > release-evidence/podman-debian-image-reference.txt
-          CONTAINERS_CONF=/dev/null podman --remote=false image inspect --format json \
-            "$DAEDALUS_LINUX_OCI_IMAGE" > release-evidence/podman-debian-image.json
-          python -m pytest -q \
-            tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network \
-            --junitxml=release-evidence/podman-debian.xml
-
-      - name: Run live RHEL-family containment receipt
-        shell: bash
-        env:
-          DAEDALUS_RUN_LINUX_OCI_INTEGRATION: "1"
-          DAEDALUS_LINUX_OCI_IMAGE: registry.access.redhat.com/ubi9/python-312@sha256:f9a256f5dc66ac635d854b4d80cb720846d6120606422fccbd35de1d69affd86
-        run: |
-          set -euo pipefail
-          CONTAINERS_CONF=/dev/null podman --remote=false pull "$DAEDALUS_LINUX_OCI_IMAGE"
-          printf '%s\n' "$DAEDALUS_LINUX_OCI_IMAGE" \
-            > release-evidence/podman-rhel-image-reference.txt
-          CONTAINERS_CONF=/dev/null podman --remote=false image inspect --format json \
-            "$DAEDALUS_LINUX_OCI_IMAGE" > release-evidence/podman-rhel-image.json
-          python -m pytest -q \
-            tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network \
-            --junitxml=release-evidence/podman-rhel.xml
 
       - name: Validate unskipped OCI tests and seal receipts
         shell: bash

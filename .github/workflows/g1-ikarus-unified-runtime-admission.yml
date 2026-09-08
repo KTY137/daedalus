@@ -149,6 +149,21 @@ jobs:
           mkdir -p runtime-evidence
           sudo apt-get update
           sudo apt-get install -y podman uidmap crun fuse-overlayfs slirp4netns
+          # The hosted runner image makes /usr/share recursively writable.
+          # Restore the exact authenticated package; do not bless existing bytes
+          # by relaxing the kernel guard or merely changing ownership/mode.
+          seccomp_path=/usr/share/containers/seccomp.json
+          readlink -f "$seccomp_path" > runtime-evidence/seccomp-resolved-path.txt
+          stat -c '%F uid=%u gid=%g mode=%a links=%h dev=%d inode=%i' "$seccomp_path" > runtime-evidence/seccomp-stat-before.txt
+          sha256sum "$seccomp_path" > runtime-evidence/seccomp-before.sha256
+          dpkg-query -S "$seccomp_path" > runtime-evidence/seccomp-package-owner.txt
+          test "$(cat runtime-evidence/seccomp-package-owner.txt)" = "golang-github-containers-common: $seccomp_path"
+          seccomp_version="$(dpkg-query -W -f='${Version}' golang-github-containers-common)"
+          echo "$seccomp_version" > runtime-evidence/seccomp-package-version.txt
+          dpkg-statoverride --list > runtime-evidence/dpkg-statoverrides.txt
+          sudo apt-get install --reinstall -y "golang-github-containers-common=$seccomp_version"
+          sha256sum --check runtime-evidence/seccomp-before.sha256
+          stat -c '%F uid=%u gid=%g mode=%a links=%h dev=%d inode=%i' "$seccomp_path" > runtime-evidence/seccomp-stat-after.txt
           test "$(id -u)" -ne 0
           ci_user="$(id -un)"
           if ! awk -F: -v user="$ci_user" '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subuid; then

@@ -12,7 +12,7 @@
     "passing_subtests": 2237,
     "seconds": 530.4
   },
-  "status": "corrections_and_final_acceptance_in_progress",
+  "status": "local_acceptance_passed_final_github_checks_pending",
   "failures": [
     "Two queue projection fixtures omit the actual required lane",
     "Old Codex wire test assumes no whole-answer stream delta",
@@ -115,10 +115,22 @@
       "archive_sha256": "e60c97a98f1c59735a184d86029b8788d54fb1b8d4bde99c2f0d33d40a381d8f"
     },
     {
+      "source": "runs/integration-20260908/ci-job-101972593501.log",
+      "sha256": "74c216834cabbef35745cff566cdfef22f2ea378589b0a988b608890fa835c82",
+      "archive": "ci-job-101972593501.log.gz",
+      "archive_sha256": "7c3a3136282f91bb9f71567e079820a43645935a89e27192504e66314a66d57e"
+    },
+    {
       "source": "runs/integration-20260908/ci-linux-canvas-readonly-diagnosis.json",
       "sha256": "7f2d7d64dd8b140e485d58e70eae256b9d383ccaab8ddcb57d755ccf22c8d9e7",
       "archive": "ci-linux-canvas-readonly-diagnosis.json.gz",
       "archive_sha256": "7bbfb522b25615623e6895fba2d881eb4e8a4a68c46d05d8f590eb2ad762398e"
+    },
+    {
+      "source": "runs/integration-20260908/ci-seccomp-runner-permissions-diagnosis.json",
+      "sha256": "dfdc65a116ea18b0ddbb8299a17e6f6956ae06936564e7e8e1a337f7ac7634f4",
+      "archive": "ci-seccomp-runner-permissions-diagnosis.json.gz",
+      "archive_sha256": "4643e257c870d6508abec92d49bb54ff42bcaf192a953a71e75a4f4ea7430528"
     },
     {
       "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/environment.json",
@@ -253,6 +265,18 @@
       "archive_sha256": "47139421d6b95f901a4c0f2099044bcf87dcc1e64fbd22b5cb56a246ace8f7e4"
     },
     {
+      "source": "runs/integration-20260908/genesis-wal-event-time-mutations.json",
+      "sha256": "6c0c910f444a572d6171c8893f11b4117a532eccde607f818f8b6a2dbbcf4aed",
+      "archive": "genesis-wal-event-time-mutations.json.gz",
+      "archive_sha256": "2bac185bcf49ef48f571aed2f2ba2573fd1942749288a7feb6ebe2825346b52f"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-event-time-mutations.log",
+      "sha256": "f7389425e00312ee434e0160c9fe5d8a1eaf6378ca08c5d61612d1ced56df3f4",
+      "archive": "genesis-wal-event-time-mutations.log.gz",
+      "archive_sha256": "2739f429f441df94022b88d9a058f507407c4e4ed87757d7e85faa42978ba4fc"
+    },
+    {
       "source": "runs\\integration-20260908\\genesis-wal-first-green.log",
       "sha256": "5b826bef54adfc4e7219215d3a080f6997065142656f8a7f2976963128bf613b",
       "archive": "genesis-wal-first-green.log.gz",
@@ -349,6 +373,24 @@
       "archive_sha256": "d80c7091d23b10b6a3706badb455a9f34cdfa76f3c1903dc33eaee726d4f21a2"
     },
     {
+      "source": "runs/integration-20260908/genesis-wal-transport-corrected.log",
+      "sha256": "34393a16b6936100755f82714e6838ffdd54e8c471b74cd213ccb31ae3e6fe3e",
+      "archive": "genesis-wal-transport-corrected.log.gz",
+      "archive_sha256": "04cb5669d225117f9c1f4870bf7f5065485bb63884830ead1db11f3bb5519c15"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-transport-corrected.xml",
+      "sha256": "20c74fbfb3b7b452cf8d32bad30a0e9d0b5f514426d9c43909b4d5b06eb95340",
+      "archive": "genesis-wal-transport-corrected.xml.gz",
+      "archive_sha256": "4b14be0bfb0fb66249d9fac9342e049acb3c6800eb9247ef11e16c1af48f34dd"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-transport-correction.json",
+      "sha256": "6dedad7473973fd607be4e58eaf3bede8a3c3ab855331a0318c564bacfe9ab17",
+      "archive": "genesis-wal-transport-correction.json.gz",
+      "archive_sha256": "1a5947e5be93b410fc2676e2ce4d68ad7fb40665937b929d1cf6b014592eb56a"
+    },
+    {
       "source": "http-wire-literal-delta.json",
       "sha256": "053a14939c0ed53c9c3a615319f0db123a4271846a9e5d4cd1d5b2fb07bb1431",
       "archive": "http-wire-literal-delta.json.gz",
@@ -427,6 +469,30 @@
       "archive_sha256": "f57ee3e9a69fd0dc4599ae8729498ecafcc3305153257ce5d6dd74b5308c6457"
     },
     {
+      "source": "runs/integration-20260908/integrated-verified-result.json",
+      "sha256": "3274d4c0caf2fac7d951777281e6c6e42291dc71ba6268f0c3c035b01e2bd880",
+      "archive": "integrated-verified-result.json.gz",
+      "archive_sha256": "8087e67b539667f044bda026fb03df418c4cb8ac6f5838fd336b12efb9827400"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-verified-source.json",
+      "sha256": "bfcc2964c29139319e2450e61b5c2f937a31482432fb7100719dede671cdc421",
+      "archive": "integrated-verified-source.json.gz",
+      "archive_sha256": "718cd8fa91e48ed6434e2f49cf2aa07494641194a712ee3d864bda2274f2276d"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-verified.log",
+      "sha256": "7a396ebac693f0f397f8c2321552d8dde7ad24416164d483cbe3e2972ec36e03",
+      "archive": "integrated-verified.log.gz",
+      "archive_sha256": "6e575b531361d254fae5dd9b692c1cdbe9adfa82e67279bc169cc791e3e704fb"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-verified.xml",
+      "sha256": "dd5c6673ecfd232783a45e3bc0a3e94421612378d7bbf7ce2df9e28108406e09",
+      "archive": "integrated-verified.xml.gz",
+      "archive_sha256": "801a80c7a56ed6c2c889c17b8091e3a08c3f4099f9ab9b1e86257741442a38ee"
+    },
+    {
       "source": "runs\\integration-20260908\\integration-census-ci-fixtures-final.xml",
       "sha256": "3735337f17c7a09b4cd27b5ab85176c1c832399151f8ced4ad16d277cb9b17bd",
       "archive": "integration-census-ci-fixtures-final.xml.gz",
@@ -455,6 +521,12 @@
       "sha256": "0f74a4749d6eeb5c68a9428dd77ca6814c201f1c0a199a78bb839cc5eae5a812",
       "archive": "s02-final.xml.gz",
       "archive_sha256": "7f6b18724fce64dd2e10f90e50bcfe766237967c24ce476179c86445d6879521"
+    },
+    {
+      "source": "runs/integration-20260908/workflow-references-final.xml",
+      "sha256": "5e8d92f9f7500354a534e448ce3c282dda2e104dc4b9c7517f3ae2d46ce0d923",
+      "archive": "workflow-references-final.xml.gz",
+      "archive_sha256": "143bf3c80299f4ef8e758cc9e23ca8cec75a94fb0f78a1205c31098732e9b9cc"
     }
   ],
   "gate_transition": false,
@@ -559,5 +631,38 @@
     "archive_reports": 2,
     "local_artifact_files": 247,
     "linux_canvas_result": "separate earlier unresolved negative"
+  },
+  "verified_full_run": {
+    "head": "a0e5dd701bd625ff8daabfa8d1d410953ef43007",
+    "passed": 13423,
+    "failed": 0,
+    "skipped": 419,
+    "xfailed": 23,
+    "passing_subtests": 2237,
+    "seconds": 489.36,
+    "changed_source_files": [],
+    "command": "repository venv -m pytest -q -n 8 --dist loadfile --junitxml=runs/integration-20260908/integrated-verified.xml",
+    "classification": "complete local Python suite; skips and expected failures are not passes"
+  },
+  "event_time_mutations": {
+    "baseline_green": true,
+    "caught": 3,
+    "survived": 0,
+    "inconclusive": 0,
+    "not_applicable": 0,
+    "timeouts": 0,
+    "mutation_semantic_sha256": "9f45fb294da71fd707f08de8b559a9c64f75908e08b584d6cddef4cfa2d93211",
+    "target_git_blob": "0c9949bcc2ea849d0cd4cb3c03d035066c57d76c",
+    "source_preserved": true,
+    "transport_focused_passed": 23
+  },
+  "ci_seccomp_correction": {
+    "failed_head": "f12c1bd9f1eb66fb16edf374a0bb6dffe3624287",
+    "failure": "Preinstalled packaged seccomp profile fails canonical ownership/mode/link admission before candidate launch; failed CI did not print which stat field.",
+    "runner_image_source": "https://github.com/actions/runner-images/blob/c9a325cf656f41546b8da92a0ccbd03e260cd42a/images/ubuntu/scripts/build/configure-system.sh#L12-L15",
+    "source_mechanism": "Exact runner image applies recursive chmod777 to /usr/share after package installation.",
+    "remediation": "Authenticated Apt reinstalls the exact installed owning package, before/after policy hashes must match, stat/package/override evidence retained, kernel refusal unchanged.",
+    "scope": "runtime matrix and existing Tauri release OCI setup; Tauri setup and pinned image now precede real Genesis tests",
+    "release_limitation": "Tauri Linux whole GUI still includes a Windows-only live case. Existing strict skip refusal remains; no release acceptance or publication claimed."
   }
 }
