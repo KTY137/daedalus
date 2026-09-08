@@ -122,6 +122,30 @@ export function terminalExecutionLine(report: LiveReportBrief): string | undefin
 }
 
 /**
+ * Grade only the completeness of the evidence spine visible in the terminal
+ * report. This is deliberately not a second verifier: it does not inspect the
+ * receipt, infer a runtime from the lane, or repair missing identity. A report
+ * is "geschlossen" only when the canonical terminal shape is present end to
+ * end: Runtime -> WorkItem -> Attempt -> terminal phase -> terminal receipt.
+ */
+export function terminalEvidenceStatus(report: LiveReportBrief): string | undefined {
+  const hasAny = Boolean(
+    report.runtimeId || report.workItemId || report.attemptId || report.phase || report.terminalReceiptSha256
+  );
+  if (!hasAny) return undefined;
+  const complete = Boolean(
+    report.runtimeId
+      && report.workItemId
+      && report.attemptId
+      && report.phase === 'terminal'
+      && report.terminalReceiptSha256
+  );
+  return complete
+    ? 'Terminale Evidenz: geschlossen'
+    : 'Terminale Evidenz: unvollständig · Abschluss nicht als vollständig belegt behandeln';
+}
+
+/**
  * Confidence label for dispatch identity. A bound versioned snapshot is
  * durable evidence on the dispatch fact itself; legacy action/turn text is a
  * compatibility reconstruction from the bounded conversation window and must
@@ -343,6 +367,7 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
         <div aria-label="Letzte Berichte">
           {scoped.recent.map((report, index) => {
             const executionEvidence = terminalExecutionLine(report);
+            const evidenceStatus = terminalEvidenceStatus(report);
             return (
               <div key={report.id || `${report.name}:${report.createdAt || index}`}>
                 <div className="focuscard-counts">
@@ -350,6 +375,11 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
                   {reportLine(report)}
                   {report.summary ? ` · ${report.summary}` : ''}
                 </div>
+                {evidenceStatus && (
+                  <div className="focuscard-counts" aria-label="Status der Ausführungsevidenz">
+                    {evidenceStatus}
+                  </div>
+                )}
                 {executionEvidence && (
                   <div className="focuscard-counts" aria-label="Beobachtete Ausführungsevidenz">
                     {executionEvidence}
