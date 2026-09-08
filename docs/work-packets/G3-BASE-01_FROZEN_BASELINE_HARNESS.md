@@ -373,3 +373,38 @@ declared scope:
   is still absent on this host `[MEASURED 2026-09-08: ModuleNotFoundError]`.
   The four blockers are being designed as separate packets, not folded in
   here.
+
+## F1 re-measured: the expiry clause fired (2026-09-09)
+
+This packet's header declares `Expiry: 2026-12-06, or immediately if the task
+corpus gains non-code-plane tasks (which would change the central measured
+finding below)`. `G1-EVAL-CORPUS-01` supplied them, so F1 is re-measured here
+rather than left standing.
+
+`[MEASURED 2026-09-09 on the integration of both packets, via
+daedalus.eval.gate3.taskset over daedalus.eval.harness.all_tasks()]`
+
+| quantity | F1 (2026-09-06) | now |
+| --- | ---: | ---: |
+| tasks in corpus | 27 | 31 |
+| primary tier (frozen) | 10 | 14 |
+| quarantine (excluded, reported) | 17 | 17 |
+| frozen census | code 10, type 0, data 0, knowledge 0 | code 10, type 0, data 2, knowledge 2 |
+| planes present | `("code",)` | `("code", "data", "knowledge")` |
+| `require_cross_plane()` | REFUSES | ADMITS |
+| frozen digest | `1404e1d2…` | `210e117e…` |
+
+`tests/eval/gate3/test_taskset.py::test_real_corpus_census_is_pinned_and_reported`
+is re-pinned accordingly and its headline assertion is **inverted, not
+deleted**: it now requires the refusal to be gone and the three planes to be
+present, so a corpus that drifted back to one plane fails there.
+
+What this does **not** change. The type plane is still 0 and no artifact under
+the frozen extension rule can move it; adding a stub to satisfy a census would
+be plane laundering. The four new tasks are reported by the product harness as
+plane-unindexed rather than scored, because the slicer structurally cannot
+emit neighbour prose or index CSV/JSON — so admitting the set is a corpus
+fact, not a claim that any arm can score it. F2 is addressed by
+`G1-TOKENIZER-01`, F3 by `G1-EVAL-USAGE-01`; **F4 (sealing) is unchanged and
+still has no mechanism**, so nothing here is Gate-3 baseline evidence and this
+packet still cannot open, enter or satisfy Gate 3.

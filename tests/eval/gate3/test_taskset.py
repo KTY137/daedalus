@@ -236,48 +236,70 @@ def test_real_corpus_census_is_pinned_and_reported():
     re-tiered mint, a plane finally represented) is visible as a test diff
     instead of silently drifting.
 
-    MEASURED on packet G3-BASE-01's base revision:
-      - all_tasks() total: 27 (10 hand-authored TASKS + 17 persisted mint
-        tasks, all mint tasks currently tier=quarantine)
-      - every task in the corpus targets a .py or .tsx file with
-        identifier-shaped must_include labels -> classify_task_plane finds
-        "code" for all 27, with zero refusals
-      - primary-tier (frozen) subset: 10 tasks, all "code"
-      - planes_present on the frozen set: ("code",) -- exactly one plane
-      - therefore require_cross_plane() REFUSES this task set for any
-        cross-plane comparison. That refusal is the correct, expected
-        result predicted by packet §8 expected-failure #1, not a bug to
-        route around.
+    RE-MEASURED 2026-09-09, after G1-EVAL-CORPUS-01. This packet's own
+    expiry clause named the event: "immediately if the task corpus gains
+    non-code-plane tasks (which would change the central measured finding
+    below)". It has. The pin is therefore updated deliberately and the
+    headline assertion is INVERTED rather than deleted, so the test still
+    fails if the corpus silently drifts back.
+
+    MEASURED on packet G3-BASE-01's base revision (retained, not deleted):
+      - all_tasks() total 27; full census code=27, type/data/knowledge 0
+      - primary-tier (frozen) subset 10 tasks, all "code"
+      - planes_present ("code",), so require_cross_plane() REFUSED, exactly
+        as packet §8 expected-failure #1 predicted.
+
+    MEASURED 2026-09-09 on the integration of G3-BASE-01 with
+    G1-EVAL-CORPUS-01:
+      - all_tasks() total: 31 (14 hand-authored TASKS + 17
+        persisted mint tasks, all mint tasks still tier=quarantine)
+      - full census: {'code': 27, 'type': 0, 'data': 2, 'knowledge': 2}
+      - primary-tier (frozen) subset: 14 tasks
+      - label_plane_census on the frozen set: {'code': 10, 'type': 0, 'data': 2, 'knowledge': 2}
+      - planes_present: ('code', 'data', 'knowledge')
+      - therefore require_cross_plane() ADMITS this task set. The four new
+        tasks carry parser-derived, plane-exclusive labels and are reported
+        by the product harness as plane-unindexed rather than scored, so
+        admitting the set is a corpus fact, not a claim that any arm can
+        score them.
     """
     tasks = all_tasks()
-    assert len(tasks) == 27, (
+    assert len(tasks) == 31, (
         "the real task corpus size changed since this test was pinned -- "
         "update this test deliberately, do not just bump the number")
 
     # Full corpus (including quarantine), for transparency about what exists
     # even though it is not in the frozen set.
     full_census = census(tasks)
-    assert full_census == {"code": 27, "type": 0, "data": 0, "knowledge": 0}
+    assert full_census == {"code": 27, "type": 0, "data": 2, "knowledge": 2}
 
     primary, n_excluded = filter_primary_tasks(tasks)
-    assert len(primary) == 10
+    assert len(primary) == 14
     assert n_excluded == 17
 
-    with pytest.warns(UserWarning, match=r"excluded 17 of 27"):
+    with pytest.warns(UserWarning, match=r"excluded 17 of 31"):
         fts = build_frozen_taskset(
             "gate3-real-corpus-20260906", tasks, REAL_CORPUS_COUNTING_RULE)
 
     assert isinstance(fts, FrozenTaskSet)
-    assert len(fts.task_ids) == 10
-    assert fts.label_plane_census == {"code": 10, "type": 0, "data": 0, "knowledge": 0}
-    assert fts.planes_present == ("code",)
+    assert len(fts.task_ids) == 14
+    assert fts.label_plane_census == {"code": 10, "type": 0, "data": 2, "knowledge": 2}
+    assert fts.planes_present == ("code", "data", "knowledge")
 
     # Pinned digest: deterministic given the frozen name/counting-rule/corpus
     # triple above. Changes only if the corpus, the counting rule text, or
     # this test's chosen name changes.
     assert fts.digest == (
-        "1404e1d27283e6e9462303e25831f41653513416e8b5b6d204cee76515ca4c90")
+        "210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838")
 
-    # The headline finding: a cross-plane comparison cannot be run today.
-    with pytest.raises(FreezeError, match="single-plane label set"):
-        fts.require_cross_plane()
+    # THE HEADLINE FINDING, INVERTED BY MEASUREMENT (2026-09-09). It used to
+    # read: a cross-plane comparison cannot be run today, and R3 refused. The
+    # corpus packet supplied data- and knowledge-plane tasks with parser-derived
+    # labels, so the refusal is gone. The assertion is kept, not deleted, so a
+    # corpus that silently drifted back to one plane would fail here.
+    fts.require_cross_plane()
+    assert set(fts.planes_present) >= {"code", "data", "knowledge"}
+    assert fts.label_plane_census["type"] == 0, (
+        "the type plane is still empty: no type-plane artifact exists under the "
+        "frozen extension rule, and manufacturing one to move a census would be "
+        "plane laundering")

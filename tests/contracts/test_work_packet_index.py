@@ -194,19 +194,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "479 tracked files" in message  # measured 2026-09-08 ignition retention
+    assert "481 tracked files" in message  # measured 2026-09-08 ignition retention
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 476,
+        "assigned_artifacts": 478,
         "legacy_artifacts": 204,
-        "packet_artifacts": 478,
-        "packet_ids": 413,
-        "post_index_artifacts": 274,
+        "packet_artifacts": 480,
+        "packet_ids": 415,
+        "post_index_artifacts": 276,
         "registry_artifacts": 1,
-        "tracked_files": 479,
+        "tracked_files": 481,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -256,6 +256,8 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
     packets = {packet["packet_id"]: packet for packet in payload["packets"]}
     expected_primary_ids = {
         "G1-ARIADNE-10",
+        "G1-EVAL-CORPUS-01",
+        "G1-EVAL-USAGE-01",
         "G1-IGNITION-04",
         "G1-IGNITION-03",
         "G1-ACCEL-01",

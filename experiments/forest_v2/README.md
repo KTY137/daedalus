@@ -4981,3 +4981,42 @@ annotation-only control, the `fixture_alias` row, and the import census
 are byte-identical to the block above. This is a re-pin of a moving content
 census, not a resolver result. Raw outputs `s02-fixer-c.json` and
 `s02-fixer-d.json` are retained under `runs/g1-eval-corpus-01`.
+
+### Evening integration remeasurement, complete wave (2026-09-09)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus all eight merged packets of
+the 2026-09-08 wave: `G1-PROJECTS-01`, `G1-IKARUS-36`, `G1-UI-22`,
+`G1-ARIADNE-10`, `G3-BASE-01`, `G1-TOKENIZER-01`, `G1-EVAL-USAGE-01` and
+`G1-EVAL-CORPUS-01` (branch `integration/ignite-and-gate3-20260908`). All
+fields other than wall time and root path matched across both complete
+outputs; all six corpora remain declared, five are present, and the absent
+corpus still records its reason.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 514 parsed files, 7,016 functions; annotation-only 94.43%; full resolver 94.31%; marginal 8 functions / 0.1140 pp; 46,680 type-name sites, resolution 99.93%; verified internal 4,249 / 4,674 (90.91%); 425 named-only internal sites |
+| source pin | `6cdc73dd46d3b429f7f92a8014d52cdf73167026197f091c3766a1ab475215f2` |
+
+Against the 2026-09-08 integration row (509 files, 6,975 functions) the five
+additional files are the packaged four-plane eval fixture's Python modules
+under `daedalus/eval/fixtures/fourfold_wiki_app/src/knowledge_hub/`, and the
+41 additional functions and 223 additional type-name sites are those modules
+plus the provider-usage receipt and the corpus derivation helpers. The
+marginal contribution stays at 8 functions and moves to 0.1140 pp only because
+the denominator grew. This is a changed source corpus under the same probe,
+not measured resolver improvement. The fixed fixture's 15.7895 pp marginal
+contribution still exceeds this kernel row by more than two orders of
+magnitude. All prior retractions, failed expectations and measured rows above
+remain unchanged.
+
+The separate complete import-graph comparison measures 514 modules and 2,009
+edges; all fourteen nontrivial components and their maximum size of nineteen
+remain identical. Raw complete outputs are
+`s02-g1-integration-03-corpora-a.json.gz` and
+`s02-g1-integration-03-corpora-b.json.gz` under
+`docs/evidence/G1-INTEGRATION-03`, with SHA256 values in `acceptance.json`
+beside them. This census establishes no Gate closure and no Gate-3 baseline
+evidence.
