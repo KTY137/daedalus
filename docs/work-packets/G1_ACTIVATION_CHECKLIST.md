@@ -110,18 +110,22 @@ The subject of every row here is `run_gate1_ignition` — the function
   two ignition paths; moving the probe out of process is a change to what the
   packet's evidence means and belongs in its own packet).
   [MEASURED 2026-09-06, `G1-RENOVATION-01` row 2.3-a]
-- [ ] **F5 — the isolation refusal is late and dirty.** The rehearsal refused a
-  candidate root nested inside the source BEFORE the first write
-  (`candidate == source or source in candidate.parents`). `run_gate1_ignition`
-  has no such precondition: it digests the fixture before (`gate1.py:727`) and
-  after (`gate1.py:1280`) and raises `the fixture tree changed while the slice
-  ran`. MEASURED 2026-09-06 with `workspace=fixture_root`: the run completes,
-  writes `target/`, `candidate/`, `controls/` and `coverage/` into the source
-  root, and only then refuses. Every declared file of the source survives
-  byte-identical, so the tripwire is real — but a caller can make the door
-  litter a tree it was told to treat as read-only. Pinned as measured by
-  `tests/ignition/test_voltage_ignition_faults.py::test_a_workspace_nested_inside_the_source_is_refused`;
-  closing the row means an up-front isolation precondition on `workspace`.
+- [x] **F5 - early, clean layout refusal at the shipped door.**
+  `G1-IGNITION-03` adds read-only admission before evidence reset, source-CAS
+  construction, scratch allocation, preparation or command dispatch. Source,
+  installation, receipts, evidence and source-CAS relationships use the
+  canonical primary-tree comparisons; raw redirects and nonempty supplied
+  workspaces refuse. The actual shipped F5 invocation now leaves no scratch
+  debris or receipt directory. The 2026-09-06 late/dirty result remains retained
+  as negative evidence, together with the unchanged-main baseline.
+  Windows affected suites: 235 passed, 10 explicitly unavailable symlink cases;
+  Linux alias matrix: 146 passed, 12 Windows-only skips, with real symlink and
+  hardlink cases executed. All eight isolated admission/comparison mutants were
+  caught, and independent review found no blocker in this bounded claim.
+  Evidence: `docs/evidence/G1-IGNITION-03/acceptance.json` and the linked packet.
+  This closes entry-time F5 admission only: no concurrent path-replacement,
+  arbitrary old-store hardlink, same-attempt recovery or Gate-1 closure claim.
+
 - [x] No write-root/egress/spend bounds are enforced around the attempt; the
   ignition path is not an inventoried effect entrypoint. **Closed:**
   `daedalus/spine/effect_boundary.py:2857` carries `cli.ignition`

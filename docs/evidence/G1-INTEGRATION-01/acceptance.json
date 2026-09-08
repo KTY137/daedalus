@@ -953,6 +953,372 @@
       "sha256": "44b0f24c4070d8bc970f672da10b3db86b6614254783d3cce397a283bf5492dd",
       "archive": "integrated-podman-final-result.json.gz",
       "archive_sha256": "fd1eff71e9969cb1e2cc4162106a09dacb619552914d28610d7de15b062c0cc7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux-evidence-before-count-clarification.json",
+      "sha256": "292619fb15961583220d607c72a7fbf61acbc3ca65820645e6387327fb692087",
+      "archive": "final-ci-9867-linux-evidence-before-count-clarification.json.gz",
+      "archive_sha256": "622e90c3369fe62166ce0b78f6e5e4a64fead501178cf3361f836813d45a037e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux-evidence.json",
+      "sha256": "7d3d2401f1871e2559ea4a6f1c7ec2b5fb34dd62a8e38f28b47b5c514bf4cbd9",
+      "archive": "final-ci-9867-linux-evidence.json.gz",
+      "archive_sha256": "5ed21ceba2b5455c5ec7535465ab1199bb89b2c79079cfbc53983e40fd858539"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux-status.json",
+      "sha256": "62422168ac727f8f2c9f05f9c7fc0b0b8de83ff59fb75782d44a7f90ad4cdf04",
+      "archive": "final-ci-9867-linux-status.json.gz",
+      "archive_sha256": "ca4bc789d9f2555006ef9d05b16d47709e7eb8a0cdf615c4b7341c1cefbd5d66"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/candidate-container-inspect.json",
+      "sha256": "dc5393a3dc903bc05662543ebf70dc99717aeeb4aea55d512431371cb412e49c",
+      "archive": "final-ci-9867-linux310-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "a80f9615ec2e1d55415c464eb07807f03a64e7399a8b51fa2966e9496c6ac7b3"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-9867-linux310-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/focused.xml",
+      "sha256": "916f6136a69cde05488518c59eba6d209c4f5a36097c696146098542723c08e2",
+      "archive": "final-ci-9867-linux310-artifacts-focused.xml.gz",
+      "archive_sha256": "617fb114a76da1f903a1da57df4fa25372d8942190282dfa6a0fa79bf5dec562"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/linux-oci.xml",
+      "sha256": "47059aaba77c708692fc0e6efcbe70c1b47bf0858be054b391395c354cc49dab",
+      "archive": "final-ci-9867-linux310-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "0f16068871ef3a22e1295df3cf28663e4a25c3a874a5d0a7f07ff81014c1eff1"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-9867-linux310-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/podman-info.json",
+      "sha256": "22fa06d46f660c0e24591317c50cf25d117f36df1e17f45c1cb5c6009e84426a",
+      "archive": "final-ci-9867-linux310-artifacts-podman-info.json.gz",
+      "archive_sha256": "4ce4e9f9460a1fc5a519c4d119def410adf387759e0d386802e91d37027eb212"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310.log",
+      "sha256": "f739c4901fe66f545b97895358330ad4f7c275c4af4069b5fcf92b3864e9beec",
+      "archive": "final-ci-9867-linux310.log.gz",
+      "archive_sha256": "8117626db26ff326abbb28160839dd69b1c6e09c30400a208f7c1601acc8a50d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/candidate-container-inspect.json",
+      "sha256": "1b31404d9a5753f293b70c966803d3d80c4bf0969712f3969db51922ff1f92a0",
+      "archive": "final-ci-9867-linux312-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "fbb99bbde1b33c7a471cbded2baa91e97fdd5a50c02ae74d8b3a491c0dcbec69"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-9867-linux312-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/focused.xml",
+      "sha256": "6c17fa9b439cf81508c850d96d2940218da664c682c92004b271021d0ade52a5",
+      "archive": "final-ci-9867-linux312-artifacts-focused.xml.gz",
+      "archive_sha256": "73c7f7055bcc8df6bca3ecb62d5f40c746ad5ecd50d6af3672a38e72d80d6fd8"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/linux-oci.xml",
+      "sha256": "287efb644fb31faf744bc3804f68115a603248ceac718a3f0261dc5847be18bc",
+      "archive": "final-ci-9867-linux312-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "19930af40fd915a52e7d93977255e90753b7f10646c9d69467240ce02ee69a93"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-9867-linux312-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/podman-info.json",
+      "sha256": "5d7c21bb2d57f69d91b22d2cc2af9fd9f9b0f37d24c46c5960d32ac6667ab491",
+      "archive": "final-ci-9867-linux312-artifacts-podman-info.json.gz",
+      "archive_sha256": "9583a49d8672f350e6786d175c5dd990e34eac6365a7e0aed2f5165a841dd8f9"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-stat-after.txt",
+      "sha256": "a4e643f5e368f684187c027711066872507314c814e926d692682c978ffb554d",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "b7e71b3da3282df7a7ff09010eb890e2d27e6f2642ecbc6ffef2c9d9a89b135a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-stat-before.txt",
+      "sha256": "1a9a78f015cb961e1ca8015f9d541ff1059bf339341f9f95793bf17fee34ae46",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "1c00547ac5574316d38d5aa551bcc32b7c07a898ab05ac5cf94c801c9955c001"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312.log",
+      "sha256": "fd3ccd4a56c0490a631d79e9bd1a1fefc93d2a36b7da34b69dd422956827cecf",
+      "archive": "final-ci-9867-linux312.log.gz",
+      "archive_sha256": "b876fdde5db8e3c80f06ce58954b9bd00ca8d52064fbe846c3d0bdf09bae3060"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-checks-current.json",
+      "sha256": "d8e1d72447a79cb8ca4c5197a3dc39e280f21a4c961fb9a94508e9bd96bf1107",
+      "archive": "final-ci-9867-other-checks-current.json.gz",
+      "archive_sha256": "db17145390a0fd187d8b652a06bd78949f4b632042e21842abc2484947e25318"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-checks-history.jsonl",
+      "sha256": "4f3c78943348a5ccd012218971bba9d033a1a2ac9325bdbeb77e504caef8dcf1",
+      "archive": "final-ci-9867-other-checks-history.jsonl.gz",
+      "archive_sha256": "781520493782ab496f2eaea5db1dae6263edd3040c0e6c458224d188883a4c1c"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-gui-artifact-manifest.json",
+      "sha256": "1f7ac57fef11737a2de689e6bcf61c9febba266130fca166db1bd71a303e1795",
+      "archive": "final-ci-9867-other-gui-artifact-manifest.json.gz",
+      "archive_sha256": "93f45100c6b33389d2b27e27ef9f3b8d0ab0d4e8753b5f4ded95764f4471c489"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-gui-artifacts/cockpit-evidence.json",
+      "sha256": "6a528b6c06acd88237c7492f45cd81430a54407a7338c73b910e3e7e727f06df",
+      "archive": "final-ci-9867-other-gui-artifacts-cockpit-evidence.json.gz",
+      "archive_sha256": "58310e8e523af83cad4705c3d22ec4a46bfeda3daca7c9e74c5a837d3095f37e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-gui-job-101987630819.log",
+      "sha256": "36d7bf68330732498808accd876344942af28a3171d5e483c311c7979751a9ac",
+      "archive": "final-ci-9867-other-gui-job-101987630819.log.gz",
+      "archive_sha256": "ab4ee8d4227f4f9678e1efeddb3caef152c1a307b3d48e21cc4a287b96d910e4"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-job-101987630219-current.json",
+      "sha256": "793c01fd8d251dc83cbfa59fde51f92a0010322dcac1a711c0879d8fdb402609",
+      "archive": "final-ci-9867-other-job-101987630219-current.json.gz",
+      "archive_sha256": "fd407dfb81d1376998fdc1c4cc82d62a728a910c3b78762db7e6a5a257cbd0af"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-job-101987630819-current.json",
+      "sha256": "bcf4114ed8bed3d4dbf81c1a595bb718bfeb1e5c0873f135becb6a112fa70bb4",
+      "archive": "final-ci-9867-other-job-101987630819-current.json.gz",
+      "archive_sha256": "4b0524bbe3882b8b81c63ad534e3f7a78b988975d85f537750bd5b9a82c20b2a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535097-artifacts.json",
+      "sha256": "48f3f8e2db6024648ae57ea6301f1ede11b5ee11792f9391b971426f9a2f5c0d",
+      "archive": "final-ci-9867-other-run-34203535097-artifacts.json.gz",
+      "archive_sha256": "6de13694cfe6f9f5071caf05d047539ba2941499a95d45fab8b0aef3a0ee367b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535097-jobs.json",
+      "sha256": "3c20fc5f0eab18ea3a9252db548046b4588f6437f6df7b039ca080d2abb2ecb7",
+      "archive": "final-ci-9867-other-run-34203535097-jobs.json.gz",
+      "archive_sha256": "e85dee5cf7bc4a2d02886323308825935bdde5c522106c449cc492a76e3bad6d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535097-run.json",
+      "sha256": "dfcdc5edd5855f0d4b3964234cb0c9c3421665bb4c642b9240426fc5934e8ac9",
+      "archive": "final-ci-9867-other-run-34203535097-run.json.gz",
+      "archive_sha256": "b7fd233827509ebc4a6c325a44c07a7dcc1168e33e6e14ee62a84787f42acd9e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535121-artifacts.json",
+      "sha256": "34f7d58ef0446a60eabe45ee73def73fd5ab2b19e02fa35c034178d51de19d6c",
+      "archive": "final-ci-9867-other-run-34203535121-artifacts.json.gz",
+      "archive_sha256": "2074050beb55b283e575825ccdfd2828ee45b83bc7cac4827d756fda1c0a67fb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535121-jobs.json",
+      "sha256": "fd35d63e469c95de4ecfa5e6098b8196180da60a1aecd0fb9fbac0d803ecf09d",
+      "archive": "final-ci-9867-other-run-34203535121-jobs.json.gz",
+      "archive_sha256": "6e0ae90fc769dbcbb5eab551725a7bd24495a66a612f40aea8f1ba85c1cce8e4"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535121-run.json",
+      "sha256": "f51082539e92c046f47e9da7da4936384279a6017286a02bc356eb6bb7710e2f",
+      "archive": "final-ci-9867-other-run-34203535121-run.json.gz",
+      "archive_sha256": "f2f6ef87bff7be33bdd9ec52d0b147dae26fbf83472dad3f3d3fb2e9466bcdcd"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535145-artifacts.json",
+      "sha256": "48f3f8e2db6024648ae57ea6301f1ede11b5ee11792f9391b971426f9a2f5c0d",
+      "archive": "final-ci-9867-other-run-34203535145-artifacts.json.gz",
+      "archive_sha256": "6de13694cfe6f9f5071caf05d047539ba2941499a95d45fab8b0aef3a0ee367b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535145-jobs.json",
+      "sha256": "1c652aa08342e7d0b79d0548a9fd2a690c772412e57b90e91763ab9c7d9ee705",
+      "archive": "final-ci-9867-other-run-34203535145-jobs.json.gz",
+      "archive_sha256": "bcd9abedb009b12a9212e1c1331c592dd09d1cecb327aefc1edb730997603016"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535145-run.json",
+      "sha256": "1e70360bbeef27e3ee26c651aa74304bef4da7fef0cc5579b7d143081ff2cc1d",
+      "archive": "final-ci-9867-other-run-34203535145-run.json.gz",
+      "archive_sha256": "5d6330c28e648f4c2111376208f677eabc3ae4930e2954c1a51307b48ca94723"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535167-artifacts.json",
+      "sha256": "996dcbf1267ed45c8303f56bcd67e32a271a0bd009e10bb6e385f8fd7530beb7",
+      "archive": "final-ci-9867-other-run-34203535167-artifacts.json.gz",
+      "archive_sha256": "f0f40a5ba4a0bb154f741dfcb49e701997ecf9cd4136dab35740fdc95f4fee31"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535167-jobs.json",
+      "sha256": "3262d453b6b88da83d3c1e8d00c23896d30445b79b98a53b6721cd25013a5026",
+      "archive": "final-ci-9867-other-run-34203535167-jobs.json.gz",
+      "archive_sha256": "7ee719796ddb7c24431039ec9e885a329b8e84b1a70314afdbfcc5417b7d177a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535167-run.json",
+      "sha256": "414f330ede114aadc24dd4d44df2fcd91d9fa5d2e5d561c97cadffccbf02c06c",
+      "archive": "final-ci-9867-other-run-34203535167-run.json.gz",
+      "archive_sha256": "6af3dc1f1d62f3766cc45646ff59f38bd3dc11c9470c1aeac360dfbf321c6f87"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535272-artifacts.json",
+      "sha256": "a984b1a72539ad9423e78837db3353d9b044c4c832addaa84cfe122f7ce8d6d8",
+      "archive": "final-ci-9867-other-run-34203535272-artifacts.json.gz",
+      "archive_sha256": "3e61f724d67e0e73bbed227849414c3bceadd0765e3fe7b0136bee7d62b3a202"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535272-jobs.json",
+      "sha256": "78f4c14aa996144a5f16bc957664d9a3e3eebef838e9ae1ebc0a1e3c1ab44138",
+      "archive": "final-ci-9867-other-run-34203535272-jobs.json.gz",
+      "archive_sha256": "71e359faaf148ea240d27881fe05ba3f0a0982fd9eb5912ec23b5763fb6cba8d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535272-run.json",
+      "sha256": "4e1ee57f958052043d8359858b6be66c908efab91eb404cb0be75c1a06992ded",
+      "archive": "final-ci-9867-other-run-34203535272-run.json.gz",
+      "archive_sha256": "ff244ecb026cc1f69784088390da945087f4627e14e7357c83d11c0f6e024306"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-runtime-artifacts-current.json",
+      "sha256": "a984b1a72539ad9423e78837db3353d9b044c4c832addaa84cfe122f7ce8d6d8",
+      "archive": "final-ci-9867-other-runtime-artifacts-current.json.gz",
+      "archive_sha256": "3e61f724d67e0e73bbed227849414c3bceadd0765e3fe7b0136bee7d62b3a202"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-summary.json",
+      "sha256": "8f6284ba032af95a504ba906fbdbc923de2b6f68eebf5eb9bf5e45823c7b9d30",
+      "archive": "final-ci-9867-other-summary.json.gz",
+      "archive_sha256": "1f135807c2463b3b8755bc9e72eed5289aaad54627f165cf90ac9bb23ecd8a0b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-tauri-job-101987630219.log",
+      "sha256": "e83d7037ee3923d0f126d908b205fd29c46b835db7c93a53d64e88d64cc74811",
+      "archive": "final-ci-9867-other-tauri-job-101987630219.log.gz",
+      "archive_sha256": "71d72e066df549d583cf945f132ae50aeecde463d07e6a92ae506e277c8e101d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows310-artifact-manifest.json",
+      "sha256": "627cbe4be8d6920f493f35c069c168cf5b31abf58ebf0f04592ac9873acda932",
+      "archive": "final-ci-9867-other-windows310-artifact-manifest.json.gz",
+      "archive_sha256": "41355b50425c10ae778954299a999f98c0d966a442362966b99e6f004f90bc91"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows310-artifacts/focused.xml",
+      "sha256": "5fc2d8c47f19504fd84de6328ae6256ee61752ac25fd6878f23c9d97524f64bf",
+      "archive": "final-ci-9867-other-windows310-artifacts-focused.xml.gz",
+      "archive_sha256": "f205aab120279d9b28da36e8b4c07723db66c8001181388b30cc65149fa5aabb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows312-artifact-manifest.json",
+      "sha256": "b48f27f036335b114aeeb3d607702d4fb205f8d904462a10d51eae672b2f8a89",
+      "archive": "final-ci-9867-other-windows312-artifact-manifest.json.gz",
+      "archive_sha256": "87809020e02df9e72819133a9f8019d059a6e4dbc14f2748ecd81753e91accae"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows312-artifacts/focused.xml",
+      "sha256": "c625370f048930a17b11e502ea8091bbf3226c09840414b4269fdf6a2933503d",
+      "archive": "final-ci-9867-other-windows312-artifacts-focused.xml.gz",
+      "archive_sha256": "a513031126b31cb51186e764a1a25ef7858d376fa0621515ff0bfd83de67a974"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/main-merge-admission.json",
+      "sha256": "998b8d4ea740bf1962e9ea77b919ad4fa4f49de6894c1355a1dcb764055c95b0",
+      "archive": "main-merge-admission.json.gz",
+      "archive_sha256": "bb1292ebdbb98ceef23b98fee5e4a3c0ffe28fc3ffa2fc890f1fbeee22e161c7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/main-merge-result.json",
+      "sha256": "dc2c2e6c0b094a0826f15385aed1bf6f150104bc63578e202e0f47c7e32013d9",
+      "archive": "main-merge-result.json.gz",
+      "archive_sha256": "d3e690ded0bcdf89322c2a36c4b79675079d1d738415630763e974dd9569ee2a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/main-fast-forward-result.json",
+      "sha256": "a56a675c487c09ed88b958441132510039774d64614cdc19570f70e24778b06c",
+      "archive": "main-fast-forward-result.json.gz",
+      "archive_sha256": "e622dc9b90a93ba1081441aaaf3dbb083715d92e7cb975ebc9f0afd3028d6366"
     }
   ],
   "gate_transition": false,
@@ -1188,5 +1554,315 @@
     "changed_source_files": [],
     "command": "repository venv -m pytest -q -n 8 --dist loadfile --junitxml=runs/integration-20260908/integrated-podman-final.xml",
     "classification": "complete local Python suite; actual Linux containment remains a separate CI requirement"
+  },
+  "final_outcome": {
+    "recorded_at": "2026-09-08T08:46:33.992637+00:00",
+    "classification": "ALIGNED evidence-only final integration handoff; no Gate transition or release acceptance",
+    "status": "final_github_acceptance_passed_and_main_integration_complete",
+    "historical_fields": "All preceding fields, including pending statuses and negative findings, retain their original historical values. This final outcome records the later accepted head and main merge without rewriting those observations.",
+    "accepted_head": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+    "github_acceptance": {
+      "successful_jobs": 22,
+      "failed_jobs": 0,
+      "cancelled_jobs": 0,
+      "conditional_skipped_jobs": 4,
+      "pending_jobs": 0,
+      "expected_skips": [
+        {
+          "name": "matrix.label",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535167/job/101987632034"
+        },
+        {
+          "name": "Release acceptance (full product and Linux OCI)",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535167/job/101987631602"
+        },
+        {
+          "name": "Complete suite (manual only)",
+          "workflow": "Fourfold, Tensor and integration contracts",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535121/job/101987631419"
+        },
+        {
+          "name": "Publish trusted-main prerelease",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535167/job/101987632298"
+        }
+      ],
+      "runs": [
+        {
+          "id": 34203535097,
+          "name": "Gate 1 Ignition Slice",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535097",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535121,
+          "name": "Fourfold, Tensor and integration contracts",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535121",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535145,
+          "name": "G1 Ikarus Hermes Runtime Admission",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535145",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535167,
+          "name": "Tauri Desktop",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535167",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535272,
+          "name": "Gate 1 Ikarus Unified Runtime Admission",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535272",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        }
+      ],
+      "windows_gui": {
+        "job_id": 101987630819,
+        "completed_at": "2026-09-08T08:37:19Z",
+        "passed": 257,
+        "failed": 0,
+        "skipped": 0,
+        "artifact_id": 10047554827,
+        "server_entry": "daedalus web (the documented entry point)",
+        "receipt_archive": "final-ci-9867-other-gui-artifacts-cockpit-evidence.json.gz",
+        "receipt_sha256": "6a528b6c06acd88237c7492f45cd81430a54407a7338c73b910e3e7e727f06df",
+        "limit": "This CI artifact retains the aggregate receipt, not individual Playwright reports or screenshots; the full GUI job log is archived separately."
+      },
+      "windows_runtime_each": {
+        "python_versions": [
+          "3.10",
+          "3.12"
+        ],
+        "passed": 602,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 8,
+        "junit_tests": 610
+      },
+      "linux_runtime": {
+        "run_id": 34203535272,
+        "source_commit": "5d6c82ad09b7362e57541c112038465d8158b49b",
+        "lanes": [
+          {
+            "python": "3.10",
+            "job_id": 101987630907,
+            "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535272/job/101987630907",
+            "completed_at": "2026-09-08T08:17:44Z",
+            "passed": 600,
+            "failed": 0,
+            "errors": 0,
+            "skipped": 4,
+            "passing_subtests": 6,
+            "focused_actual_testcase_elements": 604,
+            "focused_junit_suite_attributes": {
+              "tests": 610,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 4
+            },
+            "http_genesis": {
+              "tests": 54,
+              "passed": 54,
+              "failed": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            "live_oci": {
+              "test": "test_live_linux_container_writes_workspace_but_not_root_and_has_no_network",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0,
+              "proc_self_status": {
+                "CapEff": "0000000000000000",
+                "CapBnd": "0000000000000000",
+                "NoNewPrivs": "1"
+              }
+            },
+            "podman_version": "4.9.3",
+            "rootless": true,
+            "artifact_id": 10046848225
+          },
+          {
+            "python": "3.12",
+            "job_id": 101987630916,
+            "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535272/job/101987630916",
+            "completed_at": "2026-09-08T08:18:01Z",
+            "passed": 600,
+            "failed": 0,
+            "errors": 0,
+            "skipped": 4,
+            "passing_subtests": 6,
+            "focused_actual_testcase_elements": 604,
+            "focused_junit_suite_attributes": {
+              "tests": 610,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 4
+            },
+            "http_genesis": {
+              "tests": 54,
+              "passed": 54,
+              "failed": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            "live_oci": {
+              "test": "test_live_linux_container_writes_workspace_but_not_root_and_has_no_network",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0,
+              "proc_self_status": {
+                "CapEff": "0000000000000000",
+                "CapBnd": "0000000000000000",
+                "NoNewPrivs": "1"
+              }
+            },
+            "podman_version": "4.9.3",
+            "rootless": true,
+            "artifact_id": 10046857464
+          }
+        ],
+        "count_clarification": "The pytest logs report 600 passed, 4 skipped and 6 passing subtests per lane. JUnit tests=610 includes those subtests; its 604 actual testcase elements do not represent 606 ordinary passes. The earlier before-count-clarification record remains archived as superseded count interpretation.",
+        "live_evidence_scope": "One unskipped real OCI confinement test per lane measures zero CapEff/CapBnd, NoNewPrivs=1, allowed workspace writes, refused root writes and unavailable networking. All 54 HTTP Genesis cases pass in each lane. The created-container inspect artifact is pre-start configuration evidence; live procfs and effects are checked by the passing live test and its retained output."
+      },
+      "tauri_linux_pr": {
+        "job_id": 101987630219,
+        "conclusion": "success",
+        "completed_at": "2026-09-08T08:24:57Z",
+        "artifacts": [
+          {
+            "id": 10047106157,
+            "name": "daedalus-desktop-pr-linux-amd64-appimage",
+            "digest": "sha256:ea6eba2d88a39498eb84eb1e2728d9277c95f0c1b17753ad9685405382688d71",
+            "size_in_bytes": 195410596
+          },
+          {
+            "id": 10047104260,
+            "name": "daedalus-desktop-pr-linux-amd64-deb",
+            "digest": "sha256:0bb2fa84eac07e662fc391e58bc4fb7896021558294a2ec5f7d7d9fb99703408",
+            "size_in_bytes": 127664362
+          }
+        ],
+        "local_retention": "Artifact IDs, archive digests and full PR job log are retained. The Debian and AppImage binaries were not downloaded into this evidence directory."
+      },
+      "release_limit": "The manual full-suite and release/publication jobs were conditionally skipped for this pull request. They are not reported as passes or as release acceptance."
+    },
+    "main_integration": {
+      "pull_request": "https://github.com/KTY137/daedalus/pull/318",
+      "base": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+      "merge_commit": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+      "merged_at": "2026-09-08T08:39:34Z",
+      "state": "MERGED",
+      "accepted_source_tree": "175e88e261acec5dca558a315da776141c33b308",
+      "merge_tree": "175e88e261acec5dca558a315da776141c33b308",
+      "merge_tree_identical_to_accepted_source": true,
+      "authorization": "repository owner requested integrating reviewed GitHub branch work into main in this session",
+      "fast_forward_and_wip_proof": {
+        "merge": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+        "source_head": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+        "merge_tree_identical_to_accepted_source": true,
+        "main_user_status_preserved": "M vault/Sessions/2026-09-06.md",
+        "user_file_sha256": "8c39bf52aa056e507a0d0b16e7e2f12993d717d5fd48744d748fed1ff9236668",
+        "future_branch": "packet/g1-ignition-03-early-root-admission-20260908",
+        "future_base": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+        "untracked_packet_sha256_preserved": "c88a9f29ddedae058928aed4f749c28aadcb944fb82ad634cdf50af7405c2eb1"
+      },
+      "proof_archives": [
+        "main-merge-admission.json.gz",
+        "main-merge-result.json.gz",
+        "main-fast-forward-result.json.gz"
+      ]
+    },
+    "retention_verification": {
+      "existing_archives_verified": 154,
+      "new_archives": 61,
+      "total_archives": 215,
+      "original_and_archive_sha256_verified": true,
+      "new_gzip_mtime": 0,
+      "new_gzip_compresslevel": 9,
+      "new_gzip_repeat_bytes_identical": true,
+      "new_archive_files": [
+        "final-ci-9867-linux-evidence-before-count-clarification.json.gz",
+        "final-ci-9867-linux-evidence.json.gz",
+        "final-ci-9867-linux-status.json.gz",
+        "final-ci-9867-linux310-artifacts-candidate-container-inspect.json.gz",
+        "final-ci-9867-linux310-artifacts-dpkg-statoverrides.txt.gz",
+        "final-ci-9867-linux310-artifacts-focused.xml.gz",
+        "final-ci-9867-linux310-artifacts-linux-oci.xml.gz",
+        "final-ci-9867-linux310-artifacts-podman-image.json.gz",
+        "final-ci-9867-linux310-artifacts-podman-info.json.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-before.sha256.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-package-owner.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-package-version.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-resolved-path.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-stat-after.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-stat-before.txt.gz",
+        "final-ci-9867-linux310.log.gz",
+        "final-ci-9867-linux312-artifacts-candidate-container-inspect.json.gz",
+        "final-ci-9867-linux312-artifacts-dpkg-statoverrides.txt.gz",
+        "final-ci-9867-linux312-artifacts-focused.xml.gz",
+        "final-ci-9867-linux312-artifacts-linux-oci.xml.gz",
+        "final-ci-9867-linux312-artifacts-podman-image.json.gz",
+        "final-ci-9867-linux312-artifacts-podman-info.json.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-before.sha256.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-package-owner.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-package-version.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-resolved-path.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-stat-after.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-stat-before.txt.gz",
+        "final-ci-9867-linux312.log.gz",
+        "final-ci-9867-other-checks-current.json.gz",
+        "final-ci-9867-other-checks-history.jsonl.gz",
+        "final-ci-9867-other-gui-artifact-manifest.json.gz",
+        "final-ci-9867-other-gui-artifacts-cockpit-evidence.json.gz",
+        "final-ci-9867-other-gui-job-101987630819.log.gz",
+        "final-ci-9867-other-job-101987630219-current.json.gz",
+        "final-ci-9867-other-job-101987630819-current.json.gz",
+        "final-ci-9867-other-run-34203535097-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535097-jobs.json.gz",
+        "final-ci-9867-other-run-34203535097-run.json.gz",
+        "final-ci-9867-other-run-34203535121-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535121-jobs.json.gz",
+        "final-ci-9867-other-run-34203535121-run.json.gz",
+        "final-ci-9867-other-run-34203535145-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535145-jobs.json.gz",
+        "final-ci-9867-other-run-34203535145-run.json.gz",
+        "final-ci-9867-other-run-34203535167-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535167-jobs.json.gz",
+        "final-ci-9867-other-run-34203535167-run.json.gz",
+        "final-ci-9867-other-run-34203535272-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535272-jobs.json.gz",
+        "final-ci-9867-other-run-34203535272-run.json.gz",
+        "final-ci-9867-other-runtime-artifacts-current.json.gz",
+        "final-ci-9867-other-summary.json.gz",
+        "final-ci-9867-other-tauri-job-101987630219.log.gz",
+        "final-ci-9867-other-windows310-artifact-manifest.json.gz",
+        "final-ci-9867-other-windows310-artifacts-focused.xml.gz",
+        "final-ci-9867-other-windows312-artifact-manifest.json.gz",
+        "final-ci-9867-other-windows312-artifacts-focused.xml.gz",
+        "main-merge-admission.json.gz",
+        "main-merge-result.json.gz",
+        "main-fast-forward-result.json.gz"
+      ],
+      "source_file_list": "The 61 appended artifacts entries bind every new archive to its exact original path and SHA256."
+    },
+    "gate_transition": false
   }
 }

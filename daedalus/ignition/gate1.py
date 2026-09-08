@@ -58,13 +58,15 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping, Sequence
+from uuid import uuid4
 
 import daedalus.spine.picker as spine_picker
 from daedalus.build import BuildSession, BuildTask, Wave
@@ -87,6 +89,11 @@ from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
 from daedalus.limit_policy import ExecutionLimitPolicy
 from daedalus.orchestration.execution.attempts import (
     compose_task_attempt as TaskAttempt,
+)
+from daedalus.primary_tree import (
+    PlannedRootRelation,
+    compare_planned_roots,
+    planned_overlap_reason,
 )
 from daedalus.schemas import (
     ContractProvenance,
@@ -177,6 +184,141 @@ _WORD = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(RETIRED_SYMBOL)}(?![A-Za-z0-9_
 #: The only two directory names an artifact store root may contain. Anything
 #: else and :func:`_reset_evidence_store` refuses to delete it.
 _STORE_ENTRIES = {"blobs", "locators"}
+
+
+def _admit_ignition_path(
+    value: str | Path, role: str, *, existing: bool = False, file: bool = False,
+) -> Path:
+    """Inspect raw components before resolution can erase a redirect spelling.
+
+    This is read-only entry admission, not protection against subsequent path
+    replacement. Directory geometry belongs to primary_tree, not this helper.
+    """
+    try:
+        text = os.fspath(value)
+        if not isinstance(text, str) or not text.strip() or "\0" in text:
+            raise ValueError("an explicit nonempty path is required")
+        path = Path(text).expanduser()
+        if os.name == "nt":
+            if path.drive and (not re.fullmatch(r"[A-Za-z]:", path.drive) or not path.root):
+                raise ValueError("only ordinary local drive paths are admitted")
+            for part in path.parts[1:] if path.anchor else path.parts:
+                if part in {".", ".."}:
+                    continue
+                if (part.endswith((".", " ")) or PureWindowsPath(part).is_reserved()
+                        or any(char in '<>:"|?*' or ord(char) < 32 for char in part)):
+                    raise ValueError("ambiguous or reserved Windows path component")
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        cursor = Path(path.anchor)
+        components = [cursor]
+        for part in path.parts[1:]:
+            cursor = cursor / part
+            components.append(cursor)
+        for index, component in enumerate(components):
+            try:
+                info = component.lstat()
+            except FileNotFoundError:
+                continue
+            if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                raise ValueError("linked paths and reparse points are refused")
+            file_leaf = file and index == len(components) - 1
+            if file_leaf:
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise ValueError("the output file must be regular and have one link")
+            elif not stat.S_ISDIR(info.st_mode):
+                raise ValueError("an existing path component is not a directory")
+        return path.resolve(strict=existing)
+    except (OSError, ValueError, TypeError, RuntimeError) as exc:
+        raise IgnitionError(f"ignition {role} path is not admitted: {exc}") from exc
+
+
+def _require_separate_from_existing(
+    target: Path, role: str, protected: Path, protected_role: str,
+) -> None:
+    reason = planned_overlap_reason(target, protected)
+    if reason is not None:
+        raise IgnitionError(f"ignition {role} conflicts with {protected_role}: {reason}")
+
+
+def _require_separate_roots(
+    left: Path, left_role: str, right: Path, right_role: str, *, right_is_file: bool = False,
+) -> None:
+    relation = compare_planned_roots(left, right, right_is_file=right_is_file)
+    if relation is not PlannedRootRelation.DISJOINT:
+        raise IgnitionError(
+            f"ignition {left_role} conflicts with {right_role}: {relation.value}"
+        )
+
+
+def _prospective_ignition_workspace() -> Path:
+    """Choose one prospective leaf without tempfile's create/delete probes."""
+    configured = next((os.environ[key] for key in ("TMPDIR", "TEMP", "TMP") if key in os.environ), None)
+    if configured is None:
+        configured = tempfile.tempdir
+    if configured is None:
+        configured = Path.home() / "AppData" / "Local" / "Temp" if os.name == "nt" else Path("/tmp")
+    parent = _admit_ignition_path(configured, "temporary parent", existing=True)
+    return parent / f"daedalus-ignition-{uuid4().hex}"
+
+
+@dataclass(frozen=True)
+class _IgnitionLayout:
+    fixture: Path
+    receipt_root: Path
+    evidence_root: Path
+    source_tree_root: Path
+    workspace: Path
+    automatic_workspace: bool
+
+
+def _admit_ignition_layout(
+    fixture_root: str | Path, receipt_root: str | Path,
+    workspace: str | Path | None, source_tree_store_root: str | Path | None,
+) -> _IgnitionLayout:
+    """Admit all effective roots before reset, allocation, copy or dispatch."""
+    fixture = _admit_ignition_path(fixture_root, "source", existing=True)
+    receipts = _admit_ignition_path(receipt_root, "receipts")
+    installation = _admit_ignition_path(ROOT, "installation", existing=True)
+    automatic = workspace is None
+    scratch = _admit_ignition_path(
+        _prospective_ignition_workspace() if automatic else workspace, "workspace",
+    )
+    mission = _admit_ignition_path(receipts / SESSION_MISSION_ID, "mission outputs")
+    evidence = _admit_ignition_path(mission / "store", "evidence")
+    source_trees = _admit_ignition_path(
+        mission / "source-trees" if source_tree_store_root is None else source_tree_store_root,
+        "source CAS",
+    )
+    bundle = _admit_ignition_path(mission / "bundle", "bundle")
+    receipt = _admit_ignition_path(mission / "receipt.json", "receipt", file=True)
+    derived = [
+        (mission, "mission outputs"), (evidence, "evidence"), (bundle, "bundle"),
+        (receipt, "receipt"),
+        (_admit_ignition_path(source_trees / "objects", "source CAS objects"), "source CAS objects"),
+    ]
+    for name in sorted(_STORE_ENTRIES):
+        derived.append((_admit_ignition_path(evidence / name, f"evidence {name}"), f"evidence {name}"))
+    for target, role in [(scratch, "workspace"), (receipts, "receipts"), (source_trees, "source CAS"), *derived]:
+        _require_separate_from_existing(target, role, fixture, "source")
+    _require_separate_from_existing(scratch, "workspace", installation, "installation")
+    _require_separate_roots(scratch, "workspace", receipts, "receipts")
+    _require_separate_roots(scratch, "workspace", source_trees, "source CAS")
+    _require_separate_roots(source_trees, "source CAS", evidence, "evidence")
+    _require_separate_roots(source_trees, "source CAS", bundle, "bundle")
+    _require_separate_roots(source_trees, "source CAS", receipt, "receipt", right_is_file=True)
+    relation = compare_planned_roots(source_trees, receipts)
+    if relation not in (PlannedRootRelation.DISJOINT, PlannedRootRelation.INSIDE):
+        raise IgnitionError(f"ignition source CAS conflicts with receipts: {relation.value}")
+    try:
+        if scratch.exists():
+            if automatic:
+                raise IgnitionError("ignition automatic workspace must not already exist")
+            if next(scratch.iterdir(), None) is not None:
+                raise IgnitionError("ignition workspace must be empty")
+    except OSError as exc:
+        raise IgnitionError(f"ignition workspace cannot be inspected: {exc}") from exc
+    return _IgnitionLayout(fixture, receipts, evidence, source_trees, scratch, automatic)
 
 
 def _reset_evidence_store(store_root: Path) -> Path:
@@ -379,8 +521,11 @@ def prepare_ignition_repo(
     every declared ``target_paths``.
     """
 
-    fixture = Path(fixture_root).resolve()
-    repo = Path(destination).resolve()
+    fixture = _admit_ignition_path(fixture_root, "source", existing=True)
+    repo = _admit_ignition_path(destination, "preparation destination")
+    installation = _admit_ignition_path(ROOT, "installation", existing=True)
+    _require_separate_from_existing(repo, "preparation destination", fixture, "source")
+    _require_separate_from_existing(repo, "preparation destination", installation, "installation")
     if repo.exists():
         raise IgnitionError("ignition target repository must not already exist")
     shutil.copytree(fixture, repo)
@@ -752,18 +897,17 @@ def run_gate1_ignition(
     if campaign_seed is not None and not campaign_id:
         raise ValueError("campaign_seed requires campaign_id")
     collected_at = collected_at or _now()
-    fixture = Path(fixture_root).resolve()
+    layout = _admit_ignition_layout(fixture_root, receipt_root, workspace, source_tree_store_root)
+    fixture = layout.fixture
     fixture_digest_before = tree_digest(fixture)
-    receipt_dir = Path(receipt_root).resolve()
+    receipt_dir = layout.receipt_root
     # ONE MISSION, ONE RECEIPT, ONE STORE. The receipt is overwritten by a
     # replay, so a store shared across runs would keep evidence blobs no
     # surviving receipt points at -- and pytest output carries its own duration,
     # so every run adds new ones forever. Resetting it here keeps the store and
     # the receipt describing the same run.
-    store_root = _reset_evidence_store(receipt_dir / SESSION_MISSION_ID / "store")
-    tree_store_root = Path(source_tree_store_root).resolve() if source_tree_store_root else (
-        receipt_dir / SESSION_MISSION_ID / "source-trees"
-    )
+    store_root = _reset_evidence_store(layout.evidence_root)
+    tree_store_root = layout.source_tree_root
     source_tree_store = SourceTreeStore(tree_store_root)
     blockers: list[str] = []
     started_at = time.monotonic()
@@ -788,10 +932,8 @@ def run_gate1_ignition(
     )
     blockers.extend(ignition_bundle.bundle_blockers(evaluator_bundle))
 
-    scratch = Path(workspace) if workspace else Path(
-        tempfile.mkdtemp(prefix="daedalus-ignition-")
-    )
-    scratch.mkdir(parents=True, exist_ok=True)
+    scratch = layout.workspace
+    scratch.mkdir(mode=0o700, parents=True, exist_ok=not layout.automatic_workspace)
     try:
         repo, base_revision = prepare_ignition_repo(fixture, scratch / "target")
 

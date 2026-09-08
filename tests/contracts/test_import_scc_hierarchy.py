@@ -480,7 +480,11 @@ CENSUS_MODULES = 485  # re-measured 2026-09-08; cancellation owner and Hermes co
 # and twin.relation_projection no longer import spine.envelope.
 # Re-measured against frozen main 1ba5b66f: all fourteen exact components,
 # maximum size nineteen, and CURRENT_COMPONENTS_SHA256 are byte-identical.
-CENSUS_EDGES = 1930
+# G1-IGNITION-03: a complete comparison against accepted main bf69e719 measures
+# one added edge, ignition.gate1 -> primary_tree, and no removed edge/module.
+# All 485 modules, fourteen SCCs, maximum nineteen, exact memberships and the
+# component digest above remain unchanged.
+CENSUS_EDGES = 1931
 
 
 def _module_name(path: str) -> str:

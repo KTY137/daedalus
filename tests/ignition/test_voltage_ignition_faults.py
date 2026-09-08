@@ -11,10 +11,9 @@ WHAT CHANGED IN G1-RENOVATION-02A. Every row above used to be asserted about
 ``python -m daedalus.ignition`` does not call. The rows are unchanged; the
 subject is now ``run_gate1_ignition``, and where the shipped path refuses
 differently the difference is asserted as measured rather than assumed. One
-such difference is recorded as an OPEN row in
-``docs/work-packets/G1_ACTIVATION_CHECKLIST.md`` §2.3 (F5): the door detects a
-non-isolated workspace with its tree-digest tripwire AFTER the run, where the
-rehearsal refused before the first write.
+difference was the late, dirty F5 refusal, retained as the negative baseline
+in G1-IGNITION-03. The shipped door now admits its layout before writing;
+these rows assert early source and prior-evidence preservation.
 """
 from __future__ import annotations
 
@@ -71,21 +70,26 @@ def test_restart_over_debris_refuses_and_a_fresh_root_replays_identically(
     debris.mkdir(parents=True)
     (debris / "partial.py").write_text("leftover = True\n", encoding="utf-8")
     fixture_before = tree_digest(FIXTURE)
+    mission = tmp_path / "receipts" / gate1.SESSION_MISSION_ID
+    for name in ("store/blobs", "store/locators", "source-trees/objects"):
+        directory = mission / name
+        directory.mkdir(parents=True)
+        (directory / "prior").write_bytes(b"retained evidence")
+    (mission / "receipt.json").write_bytes(b'{"previous":true}\n')
+    retained_before = _file_map(mission)
 
-    with pytest.raises(IgnitionError, match="must not already exist"):
+    with pytest.raises(IgnitionError, match="workspace must be empty"):
         door(
             receipt_root=tmp_path / "receipts",
             workspace=workspace,
         )
 
     # the refusal itself performed no effect: debris kept, fixture untouched,
-    # no receipt written
+    # prior receipts and evidence retained
     assert (debris / "partial.py").read_text(encoding="utf-8") == "leftover = True\n"
     assert sorted(p.name for p in debris.iterdir()) == ["partial.py"]
     assert tree_digest(FIXTURE) == fixture_before
-    assert not (
-        tmp_path / "receipts" / gate1.SESSION_MISSION_ID / "receipt.json"
-    ).exists(), "a refused run must not leave a receipt claiming a Gate-1 result"
+    assert _file_map(mission) == retained_before
 
     # the second materialising step refuses the same way
     with pytest.raises(IgnitionError, match="candidate root must not already exist"):
@@ -104,47 +108,18 @@ def test_restart_over_debris_refuses_and_a_fresh_root_replays_identically(
 def test_a_workspace_nested_inside_the_source_is_refused(
     tmp_path: Path, door
 ) -> None:
-    """A workspace that is not isolated from the source tree is refused.
+    """The real shipped F5 invocation refuses before leaving any scratch debris.
 
-    THE SHIPPED PATH REFUSES LATER THAN THE REHEARSAL DID, and this row says so
-    rather than implying parity. ``run_voltage_ignition`` compared the candidate
-    root against the source up front (``candidate == source or source in
-    candidate.parents``) and refused before the first write.
-    ``run_gate1_ignition`` has no such precondition: it measures the fixture's
-    tree digest before and after (``gate1.py:727``, ``gate1.py:1280``) and
-    raises when it moved.
-
-    MEASURED 2026-09-06: the run completes, writes ``target/``, ``candidate/``,
-    ``controls/`` and ``coverage/`` INTO the fixture root, and only then raises
-    ``the fixture tree changed while the slice ran``. Every declared file of the
-    fixture survives byte-identical -- the tripwire is real and the source is
-    not corrupted -- but the refusal is late and it is dirty. Recorded as OPEN
-    row F5 in ``docs/work-packets/G1_ACTIVATION_CHECKLIST.md`` §2.3; asserting
-    an early refusal here would assert a guard the shipped path does not have.
+    G1-IGNITION-03 retains the original late-pollution baseline. This is still
+    entry-time admission, not a same-attempt recovery or concurrent-swap claim.
     """
 
     source = _fixture_copy(tmp_path)
     declared_before = _file_map(source)
-
-    with pytest.raises(IgnitionError, match="the fixture tree changed while the slice ran"):
-        door(
-            fixture_root=source,
-            receipt_root=tmp_path / "receipts",
-            workspace=source,          # <-- not isolated from the source
-        )
-
-    # the source's own files are intact: the tripwire caught a real change and
-    # nothing rewrote the target project
-    declared_after = _file_map(source)
-    for rel, blob in declared_before.items():
-        assert declared_after.get(rel) == blob, rel
-
-    # ...and the measured residual: the refusal is late, so scratch debris was
-    # written into the source root before it fired
-    assert sorted(set(declared_after) - set(declared_before)) != [], (
-        "if the door ever refuses BEFORE writing, this row becomes the stronger "
-        "assertion the rehearsal made and checklist §2.3 row F5 closes"
-    )
+    with pytest.raises(IgnitionError, match="workspace conflicts with source"):
+        door(fixture_root=source, receipt_root=tmp_path / "receipts", workspace=source)
+    assert _file_map(source) == declared_before
+    assert not (tmp_path / "receipts").exists()
 
 
 def test_base_whose_claims_do_not_hold_cannot_even_compile(
@@ -318,7 +293,7 @@ def test_crash_between_rename_writes_leaves_no_evaluable_candidate(
     assert tree_digest(FIXTURE) == fixture_before
 
     # the partial workspace is never reused: restart over it refuses...
-    with pytest.raises(IgnitionError, match="must not already exist"):
+    with pytest.raises(IgnitionError, match="workspace must be empty"):
         door(
             fixture_root=source,
             receipt_root=tmp_path / "receipts",

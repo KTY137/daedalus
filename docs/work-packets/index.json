@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 468,
+    "assigned_artifacts": 469,
     "legacy_artifacts": 204,
-    "packet_artifacts": 470,
-    "packet_ids": 405,
-    "post_index_artifacts": 266,
+    "packet_artifacts": 471,
+    "packet_ids": 406,
+    "post_index_artifacts": 267,
     "registry_artifacts": 1,
-    "tracked_files": 471,
+    "tracked_files": 472,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -4918,6 +4918,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IGNITION-03_EARLY_ROOT_ADMISSION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+        "classification": "ALIGNED",
+        "dependencies": "G1-INTEGRATION-01 main integration and combined acceptance; G1-RENOVATION-02A shipped-door fault matrix; existing primary_tree containment primitive",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IGNITION-03",
+      "primary_artifact": "docs/work-packets/G1-IGNITION-03_EARLY_ROOT_ADMISSION.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-01-supervisor-slice.md"
       ],
       "metadata": {
@@ -9258,6 +9274,20 @@
       "format": "markdown",
       "packet_id": "G1-IFACE-HTTP-04",
       "path": "docs/work-packets/G1-IFACE-HTTP-04_RESPONSE_DISCONNECT_BOUNDARY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IGNITION-03",
+      "path": "docs/work-packets/G1-IGNITION-03_EARLY_ROOT_ADMISSION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
