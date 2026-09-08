@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 
 import daedalus.core as core
+import daedalus.kernel.runtime_authorization_issuer as legacy_runtime_admission
 import daedalus.providers as providers
 import daedalus.runtime_registry as registry
+import daedalus.runtimes.admission as runtime_admission
+import daedalus.runtimes.admission.authorization as runtime_authorization
 
 
 def test_shared_claude_spawn_admission_accepts_native_and_posix() -> None:
@@ -149,3 +153,27 @@ def test_core_provider_health_surfaces_canonical_claude_dispatch_refusal(monkeyp
     assert payload["providers"] == rows
     assert payload["warnings"] == [f"Claude lane unavailable: {refusal}"]
     assert all("not on PATH" not in warning for warning in payload["warnings"])
+
+
+_RUNTIME_ADMISSION_API = (
+    "RUNTIME_AUTHORITY_KEY_ID",
+    "RUNTIME_LEASE_KEY_ID",
+    "acquire_runtime_bound_authorization",
+    "runtime_trust_ledger",
+    "runtime_trust_ledger_path",
+)
+
+
+@pytest.mark.parametrize("name", _RUNTIME_ADMISSION_API)
+def test_runtime_admission_has_one_canonical_owner(name: str) -> None:
+    assert getattr(legacy_runtime_admission, name) is getattr(runtime_admission, name)
+
+
+def test_kernel_runtime_admission_path_is_compatibility_only() -> None:
+    legacy_source = Path(legacy_runtime_admission.__file__).read_text(encoding="utf-8")
+    owner_source = Path(runtime_authorization.__file__).read_text(encoding="utf-8")
+
+    assert "def acquire_runtime_bound_authorization(" not in legacy_source
+    assert "RuntimeBoundEffectAuthorization(" not in legacy_source
+    assert owner_source.count("def acquire_runtime_bound_authorization(") == 1
+    assert owner_source.count("RuntimeBoundEffectAuthorization(") == 1
