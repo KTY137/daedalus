@@ -40,6 +40,21 @@ class _DeclaredEmptyBlocks(Sequence[tuple[str, TypedRelationBlock[bool]]]):
         raise AssertionError("declared-empty block catalog iterator was consumed")
 
 
+class _InvalidFirstBlocks(Sequence[object]):
+    def __len__(self) -> int:
+        return 2
+
+    def __getitem__(self, index: int) -> object:
+        if index == 0:
+            return ("", object())
+        raise AssertionError(
+            "receipt validation eagerly materialized a later declared block"
+        )
+
+    def __iter__(self) -> Iterator[object]:
+        raise AssertionError("invalid block catalog iterator was consumed")
+
+
 class _UnboundedBlocks:
     def __iter__(self) -> Iterator[tuple[str, TypedRelationBlock[bool]]]:
         raise AssertionError("unbounded block iterable was consumed")
@@ -72,3 +87,11 @@ def test_compiled_receipt_materializes_only_declared_sequence_cardinality() -> N
     receipt = _receipt(_DeclaredEmptyBlocks())
 
     assert receipt.blocks == ()
+
+
+def test_compiled_receipt_validates_each_item_before_reading_the_next() -> None:
+    with pytest.raises(
+        ValueError,
+        match="compiled block names must be non-empty strings",
+    ):
+        _receipt(_InvalidFirstBlocks())
