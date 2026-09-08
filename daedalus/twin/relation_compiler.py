@@ -535,6 +535,7 @@ def compile_relation_blocks(
     }
 
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
+    semantic_fact_count = 0
     for signature in selected:
         entries = facts.get(signature, {})
         if retain_evidence:
@@ -550,13 +551,14 @@ def compile_relation_blocks(
             semiring,
         )
         compiled.append((relation_block_name(signature), block))
+        semantic_fact_count += block.entry_count
 
     return CompiledRelationBlocks(
         subject=subject,
         semiring_name=observer_name,
         source_forest_sha256=forest_digest,
         blocks=tuple(compiled),
-        semantic_fact_count=sum(block.entry_count for _, block in compiled),
+        semantic_fact_count=semantic_fact_count,
         forest_edge_count=len(forest.edges),
         forest_hyperedge_count=len(forest.hyperedges),
         verified_binding_count=len(binding_records),
