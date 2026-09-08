@@ -39,6 +39,17 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+/**
+ * Bound identity fields are evidence, not free-form UI text. Accept them only
+ * when the recorded bytes are already canonical. Trimming a project/lane/id at
+ * read time would silently display a different identity than the producer
+ * actually froze on the dispatch fact.
+ */
+function boundText(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value) return undefined;
+  return value === value.trim() ? value : undefined;
+}
+
 function integer(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
@@ -58,16 +69,17 @@ interface AcceptedDispatch extends DispatchPulseItem {
  * - a versioned identity snapshot bound to the dispatch is preferred because
  *   it survives the bounded conversation-turn window;
  * - recognized identity snapshots must name this exact project and carry a
- *   non-empty objective AND lane, otherwise they are rejected rather than
- *   presented as complete bound evidence;
- * - an unsupported identity schema is also rejected instead of falling back to
- *   an older turn whose attribution may no longer describe the bound dispatch;
+ *   non-empty objective AND lane, already in canonical byte form, otherwise
+ *   they are rejected rather than normalized into plausible bound evidence;
+ * - an unsupported or non-canonical identity schema is also rejected instead
+ *   of falling back to an older turn whose attribution may no longer describe
+ *   the bound dispatch;
  * - project-bound rejected identity snapshots increment `unresolved`, so a
  *   schema drift cannot masquerade as "no open work" in the cockpit;
  * - foreign or unattributed rejected snapshots never increment that counter,
  *   preserving the same fail-closed cross-project boundary as the item list;
  * - execution attribution (agent/tool/runtime/phase/WorkItem/Attempt) is copied
- *   only from the bound snapshot; legacy chat turns never manufacture it;
+ *   only from canonical bound fields; legacy chat turns never manufacture it;
  * - legacy dispatches with no identity schema may still derive lane/objective
  *   from their causal turn, with the existing cross-project checks preserved;
  * - `descriptionSource` keeps bound evidence distinct from that legacy
@@ -98,18 +110,19 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
     if (!ref) return;
 
     const detail = object(latest.detail);
-    const identitySchema = text(detail.schema);
-    if (identitySchema?.startsWith(DISPATCH_IDENTITY_PREFIX)) {
-      const identityProject = text(detail.project);
+    const rawIdentitySchema = typeof detail.schema === 'string' ? detail.schema : undefined;
+    const claimedIdentitySchema = rawIdentitySchema?.trim();
+    if (claimedIdentitySchema?.startsWith(DISPATCH_IDENTITY_PREFIX)) {
+      const identityProject = boundText(detail.project);
       if (identityProject !== project) return;
 
-      if (identitySchema !== DISPATCH_IDENTITY_SCHEMA) {
+      if (rawIdentitySchema !== claimedIdentitySchema || rawIdentitySchema !== DISPATCH_IDENTITY_SCHEMA) {
         unresolved += 1;
         return;
       }
 
-      const objective = text(detail.objective);
-      const lane = text(detail.lane);
+      const objective = boundText(detail.objective);
+      const lane = boundText(detail.lane);
       if (!objective || !lane) {
         unresolved += 1;
         return;
@@ -122,12 +135,12 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
         description: objective,
         descriptionSource: 'bound',
         lane,
-        workItemId: text(detail.work_item_id),
-        attemptId: text(detail.attempt_id),
-        agent: text(detail.agent),
-        tool: text(detail.tool),
-        runtimeId: text(detail.runtime_id),
-        phase: text(detail.phase),
+        workItemId: boundText(detail.work_item_id),
+        attemptId: boundText(detail.attempt_id),
+        agent: boundText(detail.agent),
+        tool: boundText(detail.tool),
+        runtimeId: boundText(detail.runtime_id),
+        phase: boundText(detail.phase),
         order
       });
       return;
