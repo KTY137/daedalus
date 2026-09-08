@@ -4800,6 +4800,7 @@ for `ignition/gate1.py`, and
 for `kernel/fourfold_evidence.py`. This census establishes no Gate closure.
 
 ### Project-registry self-row remeasurement (2026-09-08)
+### Leakage-boundary remeasurement (2026-09-08)
 
 The complete declared s02 probe ran twice with the unchanged repository-venv
 CPython 3.12.13 command
@@ -4807,6 +4808,9 @@ CPython 3.12.13 command
 `db38a762991b04cbc96c3cbed5209d6a517fa611` plus the frozen `G1-PROJECTS-01`
 change to `daedalus/foundation/projects.py`. All fields other than wall time
 and root path matched across both complete outputs; all six corpora remain
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus the frozen `G1-ARIADNE-10`
+change to `daedalus/ariadne/campaign.py`. All fields other than wall time and
+root path matched across both complete outputs; all six corpora remain
 declared, five are present, and the absent corpus still records its reason.
 
 | Corpus | Measured result |
@@ -4824,5 +4828,19 @@ and measured rows above remain unchanged.
 
 Raw complete outputs are `s02-g1-projects-01-corpora-a.json.gz` and
 `s02-g1-projects-01-corpora-b.json.gz` under `docs/evidence/G1-PROJECTS-01`,
+| kernel | 485 parsed files, 6,779 functions; annotation-only 94.35%; full resolver 94.23%; marginal 8 functions / 0.1180 pp; 45,197 type-name sites, resolution 99.93%; verified internal 4,053 / 4,478 (90.51%); 425 named-only internal sites |
+| source pin | `84ee13a13fc2fc65e9f6233a6ff7f649e8c73d04f64c49c735eb1d9f691839ea` |
+
+Against the row pinned at `db38a762` (6,778 functions, 45,190 type-name sites)
+the one additional function is `protected_prefix_for` in `ariadne/campaign.py`
+and type-name sites increase by seven (the tuple annotation and the helper's
+signature). Every rate and every other count is unchanged. This is a changed
+source corpus under the same probe, not measured resolver improvement. The
+fixed fixture's 15.7895 pp marginal contribution still exceeds this kernel row
+by more than two orders of magnitude. All prior retractions, failed
+expectations and measured rows above remain unchanged.
+
+Raw complete outputs are `s02-g1-ariadne-10-corpora-a.json.gz` and
+`s02-g1-ariadne-10-corpora-b.json.gz` under `docs/evidence/G1-ARIADNE-10`,
 with SHA256 values in `acceptance.json` beside them. This census establishes
 no Gate closure.

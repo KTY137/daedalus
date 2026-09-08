@@ -255,6 +255,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
     payload = _index()
     packets = {packet["packet_id"]: packet for packet in payload["packets"]}
     expected_primary_ids = {
+        "G1-ARIADNE-10",
         "G1-IGNITION-04",
         "G1-IGNITION-03",
         "G1-ACCEL-01",
