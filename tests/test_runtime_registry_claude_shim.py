@@ -177,6 +177,8 @@ def test_kernel_runtime_admission_path_is_compatibility_only() -> None:
     assert "RuntimeBoundEffectAuthorization(" not in legacy_source
     assert owner_source.count("def acquire_runtime_bound_authorization(") == 1
     assert owner_source.count("RuntimeBoundEffectAuthorization(") == 1
+
+
 def test_ikarus_scheduler_claude_availability_requires_canonical_dispatch(monkeypatch) -> None:
     monkeypatch.setattr(
         "daedalus.doctor.check",
@@ -196,6 +198,30 @@ def test_ikarus_scheduler_claude_availability_requires_canonical_dispatch(monkey
     assert availability["claude_cli"] is False
     assert availability["ollama"] is True
     probe.assert_called_once_with("claude_cli")
+
+
+def test_ikarus_scheduler_binary_presence_cannot_override_dispatch_refusal(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "daedalus.doctor.check",
+        lambda: {
+            "claude_cli": True,
+            "can_offload_local": False,
+            "deepseek_key": False,
+            "codex_cli": False,
+        },
+    )
+    with mock.patch(
+        "daedalus.providers._availability_probe",
+        return_value=(False, "provider.claude wiring=inventory_only"),
+    ):
+        availability = core._availability_from_doctor()
+
+    assert availability == {
+        "claude_cli": False,
+        "ollama": False,
+        "deepseek": False,
+        "codex_cli": False,
+    }
 
 
 def test_core_claude_fallback_never_invokes_unsealed_public_bridge(monkeypatch) -> None:
@@ -219,4 +245,3 @@ def test_core_claude_fallback_never_invokes_unsealed_public_bridge(monkeypatch) 
     assert report["lane"] == "claude"
     assert "ClaudeSealedInvocationBundle" in report["error"]
     assert "blocked before provider invocation" in report["error"]
-
