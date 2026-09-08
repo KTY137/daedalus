@@ -18,6 +18,8 @@ Task shape::
       "answer_contains":  [substring, ...]              # Tier 2 success labels
       "label_provenance": how ``must_include`` was derived -- see below,
       "tier":             "primary" | "quarantine" -- see below,
+      "label_derivation": closed-grammar recipe for "artifact_parsed" tasks
+                          (optional; see LABEL DERIVATION below),
     }
 
 Honesty note: ``must_include`` items are matched as substrings against the
