@@ -24,6 +24,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from daedalus.eval import harness, report
+from daedalus.eval import tasks as eval_tasks
 from daedalus.eval.tasks import TASKS, task_project_label
 
 
@@ -632,6 +633,230 @@ class BaselineWriteIsExplicitOnlyTest(unittest.TestCase):
         rc2 = eval_main.main(["--gate", "--project", "sunny_garden",
                               "--baseline-path", self.baseline_path])
         self.assertEqual(rc2, 0)  # self-consistent: just wrote it, must PASS
+
+
+# --------------------------------------------------------------------------- #
+# 5. Plane-aware retrieval and the PLANE-UNINDEXED row (G1-EVAL-CORPUS-01)     #
+# --------------------------------------------------------------------------- #
+FIXTURE = eval_tasks.FOURFOLD_WIKI_FIXTURE
+_ARTIFACT_PARSED = [t for t in TASKS if t.get("label_provenance") == "artifact_parsed"]
+CSV_TASK = next(t for t in _ARTIFACT_PARSED if t["id"] == "fourfold_articles_csv")
+
+
+class RepoChunksPlanesTest(unittest.TestCase):
+    """The default must not move; the extension must not leak into it."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _write(self.root, "proj/core.py", CORE)
+        _write(self.root, "proj/app.py", APP)
+        _write(self.root, "notes/README.md", "# Notes\n\nSome prose about core.\n")
+        _write(self.root, "data/rows.csv", "id,name\n1,alpha\n")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_default_is_exactly_the_code_plane(self):
+        self.assertEqual(harness._repo_chunks(str(self.root)),
+                         harness._repo_chunks(str(self.root), planes=("code",)))
+
+    def test_default_chunks_are_code_files_only(self):
+        labels = [lbl for lbl, _ in harness._repo_chunks(str(self.root))]
+        self.assertTrue(labels)
+        for label in labels:
+            self.assertIn(".py", label)
+
+    def test_whole_repo_text_is_untouched_by_the_new_parameter(self):
+        # The compression DENOMINATOR must not move for any repo: nothing in
+        # _whole_repo_text learned about planes.
+        text_before, truncated = harness._whole_repo_text(str(self.root))
+        harness._repo_chunks(str(self.root), planes=("code", "data", "knowledge"))
+        text_after, truncated_after = harness._whole_repo_text(str(self.root))
+        self.assertEqual(text_before, text_after)
+        self.assertEqual((truncated, truncated_after), (False, False))
+        self.assertNotIn("rows.csv", text_before)
+        self.assertNotIn("README.md", text_before)
+
+    def test_data_and_knowledge_planes_add_their_own_chunks(self):
+        labels = dict(harness._repo_chunks(
+            str(self.root), planes=("code", "data", "knowledge")))
+        self.assertIn("data/rows.csv", labels)
+        self.assertEqual(labels["data/rows.csv"], "id,name\n1,alpha\n")
+        doc_labels = [lbl for lbl in labels if lbl.startswith("notes/README.md")]
+        self.assertTrue(doc_labels)
+        for lbl in doc_labels:
+            self.assertIn("::", lbl)
+
+    def test_unknown_and_type_planes_raise(self):
+        for plane in ("type", "graph", ""):
+            with self.subTest(plane=plane):
+                with self.assertRaises(ValueError):
+                    harness._repo_chunks(str(self.root), planes=(plane,))
+
+
+class FourfoldFixtureChunksTest(unittest.TestCase):
+    def test_the_fixture_yields_data_and_document_chunks_but_not_the_manifest(self):
+        chunks = harness._repo_chunks(FIXTURE, planes=("code", "data", "knowledge"))
+        labels = [lbl for lbl, _ in chunks]
+        self.assertIn("data/articles.csv", labels)
+        self.assertIn("schemas/article.schema.json", labels)
+        self.assertNotIn("fourfold.json", labels)
+        sections = [lbl for lbl in labels if lbl.startswith("wiki/Security.md::")]
+        self.assertEqual(sections, ["wiki/Security.md::security-model"])
+
+    def test_the_default_fixture_chunks_are_code_only(self):
+        labels = [lbl for lbl, _ in harness._repo_chunks(FIXTURE)]
+        self.assertTrue(labels)
+        for label in labels:
+            self.assertTrue(label.startswith("src/knowledge_hub/"), label)
+
+
+class PlaneUnindexedRowTest(unittest.TestCase):
+    """A row with no recall keys at all -- absent, not zero."""
+
+    def test_tier1_row_has_no_recall_keys(self):
+        row = harness.eval_task_tier1(CSV_TASK)
+        self.assertTrue(row["plane_unindexed"])
+        self.assertNotIn("recall", row)
+        self.assertNotIn("compression", row)
+        self.assertNotIn("missed", row)
+        self.assertNotIn("error", row)
+        self.assertIn("data-plane target", row["reason"])
+        self.assertEqual(row["label_provenance"], "artifact_parsed")
+        self.assertEqual(row["label_tier"], "primary")
+
+    def test_arms_row_has_no_arm_keys(self):
+        row = harness.eval_task_arms(CSV_TASK)
+        self.assertTrue(row["plane_unindexed"])
+        for key in ("recall_A", "recall_B", "recall_C", "tokens_A", "c_beats_a"):
+            self.assertNotIn(key, row)
+
+    def test_a_document_target_is_plane_unindexed_too(self):
+        doc_task = next(t for t in _ARTIFACT_PARSED
+                        if t["id"] == "fourfold_security_operations_link")
+        row = harness.eval_task_tier1(doc_task)
+        self.assertTrue(row["plane_unindexed"])
+        self.assertIn("document target", row["reason"])
+
+    def test_a_section_target_is_recognised_through_the_double_colon(self):
+        sec_task = next(t for t in _ARTIFACT_PARSED
+                        if t["id"] == "fourfold_adr_consequences_section")
+        row = harness.eval_task_tier1(sec_task)
+        self.assertTrue(row["plane_unindexed"])
+
+    def test_an_unindexable_non_plane_target_is_still_ERRORED(self):
+        # The refusal must stay narrow: a primary task pointing at a file the
+        # index simply does not contain has to keep failing loudly.
+        task = {"id": "toml_target", "label_provenance": "hand_reachable",
+                "tier": "primary", "repo": "fourfold_wiki_app",
+                "target": "pyproject.toml", "must_include": ["anything"]}
+        row = harness.eval_task_tier1(task)
+        self.assertIn("error", row)
+        self.assertNotIn("plane_unindexed", row)
+        result = harness.run_tier1([task])
+        self.assertEqual(result["n_errored_tasks"], 1)
+        self.assertEqual(result["n_plane_unindexed"], 0)
+        gate = harness.run_gate([task], baseline_path=str(Path(tempfile.gettempdir())
+                                                          / "does-not-exist-baseline.json"))
+        self.assertFalse(gate["passed"])   # primary + errored -> loud
+
+
+class PlaneUnindexedAggregationTest(unittest.TestCase):
+    def setUp(self):
+        self.tasks = list(_ARTIFACT_PARSED)
+
+    def test_run_tier1_counts_and_excludes_them(self):
+        result = harness.run_tier1(self.tasks)
+        self.assertEqual(result["n_tasks"], 4)
+        self.assertEqual(result["n_primary_tasks"], 4)
+        self.assertEqual(result["n_plane_unindexed"], 4)
+        self.assertEqual(result["plane_unindexed_ids"],
+                         sorted(t["id"] for t in self.tasks))
+        self.assertEqual(result["n_errored_tasks"], 0)
+        self.assertEqual(result["n_focus_withheld"], 0)
+        # Nothing was measured, so there is no provenance bucket at all --
+        # NOT a bucket with a 0.0 mean.
+        self.assertEqual(result["by_provenance"], {})
+
+    def test_run_arms_counts_and_excludes_them(self):
+        result = harness.run_arms(self.tasks)
+        self.assertEqual(result["n_plane_unindexed"], 4)
+        self.assertEqual(result["by_provenance"], {})
+
+    def test_an_aggregator_that_forgets_to_filter_fails_loudly(self):
+        # Same contract as the errored / focus-withheld rows: the absent
+        # recall key must raise, never read as a zero.
+        rows = harness.run_tier1(self.tasks)["per_task"]
+        with self.assertRaises(KeyError):
+            harness._by_provenance(rows, harness._tier1_aggregate)
+        with self.assertRaises(KeyError):
+            harness._by_provenance(harness.run_arms(self.tasks)["per_task"],
+                                    harness._arms_aggregate)
+
+    def test_gate_reports_them_and_does_not_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "baseline.json")
+            gate = harness.run_gate(self.tasks, baseline_path=path)
+        self.assertTrue(gate["passed"])
+        self.assertEqual(len(gate["plane_unindexed"]), 4)
+        self.assertEqual(gate["regressions"], [])
+        self.assertEqual(gate["new_tasks"], [])       # not "new", just unmeasurable
+        self.assertEqual(gate["errored_primary"], [])
+        self.assertEqual(gate["n_checked"], 0)
+
+    def test_snapshot_baseline_skips_them(self):
+        snap = harness.snapshot_baseline(self.tasks)
+        self.assertEqual(snap["tasks"], {})
+
+    def test_reports_render_the_plane_unindexed_section_ascii(self):
+        tier1 = harness.run_tier1(self.tasks)
+        text = report.render_tier1(tier1)
+        text.encode("ascii")
+        self.assertIn("PLANE-UNINDEXED (4)", text)
+        for task in self.tasks:
+            self.assertIn(task["id"], text)
+        arms_text = report.render_arms(harness.run_arms(self.tasks))
+        arms_text.encode("ascii")
+        self.assertIn("PLANE-UNINDEXED (4)", arms_text)
+        with tempfile.TemporaryDirectory() as tmp:
+            gate = harness.run_gate(self.tasks,
+                                     baseline_path=str(Path(tmp) / "baseline.json"))
+        gate_text = report.render_gate(gate)
+        gate_text.encode("ascii")
+        self.assertIn("PLANE-UNINDEXED (4)", gate_text)
+        self.assertIn("RESULT: PASS", gate_text)
+
+    def test_zero_plane_unindexed_adds_no_section(self):
+        sunny = [t for t in TASKS if task_project_label(t) == "sunny_garden"]
+        text = report.render_tier1(harness.run_tier1(sunny))
+        self.assertNotIn("PLANE-UNINDEXED", text)
+
+    def test_an_all_unmeasured_run_does_not_print_a_clean_bill_of_health(self):
+        # "SLICE-RECALL MISSES: none" on a run where nothing was sliced reads
+        # as a pass. It must not be printed when there is no healthy row.
+        text = report.render_tier1(harness.run_tier1(self.tasks))
+        self.assertIn("SLICE-RECALL MISSES: n/a", text)
+        self.assertNotIn("SLICE-RECALL MISSES: none", text)
+        arms_text = report.render_arms(harness.run_arms(self.tasks))
+        self.assertIn("A/B/C: n/a", arms_text)
+        self.assertNotIn("C never tied or beat", arms_text)
+
+    def test_a_measured_run_still_prints_the_old_summary_lines(self):
+        sunny = [t for t in TASKS if task_project_label(t) == "sunny_garden"]
+        text = report.render_tier1(harness.run_tier1(sunny))
+        self.assertIn("SLICE-RECALL MISSES: none", text)
+        self.assertNotIn("n/a", text)
+        arms_text = report.render_arms(harness.run_arms(sunny))
+        # On this fixture C ties A on every task, so the loud tie branch is the
+        # one that fires -- either way it is NOT the new "nothing ran" line.
+        self.assertIn("TIES OR BEATS", arms_text)
+        self.assertNotIn("A/B/C: n/a", arms_text)
+
+    def test_artifact_parsed_provenance_note_exists_and_disclaims_arm_a(self):
+        note = report._PROVENANCE_NOTE["artifact_parsed"]
+        self.assertIn("PARSER-DERIVED", note)
+        self.assertIn("NOT scored by arm A", note)
 
 
 if __name__ == "__main__":

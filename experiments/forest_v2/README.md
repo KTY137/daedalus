@@ -4798,3 +4798,55 @@ measurement. Frozen source SHA256:
 for `ignition/gate1.py`, and
 `1367e64484514968eb8b710da25d15bbcd021b3ed80a24a39309916105860d19`
 for `kernel/fourfold_evidence.py`. This census establishes no Gate closure.
+
+### Cross-plane eval corpus remeasurement (2026-09-08)
+
+On accepted main `db38a762991b04cbc96c3cbed5209d6a517fa611` plus the frozen
+`G1-EVAL-CORPUS-01` source, the same complete s02 command ran twice with the
+repository-venv CPython 3.12.13. All fields except `corpora[*].wall_seconds`
+and `corpora[*].root` matched; their canonical non-timing SHA256 is
+`b6e04216e2355df1c990bf017c73e7e1892de01037068d8f43f173034739f281`.
+All six corpora remain declared. Four are present in this interpreter's current
+installation; `third_party_typed` finds neither `fastapi` nor `anyio`, and
+`third_party_untyped` finds neither `bs4` nor `click`. Both absence reasons stay
+in the complete outputs. No packages were installed and no corpus was removed
+for this measurement.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 490 parsed files, 6,801 functions; annotation-only 94.35%; full resolver 94.24%; marginal 8 functions / 0.1176 pp; 45,296 type-name sites, resolution 99.93%; verified internal 4,059 / 4,484 (90.52%); 425 named-only internal sites |
+| source pin | `966aff674b23088e6ea830aa32e69594215b8b1655a384b2ecc3f92aac1fc57a` |
+
+The corpus grew because the packaged four-plane eval fixture
+`daedalus/eval/fixtures/fourfold_wiki_app/` contains five Python files
+(`src/knowledge_hub/{__init__,app,models,repository,search}.py`) and this probe
+censuses the whole `daedalus` package tree, exactly as the older
+`fixtures/sunny_garden` files are already counted. Twenty-three functions and
+106 type-name sites are added; the annotation-only control is unmoved at
+94.35%, and the named-only internal bucket stays at 425 while its verified
+share moves 90.51% -> 90.52%. These are changed corpus measurements under an
+unchanged resolver, not evidence of resolver improvement. The fixed fixture's
+15.7895 pp marginal contribution still exceeds the kernel result by more than
+two orders of magnitude. All prior retractions and negative results remain
+unchanged.
+
+The complete import comparison measures 490 modules and 1,943 edges: the five
+fixture modules plus their seven internal edges, and four production import
+edges added by the corpus itself (`daedalus.eval.tasks` ->
+`daedalus.structcore.{index,languages,markdown}`, `daedalus.eval.harness` ->
+`daedalus.structcore.markdown`). No module or edge was removed. All fourteen
+nontrivial components, maximum size nineteen, exact memberships and digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+are unchanged. The rejected alternative is recorded rather than hidden: adding
+`daedalus.eval.tasks -> daedalus.eval.harness` was measured to enlarge the
+existing `(daedalus.eval, harness, report, tier2)` cycle to five members and
+move the component digest to
+`b45b3cc6b162ee19c527708529626d36b3338b4295cd17db107c27ddbfa9cbdb`,
+so the shared constant is defined in `tasks` and imported by `harness` instead.
+The moving census does not relax an architecture invariant.
+
+Raw complete outputs `s02-eval-corpus-a.json` and `s02-eval-corpus-b.json`,
+their stderr logs, the comparison log and the label-plane census log are
+retained under `runs/g1-eval-corpus-01` and archived with SHA256s in
+`docs/evidence/G1-EVAL-CORPUS-01/acceptance.json`. This census establishes no
+Gate closure and no Gate-3 baseline.

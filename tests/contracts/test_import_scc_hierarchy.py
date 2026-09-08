@@ -197,7 +197,15 @@ CURRENT_COMPONENTS_SHA256 = (
 # Genesis, Ariadne, computer-runtime, desktop-owner, contract, containment and
 # Twin projection Python modules became part of the tracked graph.  This is an
 # exact tracked-path census, not a relaxed lower bound.
-CENSUS_MODULES = 485  # re-measured 2026-09-08; cancellation owner and Hermes compatibility facade added
+# G1-EVAL-CORPUS-01 (re-measured 2026-09-08): 485 -> 490. The packaged
+# four-plane eval fixture daedalus/eval/fixtures/fourfold_wiki_app/ contains
+# five tracked Python files (src/knowledge_hub/{__init__,app,models,
+# repository,search}.py). They are a FIXTURE, never imported by production
+# code, and they enter this census for the same reason the older
+# fixtures/sunny_garden files already do: this graph is a census of tracked
+# .py paths under daedalus/, not of the import closure. No production module
+# was added.
+CENSUS_MODULES = 490  # re-measured 2026-09-08; packaged fourfold_wiki_app fixture (5 files)
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -487,7 +495,20 @@ CENSUS_MODULES = 485  # re-measured 2026-09-08; cancellation owner and Hermes co
 # G1-IGNITION-04: the complete comparison against accepted main 24e229c0
 # adds only ignition.gate1 -> atomic. Module count, all fourteen exact
 # components, maximum nineteen and their digest remain unchanged.
-CENSUS_EDGES = 1932
+# G1-EVAL-CORPUS-01 (re-measured 2026-09-08): 1932 -> 1943, +11 edges, none
+# removed. Seven are internal to the new packaged fixture (its modules import
+# each other: knowledge_hub/__init__ -> models/repository/search, app ->
+# repository/search, repository -> models, search -> models). Four are real
+# production imports added by the cross-plane corpus: eval.tasks ->
+# structcore.{index,languages,markdown} (the fixture plane walk and the
+# derivation grammar) and eval.harness -> structcore.markdown (per-DocSection
+# retrieval chunks). eval.tasks deliberately does NOT import eval.harness:
+# that edge alone would pull tasks into the existing (daedalus.eval, harness,
+# report, tier2) cycle and move CURRENT_COMPONENTS_SHA256 to
+# b45b3cc6b162ee19c527708529626d36b3338b4295cd17db107c27ddbfa9cbdb (measured).
+# All fourteen components, maximum size nineteen, every membership and the
+# component digest below are unchanged by this packet.
+CENSUS_EDGES = 1943
 
 
 def _module_name(path: str) -> str:

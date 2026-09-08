@@ -27,6 +27,13 @@ _PROVENANCE_NOTE = {
         "INDEPENDENT: labels derived from git co-change (files that change "
         "together) -- no graph walk involved. This recall is not self-graded."
     ),
+    "artifact_parsed": (
+        "PARSER-DERIVED: labels re-derived by a deterministic parser over the "
+        "artifact under a closed grammar, and verified plane-exclusive by "
+        "test. Not self-graded -- and NOT scored by arm A either: these "
+        "targets are not in the slicer's retrieval universe, so they appear "
+        "as PLANE-UNINDEXED rows, never as recall."
+    ),
 }
 
 
@@ -54,6 +61,31 @@ def _focus_withheld_lines(result: dict) -> list[str]:
         f"FOCUS-WITHHELD ({len(ids)}): the secret floor fail-closed on the "
         "focus file itself -- not a recall miss, not a pass, EXCLUDED from "
         "every mean/count above:",
+    ]
+    lines += [f"  {id_}" for id_ in ids]
+    return lines
+
+
+def _plane_unindexed_lines(result: dict) -> list[str]:
+    """PLANE-UNINDEXED -- ASCII-only accounting for tasks whose target plane
+    the harness has no retrieval path for at all (see
+    ``harness._plane_unindexed_row``). Not a pass, not a recall miss, not a
+    corpus error: nothing was measured, because nothing could be. Its own
+    bucket, excluded from every mean/count above.
+
+    Rendered exactly like the focus-withheld block -- ``result.get`` so a
+    hand-built result dict predating the field renders unchanged, and zero
+    rows add zero lines."""
+    ids = result.get("plane_unindexed_ids") or []
+    if not ids:
+        return []
+    lines = [
+        "",
+        f"PLANE-UNINDEXED ({len(ids)}): the target's plane is not in the "
+        "harness retrieval universe (data artifacts are never indexed; "
+        "documents are opt-in and off) -- NOTHING WAS MEASURED for these "
+        "tasks, they are neither a pass nor a miss, and they are EXCLUDED "
+        "from every mean/count above:",
     ]
     lines += [f"  {id_}" for id_ in ids]
     return lines
@@ -116,7 +148,7 @@ def render_tier1(result: dict) -> str:
     # harness._focus_withheld_row) are excluded the same way, into their own
     # section below.
     for t in result["per_task"]:
-        if "error" in t or t.get("focus_withheld"):
+        if "error" in t or t.get("focus_withheld") or t.get("plane_unindexed"):
             continue
         rows.append([
             t["id"],
@@ -147,13 +179,15 @@ def render_tier1(result: dict) -> str:
     ]
     lines += _provenance_breakdown_lines(result["by_provenance"])
     lines += _focus_withheld_lines(result)
+    lines += _plane_unindexed_lines(result)
     # Healthy (non-errored, non-focus-withheld) misses only -- an errored task
     # has no "missed" list at all (it never got as far as measuring recall);
     # a focus-withheld task has none either (the fence refused before recall
     # was ever measured). Both are reported in their own unmissable sections,
     # not folded in here as a miss.
     misses = [t for t in result["per_task"]
-              if "error" not in t and not t.get("focus_withheld") and t["missed"]]
+              if "error" not in t and not t.get("focus_withheld")
+              and not t.get("plane_unindexed") and t["missed"]]
     if misses:
         lines.append("")
         lines.append(f"SLICE-RECALL MISSES ({len(misses)}) "
@@ -161,10 +195,19 @@ def render_tier1(result: dict) -> str:
         for t in misses:
             lines.append(f"  {t['id']} [{t['target']}] ({t['label_provenance']}/{t['label_tier']}): "
                          f"missing {', '.join(t['missed'])}")
-    else:
+    elif any("error" not in t and not t.get("focus_withheld")
+             and not t.get("plane_unindexed") for t in result["per_task"]):
         lines.append("")
         lines.append("SLICE-RECALL MISSES: none -- every labelled symbol was "
                      "reachable in its slice.")
+    else:
+        # Nothing was sliced at all (every row errored, was fence-refused, or
+        # was plane-unindexed). "no misses" here would read as a clean pass on
+        # a run that measured nothing -- the exact overclaim the sections above
+        # exist to prevent.
+        lines.append("")
+        lines.append("SLICE-RECALL MISSES: n/a -- no task produced a measured "
+                     "slice in this run (see the sections above).")
     # ERRORED section -- a per-task resolution failure (bad repo label, or a
     # target no longer in the index -- e.g. a quarantined mint task whose file
     # moved) is EXCLUDED from every mean above but must never go unreported:
@@ -195,7 +238,8 @@ def render_arms(result: dict) -> str:
     # FOCUS-WITHHELD rows (harness._focus_withheld_row) are excluded the same
     # way, into their own section.
     healthy = [t for t in result["per_task"]
-               if "error" not in t and not t.get("focus_withheld")]
+               if "error" not in t and not t.get("focus_withheld")
+               and not t.get("plane_unindexed")]
     for t in healthy:
         rows.append([
             t["id"], t["label_provenance"], t["label_tier"],
@@ -224,6 +268,7 @@ def render_arms(result: dict) -> str:
     lines += _provenance_breakdown_lines(
         result["by_provenance"], recall_key="mean_recall_A", compression_key=None)
     lines += _focus_withheld_lines(result)
+    lines += _plane_unindexed_lines(result)
     lines.append("")
     lines.append("A vs B vs C, mean recall / mean tokens, by provenance x tier "
                  "(quarantine excluded from any go/no-go read):")
@@ -258,8 +303,11 @@ def render_arms(result: dict) -> str:
             lines.append(f"  {t['id']}: recall_C={_pct(t['recall_C'])} >= "
                          f"recall_A={_pct(t['recall_A'])}  (tokens_C={t['tokens_C']:,}, "
                          f"tokens_A={t['tokens_A']:,})")
-    else:
+    elif healthy:
         lines.append("C never tied or beat A's recall on this task set.")
+    else:
+        lines.append("A/B/C: n/a -- no task in this run was scorable by the "
+                     "arms (see the sections above); no arm was compared.")
 
     trunc = [t for t in healthy if t["b_truncated_at_cap"]]
     if trunc:
@@ -350,6 +398,16 @@ def render_gate(result: dict) -> str:
                      "the focus file; NOT a recall regression, reported only:")
         for r in focus_withheld:
             lines.append(f"  {r['id']} [{r.get('target')}]")
+    # Plane-unindexed tasks: no recall existed to compare, and none ever will
+    # until a retrieval arm for that plane exists. Reported, never a gate
+    # failure (see harness.run_gate).
+    plane_unindexed = result.get("plane_unindexed") or []
+    if plane_unindexed:
+        lines.append("")
+        lines.append(f"PLANE-UNINDEXED ({len(plane_unindexed)}) -- target plane has no "
+                     "retrieval path; NOT a recall regression, reported only:")
+        for r in plane_unindexed:
+            lines.append(f"  {r['id']} [{r.get('target')}]: {r.get('reason')}")
     if not result["regressions"] and not errored_primary:
         lines.append("")
         lines.append("No primary-tier task lost recall vs the stored baseline.")
