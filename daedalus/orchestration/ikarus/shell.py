@@ -90,6 +90,8 @@ import hashlib
 from .cancellation import CancellationSignal, terminate_owned_subprocess
 from ...providers._openai_compat import ProviderCancelled
 import json
+import os
+import hashlib
 import math
 import os
 import re
@@ -2958,7 +2960,51 @@ def _failed_invocation(tel: dict, code: str, detail: str) -> None:
     tel["failure_detail"] = _bounded_detail(detail)
 
 
-def _claude_chat_argv(path: str, model: str, cap_usd: float) -> list[str]:
+#: The MCP configuration the voice spawns with: none. The user's own MCP
+#: servers (chrome-devtools, memory, ...) are what a chat turn must never
+#: reach, and their tool definitions were the dominant token cost.
+_EMPTY_MCP_CONFIG = '{"mcpServers":{}}'
+
+
+def _claude_system_prompt_file(effort: str | None) -> str:
+    """Write Ikarus's SYSTEM beside the neutral cwd and return its path.
+
+    Passed as ``--system-prompt-file`` so the CLI's own Claude Code persona --
+    its default system prompt, cwd/env sections and tool narration -- is
+    REPLACED by Ikarus's system prompt. MEASURED 2026-09-08 on this host:
+    without it the streaming answer to "verbessere Daedalus" narrated a tool
+    call as text ("**Tool: bash**") at ~20 600 cache-creation tokens; with it
+    the answer is Ikarus's own, cache-creation drops to ~8 900 tokens and a
+    sonnet turn costs $0.04-0.05 (docs/evidence/G1-IKARUS-36/live_mcp_off.json,
+    live_system_prompt.json). The file is content-addressed and lives in the
+    stable neutral directory so the CLI's prompt cache stays warm across turns
+    and a changed SYSTEM can never read a stale file. A write failure raises:
+    no system prompt, no spawn.
+    """
+    style = _LOW_EFFORT_STYLE if (effort or "low").lower() == "low" else ""
+    text = f"{SYSTEM}{style}"
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    target = Path(_neutral_cwd()) / f"ikarus-system-{digest}.txt"
+    if not target.exists():
+        tmp = target.with_name(
+            f"{target.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_text(text, encoding="utf-8", newline="\n")
+        os.replace(tmp, target)
+    return str(target)
+
+
+def _claude_user_prompt(message: str, context: str = "") -> str:
+    """The stdin turn for the Claude voice: distilled context (if any) plus
+    the user turn. The SYSTEM is NOT here -- it travels as
+    ``--system-prompt-file`` (see :func:`_claude_system_prompt_file`), which
+    is what keeps the CLI from answering as Claude Code."""
+    if context:
+        return f"{context}\n\nUser: {message}"
+    return f"User: {message}"
+
+
+def _claude_chat_argv(path: str, model: str, cap_usd: float,
+                      system_prompt_file: str) -> list[str]:
     """The bounded single-turn head both voice paths spawn.
 
     WHAT IS MEASURED TO BOUND THE TURN IS ``--max-turns 1`` PLUS
@@ -2969,13 +3015,23 @@ def _claude_chat_argv(path: str, model: str, cap_usd: float) -> list[str]:
     (docs/evidence/G1-IKARUS-36/live_stream_repeat.json). Both models also
     still billed ~50 000-60 000 cache-creation tokens per cold turn, which is
     consistent with tool definitions remaining in the system prompt. So
-    ``--tools ""`` is retained as a declaration of intent whose EFFECT is
-    UNVERIFIED; the turn bound is what makes 150.3 s impossible.
+    ``--tools ""`` removes only the BUILT-IN tools. MEASURED 2026-09-08 (json,
+    sonnet, "name your tools"): with ``--tools ""`` the model still listed
+    every ``mcp__*`` tool of the user's configured MCP servers at ~52 700
+    cache-creation tokens -- the tool loop and the cost were the MCP servers.
+    ``--strict-mcp-config --mcp-config {"mcpServers":{}}`` (an inline JSON
+    string; the CLI accepts files or strings) drops them: cache-creation
+    8 893-8 937 tokens, $0.04-0.05 per turn, and the stream-json turn for
+    "verbessere Daedalus" ended ``end_turn`` after one turn with text
+    (docs/evidence/G1-IKARUS-36/live_mcp_off.json). The turn bound stays as
+    the hard stop; the MCP exclusion is what makes the stream path answer.
 
     The cap value is formatted from a module constant, never from caller input.
     """
     return [path, "-p", "--tools", "", "--model", model, "--max-turns", "1",
-            "--max-budget-usd", f"{cap_usd:.2f}", "--no-session-persistence"]
+            "--max-budget-usd", f"{cap_usd:.2f}", "--no-session-persistence",
+            "--strict-mcp-config", "--mcp-config", _EMPTY_MCP_CONFIG,
+            "--system-prompt-file", system_prompt_file]
 
 
 def _claude_failure_sentence(code: str | None, tel: dict, *,
@@ -2990,13 +3046,18 @@ def _claude_failure_sentence(code: str | None, tel: dict, *,
     measured = tel.get("cost_usd_measured")
     detail = tel.get("failure_detail") or ""
     if code == "tool_use":
-        return ("Claude wollte Werkzeuge benutzen statt zu antworten; die "
-                "Chat-Stimme laeuft absichtlich ohne Werkzeuge "
-                "(--tools \"\", --max-turns 1)."
+        return ("Claude hat versucht, ein Werkzeug zu benutzen, statt zu "
+                "antworten; der Turn wurde nach dem einen zugelassenen "
+                "Schritt beendet (--max-turns 1). Die Chat-Stimme startet "
+                "ohne eingebaute Werkzeuge und ohne MCP-Server (--tools "
+                "\"\", --strict-mcp-config); dass trotzdem ein Werkzeug "
+                "angefragt wurde, steht so im Ergebnis der CLI."
                 if german else
-                "Claude tried to use tools instead of answering; the chat "
-                "voice deliberately runs without tools "
-                "(--tools \"\", --max-turns 1).")
+                "Claude tried to use a tool instead of answering; the turn "
+                "was ended after the one allowed step (--max-turns 1). The "
+                "chat voice starts without built-in tools and without MCP "
+                "servers (--tools \"\", --strict-mcp-config); that a tool was "
+                "still requested is what the CLI result reported.")
     if code == "max_budget":
         spent = f"${measured:.4f}" if isinstance(measured, float) else "unbekannt"
         spent_en = f"${measured:.4f}" if isinstance(measured, float) else "an unknown amount"
@@ -3063,8 +3124,10 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
     # second voice turn is refused for money that cannot be spent (MEASURED
     # 2026-09-08 on the owner's ledger).
     _provider_start("claude", endpoint=path, model=mdl, cli_budget_cap_usd=cap)
-    prompt = _claude_prompt(message, effort, context)
-    args = _claude_chat_argv(path, mdl, cap) + ["--output-format", "json"]
+    prompt = _claude_user_prompt(message, context)
+    args = _claude_chat_argv(
+        path, mdl, cap, _claude_system_prompt_file(effort),
+    ) + ["--output-format", "json"]
     # The prompt is already stdin (`input=`), so only `--model` is exposed --
     # and it arrives unscreened from POST /api/ikarus/ask's body. Dormant while
     # `claude` resolves to claude.exe here; that is a per-host accident, and an
@@ -3874,8 +3937,10 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     cap = _effort_budget_usd(effort)
     mdl = model or _effort_model(effort)
     _provider_start("claude", endpoint=path, model=mdl, cli_budget_cap_usd=cap)
-    prompt = _claude_prompt(message, effort, context)
-    args = _claude_chat_argv(path, mdl, cap) + [
+    prompt = _claude_user_prompt(message, context)
+    args = _claude_chat_argv(
+        path, mdl, cap, _claude_system_prompt_file(effort),
+    ) + [
         "--output-format", "stream-json", "--include-partial-messages",
         "--verbose"]
     # The same guard as the blocking twin, and it matters MORE here: this is

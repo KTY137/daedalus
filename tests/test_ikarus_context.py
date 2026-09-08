@@ -272,8 +272,9 @@ class BrainLaneContextTest(unittest.TestCase):
             reply, mdl, ctx = ikarus_os._llm("claude", "hello there", None, "low", "p")
 
         self.assertEqual(ctx.text, "")
-        self.assertEqual(captured["input"],
-                         f"{ikarus_os.SYSTEM}{ikarus_os._LOW_EFFORT_STYLE}\n\nUser: hello there")
+        # Since G1-IKARUS-36 the SYSTEM travels as --system-prompt-file; stdin
+        # is the user turn only (plus the distilled context when there is one).
+        self.assertEqual(captured["input"], "User: hello there")
         self.assertNotIn("FOCUS", captured["input"])
 
 

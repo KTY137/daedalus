@@ -2,7 +2,7 @@
 
 Packet ID: `G1-IKARUS-36`
 Artifact role: `primary`
-Status: `built; focused suites green; one acceptance item MEASURED RED and retained as such (the streaming half, see below); not independently reviewed; not promoted`
+Status: `built; focused suites green; A20 re-measured GREEN on both paths after the MCP exclusion and the Ikarus system-prompt file (integration follow-up, see A20); Odysseus verified 6/6 mutations; Cerberus needs_fix resolved (failure sentence reworded); not promoted`
 Active gate: `1`
 Classification: `ALIGNED`
 Owner: `repository owner`
@@ -38,9 +38,14 @@ Commands:
   [MEASURED 2026-09-08; raw result in
   `docs/evidence/G1-IKARUS-36/live_a20_blocking_and_stream.json`]
 
-**What this claim does NOT cover.** The streaming path is bounded and priced but
-does **not** answer on this host. See "Acceptance matrix" A20 and "Evidence,
-expected failures and review".
+**What the first build did NOT cover, and what closed it.** The first build's
+streaming path was bounded and priced but did **not** answer on this host
+(2/2 `tool_use`). The integration follow-up measured the cause: `--tools ""`
+removes only the built-in tools; every MCP server from the owner's
+`~/.claude.json` (chrome-devtools, memory, ...) stayed available and its tool
+definitions were the ~50-58k cache-creation tokens per turn. With
+`--strict-mcp-config --mcp-config '{"mcpServers":{}}'` and the Ikarus SYSTEM
+passed as `--system-prompt-file` both paths answer as Ikarus (A20 below).
 
 ## Scope
 
@@ -182,7 +187,7 @@ Command for every offline row:
 | A17 | a timeout settles at the estimate (money may have moved) and reports `timeout` | GREEN |
 | A18 | the envelope block is exactly the 15 documented keys and JSON round-trips | GREEN |
 | A19 | `tests/test_budget.py` explicit-sites expectation lists the three explicit sites | GREEN |
-| A20 | LIVE: both paths bounded, one turn, priced at the vendor's report | **SPLIT: blocking GREEN, streaming RED - see below** |
+| A20 | LIVE: both paths bounded, one turn, priced at the vendor's report | GREEN after the integration follow-up (first build: blocking GREEN, streaming RED) - see below |
 | A21 | registry re-rendered, `--check` clean, contract test re-pinned | GREEN |
 | A22 | before/after product measurement recorded | GREEN (this document) |
 | R1 | `--model` is always in argv and is still `.cmd`-shim screened before any spawn | GREEN |
@@ -204,10 +209,33 @@ Command for every offline row:
 `docs/evidence/G1-IKARUS-36/live_a20_blocking_and_stream.json`, run 3 in
 `live_stream_repeat.json`.] Two of two streaming turns attempted a tool despite
 `--tools ""` and were correctly aborted by `--max-turns 1`; two of two blocking
-turns answered. The streaming failure is therefore **not** one-off noise, and
-the live test asserts only what this host produces: bounded wall time,
-`cost_basis == "provider_reported"`, and a named reason whenever no text
-arrived.
+turns answered. That was the first build.
+
+**Integration follow-up (same day), the cause and the fix, measured.** A
+"name your tools" probe (`--output-format json`, sonnet) showed that with
+`--tools ""` the model still listed every `mcp__*` tool of the owner's
+configured MCP servers at 52 719 cache-creation tokens; `--tools=` was the
+same; with no flag it listed the built-ins at 57 894. The tool loop and the
+cost were the MCP servers. Two additions to the argv head, both pinned by A1/A2:
+`--strict-mcp-config --mcp-config '{"mcpServers":{}}'` (an inline JSON
+string; the CLI accepts files or strings) and `--system-prompt-file <path>`
+carrying Ikarus's SYSTEM (content-addressed file beside the neutral cwd), with
+stdin reduced to the user turn. Re-measured through the shipped functions
+against a scratch ledger:
+
+| run | path | wall | `num_turns` | `stop_reason` / `subtype` | cost (provider-reported) | text |
+|---|---|---|---|---|---|---|
+| 4 | `_claude_stream`, MCP excluded, SYSTEM still on stdin | 8.394 s | 1 | `end_turn` / `success` | $0.085926 | 138 chars, narrated a tool call as text ("**Tool: bash**") |
+| 5 | `_claude`, same | 6.942 s | 1 | `end_turn` / `success` | $0.065579 | 385 chars |
+| 6 | `_claude_stream`, MCP excluded + `--system-prompt-file` | 19.876 s | 1 | `end_turn` / `success` | $0.073156 | 1288 chars, Ikarus's own answer in German |
+| 7 | `_claude`, same | 6.932 s | 1 | `end_turn` / `success` | $0.063782 | 345 chars |
+
+[MEASURED 2026-09-08; runs 4-5 in `docs/evidence/G1-IKARUS-36/live_mcp_off.json`,
+runs 6-7 in `live_system_prompt.json`, each with the scratch-ledger entries:
+reserve $1.50 `cli_budget_cap` -> settle at the reported cost.] Cache-creation
+tokens per cold turn fell from 50-60k to 15.5k. The live test still asserts only
+what this host produces; nothing here is a claim about other hosts or CLI
+versions.
 
 ## Migration and rollback
 
@@ -281,26 +309,23 @@ packet's edits. Evidence: `docs/evidence/G1-IKARUS-36/after-ikarus-all.log.txt`.
   $0.529010 billed against $0.25 and the answer destroyed. This is why the caps
   here (0.50 / 1.00 / 2.00) sit ~2.4x above their model's measured turn cost
   rather than at the 0.25 / 0.50 / 1.00 the lane brief proposed.
-- The streaming path still attempts a tool, 2/2 (A20 above).
+- The first build's streaming path attempted a tool 2/2; closed by the MCP exclusion (A20 runs 4-7).
 
 **Open risks and UNVERIFIED items.**
 
-1. **The streaming voice does not answer on this host.** It is bounded (14.7 -
-   17.9 s), priced honestly, and reports `max_turns` with the CLI's own
-   `"Reached maximum number of turns (1)"`, but the cockpit's default route
-   yields no text. The streaming baseline before this packet was never
-   measured, so it is **UNVERIFIED** whether this is a regression or a
-   pre-existing failure that was previously invisible. This is the single
-   largest open item and needs an owner decision (raise the streaming turn
-   bound to 2 and pay for it, route chat to the blocking path, or investigate
-   why `stream-json` differs).
-2. **`--tools ""` may not disable tools at all.** [UNVERIFIED] Both blocking
-   turns billed ~50 000-60 000 cache-creation tokens for a 1153-char prompt,
-   which is consistent with the CLI's tool definitions still being in the
-   system prompt, and both streaming turns produced a `tool_use` stop. What is
-   *measured* to bound the turn is `--max-turns 1` plus `--max-budget-usd`. The
-   claim "`--tools ""` collapses the loop" is therefore stated in the code
-   comments as an observed correlation on the `json` path, not as a mechanism.
+1. **RESOLVED in the integration follow-up: the streaming voice answers.** The
+   first build's streaming turns ended `tool_use` 2/2; the cause was the owner's
+   MCP servers, which `--tools ""` does not remove. With `--strict-mcp-config`
+   and the empty inline MCP config the streaming turn ended `end_turn` with
+   text 2/2 (A20 runs 4 and 6). Whether the first build's failure was a
+   regression or pre-existing stays UNVERIFIED (no streaming baseline before
+   this packet was ever measured).
+2. **RESOLVED: what `--tools ""` does is now measured.** It removes the
+   built-in tools and leaves MCP tools; the tool list probe and the token
+   counts (52 719 with the flag and MCP present, 15.5k with MCP excluded and
+   the system-prompt file) are in A20. The failure sentence for a `tool_use`
+   stop now states the configuration and the CLI's report, nothing more
+   (Cerberus needs_fix, resolved).
 3. Whether `--max-budget-usd` is honoured per turn or per session, and which
    occurrence wins when the flag repeats: **UNVERIFIED**. `cli_budget_cap_usd`
    takes the maximum over occurrences so the guard cannot under-reserve.

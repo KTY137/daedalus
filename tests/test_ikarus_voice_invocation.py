@@ -92,11 +92,18 @@ def test_blocking_argv_is_one_bounded_tool_free_turn():
                     return_value=_completed(_probe("probe1_sonnet"))) as run:
         ikarus_os._claude("hi", effort="low")
     args = run.call_args[0][0]
+    system_file = ikarus_os._claude_system_prompt_file("low")
     assert args == ["claude", "-p", "--tools", "", "--model", "sonnet",
                     "--max-turns", "1", "--max-budget-usd", "0.50",
-                    "--no-session-persistence", "--output-format", "json"]
-    # The prompt travels on stdin, never in argv.
-    assert run.call_args[1]["input"].endswith("User: hi")
+                    "--no-session-persistence", "--strict-mcp-config",
+                    "--mcp-config", '{"mcpServers":{}}',
+                    "--system-prompt-file", system_file,
+                    "--output-format", "json"]
+    # The user turn travels on stdin, never in argv; the SYSTEM travels
+    # as the content-addressed --system-prompt-file, never on stdin.
+    assert run.call_args[1]["input"] == "User: hi"
+    written = Path(system_file).read_text(encoding="utf-8")
+    assert written == f"{ikarus_os.SYSTEM}{ikarus_os._LOW_EFFORT_STYLE}"
     assert not any("User: hi" in a for a in args)
 
 
@@ -110,9 +117,12 @@ def test_streaming_argv_keeps_the_same_bounded_head():
     assert args[:11] == ["claude", "-p", "--tools", "", "--model", "sonnet",
                          "--max-turns", "1", "--max-budget-usd", "0.50",
                          "--no-session-persistence"]
-    assert args[11:] == ["--output-format", "stream-json",
+    assert args[11:14] == ["--strict-mcp-config", "--mcp-config",
+                           '{"mcpServers":{}}']
+    assert args[14:16] == ["--system-prompt-file",
+                           ikarus_os._claude_system_prompt_file("low")]
+    assert args[16:] == ["--output-format", "stream-json",
                          "--include-partial-messages", "--verbose"]
-    assert "json" not in args[12:13]
 
 
 def test_effort_selects_the_pinned_model_and_cap():
