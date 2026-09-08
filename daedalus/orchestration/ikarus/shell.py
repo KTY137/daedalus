@@ -90,6 +90,8 @@ import hashlib
 from .cancellation import CancellationSignal, terminate_owned_subprocess
 from ...providers._openai_compat import ProviderCancelled
 import json
+import os
+import hashlib
 import math
 import os
 import re
@@ -97,8 +99,9 @@ import subprocess
 import tempfile
 import threading
 import time as _time
-from collections import namedtuple
+from collections import deque, namedtuple
 from collections.abc import Mapping
+from dataclasses import dataclass
 from itertools import count
 from pathlib import Path
 from typing import Callable, Iterator, Sequence
@@ -1961,17 +1964,27 @@ def _chat(project: str, message: str, provider: str | None,
     model_used = None
     ctx = _EMPTY_CTX
     attempts = 0
+    # Filled in place by the Claude voice path (``_llm`` -> ``_claude``); stays
+    # empty for every other provider, which is exactly the contract the cockpit
+    # consumes: ``llm.invocation`` is present only when Claude spoke.
+    invocation: dict = {}
     attempt_numbers = (
         count(1)
         if selection.max_attempts is None
         else range(1, selection.max_attempts + 1)
     )
     for attempts in attempt_numbers:
+        invocation.clear()
         reply, model_used, ctx = _llm(
             selection.provider, message, model, effort, project,
             conversation_id=conversation_id, timeout_s=selection.timeout_s,
-            limit_policy=limit_policy, additional_context=additional_context)
+            limit_policy=limit_policy, additional_context=additional_context,
+            telemetry=invocation)
         if reply:
+            break
+        # A retry cannot fix "not logged in", a budget abort or a tool loop --
+        # it can only pay for it twice. Inert at the default max_attempts == 1.
+        if invocation.get("failure_reason_code") in _NON_RETRYABLE_FAILURES:
             break
     if reply:
         block = _ctx_envelope_block(ctx)
@@ -1980,7 +1993,9 @@ def _chat(project: str, message: str, provider: str | None,
             project, intent="chat", shell=SHELL_VOICE, assistant=reply,
             provider_used=selection.provider, model_used=model_used,
             llm={**selection.to_dict(), **policy_evidence,
-                 "attempts": attempts}, **extra)
+                 "attempts": attempts,
+                 **({"invocation": dict(invocation)} if invocation else {})},
+            **extra)
     failed = (
         (f"{selection.provider} hat nach {attempts} Versuch(en) keine nutzbare "
          "Antwort geliefert. Es wurde nicht unbemerkt durch eine deterministische "
@@ -1990,12 +2005,20 @@ def _chat(project: str, message: str, provider: str | None,
          f"{attempts} attempt(s). Nothing was silently replaced with a "
          "deterministic chat answer.")
     )
+    # The generic sentence stays as the frame; the measured reason is appended,
+    # never omitted. "no usable answer" alone hid a tool loop, a login failure
+    # and a paid budget abort behind one string.
+    reason = _claude_failure_sentence(
+        invocation.get("failure_reason_code"), invocation, german=german)
+    if reason:
+        failed = f"{failed} {reason}"
     return core.envelope(
         project, intent="error", shell=SHELL_VOICE,
         assistant=failed,
         provider_used=selection.provider, model_used=model_used,
         llm={**selection.to_dict(), **policy_evidence,
-             "attempts": attempts})
+             "attempts": attempts,
+             **({"invocation": dict(invocation)} if invocation else {})})
 
 
 # effort -> output-token cap (it's an interface chatbot; low keeps it snappy/cheap)
@@ -2039,6 +2062,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
           response_schema: dict | None = None,
           cancelled: Callable[[], bool] | None = None,
           transport: str | None = None,
+          telemetry: dict | None = None,
           ) -> tuple[str | None, str | None, _Ctx]:
     """Return (reply_text, model_used, ctx). (None, None, _EMPTY_CTX) -> caller
     falls back to help. ``ctx`` carries the gated-slice metadata for the envelope.
@@ -2076,12 +2100,18 @@ def _llm(provider: str | None, message: str, model: str | None = None,
             ctx.text, additional_context)
         return _ollama_cli(message, mdl, effort, context, timeout_s=timeout_s), mdl, ctx
     if p in _CLAUDE:
+        mdl = model or _effort_model(effort)
         ctx = _project_context(
             project, message, lane="trusted", limit_policy=captured_policy)
         context = _merge_model_context(
             _conversation_context(conversation_id, captured_policy),
             ctx.text, additional_context)
-        return _claude(message, effort, model, context, timeout_s=timeout_s), (model or "claude"), ctx
+        tel = telemetry if telemetry is not None else {}
+        reply = _claude(message, effort, model, context, timeout_s=timeout_s,
+                        telemetry=tel)
+        # The canonical model id the CLI actually billed, not the literal
+        # string "claude" this used to report when the caller named no model.
+        return reply, (tel.get("model_used") or mdl), ctx
     if p in _DEEPSEEK:
         from ...providers.deepseek import DEFAULT_MODEL
 
@@ -2229,7 +2259,7 @@ def _deny_receipt(entrypoint_id: str, *, contract: str, endpoint: str | None,
 
 
 def _spend_decision(vendor: str, model: str | None, *, host: str | None = None,
-                    calls: int = 1):
+                    calls: int = 1, cli_budget_cap_usd: float | None = None):
     """The ``budget.process_guard`` decision for one about-to-happen call.
 
     It installs the net (that is what makes the receipt's evidence true) and
@@ -2258,7 +2288,8 @@ def _spend_decision(vendor: str, model: str | None, *, host: str | None = None,
     if not installed.allowed:
         return installed
     try:
-        est = budget.price_call(vendor, model, calls=calls, host=host)
+        est = budget.price_call(vendor, model, calls=calls, host=host,
+                                cli_budget_cap_usd=cli_budget_cap_usd)
         state = budget.ledger().state()
     except Exception as exc:
         return GuardDecision(
@@ -2354,7 +2385,8 @@ def _egress_decision(provider_key: str, endpoint: str | None):
 
 
 def _provider_start(provider_key: str, *, endpoint: str | None,
-                    model: str | None = None, calls: int = 1):
+                    model: str | None = None, calls: int = 1,
+                    cli_budget_cap_usd: float | None = None):
     """Authorise ONE provider transport, or raise :class:`ProviderStartRefused`.
 
     Called as the first statement of every function in this module that reaches
@@ -2384,7 +2416,7 @@ def _provider_start(provider_key: str, *, endpoint: str | None,
     spend = _spend_decision(
         vendor, model,
         host=endpoint if provider_key in ("ollama", "deepseek") else None,
-        calls=calls)
+        calls=calls, cli_budget_cap_usd=cli_budget_cap_usd)
     try:
         return begin_effect(PROVIDER_ENTRYPOINT_ID, effects, (spend, egress))
     except EffectBoundaryError as exc:
@@ -2638,34 +2670,518 @@ def _neutral_cwd() -> str:
     return str(d)
 
 
+# ---------------------------------------------------------------------------
+# G1-IKARUS-36: the chat voice is a single bounded text generation, not an
+# agent run. MEASURED 2026-09-08 on this host with the real 1153-char Ikarus
+# chat prompt (docs/evidence/G1-IKARUS-36/):
+#
+#   flags                                   turns  stop_reason  wall     cost
+#   (none -- the shipped argv)              loop   tool_use     150.3 s  refused
+#   --tools "" --model sonnet --max-turns 1   1    end_turn      20.98 s $0.211466
+#   --tools "" (CLI default opus-5[1m])       1    end_turn      25.50 s $0.529010
+#   ... + --bare                              -    api_error      0.38 s $0
+#
+# And the correction the acceptance run forced (2026-09-08, same head, same
+# prompt, --output-format stream-json instead of json):
+#
+#   run 1  17.89 s  num_turns=2  tool_use / error_max_turns  $0.243142  0 chars
+#   run 2  14.69 s  num_turns=2  tool_use / error_max_turns  $0.253388  0 chars
+#
+# i.e. the streaming path STILL attempts a tool. It is now bounded, priced and
+# visible instead of a 150 s silence, but it does not answer on this host --
+# see the packet doc's open risks. Do not describe this path as fixed.
+#
+# ``--bare`` is REJECTED: it breaks authentication on this host ("Not logged
+# in - Please run /login", rc=1). Retained as negative evidence in
+# docs/evidence/G1-IKARUS-36/probe2_bare.json; do not re-add it without a live
+# re-measurement.
+# ---------------------------------------------------------------------------
+
+#: The child CLI's own ``--max-budget-usd``, per effort.
+#:
+#: A cap is an ABORT SWITCH, NOT A PRICE BOUND. MEASURED 2026-09-08: the opus
+#: turn crossed its $0.25 cap, still reported $0.529010, and returned NO
+#: ``result`` at all -- the owner pays and gets nothing. Each cap therefore
+#: sits well above its model's measured turn cost (~2.4x), so a normal turn
+#: never trips it and only a runaway does.
+_EFFORT_BUDGET_USD = {"low": 0.50, "medium": 1.00, "high": 2.00}
+_DEFAULT_EFFORT_BUDGET_USD = 0.50
+
+#: Chat is an interface, not an agent run: the model is PINNED per effort
+#: instead of inheriting whatever the CLI defaults to (measured today:
+#: ``claude-opus-5[1m]``, 2.5x sonnet's cost for the identical single turn).
+_EFFORT_MODEL = {"low": "sonnet", "medium": "sonnet", "high": "opus"}
+_DEFAULT_EFFORT_MODEL = "sonnet"
+
+#: Characters retained from the child's stderr. Bounded because the tail is
+#: kept in an envelope that reaches the cockpit and the conversation store.
+_STDERR_TAIL_MAX = 800
+#: Characters retained from a failure explanation.
+_FAILURE_DETAIL_MAX = 300
+
+#: Failure codes that a retry cannot fix. ``_chat``'s attempt loop stops on
+#: these so an operator-enabled retry cannot pay twice for a deterministic
+#: refusal. Default ``max_attempts`` is 1, so this is inert out of the box.
+_NON_RETRYABLE_FAILURES = frozenset({
+    "tool_use", "max_turns", "max_budget", "not_authenticated", "bad_response",
+})
+
+#: The exact key set of ``envelope["llm"]["invocation"]``. This is a contract
+#: with the cockpit: the object is present ONLY on the Claude voice path, and
+#: consumers must treat the whole object as optional.
+_INVOCATION_KEYS = (
+    "duration_ms", "stop_reason", "subtype", "terminal_reason", "num_turns",
+    "cost_usd_measured", "cost_basis", "cost_usd_reserved",
+    "cli_budget_cap_usd", "model_used", "tokens", "stderr_tail",
+    "failure_reason_code", "failure_detail", "flags",
+)
+
+_SECRETISH_SUFFIXES = ("_KEY", "_TOKEN", "_SECRET", "_PASSWORD")
+_SK_TOKEN_RE = re.compile(r"sk-[A-Za-z0-9_\-]{8,}")
+_NOT_LOGGED_IN_RE = re.compile(r"not logged in|please run /login", re.IGNORECASE)
+
+
+def _effort_budget_usd(effort: str | None) -> float:
+    """The spend cap for one turn. An unknown effort maps to ``low`` -- never
+    to a caller-supplied number, so nothing from a request body reaches the
+    ``--max-budget-usd`` argv slot."""
+    try:
+        key = (effort or "low").lower()
+    except AttributeError:
+        key = "low"
+    return _EFFORT_BUDGET_USD.get(key, _DEFAULT_EFFORT_BUDGET_USD)
+
+
+def _effort_model(effort: str | None) -> str:
+    """The pinned chat model for one turn (same unknown-effort rule)."""
+    try:
+        key = (effort or "low").lower()
+    except AttributeError:
+        key = "low"
+    return _EFFORT_MODEL.get(key, _DEFAULT_EFFORT_MODEL)
+
+
+def _redact_secrets(text: str) -> str:
+    """Remove this process's own secret-looking environment values and any
+    ``sk-...`` run. Applied BEFORE the tail is cut, so a secret straddling the
+    cut cannot survive in halves."""
+    if not text:
+        return ""
+    for name, value in list(os.environ.items()):
+        if not value or len(value) < 8:
+            continue
+        if not any(name.upper().endswith(sfx) for sfx in _SECRETISH_SUFFIXES):
+            continue
+        if value in text:
+            text = text.replace(value, "<redacted>")
+    return _SK_TOKEN_RE.sub("<redacted>", text)
+
+
+def _ascii_tail(text: str, limit: int) -> str:
+    """The last ``limit`` characters, printable ASCII only.
+
+    The tail travels into an envelope that is JSON-serialised, stored and
+    rendered; a raw child's stderr is neither trusted nor guaranteed decodable.
+    """
+    if not text:
+        return ""
+    safe = "".join(c if (32 <= ord(c) < 127 or c in "\n\t") else "?" for c in text)
+    return safe[-limit:] if limit > 0 else ""
+
+
+def _bounded_detail(text: str) -> str:
+    return _ascii_tail(_redact_secrets(str(text or "")), _FAILURE_DETAIL_MAX)
+
+
+@dataclass(frozen=True)
+class _ClaudeResult:
+    """One parsed ``claude -p`` result: the answer, its price, its telemetry."""
+
+    text: str | None
+    cost_usd: float | None
+    telemetry: dict
+
+
+def _invocation_base(*, cap_usd: float, reserved_usd: float,
+                     flags: Sequence[str]) -> dict:
+    """A complete invocation block with nothing measured yet. Every field the
+    cockpit may read exists from the first moment, so a path that dies early
+    reports ``estimate``/``spawn_failed`` rather than an absent key."""
+    return {
+        "duration_ms": None, "stop_reason": None, "subtype": None,
+        "terminal_reason": None, "num_turns": None,
+        "cost_usd_measured": None, "cost_basis": "estimate",
+        "cost_usd_reserved": float(reserved_usd),
+        "cli_budget_cap_usd": float(cap_usd),
+        "model_used": None, "tokens": None, "stderr_tail": "",
+        "failure_reason_code": None, "failure_detail": None,
+        "flags": [str(f) for f in flags],
+    }
+
+
+def _claude_result_object(stdout: str) -> dict | None:
+    """The result object from ``--output-format json`` (one object) or the LAST
+    ``{"type":"result"}`` frame of ``--output-format stream-json``."""
+    text = (stdout or "").strip()
+    if not text:
+        return None
+    if text.startswith("{"):
+        try:
+            obj = json.loads(text)
+        except (ValueError, RecursionError):
+            obj = None
+        if isinstance(obj, dict) and (
+                obj.get("type") == "result" or "result" in obj
+                or "subtype" in obj):
+            return obj
+    found = None
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if isinstance(obj, dict) and obj.get("type") == "result":
+            found = obj
+    return found
+
+
+def _parse_claude_result(stdout: str, stderr: str, *, returncode: int | None,
+                         cap_usd: float, reserved_usd: float,
+                         flags: Sequence[str]) -> _ClaudeResult:
+    """Turn one CLI result body into (answer, measured cost, telemetry).
+
+    Every rule here is backed by a measurement in docs/evidence/G1-IKARUS-36:
+
+    * a body that is not result JSON is NEVER spoken as an answer -- raw stdout
+      from a CLI in an unknown state is not a reply;
+    * ``subtype`` alone is not a success signal: probe2 measured
+      ``subtype="success"`` together with ``is_error=true`` and
+      ``terminal_reason="api_error"``;
+    * a budget abort (probe3) carries a real ``total_cost_usd`` and NO
+      ``result`` -- the money moved and the answer did not;
+    * a non-zero exit AFTER a complete result keeps the answer (a plugin
+      SessionEnd hook does this; see tools/watchdog.py's measured note) and
+      says so in ``failure_detail``.
+    """
+    from ...budget import claude_reported_cost_usd
+
+    tel = _invocation_base(cap_usd=cap_usd, reserved_usd=reserved_usd,
+                           flags=flags)
+    tel["stderr_tail"] = _ascii_tail(_redact_secrets(stderr or ""),
+                                     _STDERR_TAIL_MAX)
+    obj = _claude_result_object(stdout or "")
+    if obj is None:
+        tel["failure_reason_code"] = (
+            "nonzero_exit" if returncode not in (0, None) else "bad_response")
+        tel["failure_detail"] = _bounded_detail(
+            f"the Claude CLI returned {len(stdout or '')} bytes that are not a "
+            f"result JSON (returncode={returncode})")
+        return _ClaudeResult(None, None, tel)
+
+    cost = claude_reported_cost_usd(json.dumps(obj))
+    tel["cost_usd_measured"] = cost
+    tel["cost_basis"] = "provider_reported" if cost is not None else "estimate"
+    for key in ("duration_ms", "num_turns"):
+        raw = obj.get(key)
+        tel[key] = int(raw) if isinstance(raw, int) and not isinstance(raw, bool) else None
+    for key in ("stop_reason", "subtype", "terminal_reason"):
+        raw = obj.get(key)
+        tel[key] = raw if isinstance(raw, str) else None
+
+    usage = obj.get("modelUsage")
+    if isinstance(usage, dict) and len(usage) == 1:
+        name, stats = next(iter(usage.items()))
+        tel["model_used"] = str(name)
+        if isinstance(stats, dict):
+            def _n(field: str) -> int | None:
+                v = stats.get(field)
+                return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+            tel["tokens"] = {
+                "input": _n("inputTokens"), "output": _n("outputTokens"),
+                "cache_creation": _n("cacheCreationInputTokens"),
+                "cache_read": _n("cacheReadInputTokens"),
+            }
+
+    result = obj.get("result")
+    text = result.strip() if isinstance(result, str) else ""
+    is_error = bool(obj.get("is_error"))
+    errors = obj.get("errors")
+    errtext = "; ".join(str(e) for e in errors) if isinstance(errors, list) else ""
+    denials = obj.get("permission_denials")
+    subtype = tel["subtype"] or ""
+    terminal = tel["terminal_reason"] or ""
+
+    code: str | None = None
+    detail = ""
+    if subtype == "error_max_budget_usd" or terminal == "budget_exhausted":
+        code = "max_budget"
+        detail = errtext or f"the CLI aborted at its own ${cap_usd:.2f} cap"
+    elif subtype == "error_max_turns" or terminal == "max_turns":
+        code = "max_turns"
+        detail = errtext or "the CLI wanted more than the one admitted turn"
+    elif terminal == "api_error" and _NOT_LOGGED_IN_RE.search(text or errtext or ""):
+        code = "not_authenticated"
+        detail = text or errtext
+    elif is_error:
+        code = "bad_response"
+        detail = errtext or text or f"is_error with subtype {subtype!r}"
+    elif (tel["stop_reason"] == "tool_use"
+          or (tel["num_turns"] or 0) > 1
+          or (isinstance(denials, list) and denials)):
+        code = "tool_use"
+        detail = (f"stop_reason={tel['stop_reason']!r} num_turns="
+                  f"{tel['num_turns']!r} permission_denials="
+                  f"{len(denials) if isinstance(denials, list) else 0}")
+    elif not text:
+        code = "empty_result"
+        detail = "the CLI reported success with an empty result"
+
+    if code is not None:
+        tel["failure_reason_code"] = code
+        tel["failure_detail"] = _bounded_detail(detail)
+        return _ClaudeResult(None, cost, tel)
+
+    if returncode not in (0, None):
+        # MEASURED precedent (tools/watchdog.py): `claude -p` can exit non-zero
+        # AFTER a complete result JSON. Discarding a finished, paid-for answer
+        # over an exit code is the wrong trade; the anomaly stays visible.
+        tel["failure_detail"] = _bounded_detail(
+            f"the CLI exited {returncode} after a complete result; the answer "
+            "was kept and the exit code is retained here")
+    return _ClaudeResult(text, cost, tel)
+
+
+def _failed_invocation(tel: dict, code: str, detail: str) -> None:
+    """Record a failure that happened before or instead of a result body."""
+    tel["failure_reason_code"] = code
+    tel["failure_detail"] = _bounded_detail(detail)
+
+
+#: The MCP configuration the voice spawns with: none. The user's own MCP
+#: servers (chrome-devtools, memory, ...) are what a chat turn must never
+#: reach, and their tool definitions were the dominant token cost.
+_EMPTY_MCP_CONFIG = '{"mcpServers":{}}'
+
+
+def _claude_system_prompt_file(effort: str | None) -> str:
+    """Write Ikarus's SYSTEM beside the neutral cwd and return its path.
+
+    Passed as ``--system-prompt-file`` so the CLI's own Claude Code persona --
+    its default system prompt, cwd/env sections and tool narration -- is
+    REPLACED by Ikarus's system prompt. MEASURED 2026-09-08 on this host:
+    without it the streaming answer to "verbessere Daedalus" narrated a tool
+    call as text ("**Tool: bash**") at ~20 600 cache-creation tokens; with it
+    the answer is Ikarus's own, cache-creation drops to ~8 900 tokens and a
+    sonnet turn costs $0.04-0.05 (docs/evidence/G1-IKARUS-36/live_mcp_off.json,
+    live_system_prompt.json). The file is content-addressed and lives in the
+    stable neutral directory so the CLI's prompt cache stays warm across turns
+    and a changed SYSTEM can never read a stale file. A write failure raises:
+    no system prompt, no spawn.
+    """
+    style = _LOW_EFFORT_STYLE if (effort or "low").lower() == "low" else ""
+    text = f"{SYSTEM}{style}"
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    target = Path(_neutral_cwd()) / f"ikarus-system-{digest}.txt"
+    if not target.exists():
+        tmp = target.with_name(
+            f"{target.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_text(text, encoding="utf-8", newline="\n")
+        os.replace(tmp, target)
+    return str(target)
+
+
+def _claude_user_prompt(message: str, context: str = "") -> str:
+    """The stdin turn for the Claude voice: distilled context (if any) plus
+    the user turn. The SYSTEM is NOT here -- it travels as
+    ``--system-prompt-file`` (see :func:`_claude_system_prompt_file`), which
+    is what keeps the CLI from answering as Claude Code."""
+    if context:
+        return f"{context}\n\nUser: {message}"
+    return f"User: {message}"
+
+
+def _claude_chat_argv(path: str, model: str, cap_usd: float,
+                      system_prompt_file: str) -> list[str]:
+    """The bounded single-turn head both voice paths spawn.
+
+    WHAT IS MEASURED TO BOUND THE TURN IS ``--max-turns 1`` PLUS
+    ``--max-budget-usd``, not ``--tools ""``. With ``--output-format json``
+    the CLI answered directly 2/2 (``end_turn``, ~21-23 s, ~$0.21-0.25); with
+    ``--output-format stream-json`` and the IDENTICAL head it still emitted a
+    ``tool_use`` first turn 2/2 and was aborted by the turn bound
+    (docs/evidence/G1-IKARUS-36/live_stream_repeat.json). Both models also
+    still billed ~50 000-60 000 cache-creation tokens per cold turn, which is
+    consistent with tool definitions remaining in the system prompt. So
+    ``--tools ""`` removes only the BUILT-IN tools. MEASURED 2026-09-08 (json,
+    sonnet, "name your tools"): with ``--tools ""`` the model still listed
+    every ``mcp__*`` tool of the user's configured MCP servers at ~52 700
+    cache-creation tokens -- the tool loop and the cost were the MCP servers.
+    ``--strict-mcp-config --mcp-config {"mcpServers":{}}`` (an inline JSON
+    string; the CLI accepts files or strings) drops them: cache-creation
+    8 893-8 937 tokens, $0.04-0.05 per turn, and the stream-json turn for
+    "verbessere Daedalus" ended ``end_turn`` after one turn with text
+    (docs/evidence/G1-IKARUS-36/live_mcp_off.json). The turn bound stays as
+    the hard stop; the MCP exclusion is what makes the stream path answer.
+
+    The cap value is formatted from a module constant, never from caller input.
+    """
+    return [path, "-p", "--tools", "", "--model", model, "--max-turns", "1",
+            "--max-budget-usd", f"{cap_usd:.2f}", "--no-session-persistence",
+            "--strict-mcp-config", "--mcp-config", _EMPTY_MCP_CONFIG,
+            "--system-prompt-file", system_prompt_file]
+
+
+def _claude_failure_sentence(code: str | None, tel: dict, *,
+                             german: bool) -> str:
+    """The visible, specific reason a Claude voice turn produced no answer.
+
+    Never 'no usable answer' alone: that sentence taught the owner nothing and
+    hid a tool loop, an authentication failure and a budget abort behind one
+    string.
+    """
+    cap = tel.get("cli_budget_cap_usd")
+    measured = tel.get("cost_usd_measured")
+    detail = tel.get("failure_detail") or ""
+    if code == "tool_use":
+        return ("Claude hat versucht, ein Werkzeug zu benutzen, statt zu "
+                "antworten; der Turn wurde nach dem einen zugelassenen "
+                "Schritt beendet (--max-turns 1). Die Chat-Stimme startet "
+                "ohne eingebaute Werkzeuge und ohne MCP-Server (--tools "
+                "\"\", --strict-mcp-config); dass trotzdem ein Werkzeug "
+                "angefragt wurde, steht so im Ergebnis der CLI."
+                if german else
+                "Claude tried to use a tool instead of answering; the turn "
+                "was ended after the one allowed step (--max-turns 1). The "
+                "chat voice starts without built-in tools and without MCP "
+                "servers (--tools \"\", --strict-mcp-config); that a tool was "
+                "still requested is what the CLI result reported.")
+    if code == "max_budget":
+        spent = f"${measured:.4f}" if isinstance(measured, float) else "unbekannt"
+        spent_en = f"${measured:.4f}" if isinstance(measured, float) else "an unknown amount"
+        return ((f"Der Turn hat sein Ausgabelimit von ${cap:.2f} ueberschritten "
+                 f"und wurde abgebrochen -- die Kosten von {spent} sind trotzdem "
+                 "angefallen und stehen im Ledger.")
+                if german else
+                (f"The turn crossed its ${cap:.2f} spend cap and was aborted -- "
+                 f"the {spent_en} it cost is real and is in the ledger."))
+    if code == "max_turns":
+        return ("Claude hat den Ein-Turn-Rahmen ueberschritten."
+                if german else
+                "Claude exceeded the one-turn budget.")
+    if code == "not_authenticated":
+        return ("Die Claude CLI ist nicht angemeldet (claude /login)."
+                if german else
+                "The Claude CLI is not logged in (claude /login).")
+    if code == "bad_response":
+        return ("Die Claude CLI hat kein gueltiges Ergebnis-JSON geliefert; "
+                "ihre Ausgabe wird nicht als Antwort ausgegeben."
+                if german else
+                "The Claude CLI returned no valid result JSON; its output is "
+                "not spoken as an answer.")
+    if code == "timeout":
+        return ((f"Die Claude CLI hat das Zeitlimit ueberschritten. {detail}").strip()
+                if german else
+                (f"The Claude CLI exceeded its time limit. {detail}").strip())
+    if code == "spawn_failed":
+        return ((f"Die Claude CLI konnte nicht gestartet werden. {detail}").strip()
+                if german else
+                (f"The Claude CLI could not be started. {detail}").strip())
+    if code == "nonzero_exit":
+        return ((f"Die Claude CLI endete mit einem Fehlercode. {detail}").strip()
+                if german else
+                (f"The Claude CLI exited with an error code. {detail}").strip())
+    if code == "empty_result":
+        return ("Die Claude CLI meldete Erfolg, lieferte aber keinen Text."
+                if german else
+                "The Claude CLI reported success but returned no text.")
+    return ""
+
+
 def _claude(message: str, effort: str | None = None, model: str | None = None,
-            context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
+            context: str = "", *, timeout_s: float | None = 150.0,
+            telemetry: dict | None = None) -> str | None:
+    """One bounded, single-turn, priced Claude text generation.
+
+    ``telemetry`` is a caller-owned dict this function fills in place with the
+    ``envelope["llm"]["invocation"]`` block (see ``_INVOCATION_KEYS``). It is an
+    out-parameter rather than a return value so the three-tuple contract of
+    ``_llm`` -- shared with every other provider -- does not move.
+    """
+    from ... import budget
     from ..runtime_registry import runtime_subprocess_env
 
     path = _claude_command_for_chat()
     if not path:
         return None
-    # Before the argv exists: a refused start costs zero spawns.
-    _provider_start("claude", endpoint=path, model=model)
-    prompt = _claude_prompt(message, effort, context)
-    args = [path, "-p"]
-    if model:
-        args += ["--model", model]
+    cap = _effort_budget_usd(effort)
+    mdl = model or _effort_model(effort)
+    # Before the argv exists: a refused start costs zero spawns. The cap is
+    # declared to the pre-flight pricer too -- without that the ceiling read
+    # still prices this turn at the $3.00 flat worst case, and the day's
+    # second voice turn is refused for money that cannot be spent (MEASURED
+    # 2026-09-08 on the owner's ledger).
+    _provider_start("claude", endpoint=path, model=mdl, cli_budget_cap_usd=cap)
+    prompt = _claude_user_prompt(message, context)
+    args = _claude_chat_argv(
+        path, mdl, cap, _claude_system_prompt_file(effort),
+    ) + ["--output-format", "json"]
     # The prompt is already stdin (`input=`), so only `--model` is exposed --
     # and it arrives unscreened from POST /api/ikarus/ask's body. Dormant while
     # `claude` resolves to claude.exe here; that is a per-host accident, and an
     # npm/.cmd install of the CLI would make it live without a code change.
     _refuse_cmd_shim("claude", args, endpoint=path)
-    try:
-        proc = subprocess.run(
-            args, input=prompt, capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=timeout_s,
-            cwd=_neutral_cwd(),
-            env=runtime_subprocess_env("claude_code_cli"),
-        )
-        return (proc.stdout or "").strip() or None
-    except (OSError, subprocess.SubprocessError):
-        return None
+    flags = [a for a in args if a.startswith("--")]
+    tel = telemetry if telemetry is not None else {}
+    # Reserve EXPLICITLY instead of letting the process interposer book the
+    # spawn: the interposer books a worst case it can never correct downward
+    # for the streaming twin, and one voice turn must account the same way on
+    # both paths. ``guard`` stands the interposer down, so nothing is reserved
+    # twice.
+    with budget.guard("anthropic_cli", mdl,
+                      label=f"ikarus voice: {Path(path).name} -p",
+                      cli_budget_cap_usd=cap) as reservation:
+        tel.update(_invocation_base(cap_usd=cap, reserved_usd=reservation.usd,
+                                    flags=flags))
+        try:
+            proc = subprocess.run(
+                args, input=prompt, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout_s,
+                cwd=_neutral_cwd(),
+                env=runtime_subprocess_env("claude_code_cli"),
+            )
+        except FileNotFoundError as exc:
+            # No child existed, so no vendor bytes moved: the one provable
+            # no-call case ``release`` exists for.
+            reservation.release(
+                f"claude executable not found; nothing was spawned ({exc})")
+            _failed_invocation(tel, "spawn_failed", str(exc))
+            return None
+        except subprocess.TimeoutExpired as exc:
+            # Deliberately NOT released: a timeout after the tokens were
+            # generated looks exactly like a connection refused.
+            _failed_invocation(
+                tel, "timeout", f"no result within {timeout_s}s ({exc})")
+            return None
+        except (OSError, subprocess.SubprocessError) as exc:
+            _failed_invocation(
+                tel, "spawn_failed", f"{type(exc).__name__}: {exc}")
+            return None
+        rc = proc.returncode if isinstance(proc.returncode, int) else None
+        parsed = _parse_claude_result(
+            proc.stdout if isinstance(proc.stdout, str) else "",
+            proc.stderr if isinstance(proc.stderr, str) else "",
+            returncode=rc, cap_usd=cap, reserved_usd=reservation.usd,
+            flags=flags)
+        tel.update(parsed.telemetry)
+        if parsed.cost_usd is not None:
+            # The vendor's own report is an OBSERVATION with provenance: it
+            # settles money already admitted. It widens no ceiling and
+            # replaces no admission decision.
+            reservation.settle(parsed.cost_usd)
+        return parsed.text
 
 
 def _codex(message: str, effort: str | None = None, model: str | None = None,
@@ -3147,6 +3663,8 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             limit_policy.fingerprint_sha256
         ),
     }
+    # Same out-parameter as ``_chat``: only the Claude stream fills it.
+    invocation: dict = {}
     p = selection.provider or ""
     model_used = None
     if p in _OLLAMA_HTTP:
@@ -3156,7 +3674,7 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     elif p in _OLLAMA_CLI:
         model_used = model or os.environ.get("OLLAMA_MODEL", "") or "ollama"
     elif p in _CLAUDE:
-        model_used = model or "claude"
+        model_used = model or _effort_model(effort)
     elif p in _DEEPSEEK and os.environ.get("DEEPSEEK_API_KEY"):
         from ...providers.deepseek import DEFAULT_MODEL
 
@@ -3206,7 +3724,7 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         streamer = _claude_stream(
             message, effort, model,
             _merge_model_context(history, ctx.text, additional_context),
-            timeout_s=selection.timeout_s,
+            timeout_s=selection.timeout_s, telemetry=invocation,
             **({"cancellation": cancellation} if cancellation is not None else {}))
     elif p in _DEEPSEEK and os.environ.get("DEEPSEEK_API_KEY"):
         ctx = _project_context(
@@ -3271,13 +3789,19 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         failed = True  # retain partial/unknown outcome below; never replay
 
     text = "".join(chunks).strip()
+    # The CLI's own canonical model id, once the result frame named it.
+    model_used = invocation.get("model_used") or model_used
+    stream_evidence = {
+        **selection_evidence,
+        **({"invocation": dict(invocation)} if invocation else {}),
+    }
     if failed and text:
         block = _ctx_envelope_block(ctx)
         extra = {"context": block} if block else {}
         yield "final", _reconcile_final(route, core.envelope(
             project, intent="chat", shell=SHELL_VOICE, assistant=text,
             provider_used=p, model_used=model_used, stream_interrupted=True,
-            llm=selection_evidence, **extra))
+            llm=stream_evidence, **extra))
         return
     if not text:
         # Once a streaming provider has been entered, an empty or failed stream
@@ -3292,19 +3816,23 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             "The response stream ended without a complete answer. "
             "The request was not automatically retried."
         )
+        reason = _claude_failure_sentence(
+            invocation.get("failure_reason_code"), invocation, german=german)
+        if reason:
+            interrupted = f"{interrupted} {reason}"
         block = _ctx_envelope_block(ctx)
         extra = {"context": block} if block else {}
         yield "final", _reconcile_final(route, core.envelope(
             project, intent="chat", shell=SHELL_VOICE, assistant=interrupted,
             provider_used=p, model_used=model_used, stream_interrupted=True,
-            llm=selection_evidence, **extra))
+            llm=stream_evidence, **extra))
         return
 
     block = _ctx_envelope_block(ctx)
     extra = {"context": block} if block else {}
     yield "final", _reconcile_final(route, core.envelope(
         project, intent="chat", shell=SHELL_VOICE, assistant=text,
-        provider_used=p, model_used=model_used, llm=selection_evidence, **extra))
+        provider_used=p, model_used=model_used, llm=stream_evidence, **extra))
 
 
 def _ollama_stream(
@@ -3382,15 +3910,21 @@ def _claude_command_for_chat() -> str:
 
 def _claude_stream(message: str, effort: str | None = None, model: str | None = None,
                    context: str = "", *, timeout_s: float | None = 150.0,
-                   cancellation: CancellationSignal | None = None):
+                   cancellation: CancellationSignal | None = None,
+                   telemetry: dict | None = None):
     """Yield text deltas from `claude -p --output-format stream-json
-    --include-partial-messages`.
+    --include-partial-messages`, bounded to one tool-free turn.
 
     Both flags are verified present on the installed CLI (2.1.201);
     ``--verbose`` is required alongside stream-json in --print mode. If the
     process dies or emits no deltas the generator simply ends, and the caller
     falls back to the blocking path.
+
+    ``telemetry`` is the same caller-owned out-parameter ``_claude`` fills.
+    The final ``{"type":"result"}`` frame -- previously parsed by nobody -- is
+    what carries the turn's stop reason and its price.
     """
+    from ... import budget
     from ..runtime_registry import runtime_subprocess_env
 
     if cancellation is not None and type(cancellation) is not CancellationSignal:
@@ -3400,16 +3934,36 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     path = _claude_command_for_chat()
     if not path:
         return
-    _provider_start("claude", endpoint=path, model=model)
-    prompt = _claude_prompt(message, effort, context)
-    args = [path, "-p", "--output-format", "stream-json",
-            "--include-partial-messages", "--verbose"]
-    if model:
-        args += ["--model", model]
+    cap = _effort_budget_usd(effort)
+    mdl = model or _effort_model(effort)
+    _provider_start("claude", endpoint=path, model=mdl, cli_budget_cap_usd=cap)
+    prompt = _claude_user_prompt(message, context)
+    args = _claude_chat_argv(
+        path, mdl, cap, _claude_system_prompt_file(effort),
+    ) + [
+        "--output-format", "stream-json", "--include-partial-messages",
+        "--verbose"]
     # The same guard as the blocking twin, and it matters MORE here: this is
     # the path the cockpit actually takes, so guarding only `_claude` would
     # leave the default route unguarded.
     _refuse_cmd_shim("claude", args, endpoint=path)
+    flags = [a for a in args if a.startswith("--")]
+    tel = telemetry if telemetry is not None else {}
+    # THE STREAMING PATH MUST RESERVE HERE. The process interposer's Popen
+    # branch opens and closes its reservation inside ``Popen.__init__`` --
+    # before one byte of child stdout exists -- so it structurally cannot
+    # settle at the vendor's reported cost. This ``with`` can.
+    reservation = budget.reserve(
+        "anthropic_cli", mdl,
+        label=f"ikarus voice stream: {Path(path).name} -p",
+        cli_budget_cap_usd=cap)
+    tel.update(_invocation_base(cap_usd=cap, reserved_usd=reservation.usd,
+                                flags=flags))
+    budget._enter_explicit()
+    settled = False
+    stderr_tail: deque[str] = deque(maxlen=64)
+    drain = None
+    last_result = ""
 
     proc = None
     watcher = None
@@ -3417,7 +3971,11 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     try:
         proc = subprocess.Popen(
             args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
+            # stderr was DEVNULL: a failure the operator cannot see is a
+            # failure they cannot fix. It is a PIPE now, and it MUST be
+            # drained on its own thread -- a chatty child otherwise blocks
+            # forever on a full 64 KiB pipe, outside every timeout here.
+            stderr=subprocess.PIPE, text=True, encoding="utf-8",
             errors="replace", bufsize=1,
             # Same neutral cwd as the blocking path -- see _neutral_cwd(). This
             # one matters MORE: it is the path that fixes perceived latency, so
@@ -3426,6 +3984,17 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             cwd=_neutral_cwd(),
             env=runtime_subprocess_env("claude_code_cli"),
         )
+
+        def _drain_stderr() -> None:
+            try:
+                for line in proc.stderr:
+                    stderr_tail.append(line)
+            except Exception:      # noqa: BLE001 - a dead pipe is not an error
+                pass
+
+        drain = threading.Thread(target=_drain_stderr, daemon=True,
+                                 name="ikarus-claude-stderr")
+        drain.start()
         if cancellation is not None:
             # A blocked stdout read cannot observe a flag itself. This watcher
             # owns only this child; the durable manager still owns cancellation.
@@ -3458,6 +4027,12 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
                 obj = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if obj.get("type") == "result":
+                # The frame the parser never read. It carries stop_reason,
+                # num_turns and total_cost_usd -- i.e. whether this turn
+                # answered, and what it cost.
+                last_result = line
+                continue
             if obj.get("type") != "stream_event":
                 continue
             ev = obj.get("event") or {}
@@ -3470,7 +4045,8 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             if watcher is not None:
                 watcher.join(timeout=1.25)
             raise ProviderCancelled("Claude Code cancelled; owned child stop observed")
-    except (OSError, subprocess.SubprocessError, ValueError):
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        _failed_invocation(tel, "spawn_failed", f"{type(exc).__name__}: {exc}")
         return
     finally:
         watcher_done.set()
@@ -3483,6 +4059,38 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
                 proc.wait(timeout=5)
             except Exception:
                 pass
+        if drain is not None:
+            drain.join(timeout=1.25)
+        if proc is not None:
+            try:
+                if proc.stderr is not None:
+                    proc.stderr.close()
+            except Exception:
+                pass
+        try:
+            rc = getattr(proc, "returncode", None) if proc is not None else None
+            parsed = _parse_claude_result(
+                last_result, "".join(stderr_tail),
+                returncode=rc if isinstance(rc, int) else None,
+                cap_usd=cap, reserved_usd=reservation.usd, flags=flags)
+            if last_result:
+                tel.update(parsed.telemetry)
+                if parsed.cost_usd is not None:
+                    reservation.settle(parsed.cost_usd)
+                    settled = True
+            else:
+                # No result frame: the price is UNKNOWN, so the estimate
+                # stands and ``cost_basis`` keeps saying "estimate". It is
+                # never fabricated as provider_reported and never zero.
+                tel["stderr_tail"] = parsed.telemetry["stderr_tail"]
+                if not tel.get("failure_reason_code"):
+                    _failed_invocation(
+                        tel, "empty_result",
+                        "the stream ended without a result frame")
+        finally:
+            budget._exit_explicit()
+            if not settled:
+                reservation.settle()
 
 
 def _help_text(*, german: bool = False) -> str:

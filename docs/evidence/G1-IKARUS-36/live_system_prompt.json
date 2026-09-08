@@ -1,0 +1,119 @@
+{
+  "as_of": "2026-09-08",
+  "host": "owner workstation, Windows, claude 2.1.263",
+  "runs": [
+    {
+      "path": "_claude_stream",
+      "seconds": 19.876,
+      "delta_frames": 16,
+      "chars": 1288,
+      "telemetry": {
+        "duration_ms": 17105,
+        "stop_reason": "end_turn",
+        "subtype": "success",
+        "terminal_reason": "completed",
+        "num_turns": 1,
+        "cost_usd_measured": 0.073156,
+        "cost_basis": "provider_reported",
+        "cost_usd_reserved": 1.5,
+        "cli_budget_cap_usd": 0.5,
+        "model_used": "claude-sonnet-5",
+        "tokens": {
+          "input": 2,
+          "output": 1104,
+          "cache_creation": 15528,
+          "cache_read": 0
+        },
+        "stderr_tail": "",
+        "failure_reason_code": null,
+        "failure_detail": null,
+        "flags": [
+          "--tools",
+          "--model",
+          "--max-turns",
+          "--max-budget-usd",
+          "--no-session-persistence",
+          "--strict-mcp-config",
+          "--mcp-config",
+          "--system-prompt-file",
+          "--output-format",
+          "--include-partial-messages",
+          "--verbose"
+        ]
+      },
+      "text_head": "„Verbessere Daedalus“ ist mir zu unscharf, um damit sinnvoll etwas anzustoßen – ich habe in dieser Session noch keine konkrete Code-Map, keinen Diff und keinen Fehlerbericht vor mir, auf den ich mich stützen könnte. Um das produktiv zu machen, brauche ich einen fokussierten Ausgangspunkt. Ein paar M"
+    },
+    {
+      "path": "_claude",
+      "seconds": 6.932,
+      "chars": 345,
+      "telemetry": {
+        "duration_ms": 4121,
+        "stop_reason": "end_turn",
+        "subtype": "success",
+        "terminal_reason": "completed",
+        "num_turns": 1,
+        "cost_usd_measured": 0.063782,
+        "cost_basis": "provider_reported",
+        "cost_usd_reserved": 1.5,
+        "cli_budget_cap_usd": 0.5,
+        "model_used": "claude-sonnet-5",
+        "tokens": {
+          "input": 2,
+          "output": 159,
+          "cache_creation": 15547,
+          "cache_read": 0
+        },
+        "stderr_tail": "",
+        "failure_reason_code": null,
+        "failure_detail": null,
+        "flags": [
+          "--tools",
+          "--model",
+          "--max-turns",
+          "--max-budget-usd",
+          "--no-session-persistence",
+          "--strict-mcp-config",
+          "--mcp-config",
+          "--system-prompt-file",
+          "--output-format"
+        ]
+      },
+      "reply_head": "Ich kartiere deine Codebase, ziehe genau die relevante Slice heraus und orchestriere deine eigenen AI-Coding-Agents, um konkrete Änderungen umzusetzen – inklusive Planung, Implementierung, Tests und Review. Sag mir einfach dein konkretes Anliegen (Bug, Feature, Architekturfrage etc.), dann lege ich "
+    }
+  ],
+  "ledger_entries": [
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 1.5,
+      "estimate_usd": null,
+      "basis": "cli_budget_cap",
+      "label": "ikarus voice stream: claude.exe -p"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.073156,
+      "estimate_usd": 1.5,
+      "basis": null,
+      "label": "ikarus voice stream: claude.exe -p"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 1.5,
+      "estimate_usd": null,
+      "basis": "cli_budget_cap",
+      "label": "ikarus voice: claude.exe -p"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.063782,
+      "estimate_usd": 1.5,
+      "basis": null,
+      "label": "ikarus voice: claude.exe -p"
+    }
+  ]
+}

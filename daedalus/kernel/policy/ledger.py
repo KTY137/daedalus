@@ -1451,12 +1451,17 @@ def reserve(
     host: str | None = None,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    cli_budget_cap_usd: float | None = None,
     led: Ledger | None = None,
 ) -> Reservation:
     """Price and reserve in one step. Raises :class:`BudgetRefused` /
-    :class:`BudgetUnavailable` / :class:`UnknownPrice` instead of returning."""
+    :class:`BudgetUnavailable` / :class:`UnknownPrice` instead of returning.
+
+    ``cli_budget_cap_usd`` is forwarded verbatim to :func:`price_call`; it
+    narrows only the flat vendor worst case and never widens any ceiling."""
     est = price_call(vendor, model, calls=calls, host=host,
-                     input_tokens=input_tokens, output_tokens=output_tokens)
+                     input_tokens=input_tokens, output_tokens=output_tokens,
+                     cli_budget_cap_usd=cli_budget_cap_usd)
     return (led or ledger()).reserve(est, label=label)
 
 

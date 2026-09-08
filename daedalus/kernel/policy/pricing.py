@@ -20,6 +20,17 @@ ENV_SUBSCRIPTIONS = "DAEDALUS_SUBSCRIPTION_VENDORS"
 # single call measured by the project.
 UNKNOWN_CALL_USD = 5.00
 
+# A child CLI that carries its own ``--max-budget-usd X`` cannot plausibly cost
+# the flat vendor worst case -- but X is NOT a hard bound either. MEASURED
+# 2026-09-08 on this host (docs/evidence/G1-IKARUS-36/probe3_opus.json):
+# ``claude -p --max-budget-usd 0.25`` reported ``total_cost_usd`` $0.529010 --
+# 2.12x its own cap -- before aborting with subtype ``error_max_budget_usd``.
+# The reservation is therefore the declared cap times this overrun factor
+# (headroom above the measured 2.12x), still clamped by the vendor worst case.
+# An unknown price is not a free price, and a self-declared cap is not a
+# guarantee: it is evidence that the call is smaller than the worst case.
+CLI_BUDGET_CAP_OVERRUN_FACTOR = 3.0
+
 
 class BudgetError(RuntimeError):
     """Base for every fail-closed budget refusal."""
@@ -98,8 +109,18 @@ def price_call(
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     on_unknown: str | None = None,
+    cli_budget_cap_usd: float | None = None,
 ) -> Estimate:
-    """Upper-bound call cost, returning zero only for proven free transport."""
+    """Upper-bound call cost, returning zero only for proven free transport.
+
+    ``cli_budget_cap_usd`` is the child CLI's OWN declared spend cap (the
+    ``--max-budget-usd X`` in its argv). It narrows only the last, flat
+    ``worst_case`` branch, and only downward: the free/trusted/subscription/
+    unknown/token-priced answers are unchanged, because a self-declared cap
+    says nothing about where the bytes go or whether a price is known. See
+    :data:`CLI_BUDGET_CAP_OVERRUN_FACTOR` for why the cap is multiplied
+    instead of used verbatim.
+    """
 
     calls = max(1, int(calls))
     vendor = (vendor or "").strip().lower()
@@ -190,10 +211,30 @@ def price_call(
             f"{input_tokens} in / {output_tokens} out tokens",
         )
 
+    worst = price.per_call_worst_usd * calls
+    if cli_budget_cap_usd is not None:
+        try:
+            cap = float(cli_budget_cap_usd)
+        except (TypeError, ValueError):
+            cap = 0.0
+        if cap > 0 and cap == cap and cap != float("inf"):
+            capped = cap * CLI_BUDGET_CAP_OVERRUN_FACTOR * calls
+            if capped < worst:
+                return Estimate(
+                    vendor,
+                    model,
+                    capped,
+                    calls,
+                    "cli_budget_cap",
+                    f"child CLI carries --max-budget-usd ${cap:.2f}; reserved "
+                    f"{CLI_BUDGET_CAP_OVERRUN_FACTOR:g}x that (a cap is an "
+                    f"abort switch, not a bound: measured 2.12x overrun) "
+                    f"instead of the ${price.per_call_worst_usd:.2f} worst case",
+                )
     return Estimate(
         vendor,
         model,
-        price.per_call_worst_usd * calls,
+        worst,
         calls,
         "worst_case",
         f"flat upper bound ${price.per_call_worst_usd:.2f}/call",
@@ -202,6 +243,7 @@ def price_call(
 
 __all__ = [
     "BudgetError",
+    "CLI_BUDGET_CAP_OVERRUN_FACTOR",
     "ENV_MAX_CALLS",
     "ENV_ON_UNKNOWN",
     "ENV_SUBSCRIPTIONS",

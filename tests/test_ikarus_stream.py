@@ -402,6 +402,15 @@ class ClaudeStreamFrameTest(unittest.TestCase):
         self.assertIn("stream-json", args)
         self.assertIn("--include-partial-messages", args)
         self.assertIn("--verbose", args)  # required with stream-json in -p mode
+        # G1-IKARUS-36: the same bounded single-turn head as the blocking twin.
+        # MEASURED 2026-09-08: without `--tools ""` this exact prompt made the
+        # CLI enter a tool loop and run for 150.3 s before the adapter's
+        # timeout killed it.
+        self.assertEqual(args[2:4], ["--tools", ""])
+        self.assertIn("--max-turns", args)
+        self.assertEqual(args[args.index("--max-turns") + 1], "1")
+        self.assertIn("--max-budget-usd", args)
+        self.assertIn("--no-session-persistence", args)
 
     def test_missing_cli_refuses_before_effect_or_spawn(self):
         with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
