@@ -279,3 +279,10 @@ NoNewPrivs observations are still PENDING on the corrected source. The two Linux
 CI lanes must independently produce one unskipped pass and then pass the real
 HTTP Genesis suite. No Gate transition, tagged release, promotion, or complete
 Linux release-acceptance claim follows from these local checks.
+
+Full local integration run on source commit5d6c82ad09b7362e57541c112038465d8158b49b:
+13,491 passed,419 skipped,23 xfailed,2,237 passing subtests in496.10s. The
+complete source manifest before/after was unchanged. Exact stdout, JUnit,
+source manifest and result are losslessly archived under
+docs/evidence/G1-INTEGRATION-01/integrated-podman-final*.gz and hash-bound in
+acceptance.json. Actual Linux CI/procfs acceptance remains pending.

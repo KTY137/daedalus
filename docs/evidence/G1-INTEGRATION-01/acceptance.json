@@ -12,7 +12,7 @@
     "passing_subtests": 2237,
     "seconds": 530.4
   },
-  "status": "runtime_correction_focused_passed_full_suite_and_linux_ci_pending",
+  "status": "local_acceptance_passed_final_github_checks_pending",
   "failures": [
     "Two queue projection fixtures omit the actual required lane",
     "Old Codex wire test assumes no whole-answer stream delta",
@@ -911,6 +911,48 @@
       "sha256": "3d051729ef61e2d9ace98f3f10e95fb656cb9b2e84469fdd3f796ce8674c91cc",
       "archive": "G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.draft.md.gz",
       "archive_sha256": "1d89bc7d82403961fec7d56d1ace5af321f475c88a0a4a09ffe7dd258fe30d65"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-summary.json",
+      "sha256": "a1bb057dc2bf0413231aa0e5579e35845d9ede34d71b5783bb34bccc34be9354",
+      "archive": "diagnostic-ci-eb7834-summary.json.gz",
+      "archive_sha256": "7e08f4324aa3474ce4547397b72a2cf5b692aa436024aec9932e9f628375453d"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-cockpit.log",
+      "sha256": "95a77e7972b7fc9d68f67fe63e3b1a42f760d12b5adc8974a7619cd513f378c5",
+      "archive": "diagnostic-ci-eb7834-cockpit.log.gz",
+      "archive_sha256": "fb23348e6fe1165d45622bba5194503bd28aabe9d9ff46eda1196db6bc94e6bb"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-cockpit-artifacts/cockpit-evidence.json",
+      "sha256": "a431973bae8aa72797782682b4ddbfa03880cab22d538b5435f9403f1c65297c",
+      "archive": "diagnostic-ci-eb7834-cockpit-artifacts-cockpit-evidence.json.gz",
+      "archive_sha256": "14794580ae4572ddbc2e05f3a47d567213d881dac0d34911568874f8bd3e08a8"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final.log",
+      "sha256": "bd425d67c637e34f86975e9f883d3e2b362b4719a88f93dbac77ba1dff5b37ca",
+      "archive": "integrated-podman-final.log.gz",
+      "archive_sha256": "d388a7f6218890217118e0d5ae67b99c1a0d6263219a98688ef68768d7674d58"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final.xml",
+      "sha256": "96fbd430436bc89b5b98a591e19db5828b91582fd4273b9b7fe20dd17d890145",
+      "archive": "integrated-podman-final.xml.gz",
+      "archive_sha256": "7b266975ded20d183aff03c84ab89a1a9423f99fbcaa1eb936fee6bd9830ec76"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final-source.json",
+      "sha256": "17673223eb1a624698b65c3200160352c71d1bb8097f95eb1040b198d07a5868",
+      "archive": "integrated-podman-final-source.json.gz",
+      "archive_sha256": "c63378ca832a38b4c946658624fc724a934f2b4bcdc851c6930addd8c7227ecc"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final-result.json",
+      "sha256": "44b0f24c4070d8bc970f672da10b3db86b6614254783d3cce397a283bf5492dd",
+      "archive": "integrated-podman-final-result.json.gz",
+      "archive_sha256": "fd1eff71e9969cb1e2cc4162106a09dacb619552914d28610d7de15b062c0cc7"
     }
   ],
   "gate_transition": false,
@@ -1109,5 +1151,42 @@
     "counts_and_rates_unchanged": true,
     "prior_retractions_retained": true,
     "gate_claim": false
+  },
+  "diagnostic_head_ci_final": {
+    "head": "eb7834d52949ad10b2bb8c51fccd2a81c48aab20",
+    "successful_jobs": 20,
+    "failed_jobs": 2,
+    "cancelled_jobs": 0,
+    "conditional_skipped_jobs": 4,
+    "known_failures": "both Linux actual container inspection capability representation refusals before start",
+    "windows_gui": {
+      "passed": 257,
+      "failed": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests_passed": 549,
+      "build": "passed"
+    },
+    "tauri_linux_pr": "passed with Debian and AppImage artifacts",
+    "windows_runtime_each": {
+      "passed": 602,
+      "failed": 0,
+      "skipped": 8
+    },
+    "limit": "Diagnostic head does not contain the subsequent Podman representation correction; current-source actual Linux acceptance remains pending"
+  },
+  "podman_full_run": {
+    "head": "5d6c82ad09b7362e57541c112038465d8158b49b",
+    "passed": 13491,
+    "failed": 0,
+    "skipped": 419,
+    "xfailed": 23,
+    "passing_subtests": 2237,
+    "warnings": 21,
+    "seconds": 496.1,
+    "changed_source_files": [],
+    "command": "repository venv -m pytest -q -n 8 --dist loadfile --junitxml=runs/integration-20260908/integrated-podman-final.xml",
+    "classification": "complete local Python suite; actual Linux containment remains a separate CI requirement"
   }
 }
