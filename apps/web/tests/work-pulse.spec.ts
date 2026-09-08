@@ -30,6 +30,7 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
         if (name === 'queue' && !this.emitted) {
           this.emitted = true;
           queueMicrotask(() => {
+            const project = new URL(this.url, location.origin).searchParams.get('project');
             this.emit('hello', {
               in_flight: true,
               queue_depth: 3,
@@ -39,6 +40,7 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
               latest_report: {
                 id: 'report-7',
                 name: 'verify-ui',
+                project,
                 lane: 'local_only',
                 agent: 'qa-critic',
                 status: 'done',
@@ -121,7 +123,12 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
   // Restore a complete snapshot so the remaining report/disconnect assertions
   // keep proving the same bounded recent-history and last-known-state contract.
   await page.evaluate(() => {
-    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('hello', {
+    const source = (window as unknown as {
+      __workSource?: { url: string; emit(name: string, data: unknown): void };
+    }).__workSource;
+    if (!source) return;
+    const project = new URL(source.url, location.origin).searchParams.get('project');
+    source.emit('hello', {
       in_flight: true,
       queue_depth: 3,
       unread_count: 2,
@@ -130,6 +137,7 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
       latest_report: {
         id: 'report-7',
         name: 'verify-ui',
+        project,
         lane: 'local_only',
         agent: 'qa-critic',
         status: 'done',
@@ -141,9 +149,15 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
   await expect(pulse).toContainText('3 braucht Aufmerksamkeit · 2 ungelesen · 1 Quarantäne');
 
   await page.evaluate(() => {
-    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('report', {
+    const source = (window as unknown as {
+      __workSource?: { url: string; emit(name: string, data: unknown): void };
+    }).__workSource;
+    if (!source) return;
+    const project = new URL(source.url, location.origin).searchParams.get('project');
+    source.emit('report', {
       id: 'report-8',
       name: 'lint-core',
+      project,
       lane: 'local_only',
       agent: 'typescript-lint',
       status: 'done',
