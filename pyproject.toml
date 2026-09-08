@@ -86,6 +86,9 @@ gpu = [
 #                  evolution tests instead of silently skipping coroutines.
 test = [
     "pytest>=8",
+    # Optional coverage-guided discrimination is installable with test tools;
+    # its absence remains a capability warning in the host preflight.
+    "coverage>=7",
     "hypothesis>=6.163",
     "jsonschema>=4.23",
     "pytest-asyncio>=0.23.5",
