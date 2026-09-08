@@ -106,7 +106,7 @@ test('missing identity stays visibly unbound instead of inheriting confidence', 
   expect(boundExecutionLine(pulse.items[0])).toBeUndefined();
 });
 
-test('project-bound incompatible or incomplete identity is visible as unresolved without leaking foreign work', () => {
+test('project-bound incompatible, incomplete, or non-canonical identity is unresolved without leaking foreign work', () => {
   const conversation = {
     turns: [],
     open_dispatches: [
@@ -126,13 +126,37 @@ test('project-bound incompatible or incomplete identity is visible as unresolved
         project: PROJECT,
         objective: 'Ohne Lane keine vollständige gebundene Arbeitsidentität'
       }),
-      dispatch('foreign-future-schema', 4, {
+      dispatch('schema-with-padding', 4, {
+        schema: ' conversation.dispatch.identity.v1 ',
+        project: PROJECT,
+        objective: 'Schema darf beim Lesen nicht normalisiert werden',
+        lane: 'local_only'
+      }),
+      dispatch('objective-with-padding', 5, {
+        schema: 'conversation.dispatch.identity.v1',
+        project: PROJECT,
+        objective: ' Parser härten ',
+        lane: 'local_only'
+      }),
+      dispatch('lane-with-padding', 6, {
+        schema: 'conversation.dispatch.identity.v1',
+        project: PROJECT,
+        objective: 'Parser härten',
+        lane: ' local_only '
+      }),
+      dispatch('project-with-padding', 7, {
+        schema: 'conversation.dispatch.identity.v1',
+        project: ` ${PROJECT} `,
+        objective: 'Nicht exakt diesem Projekt zurechenbar',
+        lane: 'local_only'
+      }),
+      dispatch('foreign-future-schema', 8, {
         schema: 'conversation.dispatch.identity.v9',
         project: 'other-project',
         objective: 'Darf nicht sichtbar werden',
         lane: 'local_only'
       }),
-      dispatch('unattributed-future-schema', 5, {
+      dispatch('unattributed-future-schema', 9, {
         schema: 'conversation.dispatch.identity.v9',
         objective: 'Ohne Projekt nicht zurechenbar',
         lane: 'local_only'
@@ -143,5 +167,42 @@ test('project-bound incompatible or incomplete identity is visible as unresolved
   const pulse = dispatchPulseFromConversation(conversation, PROJECT);
   expect(pulse.total).toBe(0);
   expect(pulse.items).toEqual([]);
-  expect(pulse.unresolved).toBe(3);
+  expect(pulse.unresolved).toBe(6);
+});
+
+test('optional bound execution attribution is omitted rather than normalized into a different identity', () => {
+  const conversation = {
+    turns: [],
+    open_dispatches: [
+      dispatch('bound-with-noncanonical-optional-evidence', 1, {
+        schema: 'conversation.dispatch.identity.v1',
+        project: PROJECT,
+        objective: 'Parser härten',
+        lane: 'local_only',
+        work_item_id: ' work-parser-42 ',
+        attempt_id: 'attempt-parser-7 ',
+        agent: ' qa-critic',
+        tool: 'read-file ',
+        runtime_id: ' claude-code ',
+        phase: ' executing'
+      })
+    ]
+  };
+
+  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  expect(pulse.total).toBe(1);
+  expect(pulse.unresolved).toBe(0);
+  expect(pulse.items[0]).toMatchObject({
+    ref: 'bound-with-noncanonical-optional-evidence',
+    description: 'Parser härten',
+    descriptionSource: 'bound',
+    lane: 'local_only'
+  });
+  expect(pulse.items[0].workItemId).toBeUndefined();
+  expect(pulse.items[0].attemptId).toBeUndefined();
+  expect(pulse.items[0].agent).toBeUndefined();
+  expect(pulse.items[0].tool).toBeUndefined();
+  expect(pulse.items[0].runtimeId).toBeUndefined();
+  expect(pulse.items[0].phase).toBeUndefined();
+  expect(boundExecutionLine(pulse.items[0])).toBeUndefined();
 });
