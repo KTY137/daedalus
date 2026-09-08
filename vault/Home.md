@@ -23,16 +23,17 @@ permalink: main/home
 - [[SETUP]] — was der Owner einmalig einrichten muss
 - [[ENVIRONMENT_REPORT]] — was gebaut wurde, mit Quellen
 
-## Status-Snapshot (manuell gepflegt, Stand 2026-09-05)
+## Status-Snapshot (manuell gepflegt, Stand 2026-09-08)
 
 | Feld | Wert | Provenienz |
 | --- | --- | --- |
-| Aktives Gate | **Gate 1 — Renovation, owner-directed Genesis und general computer assistance** | INHERITED (Plan-Text Revision 12, sha256 `12659413…d8fb` laut G1-IKARUS-17) |
-| Plan-Revision | 12 (Version 2.3.0, 2026-09-05) | INHERITED (Plan-Metadaten) |
-| Nächster Produktbeweis | Renovation Ignition Slice bleibt offen; im Assistant-Strang: Zaun-Lift für `file.*` (G1-IKARUS-25) nach bestätigtem Review von G1-IKARUS-24 | Plan §11/§12, [[Sessions/2026-09-05]] |
-| Offene Amendment-Vorschläge | 002, 003, 004 (alt), 013 (neu, ungeprüft) | MEASURED (`docs/`-Listing 2026-09-05) |
+| Aktives Gate | **Gate 1 — Renovation, owner-directed Genesis, general computer assistance, Hardware-Targets, Self-Renovation** | INHERITED (Plan-Text Revision 13) |
+| Plan-Revision | 13 (Version 2.4.0, 2026-09-06; Amendment 013 angenommen) | INHERITED (Plan-Metadaten, Kette Sequenz 12/13) |
+| Nächster Produktbeweis | Chat-Zündung: „verbessere Daedalus“ → gebundene, nominierende Self-Renovation-Kampagne (Lanes Voice/Intent/Self-Renovation/Cockpit, [[Sessions/2026-09-08]]); Renovation Ignition Slice bleibt offen (Codex-Lane, PRs #319/#321 gemerged) | Plan §8.1/§11/§12 |
+| Offene Amendment-Vorschläge | 002, 003, 004 (alt) | MEASURED (`docs/`-Listing 2026-09-05, 013 seit 2026-09-06 angenommen) |
+| Offene Gate-3-Vorarbeit | PR #320 (G3-BASE-01), Draft-PR #322 (Tokenizer); Usage/Corpus WIP; Seal wartet auf Owner-Entscheidung | MEASURED [[Sessions/2026-09-08]] |
 
-Frühere Snapshots: 2026-08-26 (Gate 0 besiegelt, Revision 8) — siehe [[Gates/Gate-Status]].
+Frühere Snapshots: 2026-09-05 (Amendment 012, G1-IKARUS-24), 2026-08-26 (Gate 0 besiegelt, Revision 8) — siehe [[Gates/Gate-Status]].
 
 > [!warning] Kein Dataview nötig
 > Alle Dashboards hier sind bewusst mit Bordmitteln gebaut (Links, Tabellen,
