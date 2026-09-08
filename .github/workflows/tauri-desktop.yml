@@ -402,7 +402,7 @@ jobs:
           test "$(cat release-evidence/seccomp-package-owner.txt)" = "golang-github-containers-common: $seccomp_path"
           seccomp_version="$(dpkg-query -W -f='${Version}' golang-github-containers-common)"
           echo "$seccomp_version" > release-evidence/seccomp-package-version.txt
-          dpkg-statoverride --list > release-evidence/dpkg-statoverrides.txt
+          dpkg-statoverride --list > release-evidence/dpkg-statoverrides.txt || test "$?" -eq 1
           sudo apt-get install --reinstall -y "golang-github-containers-common=$seccomp_version"
           sha256sum --check release-evidence/seccomp-before.sha256
           stat -c '%F uid=%u gid=%g mode=%a links=%h dev=%d inode=%i' "$seccomp_path" > release-evidence/seccomp-stat-after.txt
