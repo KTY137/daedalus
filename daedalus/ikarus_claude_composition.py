@@ -388,9 +388,10 @@ def dispatch_mission_bound_claude_invocation(
     """Execute one sealed Claude call and project its result to the WorkItem.
 
     The provider arguments come only from the authenticated invocation payload,
-    never from queue/chat metadata. The provider must return the same runtime and
-    Attempt identity before Ikarus adds Mission/WorkItem projection fields. Phase
-    and terminal receipt remain provider evidence and are never fabricated here.
+    never from queue/chat metadata. The provider must return the same provider,
+    runtime and Attempt identity before Ikarus adds Mission/WorkItem projection
+    fields. Phase and terminal receipt remain provider evidence and are never
+    fabricated here.
     """
 
     if type(invocation) is not MissionBoundClaudeInvocation:
@@ -409,6 +410,10 @@ def dispatch_mission_bound_claude_invocation(
     if type(result) is not dict:
         raise IkarusClaudeCompositionRefused(
             "sealed Claude provider returned a non-object result"
+        )
+    if result.get("provider") != "claude_cli":
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude result does not name the canonical Claude provider"
         )
     if result.get("attempt_id") != invocation.attempt_id:
         raise IkarusClaudeCompositionRefused(
