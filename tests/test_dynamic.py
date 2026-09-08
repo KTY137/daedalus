@@ -101,24 +101,31 @@ class BridgeLaneRoutingTests(unittest.TestCase):
         }), encoding="utf-8")
         return req
 
-    def test_claude_lane_calls_ask_claude_not_offload(self):
+    def test_claude_lane_refuses_before_ambient_provider_invocation(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             req = self._write_request(tmp, lane="claude")
-            claude_result = {"agent": "ui-ux-dev", "report": {"status": "done", "summary": "ok"}}
-            with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
-                    patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
-                    patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
-                    patch("daedalus.core.ask_claude", return_value=claude_result) as ask, \
-                    patch("daedalus.offload.offload",
-                          side_effect=AssertionError("offload must not run on the claude lane")) as off:
+            with (
+                patch.object(file_bridge, "INBOX", tmp / "inbox"),
+                patch.object(file_bridge, "ARCHIVE", tmp / "archive"),
+                patch.object(file_bridge, "record_from_bridge_report", lambda r: None),
+                patch(
+                    "daedalus.core.ask_claude",
+                    side_effect=AssertionError("unsealed queue caller must not invoke Claude"),
+                ) as ask,
+                patch(
+                    "daedalus.offload.offload",
+                    side_effect=AssertionError("offload must not run on the claude lane"),
+                ) as off,
+            ):
                 out_path = file_bridge.process_request(req)
-            ask.assert_called_once()
+            ask.assert_not_called()
             off.assert_not_called()
             report = json.loads(out_path.read_text(encoding="utf-8"))
-        self.assertEqual(report["bridge_status"], "done")
+        self.assertEqual(report["bridge_status"], "failed")
         self.assertEqual(report["lane"], "claude")
-        self.assertEqual(report["report"]["status"], "done")
+        self.assertIn("ClaudeSealedInvocationBundle", report["error"])
+        self.assertIn("blocked before provider invocation", report["error"])
 
     def test_unknown_or_missing_lane_fails_closed_not_claude(self):
         """A typo'd or absent lane must never reach a paid provider unattended."""
@@ -185,30 +192,49 @@ class BridgeLaneRoutingTests(unittest.TestCase):
         self.assertEqual(report["orchestrator"], "ikarus")
         self.assertEqual(report["result"]["assignments"][0]["status"], "offloaded")
 
-    def test_local_lane_ineligible_falls_through_to_claude(self):
+    def test_local_lane_ineligible_refuses_unsealed_claude_fallback(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             req = self._write_request(tmp, lane="local")
-            doctor_ready = {"claude_cli": True, "can_offload_local": True, "deepseek_key": False}
-            # Route lands on the senior lane -> not a FREE lane -> fall through.
-            decision = SimpleNamespace(provider="claude_cli", persona="Adam",
-                                       mode="advisory", reason="senior lane")
-            claude_result = {"agent": "hardware-dev", "report": {"status": "done", "summary": "senior"}}
-            with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
-                    patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
-                    patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
-                    patch("daedalus.doctor.check", return_value=doctor_ready), \
-                    patch("daedalus.kairos.scheduler.route_and_select",
-                          return_value=({"name": "hardware-dev"}, decision)), \
-                    patch("daedalus.offload.offload",
-                          side_effect=AssertionError("offload must not run for a senior-lane route")) as off, \
-                    patch("daedalus.core.ask_claude", return_value=claude_result) as ask:
+            doctor_ready = {
+                "claude_cli": True,
+                "can_offload_local": True,
+                "deepseek_key": False,
+                "codex_cli": False,
+            }
+            # Force this legacy scheduler fixture to reject the local bench.
+            decision = SimpleNamespace(
+                provider="claude_cli",
+                persona="Adam",
+                mode="advisory",
+                reason="senior lane",
+            )
+            with (
+                patch.object(file_bridge, "INBOX", tmp / "inbox"),
+                patch.object(file_bridge, "ARCHIVE", tmp / "archive"),
+                patch.object(file_bridge, "record_from_bridge_report", lambda r: None),
+                patch("daedalus.doctor.check", return_value=doctor_ready),
+                patch("daedalus.providers._availability_probe", return_value=(True, "")),
+                patch(
+                    "daedalus.kairos.scheduler.route_and_select",
+                    return_value=({"name": "hardware-dev"}, decision),
+                ),
+                patch(
+                    "daedalus.offload.offload",
+                    side_effect=AssertionError("offload must not run for a senior-lane route"),
+                ) as off,
+                patch(
+                    "daedalus.core.ask_claude",
+                    side_effect=AssertionError("unsealed fallback must not invoke Claude"),
+                ) as ask,
+            ):
                 out_path = file_bridge.process_request(req)
             off.assert_not_called()
-            ask.assert_called_once()
+            ask.assert_not_called()
             report = json.loads(out_path.read_text(encoding="utf-8"))
         self.assertEqual(report["lane"], "claude")
-        self.assertEqual(report["bridge_status"], "done")
+        self.assertEqual(report["bridge_status"], "failed")
+        self.assertIn("ClaudeSealedInvocationBundle", report["error"])
 
     def test_local_only_lane_never_falls_through_to_claude(self):
         with tempfile.TemporaryDirectory() as d:

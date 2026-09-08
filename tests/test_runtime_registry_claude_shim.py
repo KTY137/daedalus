@@ -177,3 +177,46 @@ def test_kernel_runtime_admission_path_is_compatibility_only() -> None:
     assert "RuntimeBoundEffectAuthorization(" not in legacy_source
     assert owner_source.count("def acquire_runtime_bound_authorization(") == 1
     assert owner_source.count("RuntimeBoundEffectAuthorization(") == 1
+def test_ikarus_scheduler_claude_availability_requires_canonical_dispatch(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "daedalus.doctor.check",
+        lambda: {
+            "claude_cli": True,
+            "can_offload_local": True,
+            "deepseek_key": False,
+            "codex_cli": False,
+        },
+    )
+    with mock.patch(
+        "daedalus.providers._availability_probe",
+        return_value=(False, "inventory_only"),
+    ) as probe:
+        availability = core._availability_from_doctor()
+
+    assert availability["claude_cli"] is False
+    assert availability["ollama"] is True
+    probe.assert_called_once_with("claude_cli")
+
+
+def test_core_claude_fallback_never_invokes_unsealed_public_bridge(monkeypatch) -> None:
+    monkeypatch.setattr(
+        core,
+        "ask_claude",
+        mock.Mock(side_effect=AssertionError("ambient Claude invocation is forbidden")),
+    )
+    payload = {
+        "objective": "inspect runtime seam",
+        "repo_root": "/repo",
+        "paths": [],
+        "model": "sonnet",
+        "lane": "claude",
+    }
+
+    report = core._ask_claude_report(payload)
+
+    core.ask_claude.assert_not_called()
+    assert report["bridge_status"] == "failed"
+    assert report["lane"] == "claude"
+    assert "ClaudeSealedInvocationBundle" in report["error"]
+    assert "blocked before provider invocation" in report["error"]
+

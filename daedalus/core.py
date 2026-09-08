@@ -975,10 +975,18 @@ def enforce_harness(project: str) -> dict[str, Any]:
 
 def _availability_from_doctor() -> dict[str, bool]:
     from .doctor import check
+    from .providers import _availability_probe
 
     ready = check()
+    claude_dispatch_ready, _ = _availability_probe("claude_cli")
     return {
-        "claude_cli": bool(ready.get("claude_cli")),
+        # Executable discovery is inventory, not dispatch authority. Do
+        # not let Kairos route onto a provider the canonical effect seam
+        # must refuse; this keeps automatic/local routing aligned with
+        # the same readiness truth exposed by /api/providers/status.
+        "claude_cli": bool(
+            ready.get("claude_cli") and claude_dispatch_ready
+        ),
         "ollama": bool(ready.get("can_offload_local")),
         "deepseek": bool(ready.get("deepseek_key")),
         "codex_cli": bool(ready.get("codex_cli")),
@@ -1015,41 +1023,27 @@ def _try_ikarus(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _ask_claude_report(payload: dict[str, Any]) -> dict[str, Any]:
-    try:
-        result = ask_claude(
-            objective=payload["objective"],
-            repo_root=payload["repo_root"],
-            paths=payload["paths"],
-            model=payload["model"],
-            timeout_s=int(payload.get("timeout_s", 300)),
-        )
-        terminal_report = {
-            "request": payload,
-            "bridge_status": "done",
-            "lane": "claude",
-            "agent": result["agent"],
-            "report": result["report"],
-        }
-        # Execution identity is provider evidence, never requested routing
-        # metadata.  Keep this as an allowlist so future provider internals do
-        # not leak into the durable bridge report by accident.
-        for name in (
-            "runtime_id",
-            "work_item_id",
-            "attempt_id",
-            "phase",
-            "terminal_receipt_sha256",
-        ):
-            if name in result:
-                terminal_report[name] = result[name]
-        return terminal_report
-    except Exception as exc:
-        return {
-            "request": payload,
-            "bridge_status": "failed",
-            "lane": "claude",
-            "error": str(exc),
-        }
+    """Refuse the legacy queue fallback before any provider invocation.
+
+    A serialized bridge payload is intent, not an in-memory runtime/effect
+    capability. ``ask_claude`` correctly requires an exact
+    ``ClaudeSealedInvocationBundle``; this legacy file-bridge seam owns no
+    such bundle and must not probe the provider and then catch the expected
+    authorization exception. Claude becomes runnable here only after the
+    canonical Mission/Attempt runtime composition root supplies that bundle.
+    """
+    return {
+        "request": payload,
+        "bridge_status": "failed",
+        "lane": "claude",
+        "error": (
+            "Claude dispatch is blocked before provider invocation: the "
+            "legacy queue caller does not own the exact "
+            "ClaudeSealedInvocationBundle required by the canonical runtime "
+            "boundary. Route Claude through Ikarus' Mission/Attempt runtime "
+            "composition root."
+        ),
+    }
 
 
 def local_only_failure_report(payload: dict[str, Any]) -> dict[str, Any]:
