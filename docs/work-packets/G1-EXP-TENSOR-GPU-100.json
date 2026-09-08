@@ -26,7 +26,7 @@
   "title": "Measure full-rebuild amplification for one deterministic relation delta",
   "classification": "research",
   "domain": "fourfold-tensor-kernel",
-  "status": "implemented-measuring",
+  "status": "closed-research",
   "date": "2026-09-08",
   "masterplan": {
     "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
@@ -39,27 +39,55 @@
   "branch": "exp/tensor-kernel-contract-01",
   "base_head": "c52d5ab0fbd95d283fa1deab09aa57a50dd92edc",
   "implementation_head": "3a491cc78af06724391aab63f12e6be9044d9f09",
+  "measurement_head": "abb787b78afbb06aaa189809e6e1ecc93d9e24b8",
   "scope": "Stop constructor micro-optimization and quantify the current full-rebuild tax for a tiny same-plane Boolean relation delta without implementing an incremental backend. Reuse KnowledgeForest, FourfoldSnapshot and compile_relation_blocks as the only semantic/projection owners. Keep axis membership fixed, add exactly one retained relation fact, and separately pin fail-closed behavior for partial endpoint planes.",
   "measurement": {
     "authority": "diagnostic only; KnowledgeForest/Fourfold remain semantic authority and compile_relation_blocks remains the only projection owner",
     "probe": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
     "schema": "daedalus-tensor-relation-delta-rebuild/1",
+    "source_head": "abb787b78afbb06aaa189809e6e1ecc93d9e24b8",
+    "source_workflow": {
+      "id": 34267579046,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "source_artifact": {
+      "artifact_id": 10072470420,
+      "artifact_name": "tensor-relation-delta-rebuild-3f83a6aeddefa7c922ebff37c3df0987965e37e4",
+      "report": "relation_delta_rebuild_ci.json",
+      "report_sha256": "2a5999bf6209c2b69f71f288d47aa0000bb5fb8fdc9d9ca030cd6f71f8ada526",
+      "archive_sha256": "375fc5d69cb0a917654c08dee0a2f5c939556c40ba8c6e8a16ea46837a887fc4"
+    },
     "ci_case": {
       "nodes": 512,
       "row_width": 16,
       "base_edges": 8192,
       "delta_edges": 8193,
+      "base_output_entries": 8192,
+      "delta_output_entries": 8193,
       "changed_coordinate_count": 1,
+      "added_coordinate": ["src/node_0000.py", "src/node_0017.py", true],
+      "removed_coordinate_count": 0,
       "deterministic_rebuild_entries_per_changed_coordinate": 8193.0,
       "deterministic_edge_scan_per_changed_coordinate": 8193.0,
       "changed_coordinate_fraction_of_delta_output": 0.00012205541315757354,
       "repeats": 7,
       "warmup": 2
     },
+    "wall_timing_ms": {
+      "base_compile": {"samples": 7, "median": 145.295841, "min": 138.154648, "max": 145.910772},
+      "delta_compile": {"samples": 7, "median": 139.521977, "min": 136.990549, "max": 148.555811},
+      "delta_to_base_median_ratio": 0.9602613264064455,
+      "interpretation": "These are ordinary full-rebuild timings on the hosted Python 3.12.14 Linux runner. The near-equal medians are not an incremental speedup result because no incremental implementation exists."
+    },
+    "digests": {
+      "base_compiled": "45bc8b12203d7a5084e6be91ec359db81357f32061c8671aa6c72df702cf5467",
+      "delta_compiled": "721830a9417cb6153b3f44cd8cf05381c89a9873cdf1850e21523b4ed15bd3e4"
+    },
     "semantic_delta": "The base and delta Forests have identical 512-node code-plane membership. The delta revision adds exactly src/node_0000.py -> src/node_0017.py with relation imports; no coordinate is removed.",
-    "unsupported_behavior": "The same delta Forest bound to a partial code plane must be refused with the canonical complete-endpoint-plane error before sparse zeroes can be interpreted as complete facts.",
-    "wall_timing": "pending retained exact workflow artifact before this packet can close",
-    "finding_so_far": "Even before wall timing, the present full rebuild deterministically re-scans/re-materializes 8193 selected Forest facts to represent one changed semantic coordinate in this frozen case. This is work-scope amplification evidence only; no incremental-speedup claim is made."
+    "unsupported_behavior": "The same delta Forest bound to a partial code plane is refused with 'relation compilation requires complete endpoint planes; code=partial' before sparse zeroes can be interpreted as complete facts.",
+    "finding": "For this frozen case, one changed semantic coordinate causes the current canonical full rebuild to scan and reconstruct 8193 selected relation facts. This is deterministic 8193:1 work-scope amplification evidence and a measured full-rebuild construction cost around 140-145 ms on the hosted runner. It does not measure or prove an incremental speedup, memory win or Tensor-over-Forest advantage."
   },
   "semantic_invariants": {
     "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; the probe never becomes a graph or fact owner.",
@@ -71,7 +99,7 @@
     "public_api": "No public API, wire schema, authority or promotion contract changes."
   },
   "result": {
-    "closed": false,
+    "closed": true,
     "production_change": false,
     "test_change": true,
     "probe_change": true,
@@ -79,7 +107,8 @@
     "work_packet_record_added": true,
     "incremental_backend_implemented": false,
     "parallel_abstraction_added": false,
-    "summary": "GPU-100 now has a bounded deterministic probe and focused contracts that quantify full-rebuild work amplification for a one-fact relation delta while preserving canonical Fourfold/Forest authority and closed-world refusal. Closure waits only for the retained CI measurement artifact."
+    "full_rebuild_scope_amplification_observed": true,
+    "summary": "GPU-100 closes with retained CI evidence: one added Boolean relation coordinate under fixed axes requires the current full rebuild to scan and reconstruct 8193 selected facts in the frozen 512x16 case. The diagnostic preserves Fourfold/Forest authority, complete-plane refusal and the single compile_relation_blocks owner; it implements no incremental backend and makes no superiority claim."
   },
   "evidence": {
     "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
@@ -87,10 +116,13 @@
     "probe_commit": "e5201a913030b2eb2ebb50829018af52130c27b6",
     "test_commit": "478634c29b13750e2e5e64239c20e4deaafebbc7",
     "workflow_commit": "3a491cc78af06724391aab63f12e6be9044d9f09",
+    "measurement_head": "abb787b78afbb06aaa189809e6e1ecc93d9e24b8",
     "probe_path": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
     "test_path": "tests/twin/test_tensor_relation_delta_rebuild_probe.py",
     "workflow_path": ".github/workflows/fourfold-v2.yml",
     "code_test_head_fourfold_tensor_run": "34267104045:completed/success on 478634c29b13750e2e5e64239c20e4deaafebbc7",
+    "measurement_head_fourfold_tensor_run": "34267579046:completed/success on abb787b78afbb06aaa189809e6e1ecc93d9e24b8",
+    "measurement_artifact": "10072470420/relation_delta_rebuild_ci.json report-sha256:2a5999bf6209c2b69f71f288d47aa0000bb5fb8fdc9d9ca030cd6f71f8ada526 archive-sha256:375fc5d69cb0a917654c08dee0a2f5c939556c40ba8c6e8a16ea46837a887fc4",
     "campaign_issue": 239,
     "pull_request": 317,
     "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
@@ -99,8 +131,11 @@
     "focused_probe_contracts_added": true,
     "all_existing_twin_contracts_on_code_test_head": true,
     "code_test_head_fourfold_tensor_ci": "Run 34267104045 completed/success after probe and focused tests were added.",
-    "exact_measurement_artifact": "pending",
-    "closure_head_ci_requirement": "A final documentation closure commit requires its own hosted evidence before any exact-head green statement is made.",
+    "measurement_head_fourfold_tensor_ci": "Run 34267579046 completed/success and retained the exact GPU-100 report artifact.",
+    "exact_measurement_artifact": true,
+    "artifact_integrity_sha256_recorded": true,
+    "partial_endpoint_fail_closed": true,
+    "closure_head_ci_requirement": "This documentation-only closure commit requires its own hosted run evidence before any exact-closure-head green statement is made.",
     "full_suite_green": false,
     "all_pr_checks_green": false,
     "performance_superiority": false,
@@ -124,7 +159,10 @@
     "branch_deletion": false,
     "unique_evidence_deleted": false,
     "archive_branch_touched": false,
-    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 28,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
   },
   "governance": {
     "owner_approval": false,
@@ -144,5 +182,5 @@
     "crewai_superiority": false,
     "alphaevolve_superiority": false
   },
-  "bounded_next_step": "After the retained GPU-100 artifact exists, close this packet by recording exact timing/evidence only. A later GPU-101 may design an incremental contract only if the measured full-rebuild amplification remains material and the design preserves revision binding, complete-plane semantics, canonical digest/error behavior and a single graph authority."
+  "bounded_next_step": "GPU-101: keep production unchanged and attribute the frozen full-rebuild tax between global Forest edge discovery/admission and selected-block reconstruction using the existing compile_relation_blocks owner. Do not add a delta contract or backend until this attribution shows where a narrow incremental seam can remove repeated work while preserving revision binding, complete-plane semantics, canonical digest/error behavior and one graph authority."
 }
