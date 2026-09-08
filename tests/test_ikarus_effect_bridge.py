@@ -13,13 +13,18 @@ from daedalus.ikarus_effect_bridge import (
     IkarusEffectBridgeRefused,
     build_oneshot_effect_execution_request,
     build_oneshot_effect_lease_request,
-    validate_oneshot_mission_work_item,
+    validate_oneshot_mission_attempt,
 )
 from daedalus.ikarus_oneshot import OneShotRequest
 from daedalus.ikarus_tool_scope import project_oneshot_tool_scope
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.schemas import ContractProvenance, MissionContract, ResourceBudget
+from daedalus.schemas import (
+    AttemptContract,
+    ContractProvenance,
+    MissionContract,
+    ResourceBudget,
+)
 from daedalus.spine.effect_boundary import Effect
 
 
@@ -131,6 +136,55 @@ def _mission(
     )
 
 
+def _attempt(
+    evidence,
+    tools,
+    *,
+    mission_id: str,
+    work_item_id: str,
+    attempt_id: str,
+    max_cost_microusd: int = 100_000,
+    max_wall_time_s: int = 60,
+    writable_paths: tuple[str, ...] = ("workspace/out.txt",),
+) -> AttemptContract:
+    task_sha256 = "a" * 64
+    inputs = tuple(
+        sorted(
+            {
+                task_sha256,
+                evidence.runtime_manifest_sha256,
+                tools.policy_decision_sha256,
+            }
+        )
+    )
+    return AttemptContract(
+        attempt_id=attempt_id,
+        mission_id=mission_id,
+        task_id=work_item_id,
+        instruction="Execute one bounded Ikarus work item.",
+        base_revision=evidence.source_revision,
+        task_sha256=task_sha256,
+        runtime_manifest_sha256=evidence.runtime_manifest_sha256,
+        policy_decision_sha256=tools.policy_decision_sha256,
+        budget=ResourceBudget(
+            max_tokens=1536,
+            max_cost_microusd=max_cost_microusd,
+            max_wall_time_s=max_wall_time_s,
+            max_attempts=1,
+        ),
+        provenance=ContractProvenance(
+            origin="tests.ikarus-mission-attempt",
+            source_revision=evidence.source_revision,
+            created_at=fixture.NOW.isoformat(),
+            input_digests=inputs,
+            trace_id=mission_id,
+        ),
+        writable_paths=writable_paths,
+        gate_names=("ikarus-one-shot",),
+        read_only=False,
+    )
+
+
 def test_bridge_emits_only_canonical_effect_lease_request(tmp_path):
     request, evidence, tools, effect_request = _effect_request(tmp_path)
 
@@ -184,11 +238,12 @@ def test_execution_request_is_exactly_narrowed_from_kernel_request(tmp_path):
     assert execution.kill_switch_generation == effect_request.kill_switch_generation
 
 
-def test_mission_work_item_binding_accepts_exact_canonical_effect_chain(tmp_path):
+def test_mission_attempt_binding_keeps_attempt_distinct_from_work_item(tmp_path):
     work_item_id = "wi-000-ikarus-bound"
+    attempt_id = "attempt-ikarus-bound-1"
     request, evidence, tools, effect_request = _effect_request(
         tmp_path,
-        attempt_id=work_item_id,
+        attempt_id=attempt_id,
     )
     execution = build_oneshot_effect_execution_request(
         request,
@@ -205,10 +260,19 @@ def test_mission_work_item_binding_accepts_exact_canonical_effect_chain(tmp_path
         mission_id=effect_request.mission_id,
         work_item_id=work_item_id,
     )
+    attempt = _attempt(
+        evidence,
+        tools,
+        mission_id=mission.mission_id,
+        work_item_id=work_item_id,
+        attempt_id=attempt_id,
+    )
 
-    validate_oneshot_mission_work_item(
+    assert attempt.task_id == work_item_id
+    assert attempt.attempt_id != work_item_id
+    validate_oneshot_mission_attempt(
         mission,
-        work_item_id,
+        attempt,
         request,
         evidence,
         tools,
@@ -217,11 +281,12 @@ def test_mission_work_item_binding_accepts_exact_canonical_effect_chain(tmp_path
     )
 
 
-def test_mission_work_item_binding_refuses_foreign_work_item(tmp_path):
+def test_mission_attempt_binding_refuses_foreign_work_item(tmp_path):
     work_item_id = "wi-000-ikarus-bound"
+    attempt_id = "attempt-ikarus-bound-2"
     request, evidence, tools, effect_request = _effect_request(
         tmp_path,
-        attempt_id="wi-001-foreign",
+        attempt_id=attempt_id,
     )
     execution = build_oneshot_effect_execution_request(
         request,
@@ -237,11 +302,18 @@ def test_mission_work_item_binding_refuses_foreign_work_item(tmp_path):
         mission_id=effect_request.mission_id,
         work_item_id=work_item_id,
     )
+    attempt = _attempt(
+        evidence,
+        tools,
+        mission_id=mission.mission_id,
+        work_item_id="wi-001-foreign",
+        attempt_id=attempt_id,
+    )
 
     with pytest.raises(IkarusEffectBridgeRefused, match="mission work item"):
-        validate_oneshot_mission_work_item(
+        validate_oneshot_mission_attempt(
             mission,
-            work_item_id,
+            attempt,
             request,
             evidence,
             tools,
@@ -250,11 +322,52 @@ def test_mission_work_item_binding_refuses_foreign_work_item(tmp_path):
         )
 
 
-def test_mission_work_item_binding_refuses_broader_one_shot_budget(tmp_path):
+def test_mission_attempt_binding_refuses_foreign_attempt(tmp_path):
     work_item_id = "wi-000-ikarus-bound"
     request, evidence, tools, effect_request = _effect_request(
         tmp_path,
-        attempt_id=work_item_id,
+        attempt_id="attempt-effect-foreign",
+    )
+    execution = build_oneshot_effect_execution_request(
+        request,
+        evidence,
+        tools,
+        effect_request,
+        execution_id="ikarus-execution-foreign-attempt",
+        idempotency_key="ikarus-execution-foreign-attempt-key",
+    )
+    mission = _mission(
+        evidence,
+        tools,
+        mission_id=effect_request.mission_id,
+        work_item_id=work_item_id,
+    )
+    attempt = _attempt(
+        evidence,
+        tools,
+        mission_id=mission.mission_id,
+        work_item_id=work_item_id,
+        attempt_id="attempt-canonical",
+    )
+
+    with pytest.raises(IkarusEffectBridgeRefused, match="effect attempt"):
+        validate_oneshot_mission_attempt(
+            mission,
+            attempt,
+            request,
+            evidence,
+            tools,
+            effect_request,
+            execution,
+        )
+
+
+def test_mission_attempt_binding_refuses_broader_one_shot_budget(tmp_path):
+    work_item_id = "wi-000-ikarus-bound"
+    attempt_id = "attempt-ikarus-budget"
+    request, evidence, tools, effect_request = _effect_request(
+        tmp_path,
+        attempt_id=attempt_id,
     )
     execution = build_oneshot_effect_execution_request(
         request,
@@ -269,13 +382,105 @@ def test_mission_work_item_binding_refuses_broader_one_shot_budget(tmp_path):
         tools,
         mission_id=effect_request.mission_id,
         work_item_id=work_item_id,
+    )
+    attempt = _attempt(
+        evidence,
+        tools,
+        mission_id=mission.mission_id,
+        work_item_id=work_item_id,
+        attempt_id=attempt_id,
         max_cost_microusd=50_000,
     )
 
-    with pytest.raises(IkarusEffectBridgeRefused, match="mission budget"):
-        validate_oneshot_mission_work_item(
+    with pytest.raises(IkarusEffectBridgeRefused, match="canonical attempt budget"):
+        validate_oneshot_mission_attempt(
             mission,
-            work_item_id,
+            attempt,
+            request,
+            evidence,
+            tools,
+            effect_request,
+            execution,
+        )
+
+
+def test_mission_attempt_binding_refuses_attempt_broader_than_mission(tmp_path):
+    work_item_id = "wi-000-ikarus-bound"
+    attempt_id = "attempt-ikarus-mission-budget"
+    request, evidence, tools, effect_request = _effect_request(
+        tmp_path,
+        attempt_id=attempt_id,
+    )
+    execution = build_oneshot_effect_execution_request(
+        request,
+        evidence,
+        tools,
+        effect_request,
+        execution_id="ikarus-execution-attempt-budget-broad",
+        idempotency_key="ikarus-execution-attempt-budget-broad-key",
+    )
+    mission = _mission(
+        evidence,
+        tools,
+        mission_id=effect_request.mission_id,
+        work_item_id=work_item_id,
+        max_cost_microusd=100_000,
+    )
+    attempt = _attempt(
+        evidence,
+        tools,
+        mission_id=mission.mission_id,
+        work_item_id=work_item_id,
+        attempt_id=attempt_id,
+        max_cost_microusd=120_000,
+    )
+
+    with pytest.raises(IkarusEffectBridgeRefused, match="canonical mission budget"):
+        validate_oneshot_mission_attempt(
+            mission,
+            attempt,
+            request,
+            evidence,
+            tools,
+            effect_request,
+            execution,
+        )
+
+
+def test_mission_attempt_binding_refuses_wider_write_scope(tmp_path):
+    work_item_id = "wi-000-ikarus-bound"
+    attempt_id = "attempt-ikarus-write-scope"
+    request, evidence, tools, effect_request = _effect_request(
+        tmp_path,
+        attempt_id=attempt_id,
+    )
+    execution = build_oneshot_effect_execution_request(
+        request,
+        evidence,
+        tools,
+        effect_request,
+        execution_id="ikarus-execution-write-scope",
+        idempotency_key="ikarus-execution-write-scope-key",
+    )
+    mission = _mission(
+        evidence,
+        tools,
+        mission_id=effect_request.mission_id,
+        work_item_id=work_item_id,
+    )
+    attempt = _attempt(
+        evidence,
+        tools,
+        mission_id=mission.mission_id,
+        work_item_id=work_item_id,
+        attempt_id=attempt_id,
+        writable_paths=("workspace/other.txt",),
+    )
+
+    with pytest.raises(IkarusEffectBridgeRefused, match="attempt writable paths"):
+        validate_oneshot_mission_attempt(
+            mission,
+            attempt,
             request,
             evidence,
             tools,
