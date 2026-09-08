@@ -839,6 +839,10 @@ def _report_brief(path: Path) -> dict[str, Any]:
         "status": payload.get("bridge_status") or "?",
         "lane": payload.get("lane") or request.get("lane") or "?",
         "project": request.get("project") or "",
+        # Execution attribution is copied only from the terminal report
+        # itself. Request/chat metadata must never be promoted into an
+        # agent identity because routing may change after enqueue.
+        "agent": payload.get("agent") or "",
         "summary": " ".join(str(summary).split())[:160],  # one line for the console
     }
 
