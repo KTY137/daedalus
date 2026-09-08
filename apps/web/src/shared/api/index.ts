@@ -842,7 +842,17 @@ export function observeConversationTurn(
   conversationId: string,
   requestId: number,
   handlers: {
-    onStart?: (data: { intent?: string; provider_used?: string }) => void;
+    // The `start` frame already carries the shell, the model and the server's
+    // own timeout. Typing them here is additive: `read(event)` forwards the
+    // whole parsed frame and the caller does the narrowing.
+    onStart?: (data: {
+      intent?: string;
+      shell?: string;
+      provider_used?: string;
+      model_used?: string;
+      auto_selected?: boolean;
+      timeout_s?: number;
+    }) => void;
     onDelta?: (text: string) => void;
     onFinal?: (payload: IkarusAskPayload) => void;
     onCancelled?: (cancellation: ConversationCancellation) => void;
@@ -1272,7 +1282,14 @@ export function streamIkarus(
   model: string | undefined,
   effort: EffortLevel | undefined,
   handlers: {
-    onStart?: (data: { intent?: string; provider_used?: string }) => void;
+    onStart?: (data: {
+      intent?: string;
+      shell?: string;
+      provider_used?: string;
+      model_used?: string;
+      auto_selected?: boolean;
+      timeout_s?: number;
+    }) => void;
     onDelta: (text: string) => void;
     onFinal: (payload: IkarusAskPayload) => void;
     onError: (err: Error) => void;

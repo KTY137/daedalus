@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 471,
+    "assigned_artifacts": 472,
     "legacy_artifacts": 204,
-    "packet_artifacts": 473,
-    "packet_ids": 408,
-    "post_index_artifacts": 269,
+    "packet_artifacts": 474,
+    "packet_ids": 409,
+    "post_index_artifacts": 270,
     "registry_artifacts": 1,
-    "tracked_files": 474,
+    "tracked_files": 475,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -6743,6 +6743,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-UI-22_CONVERSATION_HONESTY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "db38a762991b04cbc96c3cbed5209d6a517fa611",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-UI-05, G1-UI-06, G1-UI-08 integrated. The additive envelope",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-UI-22",
+      "primary_artifact": "docs/work-packets/G1-UI-22_CONVERSATION_HONESTY.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-WEB-01_PROJECT_SCOPED_LIVE_EVENTS.md"
       ],
       "metadata": {
@@ -10517,6 +10533,20 @@
       "format": "markdown",
       "packet_id": "G1-UI-21",
       "path": "docs/work-packets/G1-UI-21_TOKEN_AUDIT_AND_WORKBENCH_PANES.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-UI-22",
+      "path": "docs/work-packets/G1-UI-22_CONVERSATION_HONESTY.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

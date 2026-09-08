@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { revealVariants, useReducedMotionPref } from '@/shared/ui/motion';
 import type { LedgerRow, RowTone } from './model';
@@ -41,7 +41,15 @@ function toneWord(tone: RowTone): string {
   }
 }
 
-export function Ledger({ rows }: { rows: LedgerRow[] }) {
+/**
+ * Memoised on purpose. `createReceiptCache` hands an unchanged turn back a
+ * reference-identical `rows` array, so a burst of stream deltas re-renders
+ * exactly the one ledger that changed instead of every historical one.
+ *
+ * Detail lines stay JSX text children below: React escapes them, which is what
+ * makes rendering untrusted provider stderr here inert.
+ */
+export const Ledger = memo(function Ledger({ rows }: { rows: LedgerRow[] }) {
   const [open, setOpen] = useState(false);
   const reduced = useReducedMotionPref();
   const reveal = useMemo(() => revealVariants(reduced), [reduced]);
@@ -90,4 +98,4 @@ export function Ledger({ rows }: { rows: LedgerRow[] }) {
       )}
     </div>
   );
-}
+});
