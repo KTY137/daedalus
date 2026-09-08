@@ -176,6 +176,13 @@ def verify_forest_projection(
         if source_plane == target_plane:
             relation_digests[source_plane].add(_relation_digest(edge))
             continue
+        if not edge.directed:
+            findings.append(ProjectionFinding(
+                "undirected-cross-plane-edge",
+                f"Forest edge {edge.relation!r} between {edge.source!r} and "
+                f"{edge.target!r} is undirected and cannot project to a directed binding",
+            ))
+            continue
         key = (
             source_plane,
             edge.source,

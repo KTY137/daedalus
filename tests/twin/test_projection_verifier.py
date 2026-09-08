@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from daedalus.schemas import ContractProvenance
+from daedalus.spine.envelope import canonical_sha
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
 from daedalus.twin import (
     CrossPlaneBinding,
@@ -117,6 +118,103 @@ def test_legacy_projection_evidence_wrapper_is_verified() -> None:
         source_revision=REVISION,
         created_at=NOW,
     )
+    assert require_forest_projection(forest, snapshot).valid
+
+
+@pytest.mark.parametrize("directed", (False, True))
+@pytest.mark.parametrize("legacy_evidence", (False, True))
+def test_cross_plane_projection_requires_direction_for_each_evidence_form(
+    directed: bool,
+    legacy_evidence: bool,
+) -> None:
+    edge = ForestEdge(
+        "docs/App.md", "src/app.py", "documents", directed,
+        evidence=("a" * 64,),
+    )
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/app.py", "source_file", {}),
+            ForestNode("docs/App.md", "document", {}),
+        ),
+        edges=(edge,),
+        hyperedges=(),
+        provenance={"source_revision": REVISION},
+    )
+    forest_sha = forest.content_sha256
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane,
+            source_revision=REVISION,
+            status="complete" if nodes else "absent",
+            node_ids=nodes,
+            relation_sha256s=(),
+            evidence_sha256s=(forest_sha,),
+            reason="" if nodes else "no fixture nodes",
+        )
+        for plane, nodes in (
+            ("code", ("src/app.py",)),
+            ("type", ()),
+            ("data", ()),
+            ("knowledge", ("docs/App.md",)),
+        )
+    )
+    binding = CrossPlaneBinding(
+        source_plane="knowledge",
+        source_node_id=edge.source,
+        target_plane="code",
+        target_node_id=edge.target,
+        relation=edge.relation,
+        source_revision=REVISION,
+        evidence_sha256s=(
+            (forest_sha, canonical_sha(edge.to_dict()))
+            if legacy_evidence else edge.evidence
+        ),
+    )
+    snapshot = FourfoldSnapshot(
+        repository_id="directionality-fixture",
+        source_revision=REVISION,
+        source_forest_sha256=forest_sha,
+        planes=planes,
+        bindings=(binding,),
+        provenance=ContractProvenance(
+            origin="test.projection-directionality",
+            source_revision=REVISION,
+            created_at=NOW,
+            input_digests=(forest_sha, *(plane.digest for plane in planes), binding.digest),
+        ),
+    )
+
+    for subject in (snapshot, FourfoldSnapshot.from_dict(snapshot.to_dict())):
+        report = verify_forest_projection(forest, subject)
+        if directed:
+            assert report.valid
+            assert require_forest_projection(forest, subject).valid
+        else:
+            assert not report.valid
+            assert "undirected-cross-plane-edge" in {
+                finding.code for finding in report.findings
+            }
+            with pytest.raises(ValueError, match="undirected-cross-plane-edge"):
+                require_forest_projection(forest, subject)
+
+
+def test_undirected_same_plane_relation_remains_a_lossless_projection() -> None:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/a.py", "source_file", {}),
+            ForestNode("src/b.py", "source_file", {}),
+        ),
+        edges=(ForestEdge("src/a.py", "src/b.py", "related", False),),
+        hyperedges=(),
+        provenance={"source_revision": REVISION},
+    )
+    snapshot = fourfold_from_knowledge_forest(
+        forest, repository_id="undirected-same-plane", source_revision=REVISION,
+        created_at=NOW,
+    )
+
     assert require_forest_projection(forest, snapshot).valid
 
 
