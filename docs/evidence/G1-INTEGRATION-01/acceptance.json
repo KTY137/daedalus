@@ -109,6 +109,18 @@
       "archive_sha256": "594265fcde0a4b38039f169250f6aaebe66ec669e24843f42279ff1dea980e36"
     },
     {
+      "source": "runs/integration-20260908/ci-job-101970024465.log",
+      "sha256": "ef0278759c3a26397b052bf5ff29e1fa9f46155525e7f73fe385410e1e9480c2",
+      "archive": "ci-job-101970024465.log.gz",
+      "archive_sha256": "e60c97a98f1c59735a184d86029b8788d54fb1b8d4bde99c2f0d33d40a381d8f"
+    },
+    {
+      "source": "runs/integration-20260908/ci-linux-canvas-readonly-diagnosis.json",
+      "sha256": "7f2d7d64dd8b140e485d58e70eae256b9d383ccaab8ddcb57d755ccf22c8d9e7",
+      "archive": "ci-linux-canvas-readonly-diagnosis.json.gz",
+      "archive_sha256": "7bbfb522b25615623e6895fba2d881eb4e8a4a68c46d05d8f590eb2ad762398e"
+    },
+    {
       "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/environment.json",
       "sha256": "28abb070fd0df40f77252d7e49f1f42e2ab009ba95d46bfcc1c312713373c7e9",
       "archive": "claude-broker-environment.json.gz",
@@ -427,7 +439,11 @@
       "Last-writer cleanup race may create sidecars; no lifetime lease or unconditional no-creation guarantee",
       "Bounded headers and extents do not prove every frame or index entry"
     ],
-    "plan_change": false
+    "plan_change": false,
+    "builder_final_targeted": {
+      "passed": 90,
+      "seconds": 38.53
+    }
   },
   "s02_remeasurement": {
     "corpus_sha256": "924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df",
@@ -438,5 +454,11 @@
     "tests_passed": 8,
     "prior_retractions_retained": true,
     "gate_claim": false
+  },
+  "ci_second_head_findings": {
+    "head": "0e8b2325311876298ac73a6be2123c2880720d5b",
+    "linux_http_genesis": "Both Linux matrices reach four real-build cases without configured canonical rootless OCI runtime/image, so containment refuses before delivery; WAL reader tests pass. Per Python3.12 job:596passed,4failed,4skipped,6passing subtests.",
+    "correction": "Provision canonical rootless Podman with the already pinned Debian image; require one real unskipped confinement test before HTTP Genesis builds. Host Python and guest image interpreter are distinct.",
+    "linux_canvas": "Relevant scene source, assets, dependency lock and test bytes are identical to frozen main. No cause established without DOM/trace; failure remains retained and is not labelled flaky or fixed."
   }
 }

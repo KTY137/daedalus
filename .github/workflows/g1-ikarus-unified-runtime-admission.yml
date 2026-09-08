@@ -138,6 +138,39 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
+      - name: Provision and measure the Linux candidate runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          DAEDALUS_RUN_LINUX_OCI_INTEGRATION: "1"
+          DAEDALUS_LINUX_OCI_IMAGE: docker.io/library/python@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+        run: |
+          set -euo pipefail
+          mkdir -p runtime-evidence
+          sudo apt-get update
+          sudo apt-get install -y podman uidmap crun fuse-overlayfs slirp4netns
+          test "$(id -u)" -ne 0
+          ci_user="$(id -un)"
+          if ! awk -F: -v user="$ci_user" '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subuid; then
+            sudo usermod --add-subuids 100000-165535 "$ci_user"
+          fi
+          if ! awk -F: -v user="$ci_user" '$1 == user && $3 >= 65536 { found=1 } END { exit !found }' /etc/subgid; then
+            sudo usermod --add-subgids 100000-165535 "$ci_user"
+          fi
+          install -d -m 0700 "$HOME/.config/containers"
+          : > "$HOME/.config/containers/mounts.conf"
+          chmod 0600 "$HOME/.config/containers/mounts.conf"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/podman-xdg"
+          install -d -m 0700 "$XDG_RUNTIME_DIR"
+          export DAEDALUS_LINUX_OCI_RUNTIME=/usr/bin/podman
+          echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" >> "$GITHUB_ENV"
+          echo "DAEDALUS_LINUX_OCI_RUNTIME=$DAEDALUS_LINUX_OCI_RUNTIME" >> "$GITHUB_ENV"
+          echo "DAEDALUS_LINUX_OCI_IMAGE=$DAEDALUS_LINUX_OCI_IMAGE" >> "$GITHUB_ENV"
+          CONTAINERS_CONF=/dev/null podman --remote=false info --format json > runtime-evidence/podman-info.json
+          CONTAINERS_CONF=/dev/null podman --remote=false pull "$DAEDALUS_LINUX_OCI_IMAGE"
+          CONTAINERS_CONF=/dev/null podman --remote=false image inspect --format json "$DAEDALUS_LINUX_OCI_IMAGE" > runtime-evidence/podman-image.json
+          python -m pytest -q tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network --junitxml=runtime-evidence/linux-oci.xml
+          python -c "import xml.etree.ElementTree as E; r=E.parse('runtime-evidence/linux-oci.xml').getroot(); assert len(list(r.iter('testcase'))) == 1 and not any(list(r.iter(tag)) for tag in ('failure', 'error', 'skipped'))"
       - run: >-
           python -m py_compile
           daedalus/orchestration/ikarus/shell.py
@@ -193,7 +226,7 @@ jobs:
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
-          python -m pytest -q -p no:cacheprovider
+          python -m pytest -q -p no:cacheprovider --junitxml=runtime-evidence/focused.xml
           tests/test_ikarus_cancellation.py
           tests/test_ikarus_stream.py
           tests/test_ikarus_http_cancellation.py
@@ -268,6 +301,12 @@ jobs:
           assert not (target / 'tests').exists();
           assert not hasattr(broker, '_run_runtime_provider_test_double');
           assert not hasattr(broker, 'run_runtime_provider_test_double')"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: g1-runtime-${{ matrix.os }}-python-${{ matrix.python }}
+          path: runtime-evidence
+          if-no-files-found: warn
 
   cockpit:
     name: Windows built cockpit and durable conversation browser flows
