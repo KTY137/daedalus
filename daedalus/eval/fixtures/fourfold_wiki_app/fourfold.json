@@ -1,0 +1,257 @@
+{
+  "claims": [
+    {
+      "code_file": "src/knowledge_hub/models.py",
+      "kind": "code_declares_type",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "csv_field": "id",
+      "csv_file": "data/articles.csv",
+      "kind": "type_matches_csv_field",
+      "type_field": "id",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "csv_field": "slug",
+      "csv_file": "data/articles.csv",
+      "kind": "type_matches_csv_field",
+      "type_field": "slug",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "csv_field": "title",
+      "csv_file": "data/articles.csv",
+      "kind": "type_matches_csv_field",
+      "type_field": "title",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "csv_field": "body",
+      "csv_file": "data/articles.csv",
+      "kind": "type_matches_csv_field",
+      "type_field": "body",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "csv_field": "status",
+      "csv_file": "data/articles.csv",
+      "kind": "type_matches_csv_field",
+      "type_field": "status",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "csv_field": "tag",
+      "csv_file": "data/articles.csv",
+      "kind": "type_matches_csv_field",
+      "type_field": "tag",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "schema_field": "id",
+      "schema_file": "schemas/article.schema.json",
+      "type_field": "id",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "schema_field": "slug",
+      "schema_file": "schemas/article.schema.json",
+      "type_field": "slug",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "schema_field": "title",
+      "schema_file": "schemas/article.schema.json",
+      "type_field": "title",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "schema_field": "body",
+      "schema_file": "schemas/article.schema.json",
+      "type_field": "body",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "schema_field": "status",
+      "schema_file": "schemas/article.schema.json",
+      "type_field": "status",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "schema_field": "tag",
+      "schema_file": "schemas/article.schema.json",
+      "type_field": "tag",
+      "type_file": "src/knowledge_hub/models.py",
+      "type_name": "Article"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/app.py",
+      "target_node_id": "code:file:src/knowledge_hub/app.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Home.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../data/articles.csv",
+      "target_node_id": "data:table:data/articles.csv",
+      "target_plane": "data",
+      "wiki_file": "wiki/Home.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/app.py",
+      "target_node_id": "code:file:src/knowledge_hub/app.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Architecture.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/repository.py",
+      "target_node_id": "code:file:src/knowledge_hub/repository.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Architecture.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/search.py",
+      "target_node_id": "code:file:src/knowledge_hub/search.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Architecture.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/models.py",
+      "target_node_id": "code:file:src/knowledge_hub/models.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Architecture.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/models.py",
+      "target_node_id": "type:src/knowledge_hub/models.py#Article",
+      "target_plane": "type",
+      "wiki_file": "wiki/Domain-Model.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../data/articles.csv",
+      "target_node_id": "data:table:data/articles.csv",
+      "target_plane": "data",
+      "wiki_file": "wiki/Data-Contract.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../schemas/article.schema.json",
+      "target_node_id": "data:schema:schemas/article.schema.json",
+      "target_plane": "data",
+      "wiki_file": "wiki/Data-Contract.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/search.py",
+      "target_node_id": "code:file:src/knowledge_hub/search.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Search.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/app.py",
+      "target_node_id": "code:file:src/knowledge_hub/app.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/CLI.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/repository.py",
+      "target_node_id": "code:file:src/knowledge_hub/repository.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Operations.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../data/articles.csv",
+      "target_node_id": "data:table:data/articles.csv",
+      "target_plane": "data",
+      "wiki_file": "wiki/Operations.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../schemas/article.schema.json",
+      "target_node_id": "data:schema:schemas/article.schema.json",
+      "target_plane": "data",
+      "wiki_file": "wiki/Operations.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../src/knowledge_hub/repository.py",
+      "target_node_id": "code:file:src/knowledge_hub/repository.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/Security.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../../data/articles.csv",
+      "target_node_id": "data:table:data/articles.csv",
+      "target_plane": "data",
+      "wiki_file": "wiki/ADR/ADR-001-CSV-Storage.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../../src/knowledge_hub/repository.py",
+      "target_node_id": "code:file:src/knowledge_hub/repository.py",
+      "target_plane": "code",
+      "wiki_file": "wiki/ADR/ADR-001-CSV-Storage.md"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "link_target": "../../schemas/article.schema.json",
+      "target_node_id": "data:schema:schemas/article.schema.json",
+      "target_plane": "data",
+      "wiki_file": "wiki/ADR/ADR-001-CSV-Storage.md"
+    }
+  ],
+  "code_files": [
+    "src/knowledge_hub/__init__.py",
+    "src/knowledge_hub/app.py",
+    "src/knowledge_hub/models.py",
+    "src/knowledge_hub/repository.py",
+    "src/knowledge_hub/search.py"
+  ],
+  "data_files": [
+    "data/articles.csv",
+    "schemas/article.schema.json"
+  ],
+  "knowledge_files": [
+    "wiki/ADR/ADR-001-CSV-Storage.md",
+    "wiki/Architecture.md",
+    "wiki/CLI.md",
+    "wiki/Data-Contract.md",
+    "wiki/Domain-Model.md",
+    "wiki/Glossary.md",
+    "wiki/Home.md",
+    "wiki/Operations.md",
+    "wiki/Search.md",
+    "wiki/Security.md"
+  ],
+  "repository_id": "daedalus/fourfold-wiki-reference",
+  "schema": "daedalus-fourfold-reference/1"
+}
