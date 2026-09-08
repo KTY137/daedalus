@@ -1,0 +1,124 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-104",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c12a6671b4edbf3c7087cbac98a3c908d9488aa6",
+    "dependencies": "G1-EXP-TENSOR-GPU-103, FourfoldSnapshot/PlaneSnapshot authority, retained IgnitionGraphDelta measurement"
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-104",
+  "title": "Close the missing revision-bound relation-delta seam before incremental Tensor design",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "c12a6671b4edbf3c7087cbac98a3c908d9488aa6",
+  "contract_head": "45676b60d31fea0b397331e252588dfee75df476",
+  "scope": "Search the existing Fourfold/Forest/Twin and adjacent Gate-1 graph-delta surfaces for an already-authoritative revision-bound delta or receipt that identifies changed retained relation digests. Reuse such a seam if it exists; otherwise retain the absence as evidence and do not invent an incremental backend, cache, second graph index or trusted relation admission path.",
+  "finding": {
+    "summary": "No existing authority-safe revision-bound relation-delta seam is available for Tensor incremental compilation. FourfoldSnapshot is revision-bound and PlaneSnapshot retains canonical same-plane relation digests, but it is a snapshot contract, not a before/after delta. The retained IgnitionGraphDelta is a Gate-1 measurement over node membership and cross-plane binding semantic keys only; it carries neither source revisions nor Forest identities and ignores PlaneSnapshot.relation_sha256s entirely.",
+    "existing_ignition_delta": {
+      "owner": "daedalus/ignition/runner.py::IgnitionGraphDelta/fourfold_graph_delta",
+      "fields": [
+        "added_nodes",
+        "removed_nodes",
+        "added_bindings",
+        "removed_bindings"
+      ],
+      "binding_identity": "canonical hash of CrossPlaneBinding.semantic_key",
+      "same_plane_relation_identity": false,
+      "base_revision_identity": false,
+      "candidate_revision_identity": false,
+      "base_forest_identity": false,
+      "candidate_forest_identity": false,
+      "suitable_as_tensor_relation_delta_authority": false
+    },
+    "why_not_reuse_by_assumption": "A pair of Fourfold snapshots can differ in source revision, source Forest digest and retained same-plane relation_sha256s while preserving every node id and cross-plane binding semantic key. The current IgnitionGraphDelta is then empty. Treating that empty measurement as an incremental relation receipt would silently miss exactly the one-relation update GPU-100 measured.",
+    "unrelated_delta_surfaces": "Repository-write delta contracts found elsewhere are Gate-0 repository inventory/write-surface measurements, not Forest/Fourfold semantic deltas. Reusing them would cross authority domains rather than consolidate an existing Tensor seam.",
+    "unsafe_shortcuts_rejected": [
+      "reinterpret IgnitionGraphDelta as a relation delta without changing its contract",
+      "infer relation change from node or cross-plane binding change",
+      "diff Tensor blocks and treat the regenerable view as semantic authority",
+      "retain a mutable previous-snapshot cache inside the compiler",
+      "add a second digest-to-edge registry or trusted incremental admission path"
+    ]
+  },
+  "focused_contract": {
+    "path": "tests/twin/test_relation_digest_authority_seam.py",
+    "blob": "523c0c8e22af2ff4dd8b1303e882ba578f95b383",
+    "commit": "45676b60d31fea0b397331e252588dfee75df476",
+    "new_case": "construct base and candidate Fourfold snapshots with identical node membership and no cross-plane bindings but different source revisions, Forest digests and retained code-plane relation digests; prove fourfold_graph_delta remains empty and its serialized shape contains only node/binding fields"
+  },
+  "semantic_invariants": {
+    "source_of_truth": "Authoritative sources, KnowledgeForest and Fourfold remain truth; Tensor remains a regenerable internal computational view.",
+    "artifact_identity": "A graph delta is not candidate identity and an incremental receipt must not replace revision/Forest identity.",
+    "relation_authority": "Same-plane relation admission continues to require the exact retained canonical relation digest from the bound PlaneSnapshot.",
+    "no_parallel_owner": "No second delta implementation, edge registry, cache or incremental compiler is introduced by this packet.",
+    "public_api": "No production API, persisted schema, promotion contract or gate state changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": false,
+    "workflow_change": false,
+    "work_packet_record_added": true,
+    "incremental_backend_implemented": false,
+    "new_delta_contract_implemented": false,
+    "parallel_projection_implemented": false,
+    "summary": "GPU-104 closes as negative Gardener evidence. Daedalus already has a graph-delta measurement, but it intentionally measures Gate-1 node/cross-plane-binding change rather than revision-bound same-plane relation change. Reusing it for Tensor would create false no-op deltas. The safe action is to preserve that boundary and pin the gap before designing any incremental contract."
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "fourfold_contract_blob": "daedalus/twin/contracts.py@5523dfe53834874942a7c37120ee2f464ed15fda",
+    "ignition_graph_delta_blob": "daedalus/ignition/runner.py@75e8b58332a764b7d19a72f55f4fcb86bafc4bb7",
+    "relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "gpu103_exact_head_fourfold_tensor": "34284017609:completed/success on c12a6671b4edbf3c7087cbac98a3c908d9488aa6",
+    "gpu103_exact_head_tauri": "34284017578:completed/success on c12a6671b4edbf3c7087cbac98a3c908d9488aa6",
+    "gpu104_contract_head_fourfold_tensor": "34288826662:queued at packet close on 45676b60d31fea0b397331e252588dfee75df476",
+    "gpu104_contract_head_tauri": "34288826629:in_progress at packet close on 45676b60d31fea0b397331e252588dfee75df476",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "existing_delta_surfaces_audited": true,
+    "focused_relation_delta_gap_contract_added": true,
+    "production_blob_unchanged": true,
+    "base_exact_head_fourfold_tensor_green": true,
+    "base_exact_head_tauri_green": true,
+    "contract_head_fourfold_tensor_green_at_packet_close": false,
+    "contract_head_tauri_green_at_packet_close": false,
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "claim_boundaries": [
+    "No claim that a safe incremental relation contract is already designed.",
+    "No speedup claim; production code is unchanged.",
+    "No claim that IgnitionGraphDelta is defective for its Gate-1 purpose; only that its scope is intentionally insufficient for Tensor same-plane relation deltas.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-105 should inventory compile_relation_blocks call sites and retained projection consumers for an existing place that already owns both an authoritative previous and current Forest/Fourfold snapshot. If no caller naturally owns that before/after pair, close that wiring gap as evidence rather than hiding previous state in the compiler. If one does, specify the minimum revision/Forest-bound relation-digest delta inputs there before any production incremental path is written."
+}
