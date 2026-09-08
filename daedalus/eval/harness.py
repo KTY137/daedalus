@@ -49,14 +49,9 @@ from daedalus.structcore.languages import spec_for
 from daedalus.structcore.parse import extract_units
 from daedalus.structcore.slice import semantic_slice
 
-try:  # optional tiktoken-backed counter; degrades to chars/4 on its own
-    from daedalus.structcore.tokens import count_tokens, tokenizer_name
-except Exception:  # pragma: no cover - structcore is a hard dep, but be safe
-    def count_tokens(text: str) -> int:
-        return max(1, len(text) // 4)
-
-    def tokenizer_name() -> str:
-        return "chars/4 (heuristic)"
+# The canonical counter degrades to chars/4 on its own and reports it via
+# tokenizer_status(); structcore is a hard dependency (imported above).
+from daedalus.structcore.tokens import count_tokens, tokenizer_name, tokenizer_status
 
 from .mint import load_minted_tasks
 from .tasks import TASKS, is_correctness_task, resolve_task_repo, task_project_label
