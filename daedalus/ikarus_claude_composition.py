@@ -382,6 +382,72 @@ def _authenticated_payload_body(
     return body
 
 
+def _is_lower_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
+def _require_provider_result_binding(
+    result: dict[str, Any],
+    invocation: MissionBoundClaudeInvocation,
+    *,
+    invocation_sha256: str,
+) -> None:
+    """Authenticate provider identity and receipts before WorkItem projection."""
+
+    if result.get("provider") != "claude_cli":
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude result does not name the canonical Claude provider"
+        )
+    if result.get("attempt_id") != invocation.attempt_id:
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude result does not name the canonical Attempt"
+        )
+    if result.get("runtime_id") != CLAUDE_RUNTIME_ID:
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude result does not name the canonical Claude runtime"
+        )
+
+    runtime_receipt = result.get("runtime_receipt")
+    if type(runtime_receipt) is not dict:
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude result has no exact runtime receipt"
+        )
+    if runtime_receipt.get("invocation_sha256") != invocation_sha256:
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude runtime receipt belongs to another authenticated invocation"
+        )
+    if type(runtime_receipt.get("executed")) is not bool:
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude runtime receipt has no exact execution state"
+        )
+    if not _is_lower_sha256(runtime_receipt.get("start_receipt_sha256")):
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude runtime receipt has no valid start receipt"
+        )
+
+    nested_terminal = runtime_receipt.get("terminal_receipt_sha256")
+    top_terminal = result.get("terminal_receipt_sha256")
+    phase = result.get("phase")
+    if nested_terminal is None:
+        if phase == "terminal" or top_terminal is not None:
+            raise IkarusClaudeCompositionRefused(
+                "sealed Claude terminal evidence is not backed by the runtime receipt"
+            )
+        return
+    if not _is_lower_sha256(nested_terminal):
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude runtime receipt has an invalid terminal receipt"
+        )
+    if phase != "terminal" or top_terminal != nested_terminal:
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude terminal evidence does not match the runtime receipt"
+        )
+
+
 def dispatch_mission_bound_claude_invocation(
     invocation: MissionBoundClaudeInvocation,
 ) -> dict[str, Any]:
@@ -389,9 +455,9 @@ def dispatch_mission_bound_claude_invocation(
 
     The provider arguments come only from the authenticated invocation payload,
     never from queue/chat metadata. The provider must return the same provider,
-    runtime and Attempt identity before Ikarus adds Mission/WorkItem projection
-    fields. Phase and terminal receipt remain provider evidence and are never
-    fabricated here.
+    runtime, Attempt identity and exact invocation receipt before Ikarus adds
+    Mission/WorkItem projection fields. Phase and terminal receipt remain
+    provider evidence and are never fabricated here.
     """
 
     if type(invocation) is not MissionBoundClaudeInvocation:
@@ -411,18 +477,11 @@ def dispatch_mission_bound_claude_invocation(
         raise IkarusClaudeCompositionRefused(
             "sealed Claude provider returned a non-object result"
         )
-    if result.get("provider") != "claude_cli":
-        raise IkarusClaudeCompositionRefused(
-            "sealed Claude result does not name the canonical Claude provider"
-        )
-    if result.get("attempt_id") != invocation.attempt_id:
-        raise IkarusClaudeCompositionRefused(
-            "sealed Claude result does not name the canonical Attempt"
-        )
-    if result.get("runtime_id") != CLAUDE_RUNTIME_ID:
-        raise IkarusClaudeCompositionRefused(
-            "sealed Claude result does not name the canonical Claude runtime"
-        )
+    _require_provider_result_binding(
+        result,
+        invocation,
+        invocation_sha256=body["invocation_sha256"],
+    )
     return {
         **result,
         "mission_id": invocation.mission_id,
