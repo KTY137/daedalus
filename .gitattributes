@@ -441,6 +441,7 @@ daedalus/orchestration/hierarchy.py -text
 daedalus/orchestration/ikarus/__init__.py -text
 daedalus/orchestration/ikarus/act.py -text
 daedalus/orchestration/ikarus/chat.py -text
+daedalus/orchestration/ikarus/cancellation.py -text
 daedalus/orchestration/ikarus/computer_context.py -text
 daedalus/orchestration/ikarus/computer_history.py -text
 daedalus/orchestration/ikarus/computer_loop.py -text
@@ -457,6 +458,7 @@ daedalus/runtimes/computer_vision.py -text
 daedalus/spine/linux_containment.py -text
 daedalus/structcore/report.py -text
 daedalus/twin/relation_blocks.py -text
+daedalus/twin/relation_compiler.py -text
 daedalus/twin/relation_projection.py -text
 daedalus/twin/semiring.py -text
 daedalus/twin/tensor.py -text

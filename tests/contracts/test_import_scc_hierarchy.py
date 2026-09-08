@@ -197,7 +197,7 @@ CURRENT_COMPONENTS_SHA256 = (
 # Genesis, Ariadne, computer-runtime, desktop-owner, contract, containment and
 # Twin projection Python modules became part of the tracked graph.  This is an
 # exact tracked-path census, not a relaxed lower bound.
-CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_design 8, chip_design.tcl_emit, contracts.git_objects)
+CENSUS_MODULES = 485  # re-measured 2026-09-08; cancellation owner and Hermes compatibility facade added
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -470,7 +470,17 @@ CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_des
 # The unsanitized HTTP hardening through 893b14674010 names one more symbol on
 # an already-resolved spine.effect_boundary import and adds no import target.
 # A fresh graph run confirms the same complete tuple once more.
-CENSUS_EDGES = 1926  # re-confirmed 2026-09-06 on unsanitized integration head
+# 2026-09-08 integration: 483 -> 485 modules and 1926 -> 1930 edges.
+# Added modules: orchestration.ikarus.cancellation and providers.hermes_agent.
+# Seven added edges: mapping.inventory -> mapping.reach; mapping.reach ->
+# structcore.ignore; ikarus.shell -> ikarus.cancellation; hermes_agent ->
+# integrations.hermes.{configuration,kernel_provider}; relation_compiler ->
+# projection_verifier; relation_projection -> relation_compiler.
+# Three removed edges: runtimes.provider.{invocation,invocation_authority}
+# and twin.relation_projection no longer import spine.envelope.
+# Re-measured against frozen main 1ba5b66f: all fourteen exact components,
+# maximum size nineteen, and CURRENT_COMPONENTS_SHA256 are byte-identical.
+CENSUS_EDGES = 1930
 
 
 def _module_name(path: str) -> str:

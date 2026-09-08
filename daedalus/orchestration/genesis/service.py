@@ -2973,6 +2973,7 @@ def _read_verified_genesis_candidate(
             paths.spine_db,
             store,
             request_stub.attempt_id,
+            existing_wal=True,
         )
         if existing is None or existing.completion is None:
             raise GenesisPreviewError("Genesis run is not terminal")

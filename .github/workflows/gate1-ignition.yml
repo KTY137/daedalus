@@ -93,4 +93,4 @@ jobs:
       - working-directory: /tmp
         run: >-
           /tmp/daedalus-wheel/bin/python -c
-          "from daedalus.ignition import run_voltage_ignition; from daedalus.kernel import assemble_fourfold_evidence_packet"
+          "from daedalus.ignition.gate1 import run_gate1_ignition; from daedalus.kernel import assemble_fourfold_evidence_packet"

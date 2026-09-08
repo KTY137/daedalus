@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 466,
+    "assigned_artifacts": 467,
     "legacy_artifacts": 204,
-    "packet_artifacts": 468,
-    "packet_ids": 403,
-    "post_index_artifacts": 264,
+    "packet_artifacts": 469,
+    "packet_ids": 404,
+    "post_index_artifacts": 265,
     "registry_artifacts": 1,
-    "tracked_files": 469,
+    "tracked_files": 470,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -4003,6 +4003,22 @@
       "origin": "post_index",
       "packet_id": "G1-GENESIS-03",
       "primary_artifact": "docs/work-packets/G1-GENESIS-03_VERIFIED_SOURCE_DOWNLOAD.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-GENESIS-04_WAL_EVIDENCE_READS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b605586b2778659a119b25fa7d05938a986356e3",
+        "classification": "ALIGNED",
+        "dependencies": "Master Plan Revision 13; G1-GENESIS-03; G1-INTEGRATION-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-GENESIS-04",
+      "primary_artifact": "docs/work-packets/G1-GENESIS-04_WAL_EVIDENCE_READS.md"
     },
     {
       "artifacts": [
@@ -8498,6 +8514,20 @@
       "format": "markdown",
       "packet_id": "G1-GENESIS-03",
       "path": "docs/work-packets/G1-GENESIS-03_VERIFIED_SOURCE_DOWNLOAD.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-GENESIS-04",
+      "path": "docs/work-packets/G1-GENESIS-04_WAL_EVIDENCE_READS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

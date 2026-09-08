@@ -62,29 +62,23 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured on the merge of exp/tensor-kernel-contract-01 (GPU-45/46) into
-    # main with CPython 3.12.13.  The digest binds the exact 483-file source
-    # corpus; these figures are drift detectors, not claimed cross-version
-    # constants.
+    # Re-measured on the reviewed 2026-09-08 integration source with CPython
+    # 3.12.13. The exact source pin and both complete raw runs are retained in
+    # docs/evidence/G1-INTEGRATION-01; this moving census is not a superiority claim.
     assert entry["corpus_pin"] == {
-        "files": 483,
-        "sha256": "08c3c28455dbcdd05a7cc87d0c6f78af4c7631a86121bd31b7015812071a883b",
+        "files": 485,
+        "sha256": "924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df",
     }
-    # GPU-46 adds exactly one private helper, ``_materialize_declared_sequence``
-    # in daedalus/twin/relation_compiler.py, over the 6,728-function measurement.
-    assert entry["functions"] == 6729
-    assert entry["annotation_only_pct"] == 94.37  # the control
-    assert entry["full_resolver_pct"] == 94.25
+    assert entry["functions"] == 6765
+    assert entry["annotation_only_pct"] == 94.35  # the control
+    assert entry["full_resolver_pct"] == 94.24
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1189
-    # Keep the newly visible repo-unverified bucket as negative evidence rather
-    # than preserving the historical 100% result after the corpus moved.
-    # GPU-44's ``forest_hyperedge_count: int`` was the one additional builtin
-    # type-name site over the pre-merge 44,795-site measurement; GPU-45/46 add
-    # five more on the same bounded-Sequence validation path (44,796 -> 44,801).
-    assert entry["type_name_sites"] == 44801
+    assert entry["marginal_pp"] == 0.1183
+    # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
+    assert entry["type_name_sites"] == 45059
     assert entry["internal_named_only"] == 419
-    assert entry["verified_share_of_internal_pct"] == 90.55
+    assert entry["verified_share_of_internal_pct"] == 90.61
+
 
 
 def test_fixture_row_shows_what_the_kernel_row_cannot() -> None:

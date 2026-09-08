@@ -58,7 +58,10 @@ def test_complete_retries_only_when_operator_opted_in():
 def test_tool_shapes_are_data_not_implicit_execution():
     request = LLMRequest("plan", tools=({"name": "queue_task"},))
     called = []
-    client = IkarusLLMClient(environ={"DAEDALUS_IKARUS_PROVIDER": "claude"})
+    client = IkarusLLMClient(
+        environ={"DAEDALUS_IKARUS_PROVIDER": "claude"},
+        status_probe=lambda runtime: {"available": runtime == "claude_code_cli"},
+    )
     response = client.complete(request, lambda provider, req, timeout: called.append(req.tools) or "proposal")
     assert response.text == "proposal"
     assert called == [({"name": "queue_task"},)]

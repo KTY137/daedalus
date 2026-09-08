@@ -150,6 +150,7 @@ class AttemptLedger:
             self.path,
             effect_key=_effect_key(attempt_id),
             immutable=bool(getattr(self, "_read_immutable", False)),
+            existing_wal=bool(getattr(self, "_read_existing_wal", False)),
         )
         if not rows:
             return None
@@ -454,6 +455,7 @@ class AttemptLedger:
         attempt_id: str,
         *,
         immutable: bool = True,
+        existing_wal: bool = False,
     ) -> AttemptBeginResult | None:
         """Read one Attempt without constructing the writable ledger facade.
 
@@ -468,6 +470,14 @@ class AttemptLedger:
         appropriate before an effect boundary.  A caller already inside an
         admitted serial effect may request ``immutable=False`` when it must see
         another writer's uncheckpointed WAL before deciding whether to start.
+        Existing-store delivery may explicitly request ``existing_wal=True``:
+        bounded header/pair admission enables a live read transaction; no
+        sidecars retains immutable mode, while missing partners or malformed
+        headers/extents fail closed. SQLite transient SHM bookkeeping, including
+        first-reader index reconstruction, is permitted; durable DB/WAL writes
+        and application checkpoint/repair are not. No sidecars are created while
+        the admitted pair remains present; this seam does not pin their lifetime
+        against a concurrent last-writer close or hostile replacement.
         """
 
         if not isinstance(source_store, SourceTreeStore):
@@ -476,6 +486,7 @@ class AttemptLedger:
         reader.source_store = source_store
         reader.path = str(Path(path).resolve())
         reader._read_immutable = bool(immutable)
+        reader._read_existing_wal = bool(existing_wal)
         intent = reader._intent_for(attempt_id)
         if intent is None:
             return None

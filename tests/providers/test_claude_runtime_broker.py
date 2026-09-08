@@ -631,7 +631,11 @@ def _stack(
 ):
     claude_executable = tmp_path / "claude.exe"
     claude_executable.write_bytes(b"test executable identity")
+    # The real resolver requires an executable bit on POSIX. Keep admission
+    # bound to this controlled identity instead of an ambient vendor install.
+    claude_executable.chmod(0o700)
     monkeypatch.setenv("DAEDALUS_CLAUDE_CLI", str(claude_executable))
+    assert claude_provider.claude_command_for_spawn() == str(claude_executable.resolve())
     authorization = _authorization(
         tmp_path,
         monkeypatch,

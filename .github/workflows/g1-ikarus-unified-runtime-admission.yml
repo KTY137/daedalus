@@ -25,6 +25,11 @@ on:
       - "daedalus/orchestration/ikarus/shell.py"
       - "daedalus/orchestration/ikarus/cancellation.py"
       - "daedalus/orchestration/conversation_requests.py"
+      - "daedalus/orchestration/genesis/**"
+      - "daedalus/kernel/attempt_ledger.py"
+      - "daedalus/kernel/attempt_spine_reader.py"
+      - "tests/kernel/test_attempt_spine_existing_wal.py"
+      - "tests/interfaces/test_http_genesis.py"
       - "daedalus/interfaces/http/**"
       - "daedalus/interfaces/bridge/projection.py"
       - "daedalus/providers/_openai_compat.py"
@@ -197,6 +202,8 @@ jobs:
           tests/test_ikarus_stream_cancellation_integration.py
           tests/test_ikarus_stop_gate_paths.py
           tests/test_conversation_requests.py
+          tests/kernel/test_attempt_spine_existing_wal.py
+          tests/interfaces/test_http_genesis.py
           tests/providers/test_openai_compat_cancellation.py
           tests/providers/test_openai_compat_cancellation_boundary.py
           tests/providers/test_ollama_native_stream_cancellation.py
@@ -263,8 +270,11 @@ jobs:
           assert not hasattr(broker, 'run_runtime_provider_test_double')"
 
   cockpit:
-    name: Built cockpit and durable conversation browser flows
-    runs-on: ubuntu-latest
+    name: Windows built cockpit and durable conversation browser flows
+    # The full browser contract includes a live Windows Genesis receipt.
+    # Linux OCI execution has its own matrix; skipping this Windows case
+    # would correctly make the owned GUI harness incomplete.
+    runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262

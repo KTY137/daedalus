@@ -138,3 +138,31 @@ GUI and whole Python acceptance are pending separately from the focused passes.
 
 Scientific Gate-2/3 evidence is not supplied by this integration. No gate
 closure, full security boundary, or performance superiority is claimed.
+
+The first combined Python run on production head `b605586b` retained nine
+failures, 13,395 passes, 419 skips, 23 expected failures and 2,237 passing
+subtests. Corrections preserve the actual dispatch lane in controlled queue
+fixtures, exercise Codex's single complete-answer delta with an owned Python
+child, update the measured HTTP literal and module censuses, and ship the exact
+built web distribution. The complete fourteen SCC memberships remain unchanged.
+The research corpus pin is remeasured separately, preserving prior negative
+results. Two newly reached evaluator source files receive explicit byte-stable
+Git attributes; their production semantics are unchanged by that declaration.
+
+The first GitHub revision also exposed environment-dependent test fixtures:
+the controlled Claude executable lacked its POSIX execute bit, and a data-only
+LLM test probed the host's vendor installation. Both fixtures now use explicit
+controlled readiness without bypassing the executable resolver. The isolated
+ignition wheel check imports the current shipped entrypoint. The full cockpit
+workflow runs on Windows because its contract includes a real Windows Genesis
+receipt; the initial Linux run retained 254 passes, two failures and one skip.
+One failure was the corrected thread fixture; the Linux canvas timeout remains
+separate platform evidence until reproduced or explained. No skipped browser
+test is counted as a passed flow.
+
+The real-server integrated diagnostic retained a fresh-WAL source-download
+failure. `G1-GENESIS-04` freezes the canonical reader correction and records
+its independent review, including the limits of SQLite transient SHM behavior.
+Full acceptance must run again on a fixed revision after these corrections;
+`docs/evidence/G1-INTEGRATION-01/acceptance.json` retains the prior outcomes and
+compressed artifacts instead of replacing them with later passes.
