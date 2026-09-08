@@ -841,8 +841,13 @@ def _report_brief(path: Path) -> dict[str, Any]:
         "project": request.get("project") or "",
         # Execution attribution is copied only from the terminal report
         # itself. Request/chat metadata must never be promoted into an
-        # agent identity because routing may change after enqueue.
+        # execution identity because routing may change after enqueue.
         "agent": payload.get("agent") or "",
+        "runtime_id": payload.get("runtime_id") or "",
+        "work_item_id": payload.get("work_item_id") or "",
+        "attempt_id": payload.get("attempt_id") or "",
+        "phase": payload.get("phase") or "",
+        "terminal_receipt_sha256": payload.get("terminal_receipt_sha256") or "",
         "summary": " ".join(str(summary).split())[:160],  # one line for the console
     }
 
