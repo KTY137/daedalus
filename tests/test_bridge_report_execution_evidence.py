@@ -3,7 +3,16 @@ import json
 from daedalus import file_bridge
 
 
-def test_report_brief_projects_terminal_agent_evidence_only(tmp_path):
+EXECUTION_EVIDENCE = {
+    "runtime_id": "claude-cli-v1",
+    "work_item_id": "work-7f32",
+    "attempt_id": "attempt-4b19",
+    "phase": "terminal",
+    "terminal_receipt_sha256": "a" * 64,
+}
+
+
+def test_report_brief_projects_terminal_execution_evidence_only(tmp_path):
     report = tmp_path / "task.report.json"
     report.write_text(
         json.dumps(
@@ -12,10 +21,16 @@ def test_report_brief_projects_terminal_agent_evidence_only(tmp_path):
                     "project": "project_tct",
                     "lane": "claude",
                     "agent": "request-agent-must-not-win",
+                    "runtime_id": "request-runtime-must-not-win",
+                    "work_item_id": "request-work-item-must-not-win",
+                    "attempt_id": "request-attempt-must-not-win",
+                    "phase": "request-phase-must-not-win",
+                    "terminal_receipt_sha256": "b" * 64,
                 },
                 "bridge_status": "done",
                 "lane": "claude",
                 "agent": "qa-critic",
+                **EXECUTION_EVIDENCE,
                 "report": {"summary": "  verified   terminal evidence  "},
             }
         ),
@@ -28,11 +43,12 @@ def test_report_brief_projects_terminal_agent_evidence_only(tmp_path):
         "lane": "claude",
         "project": "project_tct",
         "agent": "qa-critic",
+        **EXECUTION_EVIDENCE,
         "summary": "verified terminal evidence",
     }
 
 
-def test_report_brief_never_invents_agent_from_request(tmp_path):
+def test_report_brief_never_invents_execution_identity_from_request(tmp_path):
     report = tmp_path / "task.report.json"
     report.write_text(
         json.dumps(
@@ -41,6 +57,11 @@ def test_report_brief_never_invents_agent_from_request(tmp_path):
                     "project": "project_tct",
                     "lane": "local_only",
                     "agent": "request-agent-must-not-be-promoted",
+                    "runtime_id": "request-runtime-must-not-be-promoted",
+                    "work_item_id": "request-work-item-must-not-be-promoted",
+                    "attempt_id": "request-attempt-must-not-be-promoted",
+                    "phase": "request-phase-must-not-be-promoted",
+                    "terminal_receipt_sha256": "c" * 64,
                 },
                 "bridge_status": "failed",
                 "error": "executor unavailable",
@@ -51,10 +72,15 @@ def test_report_brief_never_invents_agent_from_request(tmp_path):
 
     brief = file_bridge._report_brief(report)
     assert brief["agent"] == ""
+    assert brief["runtime_id"] == ""
+    assert brief["work_item_id"] == ""
+    assert brief["attempt_id"] == ""
+    assert brief["phase"] == ""
+    assert brief["terminal_receipt_sha256"] == ""
     assert brief["summary"] == "executor unavailable"
 
 
-def test_project_report_projection_carries_terminal_agent_to_live_bus(tmp_path, monkeypatch):
+def test_project_report_projection_carries_terminal_execution_identity_to_live_bus(tmp_path, monkeypatch):
     monkeypatch.setattr(file_bridge, "INBOX", tmp_path)
     report = tmp_path / "task.report.json"
     report.write_text(
@@ -64,6 +90,7 @@ def test_project_report_projection_carries_terminal_agent_to_live_bus(tmp_path, 
                 "bridge_status": "done",
                 "lane": "codex",
                 "agent": "core-dev",
+                **EXECUTION_EVIDENCE,
                 "report": {"summary": "finished"},
             }
         ),
@@ -73,3 +100,5 @@ def test_project_report_projection_carries_terminal_agent_to_live_bus(tmp_path, 
     rows = file_bridge._project_report_briefs("project_tct")
     assert len(rows) == 1
     assert rows[0]["agent"] == "core-dev"
+    for key, value in EXECUTION_EVIDENCE.items():
+        assert rows[0][key] == value
