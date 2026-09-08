@@ -1,0 +1,164 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-95",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c201dc549730de6200d84e6516579fbdbc677cf5",
+    "dependencies": "G1-EXP-TENSOR-GPU-94 and its exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["audit", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only this research record. Production, tests, probes, public API, wire schemas, benchmark schemas, authority and promotion state are unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-95",
+  "work_packet": "G1-EXP-TENSOR-GPU-95",
+  "title": "Retain coordinate aggregation and indexed canonicalization boundary after materialization audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "c201dc549730de6200d84e6516579fbdbc677cf5",
+  "scope": "Audit TypedRelationBlock.from_coordinates and TypedRelationBlock._from_indexed for one concrete avoidable full materialization not already removed or classified by GPU-81/82. Preserve arbitrary caller-order independence, semiring aggregation, exact axis lookup and refusal, bounded entry admission, deterministic lexicographic (row,column) CSR order and the direct TypedRelationBlock constructor as an independently validated public contract. Do not add a trusted-builder flag, second constructor, persistent coordinate index, cache or alternate block family merely to skip validation or copying.",
+  "audit": {
+    "coordinate_aggregation_owner": {
+      "path": "daedalus/twin/relation_blocks.py::TypedRelationBlock.from_coordinates",
+      "finding": "The bounded entries dict is semantically necessary rather than an avoidable staging copy. Coordinate input is an arbitrary Sequence and may contain duplicate coordinates in arbitrary order. The canonical semiring add operation must combine duplicates before zero-elision, and the final sparse result must not depend on caller sequence order. Streaming directly into CSR arrays would either make row ordering caller-dependent or require a second ordered accumulator/index abstraction."
+    },
+    "indexed_canonicalization_owner": {
+      "path": "daedalus/twin/relation_blocks.py::TypedRelationBlock._from_indexed",
+      "finding": "GPU-81 already removed eager list(entries.items()) and retained only sorted(entries), while GPU-82 proved that no caller-wide row-major insertion guarantee exists. The sorted-key list is therefore the one bounded ordering transient that remains necessary before deterministic CSR fill."
+    },
+    "csr_output_materialization": {
+      "finding": "offsets, indices and values are not redundant copies of a retained representation: they are the persisted canonical CSR representation passed to TypedRelationBlock. Their final tuple conversion is required by the frozen dataclass contract; replacing them with generators or mutable retained lists would change the public record shape and wire/digest semantics."
+    },
+    "constructor_revalidation": {
+      "finding": "The final TypedRelationBlock constructor revalidates CSR scalar and structural invariants even when _from_indexed produced the arrays. Skipping that pass only for builder-created blocks would require a trusted constructor/flag or a second admission path, splitting the current single persisted-record contract. Direct construction and from_dict must continue to share the same fail-closed validation owner."
+    },
+    "compiler_caller": {
+      "path": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+      "finding": "The compiler also calls _from_indexed with semantic-coordinate mappings whose insertion order is evidence-driven rather than guaranteed row-major. Moving canonical ordering into from_coordinates would therefore not eliminate _from_indexed ordering and would create two builders instead of one."
+    },
+    "gardener_conclusion": "No removable full materialization exists in this boundary without weakening caller-order independence, semiring aggregation, deterministic CSR output or direct-constructor validation, or without adding a parallel trusted builder/index abstraction. Retain the existing two-stage aggregation -> indexed canonicalization owner unchanged and preserve this negative result."
+  },
+  "semantic_invariants": {
+    "caller_order_independence": "Equivalent coordinate multisets remain independent of input sequence order after semiring aggregation.",
+    "semiring_aggregation": "Duplicate coordinates continue to combine through the canonical reference semiring before zero-elision.",
+    "axis_admission": "Every coordinate row and column remains exact-label validated against the canonical typed axes before indexed construction.",
+    "indexed_bounds": "_from_indexed continues exact-int row/column validation and range refusal before sorting and CSR materialization.",
+    "canonical_order": "Accepted indexed mappings remain canonicalized to deterministic lexicographic (row,column) CSR order.",
+    "constructor_boundary": "TypedRelationBlock.__post_init__ remains the single persisted-record scalar/CSR validation owner for direct, from_dict and builder-created blocks.",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; relation blocks remain regenerable internal computational views.",
+    "public_api": "No public API, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "transient_removed": false,
+    "coordinate_aggregation_mapping_retained": true,
+    "sorted_indexed_keys_retained": true,
+    "trusted_builder_rejected": true,
+    "negative_gardener_evidence_retained": true,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-95 finds that the remaining aggregation mapping, sorted-key transient and CSR arrays each own distinct required semantics. Eliminating any of them would either lose duplicate semiring aggregation/caller-order independence, deterministic CSR order, or split persisted-block validation behind a trusted path. The canonical owners are retained unchanged."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "c201dc549730de6200d84e6516579fbdbc677cf5",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "semiring": "daedalus/twin/semiring.py@21d46382d84562f97feac2b2b4301d1f00450e70",
+    "validation_tests": "tests/twin/test_relation_block_validation_fusion.py@5707557c91949c3f9fc40b45e737c34277c61d38",
+    "prior_exact_head_fourfold_tensor_run": "34229585354:completed/success",
+    "prior_exact_head_tauri_run": "34229585078:completed/success",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "static_audit": "from_coordinates requires one bounded aggregation mapping for duplicate semiring combination and arbitrary-order input; _from_indexed requires the already-classified sorted-key transient because canonical callers do not guarantee row-major insertion; final CSR arrays are the retained representation rather than staging state.",
+    "existing_contracts_reused": [
+      "direct/from_coordinates canonical block identity, JSON and digest equivalence",
+      "exact integer indexed row/column admission",
+      "out-of-range row/column refusal before CSR materialization",
+      "incomparable indexed-key refusal before sorting",
+      "constructor error-precedence contracts",
+      "source guard excluding eager list(entries.items())"
+    ],
+    "new_test_required": false,
+    "reason": "The packet changes no executable behavior and its negative conclusion is established by existing semantic and source contracts plus caller audit; another implementation-specific test would duplicate evidence.",
+    "prior_head_ci": "GPU-94 exact head c201dc549730de6200d84e6516579fbdbc677cf5 has Fourfold/Tensor run 34229585354 completed/success and Tauri run 34229585078 completed/success.",
+    "closure_head_ci_requirement": "This documentation-only closure commit requires its own hosted run evidence before any exact-head green statement is made.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "necessary_materialization_boundaries_retained": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 19,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No extra remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-96 only: audit _stored_values tropical persistence for the concrete case where an already canonical exact tuple of finite non-negative float values is always copied through a temporary list and new tuple. Permit an in-owner tuple-reuse fast path only if it preserves tropical int-to-float normalization, negative-zero canonicalization, finite/non-negative refusal, zero-value refusal and direct/from_dict constructor behavior. Do not add a scalar cache, alternate semiring adapter or trusted constructor."
+}
