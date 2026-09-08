@@ -45,7 +45,8 @@ import os
 import re
 
 from daedalus.structcore.index import cached_index
-from daedalus.structcore.languages import spec_for
+from daedalus.structcore.languages import doc_spec_for, spec_for
+from daedalus.structcore.markdown import parse_document
 from daedalus.structcore.parse import extract_units
 from daedalus.structcore.slice import semantic_slice
 
@@ -54,7 +55,14 @@ from daedalus.structcore.slice import semantic_slice
 from daedalus.structcore.tokens import count_tokens, tokenizer_name, tokenizer_status
 
 from .mint import load_minted_tasks
-from .tasks import TASKS, is_correctness_task, resolve_task_repo, task_project_label
+from .tasks import (
+    TASKS,
+    _DATA_PLANE_EXCLUDED_NAMES,
+    _DATA_PLANE_EXTENSIONS,
+    is_correctness_task,
+    resolve_task_repo,
+    task_project_label,
+)
 
 # Directories the whole-repo concat (context B) skips -- mirrors structcore.
 _IGNORE_DIRS = {
@@ -62,6 +70,25 @@ _IGNORE_DIRS = {
     "dist", "build", "target", "out", "coverage", ".next", ".nuxt", ".mypy_cache",
     ".pytest_cache", ".ruff_cache", ".idea", ".vs", ".vscode", "vendor", ".cache",
 }
+
+# THE DATA-PLANE RETRIEVAL UNIVERSE (``_DATA_PLANE_EXTENSIONS`` /
+# ``_DATA_PLANE_EXCLUDED_NAMES``, imported above).
+#
+# This is the harness's OWN decision about which files a data-plane retrieval
+# arm may retrieve, and about which targets it must refuse to slice. It is NOT
+# a fourth global extension->plane classifier and nothing else may read it as
+# one: the twin's discovery registry (``daedalus/twin/extractors/registry.py``)
+# classifies ``.json`` as data OR knowledge depending on which extractor claims
+# it, the Gate-3 taskset's ``_PLANE_EXTENSIONS`` classifies a TASK by its
+# target, and ``gate3/arms/separate_indices.py``'s ``_DATA_EXTENSIONS`` builds a
+# separate index. Those three answer different questions and stay authoritative
+# for them.
+#
+# The definition lives in ``daedalus.eval.tasks`` (which needs the same tuple
+# for its fixture plane walk) purely so ONE definition can serve both without
+# ``tasks`` importing ``harness`` -- that edge would pull ``tasks`` into the
+# existing eval import cycle; see the comment on the import in ``tasks``.
+_RETRIEVABLE_PLANES = ("code", "data", "knowledge")
 
 
 def all_tasks() -> list[dict]:
@@ -108,12 +135,13 @@ def _by_provenance(rows: list[dict], aggregate_fn) -> dict:
     the ONLY aggregation path Tier 1 and the arms comparison use -- there is
     deliberately no top-level blended mean anywhere in this module.
 
-    CALLERS MUST PRE-FILTER OUT ERRORED ROWS (``"error" in row``) AND
-    FOCUS-WITHHELD ROWS (``row.get("focus_withheld")``) before passing
-    ``rows`` here -- see ``run_tier1``/``run_arms``. Neither carries a
-    recall/compression measurement, so folding either in would either
-    KeyError or (worse) silently get treated as a zero, corrupting the mean
-    it was supposed to be excluded from."""
+    CALLERS MUST PRE-FILTER OUT ERRORED ROWS (``"error" in row``),
+    FOCUS-WITHHELD ROWS (``row.get("focus_withheld")``) AND PLANE-UNINDEXED
+    ROWS (``row.get("plane_unindexed")``) before passing ``rows`` here -- see
+    ``run_tier1``/``run_arms``. None of the three carries a recall/compression
+    measurement, so folding any of them in would either KeyError or (worse)
+    silently get treated as a zero, corrupting the mean it was supposed to be
+    excluded from."""
     grouped = _group_rows_by_provenance(rows)
     return {prov: {tier: aggregate_fn(items) for tier, items in tiers.items()}
             for prov, tiers in grouped.items()}
@@ -196,6 +224,109 @@ def _focus_withheld_row(task: dict, res: dict) -> dict:
     }
 
 
+def _plane_unindexed_reason(task: dict) -> str | None:
+    """Why this task's target cannot be sliced at all, or None if it can be tried.
+
+    THE REASON DEPENDS ON THE ARTIFACT EXISTING, NOT ON ITS NAME. That is the
+    whole contract, and it was wrong at first: the original version was a pure
+    string test on the target's extension, evaluated before ``resolve_task_repo``
+    and before any existence check, so a nonexistent or typo'd target
+    (``data/does_not_exist.csv``, ``schemas/tpyo.json``, ``wiki/DoesNotExist.md``)
+    was downgraded from a gate-FAILING errored row to a reported-only
+    PLANE-UNINDEXED row -- and ``run_gate`` then returned PASS on a corpus in
+    which nothing resolved at all (pinned by
+    tests/test_eval_oracle.py::MissingTargetIsNeverDowngradedTest). "This plane
+    has no retrieval path" is a claim about a file that is really there; a file
+    that is not there is a broken task, and must keep screaming.
+
+    So the order is: resolve the repo, find the file (an optional ``::Section``
+    suffix is stripped -- a document's section lives inside its file), and only
+    then classify. An unresolvable ``repo`` label or an absent file returns
+    None, which drops the task into the caller's existing try block and out
+    through ``_task_error_row``.
+
+    Two cases, both structural properties of the DEFAULT index rather than
+    measurements of anything:
+
+      * a data artifact (``_DATA_PLANE_EXTENSIONS``) -- ``structcore`` indexes
+        source languages and (opt-in) documents; a ``.csv``/``.json`` file is
+        neither, so it is not in ``idx["modules"]`` and ``semantic_slice``
+        cannot produce a slice of it;
+      * a document (``doc_spec_for``) -- documents are OPT-IN
+        (``structcore.index.documents_enabled``: default OFF) and this harness
+        never passes ``documents=True``. Even with documents on, slice.py
+        emits a document's neighbours as HEADING SKELETONS only (see its
+        "DOCUMENT LAYER" block and the ``documents``/``documented_by`` emission
+        at the bottom of ``semantic_slice``), so prose labels living in a
+        linked document would be structurally unreachable for arm A.
+
+    The excluded-name rule (``fourfold.json``) deliberately does NOT apply
+    here: it scopes what a retrieval arm may RETRIEVE, not what the index
+    contains. A task targeting the manifest is unindexed for exactly the same
+    reason every other ``.json`` is.
+
+    Everything else stays an ERROR. A target the index merely does not happen
+    to contain (a ``.toml``, a deleted file, a typo'd path) must keep failing
+    loudly through ``_task_error_row`` -- turning "unresolvable" into a tidy
+    reported bucket is how a broken corpus stops screaming.
+    """
+    target = task.get("target") if isinstance(task, dict) else None
+    if not isinstance(target, str) or not target:
+        return None
+    path = target.split("::", 1)[0]
+    ext = os.path.splitext(path)[1].lower()
+    # Classify FIRST only to decide whether existence is even worth a stat: a
+    # .toml/.py/unknown target has no reason at all, so it never resolves a
+    # repo and never touches the disk here -- byte-identical cost for every
+    # task that was already going the error/slice route.
+    if ext in _DATA_PLANE_EXTENSIONS:
+        reason = (f"data-plane target ({ext}): the structural index carries source "
+                  "units and (opt-in) documents, never data artifacts")
+    elif doc_spec_for(path) is not None:
+        reason = ("document target: documents are opt-in in the structural index "
+                  "(structcore.index.documents_enabled, default off) and this "
+                  "harness never enables them")
+    else:
+        return None
+    # The existence gate. Cheap (a path map plus one stat -- no index is built)
+    # and fail-closed: anything that cannot be resolved, cannot be stat'ed, or
+    # is not a regular file falls through to the caller's error path.
+    try:
+        root = resolve_task_repo(task["repo"])
+        exists = os.path.isfile(os.path.join(root, *path.split("/")))
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
+    return reason if exists else None
+
+
+def _plane_unindexed_row(task: dict, reason: str) -> dict:
+    """Shared shape for a PLANE-UNINDEXED row -- the task's target is not in
+    the harness's retrieval universe at all, so nothing was measured.
+
+    Distinct from both of its neighbours on purpose: ``_task_error_row`` means
+    "this SHOULD have resolved and did not" (a broken corpus, loud in
+    ``run_gate``), and ``_focus_withheld_row`` means "the fence refused a file
+    it could otherwise have sliced". This one means "the product has no
+    retrieval path for this plane yet" -- a known, structural, permanent-until-
+    -someone-builds-it property, not a fault of the task or of the slicer.
+
+    Same "any aggregator that forgets to filter fails loudly" contract as the
+    other two: NO ``recall``/``compression``/``missed`` (Tier 1) and no
+    ``recall_A``/``tokens_A``/... (arms) key at all -- ABSENT, not zero. A zero
+    here would read as "the slicer missed every label", which would be a
+    measurement of a run that never happened.
+    """
+    return {
+        "id": task["id"],
+        "project": task_project_label(task),
+        "target": task.get("target"),
+        "plane_unindexed": True,
+        "reason": reason,
+        "label_provenance": task.get("label_provenance", "hand_reachable"),
+        "label_tier": task.get("tier", "primary"),
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Tier 1 -- deterministic slice recall + compression                          #
 # --------------------------------------------------------------------------- #
@@ -222,9 +353,14 @@ def eval_task_tier1(task: dict, idx: dict | None = None) -> dict:
     quarantine tier is reported-only).
 
     A CORRECTNESS task is refused here before anything is sliced -- see
-    ``_correctness_task_row``."""
+    ``_correctness_task_row``. A task whose target's plane is not in the
+    retrieval universe is likewise refused before slicing -- see
+    ``_plane_unindexed_reason``/``_plane_unindexed_row``."""
     if is_correctness_task(task):
         return _correctness_task_row(task)
+    reason = _plane_unindexed_reason(task)
+    if reason is not None:
+        return _plane_unindexed_row(task, reason)
     try:
         repo = resolve_task_repo(task["repo"])
         idx = idx if idx is not None else cached_index(repo)
@@ -304,6 +440,17 @@ def run_tier1(tasks: list[dict] | None = None) -> dict:
         if is_correctness_task(task):
             per_task.append(_correctness_task_row(task))
             continue
+        # Refused BEFORE an index is built: nothing here will be sliced, so
+        # paying for an index would report the wrong thing about a task that
+        # was never going to be measured. The repo IS resolved -- inside
+        # _plane_unindexed_reason, which stats the target -- because the reason
+        # depends on the artifact existing; an unresolvable repo label or an
+        # absent file returns None and falls into the try below, out through
+        # _task_error_row.
+        reason = _plane_unindexed_reason(task)
+        if reason is not None:
+            per_task.append(_plane_unindexed_row(task, reason))
+            continue
         try:
             repo = resolve_task_repo(task["repo"])
             if repo not in idx_cache:
@@ -322,7 +469,15 @@ def run_tier1(tasks: list[dict] | None = None) -> dict:
     # by_provenance) same as errored rows, and separately counted/named so it
     # is reported, never silently folded into either a pass or a miss.
     focus_withheld = [t for t in per_task if t.get("focus_withheld")]
-    healthy = [t for t in per_task if "error" not in t and not t.get("focus_withheld")]
+    # PLANE-UNINDEXED: the target's plane has no retrieval path in this harness
+    # (see _plane_unindexed_row). Excluded from `healthy` -- and therefore from
+    # every mean in by_provenance -- exactly like the two above, counted and
+    # named so a corpus that is 100% unscorable cannot look like a corpus that
+    # passed.
+    plane_unindexed = [t for t in per_task if t.get("plane_unindexed")]
+    healthy = [t for t in per_task
+               if "error" not in t and not t.get("focus_withheld")
+               and not t.get("plane_unindexed")]
     return {
         "tier": 1,
         "n_tasks": n,
@@ -331,6 +486,8 @@ def run_tier1(tasks: list[dict] | None = None) -> dict:
         "n_errored_tasks": len(errored),
         "n_focus_withheld": len(focus_withheld),
         "focus_withheld_ids": sorted(t["id"] for t in focus_withheld),
+        "n_plane_unindexed": len(plane_unindexed),
+        "plane_unindexed_ids": sorted(t["id"] for t in plane_unindexed),
         "tokenizer": tokenizer_name(),
         "per_task": per_task,
         "errored": sorted(errored, key=lambda r: r["id"]),
@@ -383,20 +540,60 @@ def _target_query(target: str) -> str:
     return stem.rsplit(".", 1)[0] if "." in stem else stem
 
 
-def _repo_chunks(root: str) -> list[tuple[str, str]]:
+def _repo_chunks(root: str, *, planes: tuple[str, ...] = ("code",)) -> list[tuple[str, str]]:
     """Retrieval units for arm C: one chunk per extractable unit (function or
     class), else the whole file when nothing is extractable -- "the repo's
-    files/units" the BM25 baseline retrieves over. Same source-file universe as
-    ``_whole_repo_text``. Unlike ``_whole_repo_text``, dirnames ARE sorted here:
-    this is new code with no prior byte-order contract to preserve, and BM25
-    tie-breaking needs a deterministic candidate order (see ``_bm25_context``).
+    files/units" the BM25 baseline retrieves over. Unlike ``_whole_repo_text``,
+    dirnames ARE sorted here: this is new code with no prior byte-order
+    contract to preserve, and BM25 tie-breaking needs a deterministic candidate
+    order (see ``_bm25_context``).
+
+    ``planes`` is the ONLY retrieval extension point in this module, and its
+    DEFAULT IS THE OLD BEHAVIOUR EXACTLY: ``planes=("code",)`` walks the same
+    ``spec_for`` universe as ``_whole_repo_text`` and emits byte-identical
+    chunks in the same order (pinned by tests/test_eval_oracle.py). Nothing in
+    the product's numbers moves because this parameter exists -- in particular
+    ``_whole_repo_text`` (the compression denominator) is untouched and no
+    caller passes anything but the default today.
+
+    The other two planes exist so a LATER Gate-3 arm can retrieve over the
+    corpus's non-code artifacts without a second retrieval implementation:
+
+      * "data"      -- one whole-file chunk per ``_DATA_PLANE_EXTENSIONS`` file
+        (minus ``_DATA_PLANE_EXCLUDED_NAMES``). Whole-file because a CSV row or
+        a JSON subtree is not a unit anything here can name.
+      * "knowledge" -- one chunk per ``markdown.DocSection``, labelled
+        ``rel::anchor`` (``rel::(preamble)`` for the text before the first
+        heading), carrying that section's own source. A document's unit is its
+        section, exactly as ``structcore.languages``'s DocumentSpec declares.
+
+    "type" and any unknown name RAISE. There is no type-plane retrieval
+    universe: the frozen type-plane extensions (``.pyi``/``.proto``/...) are
+    not indexed here, and silently returning the code universe for a caller who
+    asked for types would answer a question that was never measured.
     """
+    unknown = [p for p in planes if p not in _RETRIEVABLE_PLANES]
+    if unknown:
+        raise ValueError(
+            f"_repo_chunks: no retrieval universe for plane(s) {unknown!r} -- "
+            f"known planes are {list(_RETRIEVABLE_PLANES)}; refusing rather "
+            "than falling back to the code universe")
+    wanted = set(planes)
     chunks: list[tuple[str, str]] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in _IGNORE_DIRS and not d.startswith("."))
         for fn in sorted(filenames):
             spec = spec_for(fn)
-            if spec is None:
+            if spec is not None:
+                plane = "code"
+            elif doc_spec_for(fn) is not None:
+                plane = "knowledge"
+            elif (os.path.splitext(fn)[1].lower() in _DATA_PLANE_EXTENSIONS
+                    and fn not in _DATA_PLANE_EXCLUDED_NAMES):
+                plane = "data"
+            else:
+                continue
+            if plane not in wanted:
                 continue
             p = os.path.join(dirpath, fn)
             try:
@@ -405,6 +602,14 @@ def _repo_chunks(root: str) -> list[tuple[str, str]]:
             except OSError:
                 continue
             rel = os.path.relpath(p, root).replace("\\", "/")
+            if plane == "data":
+                chunks.append((rel, text))
+                continue
+            if plane == "knowledge":
+                for section in parse_document(rel, text).sections:
+                    label = f"{rel}::{section.anchor or '(preamble)'}"
+                    chunks.append((label, section.source))
+                continue
             units = extract_units(rel, text, spec)
             if units:
                 for u in units:
@@ -519,9 +724,21 @@ def eval_task_arms(task: dict, idx: dict | None = None,
     CORRECTNESS task is likewise refused (``_correctness_task_row``) rather
     than scored: all three arms here go through ``_recall``, so a task with no
     ``must_include`` would read as a perfect 1.0 in every arm at once.
+
+    A PLANE-UNINDEXED target is refused here too, and the refusal covers all
+    three arms deliberately. Arm A cannot slice it at all; arms B and C could
+    technically be scored (B is a whole-repo concat, C could retrieve over a
+    wider plane set), but reporting B/C without A would publish a comparison
+    with the product arm structurally absent -- a "baseline beats the product"
+    row that measures a missing feature, not a worse slicer. The retrieval
+    extension point exists (``_repo_chunks(..., planes=...)``); the arm that
+    uses it is Gate-3 work.
     """
     if is_correctness_task(task):
         return _correctness_task_row(task)
+    reason = _plane_unindexed_reason(task)
+    if reason is not None:
+        return _plane_unindexed_row(task, reason)
     try:
         repo = resolve_task_repo(task["repo"])
         idx = idx if idx is not None else cached_index(repo)
@@ -605,6 +822,10 @@ def run_arms(tasks: list[dict] | None = None) -> dict:
         if is_correctness_task(task):   # see run_tier1's loop for why it is here
             per_task.append(_correctness_task_row(task))
             continue
+        reason = _plane_unindexed_reason(task)  # ditto
+        if reason is not None:
+            per_task.append(_plane_unindexed_row(task, reason))
+            continue
         try:
             repo = resolve_task_repo(task["repo"])
             if repo not in idx_cache:
@@ -617,13 +838,18 @@ def run_arms(tasks: list[dict] | None = None) -> dict:
         per_task.append(eval_task_arms(task, idx=idx_cache[repo], chunks=chunks_cache[repo]))
     errored = [t for t in per_task if "error" in t]
     focus_withheld = [t for t in per_task if t.get("focus_withheld")]  # see run_tier1
-    healthy = [t for t in per_task if "error" not in t and not t.get("focus_withheld")]
+    plane_unindexed = [t for t in per_task if t.get("plane_unindexed")]  # ditto
+    healthy = [t for t in per_task
+               if "error" not in t and not t.get("focus_withheld")
+               and not t.get("plane_unindexed")]
     return {
         "tier": "arms",
         "n_tasks": len(per_task),
         "n_errored_tasks": len(errored),
         "n_focus_withheld": len(focus_withheld),
         "focus_withheld_ids": sorted(t["id"] for t in focus_withheld),
+        "n_plane_unindexed": len(plane_unindexed),
+        "plane_unindexed_ids": sorted(t["id"] for t in plane_unindexed),
         "tokenizer": tokenizer_name(),
         "per_task": per_task,
         "errored": sorted(errored, key=lambda r: r["id"]),
@@ -714,7 +940,11 @@ def snapshot_baseline(tasks: list[dict] | None = None) -> dict:
     successfully. FOCUS-WITHHELD tasks (the secret floor fail-closed on the
     task's own focus file) are skipped for the same reason: there is no
     ``recall`` key to snapshot, and re-baselining a fence-refused task would
-    silently launder "never measured" into "passing"."""
+    silently launder "never measured" into "passing". PLANE-UNINDEXED tasks
+    (the target's plane has no retrieval path at all) are skipped for exactly
+    the same reason -- and it matters more here, because that condition is
+    structural and permanent until someone builds the arm: a baseline entry
+    would freeze "never measured" into the ratchet forever."""
     tasks = all_tasks() if tasks is None else tasks
     result = run_tier1(tasks)
     snap = {
@@ -725,6 +955,7 @@ def snapshot_baseline(tasks: list[dict] | None = None) -> dict:
         }
         for t in result["per_task"]
         if "error" not in t and not t.get("focus_withheld")
+        and not t.get("plane_unindexed")
     }
     return {
         "schema": 1,
@@ -784,6 +1015,13 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
     regression would be a false alarm on the fence doing its job. Reported in
     its own ``focus_withheld`` section, regardless of tier, and never fails
     the gate.
+
+    PLANE-UNINDEXED tasks are split out the same way and likewise NEVER fail
+    the gate, at any tier. There is no ``recall`` to compare and there never
+    was one: failing the gate on them would turn "this product has no
+    retrieval path for the data/knowledge planes" -- a known, reported,
+    structural gap -- into a per-run regression alarm that no slicer change
+    could ever clear.
     """
     tasks = all_tasks() if tasks is None else tasks
     p = baseline_path or DEFAULT_BASELINE_PATH
@@ -799,6 +1037,7 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
     errored_primary: list[dict] = []
     errored_quarantine: list[dict] = []
     focus_withheld: list[dict] = []
+    plane_unindexed: list[dict] = []
 
     for t in result["per_task"]:
         current_ids.add(t["id"])
@@ -811,6 +1050,10 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
             continue
         if t.get("focus_withheld"):
             focus_withheld.append({"id": t["id"], "target": t.get("target")})
+            continue
+        if t.get("plane_unindexed"):
+            plane_unindexed.append({"id": t["id"], "target": t.get("target"),
+                                    "reason": t.get("reason")})
             continue
         if not _is_primary_tier(t["label_tier"]):
             continue  # quarantine is never gated, see module docstring
@@ -846,4 +1089,5 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
         "errored_primary": sorted(errored_primary, key=lambda r: r["id"]),
         "errored_quarantine": sorted(errored_quarantine, key=lambda r: r["id"]),
         "focus_withheld": sorted(focus_withheld, key=lambda r: r["id"]),
+        "plane_unindexed": sorted(plane_unindexed, key=lambda r: r["id"]),
     }

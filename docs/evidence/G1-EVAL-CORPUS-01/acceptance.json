@@ -1,0 +1,132 @@
+{
+  "artifacts": [
+    {
+      "archive": "s02-eval-corpus-a.json.gz",
+      "archive_sha256": "2e45304240c8f71ab78d56f2b44a4b3d5e078c06ea0bc4a783d4162c16338536",
+      "sha256": "61356be8308e5f0c1580b4b727cf45e12687d46e650a0d2b9519ae7ed94c2ff5",
+      "source": "runs/g1-eval-corpus-01/s02-eval-corpus-a.json"
+    },
+    {
+      "archive": "s02-eval-corpus-b.json.gz",
+      "archive_sha256": "94f3ae2453e0268ce2f1c8fea3cc994fd5f7c9cf6b9863315e64f293a62b3d80",
+      "sha256": "4b10b6e7c80615ec6187d4eb8664c9267af404341e9cddb8517c355fc8e56fb6",
+      "source": "runs/g1-eval-corpus-01/s02-eval-corpus-b.json"
+    },
+    {
+      "archive": "census.log.gz",
+      "archive_sha256": "02b7da3a042847ddccf5f0e737b58689bbfa00ac2f0df41fc58f15f8c831b160",
+      "sha256": "205ba6cfa994951f8c4a6f3b14e06f53e95b5e836005b13e8b26dfe3e18acb8d",
+      "source": "runs/g1-eval-corpus-01/census.log"
+    },
+    {
+      "archive": "s02-comparison.log.gz",
+      "archive_sha256": "a176e3c043b0a97da00ba8fcc21cea211b881868e9163c53fa23c8e2c3a49ec0",
+      "sha256": "ac3d270de22e2f6586beada8672dd34b6b913a7be40dd8618b0495f8933f18c4",
+      "source": "runs/g1-eval-corpus-01/s02-comparison.log"
+    }
+  ],
+  "base_revision": "db38a762991b04cbc96c3cbed5209d6a517fa611",
+  "import_graph": {
+    "components": 14,
+    "components_sha256": "841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78",
+    "edges": 1943,
+    "max_component": 19,
+    "modules": 490,
+    "previous": {
+      "edges": 1932,
+      "modules": 485
+    },
+    "rejected_alternative": {
+      "edge": "daedalus.eval.tasks -> daedalus.eval.harness",
+      "measured_components_sha256": "b45b3cc6b162ee19c527708529626d36b3338b4295cd17db107c27ddbfa9cbdb",
+      "why_rejected": "enlarges the existing eval import cycle from 4 to 5 members"
+    }
+  },
+  "interpreter": "repository venv CPython 3.12.13",
+  "label_plane_census": {
+    "all_tasks_after": {
+      "code": 27,
+      "data": 2,
+      "knowledge": 2,
+      "type": 0
+    },
+    "all_tasks_before": {
+      "code": 27,
+      "data": 0,
+      "knowledge": 0,
+      "type": 0
+    },
+    "classifier": "packet/g3-base-01 d99e275061f9044c946185449ec3b4ee7831dcee daedalus/eval/gate3/taskset.py (read-only copy)",
+    "primary_only_after": {
+      "code": 10,
+      "data": 2,
+      "knowledge": 2,
+      "type": 0
+    },
+    "primary_only_before": {
+      "code": 10,
+      "data": 0,
+      "knowledge": 0,
+      "type": 0
+    }
+  },
+  "measured_utc_date": "2026-09-08",
+  "packet_id": "G1-EVAL-CORPUS-01",
+  "review_fixes": {
+    "defects_fixed": [
+      "_plane_unindexed_reason was a pure string test on the target extension, run before resolve_task_repo and before any existence check, so a nonexistent target was downgraded from an ERRORED row to a reported-only PLANE-UNINDEXED row and run_gate PASSED on a broken corpus",
+      "report.py printed 'verified plane-exclusive by test' with no test asserting it (mutation M1b survived)",
+      "the anti-vacuity filter removed zero candidates on the committed corpus, so deleting it changed nothing (mutation M9 survived)",
+      "the packet doc cited a superseded, never-committed s02 pin c2e4150f...",
+      "test_a_hand_written_subset_is_refused was a tautology cited as evidence for acceptance row A6",
+      "test_no_label_is_a_single_bm25_token guarded its only assertion and could never have been observed to run"
+    ],
+    "focused_suites_after_fixes": "371 passed, 2 skipped, 535 subtests passed (14 suites); experiments s02 8 passed; tools/index_work_packets.py --check clean",
+    "measured_utc_date": "2026-09-08",
+    "mutations_now_caught": {
+      "M1b": "delete the plane-exclusivity filter from derive_labels AND regenerate must_include -> V1PlaneExclusivityTest::test_every_committed_label_is_plane_exclusive_in_the_fixture fails on required, properties, fourfold-overview",
+      "M9": "delete 'if candidate in target_text: continue' -> V3NonVacuityTest::test_the_anti_vacuity_filter_drops_a_candidate_found_in_the_target fails"
+    },
+    "note": "Independent review + adversarial verification of the frozen source at c6e1c499. The fields above are the measurement of THAT source and are not rewritten; these are the measurements after the fixes.",
+    "s02_probe_after_fixes": {
+      "command": "experiments/forest_v2/s02_types/probe_external_corpora.py (run twice)",
+      "identical_except": [
+        "corpora[*].wall_seconds",
+        "corpora[*].root"
+      ],
+      "kernel_corpus_pin": {
+        "files": 490,
+        "sha256": "9861df4379037a00b0951191a986717c8b3dc5a6c692af0a2da4a6c00e645e45"
+      },
+      "non_timing_sha256": "eaf4808c4207d67b50f8b30556ad77af9a24a8172c98eca5804c7d422ada2eeb",
+      "raw_outputs": [
+        "runs/g1-eval-corpus-01/s02-fixer-c.json",
+        "runs/g1-eval-corpus-01/s02-fixer-d.json"
+      ],
+      "superseded_kernel_corpus_pin": {
+        "files": 490,
+        "sha256": "966aff674b23088e6ea830aa32e69594215b8b1655a384b2ecc3f92aac1fc57a"
+      },
+      "why_it_moved": "daedalus/eval/harness.py is inside the censused package tree; file count and every resolver number unchanged"
+    }
+  },
+  "s02_probe": {
+    "claim": "changed source corpus under an unchanged resolver; NOT a resolver improvement",
+    "command": "experiments/forest_v2/s02_types/probe_external_corpora.py (run twice)",
+    "identical_except": [
+      "corpora[*].wall_seconds",
+      "corpora[*].root"
+    ],
+    "kernel_corpus_pin": {
+      "files": 490,
+      "sha256": "966aff674b23088e6ea830aa32e69594215b8b1655a384b2ecc3f92aac1fc57a"
+    },
+    "non_timing_sha256": "b6e04216e2355df1c990bf017c73e7e1892de01037068d8f43f173034739f281",
+    "previous_kernel_corpus_pin": {
+      "files": 485,
+      "sha256": "d6b652d970c1a5a63a3b8d3960da54befd6eaa440b2ee3122e466a1ee6a8358e"
+    }
+  },
+  "schema": "daedalus-packet-acceptance/1",
+  "worktree_head_at_measurement": "cc1265959f645a61840f288dfe7d96d09dd3505e"
+}
