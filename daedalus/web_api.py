@@ -1752,7 +1752,13 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                     link = conv.default_store().link_dispatch(
                         str(conversation_id), task_id,
                         turn_id=(int(turn_id) if turn_id is not None else None),
-                        kind="queue_task")
+                        kind="queue_task",
+                        detail={
+                            "schema": "conversation.dispatch.identity.v1",
+                            "project": project,
+                            "objective": objective,
+                            "lane": str(result["lane"]),
+                        })
                     result["conversation_link"] = {
                         "conversation_id": link.conversation_id,
                         "turn_id": link.turn_id, "dispatch_ref": link.dispatch_ref,
