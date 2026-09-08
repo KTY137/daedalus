@@ -22,7 +22,7 @@ from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
 from .ikarus_tool_scope import IkarusToolScopeProjection
 from .kernel.contracts import EffectLeaseRequest
 from .kernel.effects import EffectExecutionRequest
-from .schemas import ContractProvenance, EffectScope
+from .schemas import ContractProvenance, EffectScope, MissionContract
 from .spine.effect_boundary import Effect
 
 
@@ -348,8 +348,157 @@ def build_oneshot_effect_execution_request(
         ) from exc
 
 
+def _bounded_by(value: int | None, ceiling: int | None, label: str) -> None:
+    if ceiling is not None and (value is None or value > ceiling):
+        raise IkarusEffectBridgeRefused(
+            f"{label} is broader than the canonical mission budget"
+        )
+
+
+def validate_oneshot_mission_work_item(
+    mission: MissionContract,
+    work_item_id: str,
+    request: OneShotRequest,
+    runtime_evidence: OneShotRuntimeEvidenceBinding,
+    tool_scope: IkarusToolScopeProjection,
+    effect_request: EffectLeaseRequest,
+    execution: EffectExecutionRequest,
+) -> None:
+    """Prove that one Ikarus effect chain belongs to one canonical WorkItem.
+
+    ``MissionContract.work_item_ids`` is the existing WorkItem authority; this
+    seam deliberately does not add another WorkItem object or scheduler.  It
+    replays the two pure bridge projections and compares them byte-for-byte so
+    a caller cannot splice a valid request/evidence/tool tuple onto a foreign
+    mission, WorkItem, budget, effect request, or narrowed execution.
+
+    This function grants nothing and performs no effect.  A runtime broker must
+    still obtain the canonical lease/authorization and authenticate the sealed
+    provider invocation before execution can start.
+    """
+
+    if type(mission) is not MissionContract:
+        raise IkarusEffectBridgeRefused("mission must be an exact MissionContract")
+    if type(work_item_id) is not str or work_item_id not in mission.work_item_ids:
+        raise IkarusEffectBridgeRefused(
+            "work_item_id must name one exact canonical mission work item"
+        )
+    _bind_subjects(request, runtime_evidence, tool_scope)
+    if type(effect_request) is not EffectLeaseRequest:
+        raise IkarusEffectBridgeRefused(
+            "effect_request must be an exact EffectLeaseRequest"
+        )
+    if type(execution) is not EffectExecutionRequest:
+        raise IkarusEffectBridgeRefused(
+            "execution must be an exact EffectExecutionRequest"
+        )
+
+    comparisons = {
+        "mission": (effect_request.mission_id, mission.mission_id),
+        "attempt/work item": (effect_request.attempt_id, work_item_id),
+        "trace": (effect_request.provenance.trace_id, mission.mission_id),
+        "source revision": (
+            effect_request.provenance.source_revision,
+            mission.source_revision,
+        ),
+        "runtime source revision": (
+            runtime_evidence.source_revision,
+            mission.source_revision,
+        ),
+    }
+    mismatch = sorted(
+        name for name, (actual, expected) in comparisons.items() if actual != expected
+    )
+    if mismatch:
+        raise IkarusEffectBridgeRefused(
+            "Ikarus effect subjects do not name one mission work item: "
+            + ", ".join(mismatch)
+        )
+
+    _bounded_by(
+        request.budget.max_cost_microusd,
+        mission.budget.max_cost_microusd,
+        "one-shot cost bound",
+    )
+    _bounded_by(
+        request.budget.max_wall_time_s,
+        mission.budget.max_wall_time_s,
+        "one-shot wall-time bound",
+    )
+    _bounded_by(
+        effect_request.effect_scope.max_cost_microusd,
+        mission.budget.max_cost_microusd,
+        "effect-request cost bound",
+    )
+    _bounded_by(
+        effect_request.effect_scope.timeout_s,
+        mission.budget.max_wall_time_s,
+        "effect-request timeout",
+    )
+    _bounded_by(
+        execution.max_cost_microusd,
+        mission.budget.max_cost_microusd,
+        "execution cost bound",
+    )
+
+    try:
+        created_at = datetime.fromisoformat(
+            effect_request.provenance.created_at.replace("Z", "+00:00")
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise IkarusEffectBridgeRefused(
+            "effect request provenance created_at is not ISO-8601"
+        ) from exc
+    if created_at.tzinfo is None or created_at.utcoffset() is None:
+        raise IkarusEffectBridgeRefused(
+            "effect request provenance created_at must include a timezone"
+        )
+
+    rebuilt_request = build_oneshot_effect_lease_request(
+        request,
+        runtime_evidence,
+        tool_scope,
+        request_id=effect_request.request_id,
+        mission_id=effect_request.mission_id,
+        attempt_id=effect_request.attempt_id,
+        entrypoint_id=effect_request.entrypoint_id,
+        idempotency_namespace=effect_request.idempotency_namespace,
+        kill_switch_ref=effect_request.effect_scope.kill_switch_ref,
+        kill_switch_generation=effect_request.kill_switch_generation,
+        requested_effects=effect_request.requested_effects,
+        created_at=created_at,
+        writable_paths=effect_request.effect_scope.writable_paths,
+        egress_endpoints=effect_request.effect_scope.egress_endpoints,
+        secret_refs=effect_request.effect_scope.secret_refs,
+        timeout_s=effect_request.effect_scope.timeout_s,
+    )
+    if rebuilt_request != effect_request or rebuilt_request.digest != effect_request.digest:
+        raise IkarusEffectBridgeRefused(
+            "effect request is not the exact canonical one-shot projection"
+        )
+
+    rebuilt_execution = build_oneshot_effect_execution_request(
+        request,
+        runtime_evidence,
+        tool_scope,
+        effect_request,
+        execution_id=execution.execution_id,
+        idempotency_key=execution.idempotency_key,
+        requested_effects=execution.requested_effects,
+        writable_paths=execution.writable_paths,
+        egress_endpoints=execution.egress_endpoints,
+        secret_refs=execution.secret_refs,
+        max_cost_microusd=execution.max_cost_microusd,
+    )
+    if rebuilt_execution != execution or rebuilt_execution.digest != execution.digest:
+        raise IkarusEffectBridgeRefused(
+            "execution request is not the exact narrowed one-shot projection"
+        )
+
+
 __all__ = [
     "IkarusEffectBridgeRefused",
     "build_oneshot_effect_execution_request",
     "build_oneshot_effect_lease_request",
+    "validate_oneshot_mission_work_item",
 ]
