@@ -335,6 +335,26 @@ def test_execution_rejects_kernel_request_without_ikarus_provenance(tmp_path):
         )
 
 
+def test_execution_rejects_kernel_request_with_foreign_mission_trace(tmp_path):
+    request, evidence, tools, effect_request = _effect_request(tmp_path)
+    foreign = dataclasses.replace(
+        effect_request,
+        provenance=dataclasses.replace(
+            effect_request.provenance,
+            trace_id="mission-foreign",
+        ),
+    )
+    with pytest.raises(IkarusEffectBridgeRefused, match="bound to its mission"):
+        build_oneshot_effect_execution_request(
+            request,
+            evidence,
+            tools,
+            foreign,
+            execution_id="ikarus-execution-foreign-mission",
+            idempotency_key="ikarus-execution-foreign-mission-key",
+        )
+
+
 def test_bridge_has_no_provider_policy_lease_or_io_authority():
     path = ROOT / "daedalus/ikarus_effect_bridge.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
