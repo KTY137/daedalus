@@ -14,6 +14,11 @@ export interface LiveReportBrief {
   project?: string;
   lane?: string;
   agent?: string;
+  runtimeId?: string;
+  workItemId?: string;
+  attemptId?: string;
+  phase?: string;
+  terminalReceiptSha256?: string;
   status: string;
   summary?: string;
   createdAt?: string;
@@ -38,6 +43,7 @@ export interface LiveWorkState {
 }
 
 const RECENT_REPORT_LIMIT = 3;
+const LOWER_SHA256 = /^[0-9a-f]{64}$/;
 
 export function emptyLiveWork(project = ''): LiveWorkState {
   return { project, connected: null, recent: [] };
@@ -72,16 +78,37 @@ function exactText(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+/**
+ * Optional execution identity is useful only when it is already canonical.
+ * Unlike presentation text, a padded runtime/attempt/work-item identifier is
+ * not repaired for display: doing so would turn malformed terminal evidence
+ * into a stronger fact than the producer actually emitted.
+ */
+function canonicalEvidenceText(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  return value === value.trim() ? value : undefined;
+}
+
+function terminalReceiptSha256(value: unknown): string | undefined {
+  const candidate = canonicalEvidenceText(value);
+  return candidate && LOWER_SHA256.test(candidate) ? candidate : undefined;
+}
+
 export function reportBrief(value: unknown): LiveReportBrief | undefined {
   const row = object(value);
   const name = text(row.name);
   if (!name) return undefined;
   return {
-    id: text(row.id),
+    id: canonicalEvidenceText(row.id),
     name,
     project: exactText(row.project),
-    lane: text(row.lane),
-    agent: text(row.agent),
+    lane: canonicalEvidenceText(row.lane),
+    agent: canonicalEvidenceText(row.agent),
+    runtimeId: canonicalEvidenceText(row.runtime_id),
+    workItemId: canonicalEvidenceText(row.work_item_id),
+    attemptId: canonicalEvidenceText(row.attempt_id),
+    phase: canonicalEvidenceText(row.phase),
+    terminalReceiptSha256: terminalReceiptSha256(row.terminal_receipt_sha256),
     status: text(row.status) || 'unbekannt',
     summary: text(row.summary),
     createdAt: text(row.created_at)
