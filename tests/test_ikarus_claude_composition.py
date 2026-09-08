@@ -528,6 +528,12 @@ def test_dispatch_uses_authenticated_payload_and_projects_work_item(
             "attempt_id": subjects[1].attempt_id,
             "phase": "terminal",
             "terminal_receipt_sha256": "f" * 64,
+            "runtime_receipt": {
+                "executed": True,
+                "invocation_sha256": body["invocation_sha256"],
+                "start_receipt_sha256": "a" * 64,
+                "terminal_receipt_sha256": "f" * 64,
+            },
             "report": {"status": "done", "summary": "bounded"},
         }
 
@@ -654,5 +660,89 @@ def test_dispatch_refuses_foreign_provider_name_with_valid_runtime_identity(
     with pytest.raises(
         composition.IkarusClaudeCompositionRefused,
         match="does not name the canonical Claude provider",
+    ):
+        composition.dispatch_mission_bound_claude_invocation(invocation)
+
+
+def test_dispatch_refuses_runtime_receipt_for_another_authenticated_invocation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    monkeypatch.setattr(
+        composition,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: object(),
+    )
+    invocation = _compose_bound(subjects)
+    body = _provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    monkeypatch.setattr(
+        composition,
+        "ask_claude",
+        lambda *args, **kwargs: {
+            "provider": "claude_cli",
+            "runtime_id": CLAUDE_RUNTIME_ID,
+            "attempt_id": subjects[1].attempt_id,
+            "phase": "terminal",
+            "terminal_receipt_sha256": "b" * 64,
+            "runtime_receipt": {
+                "executed": True,
+                "invocation_sha256": "0" * 64,
+                "start_receipt_sha256": "a" * 64,
+                "terminal_receipt_sha256": "b" * 64,
+            },
+        },
+    )
+
+    with pytest.raises(
+        composition.IkarusClaudeCompositionRefused,
+        match="runtime receipt belongs to another authenticated invocation",
+    ):
+        composition.dispatch_mission_bound_claude_invocation(invocation)
+
+
+def test_dispatch_refuses_terminal_evidence_that_disagrees_with_runtime_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    monkeypatch.setattr(
+        composition,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: object(),
+    )
+    invocation = _compose_bound(subjects)
+    body = _provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    monkeypatch.setattr(
+        composition,
+        "ask_claude",
+        lambda *args, **kwargs: {
+            "provider": "claude_cli",
+            "runtime_id": CLAUDE_RUNTIME_ID,
+            "attempt_id": subjects[1].attempt_id,
+            "phase": "terminal",
+            "terminal_receipt_sha256": "c" * 64,
+            "runtime_receipt": {
+                "executed": True,
+                "invocation_sha256": body["invocation_sha256"],
+                "start_receipt_sha256": "a" * 64,
+                "terminal_receipt_sha256": "b" * 64,
+            },
+        },
+    )
+
+    with pytest.raises(
+        composition.IkarusClaudeCompositionRefused,
+        match="terminal evidence does not match the runtime receipt",
     ):
         composition.dispatch_mission_bound_claude_invocation(invocation)
