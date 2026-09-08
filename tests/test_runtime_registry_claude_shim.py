@@ -62,7 +62,7 @@ def test_claude_windows_batch_shim_is_not_reported_ready(monkeypatch) -> None:
     run.assert_not_called()
 
 
-def test_claude_provider_probe_reuses_canonical_runtime_readiness() -> None:
+def test_claude_provider_probe_requires_runtime_and_canonical_dispatch_readiness() -> None:
     row = {
         "id": "claude_code_cli",
         "available": True,
@@ -76,8 +76,9 @@ def test_claude_provider_probe_reuses_canonical_runtime_readiness() -> None:
     ):
         available, error = providers._availability_probe("claude_cli")
 
-    assert available is True
-    assert error == ""
+    assert available is False
+    assert "canonical dispatch is not activated" in error
+    assert "provider.claude wiring=inventory_only" in error
     readiness.assert_called_once_with("claude_code_cli")
     provider_factory.assert_not_called()
 
