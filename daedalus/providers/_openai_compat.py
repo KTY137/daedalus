@@ -7,13 +7,16 @@ so a single tiny client serves both. We deliberately avoid ``requests`` /
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import queue
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -224,6 +227,228 @@ def _send(
         raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
 
 
+# ---------------------------------------------------------------------------
+# Provider-reported usage (G1-EVAL-USAGE-01)
+#
+# A provider's ``usage`` block is a SELF-REPORT in a tokenizer this module does
+# not know (Ollama's ``prompt_tokens`` is ``prompt_eval_count`` and may exclude
+# a cached prompt). It is retained as evidence with provenance; it is never a
+# budget-equality measurement and is never summed with a local estimate.
+# ---------------------------------------------------------------------------
+
+PROVIDER_TOKENIZER_UNKNOWN = "provider-reported (tokenizer unknown)"
+
+# Bound on the retained canonical ``usage`` JSON. The digest always covers the
+# full canonical bytes, so a truncated retention is still verifiable.
+_MAX_USAGE_RAW_CHARS = 2048
+_MAX_USAGE_ERROR_REPR_CHARS = 80
+
+
+def _is_count(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _short_repr(value: Any) -> str:
+    text = repr(value)
+    if len(text) <= _MAX_USAGE_ERROR_REPR_CHARS:
+        return text
+    return text[: _MAX_USAGE_ERROR_REPR_CHARS - 3] + "..."
+
+
+@dataclass(frozen=True)
+class ProviderUsage:
+    """Token counts exactly as one provider reported them.
+
+    ``input_tokens`` and ``output_tokens`` are the provider's ``prompt_tokens``
+    and ``completion_tokens``; ``total_tokens`` is its own total when it sent
+    one. A reported zero is a valid report. ``tokenizer`` names what counted --
+    today always unknown, so two ProviderUsage values from different providers
+    are not comparable and no code here compares them.
+    """
+
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int | None
+    tokenizer: str = PROVIDER_TOKENIZER_UNKNOWN
+
+    def __post_init__(self) -> None:
+        for name in ("input_tokens", "output_tokens"):
+            value = getattr(self, name)
+            if not _is_count(value):
+                raise ValueError(f"{name} must be a non-negative int, got {_short_repr(value)}")
+        if self.total_tokens is not None and not _is_count(self.total_tokens):
+            raise ValueError(
+                f"total_tokens must be a non-negative int or None, got "
+                f"{_short_repr(self.total_tokens)}"
+            )
+
+
+def parse_usage(raw: Any) -> tuple[ProviderUsage | None, str | None]:
+    """Classify one ``usage`` value as reported, absent or malformed.
+
+    Total function: never raises. Returns ``(usage, error)``:
+
+    * ``(ProviderUsage, None)`` -- reported;
+    * ``(None, None)`` -- absent: ``None``, ``{}``, or a block without either
+      primary counter (a details-only block counts as absent);
+    * ``(None, reason)`` -- malformed: not an object, exactly one primary
+      counter, a counter that is not a non-bool int >= 0, or a present
+      ``total_tokens`` that is not the sum of the two. A self-inconsistent
+      report is not a measurement, so it is deliberately not typed.
+    """
+    if raw is None:
+        return None, None
+    if not isinstance(raw, dict):
+        return None, f"usage is {type(raw).__name__}"
+    has_input = "prompt_tokens" in raw
+    has_output = "completion_tokens" in raw
+    if not has_input and not has_output:
+        return None, None
+    if not has_input:
+        return None, "prompt_tokens missing"
+    if not has_output:
+        return None, "completion_tokens missing"
+    prompt, completion = raw["prompt_tokens"], raw["completion_tokens"]
+    if not _is_count(prompt):
+        return None, f"prompt_tokens={_short_repr(prompt)}"
+    if not _is_count(completion):
+        return None, f"completion_tokens={_short_repr(completion)}"
+    total: int | None = None
+    if "total_tokens" in raw:
+        total = raw["total_tokens"]
+        if not _is_count(total):
+            return None, f"total_tokens={_short_repr(total)}"
+        if total != prompt + completion:
+            return None, "total mismatch"
+    return ProviderUsage(prompt, completion, total), None
+
+
+@dataclass(frozen=True)
+class ChatReceipt:
+    """One completed ``/chat/completions`` call: its text plus usage provenance.
+
+    ``text`` is the assistant content verbatim (``None`` when the provider sent
+    ``null``). ``usage_raw_json`` is the canonical serialization of the
+    provider's ``usage`` value, bounded to ``_MAX_USAGE_RAW_CHARS``;
+    ``usage_raw_sha256`` covers the full canonical bytes whenever a ``usage``
+    key existed. ``endpoint`` is the base URL reduced to scheme, host, port and
+    path -- userinfo, query and fragment never enter a receipt.
+    """
+
+    text: Any
+    usage: ProviderUsage | None
+    usage_error: str | None
+    usage_raw_json: str | None
+    usage_raw_truncated: bool
+    usage_raw_sha256: str | None
+    response_model: str | None
+    finish_reason: str | None
+    endpoint: str
+    request_model: str
+
+    @property
+    def usage_status(self) -> str:
+        if self.usage is not None:
+            return "reported"
+        if self.usage_error:
+            return "malformed"
+        return "absent"
+
+
+def _usage_raw_evidence(payload: dict[str, Any]) -> tuple[str | None, bool, str | None]:
+    if "usage" not in payload:
+        return None, False, None
+    canonical = json.dumps(payload["usage"], sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if len(canonical) <= _MAX_USAGE_RAW_CHARS:
+        return canonical, False, digest
+    return canonical[:_MAX_USAGE_RAW_CHARS], True, digest
+
+
+def _endpoint_identity(base_url: str) -> str:
+    """Scheme, host, port and path only: an ``OLLAMA_HOST`` may carry userinfo."""
+    parts = urllib.parse.urlsplit(base_url)
+    host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+
+
+def _optional_str(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def chat_completion_receipt(
+    *,
+    base_url: str,
+    model: str,
+    system: str,
+    user: str,
+    api_key: str | None = None,
+    timeout_s: float | None = 300,
+    force_json: bool = True,
+    json_schema: dict[str, Any] | None = None,
+    temperature: float = 0.2,
+    extra: dict[str, Any] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+    poll_interval_s: float | None = None,
+) -> ChatReceipt:
+    """:func:`chat_completion` that also returns the provider's usage report.
+
+    Same signature, same request body, same transport call, same errors:
+    :class:`ProviderCancelled` and :class:`ProviderHTTPError` propagate
+    unchanged and a cancelled call builds no receipt. The only addition is
+    what is read from the parsed reply after it arrived.
+    """
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": temperature,
+        "stream": False,
+    }
+    if json_schema is not None:
+        body["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {"name": "agent_report_v1", "strict": True, "schema": json_schema},
+        }
+    elif force_json:
+        body["response_format"] = {"type": "json_object"}
+    if extra:
+        body.update(extra)
+
+    if cancelled is None:
+        payload = _post(base_url, body, api_key, timeout_s)
+    else:
+        payload = _post(
+            base_url, body, api_key, timeout_s,
+            cancelled=cancelled, poll_interval_s=poll_interval_s,
+        )
+    try:
+        choice = payload["choices"][0]
+        text = choice["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ProviderHTTPError(f"unexpected response shape: {payload}") from exc
+
+    usage, usage_error = parse_usage(payload.get("usage"))
+    raw_json, raw_truncated, raw_sha256 = _usage_raw_evidence(payload)
+    return ChatReceipt(
+        text=text,
+        usage=usage,
+        usage_error=usage_error,
+        usage_raw_json=raw_json,
+        usage_raw_truncated=raw_truncated,
+        usage_raw_sha256=raw_sha256,
+        response_model=_optional_str(payload.get("model")),
+        finish_reason=_optional_str(choice.get("finish_reason")) if isinstance(choice, dict) else None,
+        endpoint=_endpoint_identity(base_url),
+        request_model=model,
+    )
+
+
 def chat_completion(
     *,
     base_url: str,
@@ -260,37 +485,25 @@ def chat_completion(
     one place allowed to answer that question.
 
     A cancelled call must not be retried -- see :func:`run_cancellable`.
-    """
-    body: dict[str, Any] = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": temperature,
-        "stream": False,
-    }
-    if json_schema is not None:
-        body["response_format"] = {
-            "type": "json_schema",
-            "json_schema": {"name": "agent_report_v1", "strict": True, "schema": json_schema},
-        }
-    elif force_json:
-        body["response_format"] = {"type": "json_object"}
-    if extra:
-        body.update(extra)
 
-    if cancelled is None:
-        payload = _post(base_url, body, api_key, timeout_s)
-    else:
-        payload = _post(
-            base_url, body, api_key, timeout_s,
-            cancelled=cancelled, poll_interval_s=poll_interval_s,
-        )
-    try:
-        return payload["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ProviderHTTPError(f"unexpected response shape: {payload}") from exc
+    Since G1-EVAL-USAGE-01 the body construction and transport call live in
+    :func:`chat_completion_receipt`; this is that call's ``text``. Callers that
+    need the provider's usage report ask for the receipt instead.
+    """
+    return chat_completion_receipt(
+        base_url=base_url,
+        model=model,
+        system=system,
+        user=user,
+        api_key=api_key,
+        timeout_s=timeout_s,
+        force_json=force_json,
+        json_schema=json_schema,
+        temperature=temperature,
+        extra=extra,
+        cancelled=cancelled,
+        poll_interval_s=poll_interval_s,
+    ).text
 
 
 def _cancellable_stream(
