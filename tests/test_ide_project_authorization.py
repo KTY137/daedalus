@@ -93,3 +93,48 @@ def test_effectful_project_root_resolution_lock_failure_is_unavailable(
     monkeypatch.setattr(projects, "ExclusiveFileLock", RefusingLock)
     with pytest.raises(projects.ProjectRegistryUnavailable, match="temporarily unavailable"):
         projects.resolve_registered_project_root("demo")
+
+
+def test_self_row_dot_resolves_to_the_registry_checkout_not_the_cwd(
+    tmp_path: Path, project_registry: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``repo_root: "."`` is the checkout that OWNS the registry.
+
+    projects/agent_env.json carries exactly that value on purpose (the row
+    must stay valid in every clone and CI job), and before this test the
+    effectful seam refused it as "not absolute on this host" -- so the
+    product could never expose its own checkout to Ariadne. The self root is
+    ``PROJECT_DIR.parent`` and must not depend on where the process runs.
+    """
+    project_registry.mkdir()
+    (project_registry / "self.json").write_text(
+        json.dumps({"name": "self", "repo_root": "."}), encoding="utf-8",
+    )
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    assert projects.self_checkout_root() == project_registry.parent
+    assert projects.resolve_registered_project_root("self") == str(tmp_path.resolve())
+    assert projects._registered_root_key({"repo_root": "."}) == projects._path_key(tmp_path)
+    assert projects._registered_root_key({"repo_root": " . "}) == projects._path_key(tmp_path)
+
+
+def test_other_relative_roots_still_fail_closed(
+    tmp_path: Path, project_registry: Path,
+) -> None:
+    """Only the literal "." is the self row; every other relative value keeps
+    the fail-closed rule (a Linux host must not reinterpret a stray relative
+    path under its cwd, and neither may Windows). Such a row has no registry
+    identity at all, so the locked row loader refuses it before the seam
+    ever looks at the path -- measured, not assumed: the 'not absolute on
+    this host' branch is defense in depth behind that refusal."""
+    project_registry.mkdir()
+    for index, relative in enumerate(("./", "sub/dir", "..", "./projects/..")):
+        name = f"rel{index}"
+        (project_registry / f"{name}.json").write_text(
+            json.dumps({"name": name, "repo_root": relative}), encoding="utf-8",
+        )
+        assert projects._registered_root_key({"repo_root": relative}) is None
+        with pytest.raises(projects.ProjectRegistryUnavailable, match="no valid repo_root"):
+            projects.resolve_registered_project_root(name)
