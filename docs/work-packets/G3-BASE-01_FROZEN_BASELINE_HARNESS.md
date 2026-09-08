@@ -353,3 +353,23 @@ declared scope:
 - The five retrieval/search arms that need non-code planes (`separate_indices`
   in cross-plane mode, and any four-plane comparison) are blocked by F1.
 - Nothing here is Gate-3 baseline evidence, and cannot be until F4 is resolved.
+
+## Re-landing (2026-09-08, rebased onto main `24e229c0`)
+
+- The four retained commits were rebased onto `main` after PR #318 and #319
+  landed; the branch's fifth commit (the first edge-census re-measure) became
+  empty against the new base and was dropped, not squashed.
+- Census re-measured at this revision `[MEASURED 2026-09-08]`: modules
+  485 -> 509, edges 1931 -> 1997, still 14 non-trivial components with maximum
+  19 -- the package adds modules and edges, not a cycle. Registry: tracked
+  files 472 -> 473, packet ids 406 -> 407, `G3-BASE-01` in the primary set.
+- `tests/eval/gate3/test_arm_embeddings.py::test_hashing_vector_stable_across_pythonhashseed`
+  now pins `PYTHONPATH` to the tree under test. In a linked worktree the probe
+  otherwise imported `daedalus` from the venv's editable install (which has no
+  `daedalus.eval.gate3`) and failed for a reason unrelated to hashing:
+  1 failed / 300 passed before the pin, 328 passed / 2 skipped after it
+  (`tests/eval/gate3` plus the two contract suites) `[MEASURED 2026-09-08]`.
+- F1-F4 were **not** re-measured; their base remains `1ba5b66f`. `tiktoken`
+  is still absent on this host `[MEASURED 2026-09-08: ModuleNotFoundError]`.
+  The four blockers are being designed as separate packets, not folded in
+  here.

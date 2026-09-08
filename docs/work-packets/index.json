@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 469,
+    "assigned_artifacts": 470,
     "legacy_artifacts": 204,
-    "packet_artifacts": 471,
-    "packet_ids": 406,
-    "post_index_artifacts": 267,
+    "packet_artifacts": 472,
+    "packet_ids": 407,
+    "post_index_artifacts": 268,
     "registry_artifacts": 1,
-    "tracked_files": 472,
+    "tracked_files": 473,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -6788,6 +6788,22 @@
       "origin": "post_index",
       "packet_id": "G1-WP-INDEX-01",
       "primary_artifact": "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G3-BASE-01_FROZEN_BASELINE_HARNESS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+        "classification": "EXPERIMENT",
+        "dependencies": "none",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G3-BASE-01",
+      "primary_artifact": "docs/work-packets/G3-BASE-01_FROZEN_BASELINE_HARNESS.md"
     }
   ],
   "post_index_contracts": [
@@ -10513,6 +10529,20 @@
       "format": "markdown",
       "packet_id": "G1-WP-INDEX-01",
       "path": "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G3-BASE-01",
+      "path": "docs/work-packets/G3-BASE-01_FROZEN_BASELINE_HARNESS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

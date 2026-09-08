@@ -176,7 +176,13 @@ def test_hashing_vector_stable_across_pythonhashseed(tmp_path):
 
     def _run_with_seed(seed: str) -> list[float]:
         import os
-        env = dict(**{**__import__("os").environ, "PYTHONHASHSEED": seed})
+        # PYTHONPATH pins the probe to THIS tree: ``python probe.py`` puts the
+        # probe's own directory first on sys.path, so without it a linked
+        # worktree would import ``daedalus`` from wherever the venv's editable
+        # install points and the probe would fail for a reason unrelated to
+        # hashing.
+        env = dict(**{**os.environ, "PYTHONHASHSEED": seed,
+                      "PYTHONPATH": str(_REPO_ROOT)})
         completed = subprocess.run(
             [sys.executable, str(probe)],
             cwd=str(_REPO_ROOT), env=env, capture_output=True, text=True,
