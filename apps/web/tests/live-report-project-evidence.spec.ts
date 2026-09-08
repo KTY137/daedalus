@@ -175,6 +175,28 @@ test('terminal reports require exact project evidence before entering Work Pulse
   await expect(pulse).not.toContainText('attempt-padded');
   await expect(pulse).not.toContainText('Phase completed');
   await expect(pulse).not.toContainText('Receipt not-a-sha256');
+  await expect(pulse.getByLabel('Status der Ausführungsevidenz')).toHaveCount(0);
+
+  // A terminal-looking report with a missing receipt remains visible, but the
+  // cockpit must call the evidence spine incomplete instead of presenting the
+  // report's `done` status as proof that execution is fully bound.
+  await page.evaluate((selectedProject) => {
+    (window as any).__projectEventSource.emit('report', {
+      name: 'partial.report.json',
+      project: selectedProject,
+      status: 'done',
+      agent: 'qa-critic',
+      runtime_id: 'claude_code_cli',
+      work_item_id: 'work-item-partial',
+      attempt_id: 'attempt-partial',
+      phase: 'terminal',
+      summary: 'terminal receipt intentionally absent'
+    });
+  }, project);
+  await expect(pulse).toContainText('partial.report.json');
+  await expect(pulse.getByLabel('Status der Ausführungsevidenz').first()).toContainText(
+    'Terminale Evidenz: unvollständig · Abschluss nicht als vollständig belegt behandeln'
+  );
 
   await page.evaluate((selectedProject) => {
     (window as any).__projectEventSource.emit('report', {
@@ -185,7 +207,7 @@ test('terminal reports require exact project evidence before entering Work Pulse
       runtime_id: 'claude_code_cli',
       work_item_id: 'work-item-0123456789abcdef',
       attempt_id: 'attempt-0123456789abcdef',
-      phase: 'completed',
+      phase: 'terminal',
       terminal_receipt_sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       summary: 'verified terminal evidence'
     });
@@ -193,9 +215,11 @@ test('terminal reports require exact project evidence before entering Work Pulse
   await expect(pulse).toContainText('bound.report.json');
   await expect(pulse).toContainText('Agent qa-critic');
   await expect(pulse).toContainText('verified terminal evidence');
+  const evidenceStatus = pulse.getByLabel('Status der Ausführungsevidenz').first();
+  await expect(evidenceStatus).toContainText('Terminale Evidenz: geschlossen');
   const observed = pulse.getByLabel('Beobachtete Ausführungsevidenz').first();
   await expect(observed).toContainText('Runtime claude_code_cli');
-  await expect(observed).toContainText('Phase completed');
+  await expect(observed).toContainText('Phase terminal');
   await expect(observed).toContainText('WorkItem work-item-0123456789abcdef');
   await expect(observed).toContainText('Attempt attempt-0123456789abcdef');
   await expect(observed).toContainText('Receipt aaaaaaaaaaaaaa…aaaaaaaaa');
