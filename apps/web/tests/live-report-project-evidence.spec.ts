@@ -108,6 +108,23 @@ test('terminal reports require exact project evidence before entering Work Pulse
   await expect(pulse).not.toContainText('schemaless.report.json');
   await expect(pulse).not.toContainText('must-not-be-attributed');
 
+  await page.evaluate((selectedProject) => {
+    (window as any).__projectEventSource.emit('hello', {
+      in_flight: 0,
+      queue_depth: 0,
+      latest_report: {
+        name: 'padded-hello.report.json',
+        project: ` ${selectedProject} `,
+        status: 'done',
+        agent: 'padded-hello-agent',
+        summary: 'project evidence must not be normalized'
+      }
+    });
+  }, project);
+  await expect(pulse).toContainText('Noch kein Abschlussbericht beobachtet');
+  await expect(pulse).not.toContainText('padded-hello.report.json');
+  await expect(pulse).not.toContainText('padded-hello-agent');
+
   await page.evaluate(() => {
     (window as any).__projectEventSource.emit('report', {
       name: 'foreign.report.json',
@@ -119,6 +136,18 @@ test('terminal reports require exact project evidence before entering Work Pulse
   });
   await expect(pulse).not.toContainText('foreign.report.json');
   await expect(pulse).not.toContainText('foreign-agent');
+
+  await page.evaluate((selectedProject) => {
+    (window as any).__projectEventSource.emit('report', {
+      name: 'padded-event.report.json',
+      project: `${selectedProject} `,
+      status: 'done',
+      agent: 'padded-event-agent',
+      summary: 'near-match project evidence'
+    });
+  }, project);
+  await expect(pulse).not.toContainText('padded-event.report.json');
+  await expect(pulse).not.toContainText('padded-event-agent');
 
   await page.evaluate((selectedProject) => {
     (window as any).__projectEventSource.emit('report', {
