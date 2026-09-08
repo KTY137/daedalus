@@ -1,4 +1,56 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-66",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "218b35831bf5e8cf14ae3fc7606fec6916876a2e",
+    "dependencies": "G1-EXP-TENSOR-GPU-65; exact base_head and retained inputs in this artifact",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "finding",
+          "gardener_decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "implementation",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation",
+          "finding",
+          "gardener_decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "negative_evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "bounded_next_step"
+        ],
+        "projection_note": "Metadata projection only. Explicitly revert the retained implementation commit(s) to restore prior compiler behavior; keep this evidence and its negative results. No schema/store migration or gate transition is authorized."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "negative_evidence",
+          "verification",
+          "desktop_caveat",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
   "work_packet_id": "G1-EXP-TENSOR-GPU-66",
   "title": "Align strict Boolean whole-Forest partition admission with canonical compiler",
   "classification": "implementation",

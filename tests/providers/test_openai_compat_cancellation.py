@@ -125,6 +125,47 @@ def _never() -> bool:
     return False
 
 
+@pytest.mark.parametrize("mode", ["before_headers", "headers_then_silence"])
+@pytest.mark.parametrize("provider", ["openai", "ollama"])
+def test_streaming_cancellation_returns_from_real_urllib_stall(mode, provider):
+    from daedalus.providers._openai_compat import chat_stream
+    from daedalus.providers._ollama_native import native_chat_stream
+
+    body = (
+        b"data: [DONE]\n" if provider == "openai"
+        else b'{"message":{"content":""},"done":true}\n'
+    )
+    with slow_server(delay_s=FOREVER_S, mode=mode, body=body) as state:
+        first_request_at = None
+
+        def cancelled():
+            nonlocal first_request_at
+            if not state["requests"]:
+                return False
+            if first_request_at is None:
+                first_request_at = time.monotonic()
+            return time.monotonic() - first_request_at >= 0.15
+
+        common = dict(model="m", timeout_s=None, cancelled=cancelled, poll_interval_s=0.01)
+        if provider == "openai":
+            stream = chat_stream(base_url=state["base_url"], system="s", user="u", **common)
+        else:
+            stream = native_chat_stream(
+                host=state["base_url"], messages=[{"role": "user", "content": "u"}],
+                keep_alive="30m", **common,
+            )
+        started = time.monotonic()
+        with pytest.raises(ProviderCancelled):
+            next(stream)
+        assert time.monotonic() - started < PROMPT_S
+        assert state["requests"] == 1
+        assert not state["release"].is_set()
+        payload = json.loads(state["payloads"][0])
+        assert payload["stream"] is True
+        if provider == "ollama":
+            assert payload["keep_alive"] == "30m"
+
+
 class _FlipAfter:
     """A probe that becomes True once, at a known moment."""
 

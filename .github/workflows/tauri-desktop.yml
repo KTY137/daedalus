@@ -93,6 +93,7 @@ jobs:
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable action, pinned 2026-09-04
         with:
           toolchain: "1.97.1"
+          components: rustfmt
 
       - name: Install Linux desktop dependencies
         run: |
@@ -204,6 +205,7 @@ jobs:
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable action, pinned 2026-09-04
         with:
           toolchain: "1.97.1"
+          components: rustfmt
           targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin' || '' }}
 
       - name: Install Linux desktop dependencies

@@ -1,0 +1,65 @@
+{
+  "schema": "daedalus-remote-integration-disposition/1",
+  "base_revision": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+  "as_of": "2026-09-08",
+  "gate_transition": false,
+  "branches": [
+    {
+      "branch": "origin/exp/tensor-kernel-contract-01",
+      "frozen_head": "d0ede21fa097869b311098e3f9591626f1a524bf",
+      "commits_not_ancestors_of_base": 97,
+      "disposition": "integration_in_progress",
+      "reason": "Initial 94 commits plus three GPU-86 commits found at pre-acceptance refresh; both count accumulation and independent receipt validation reviewed. Retain all experiment and negative evidence.",
+      "initial_frozen_head": "97e5e66a07028060005e071270d201a31a28b98b"
+    },
+    {
+      "branch": "origin/g1/ikarus-runtime-invocation-binding-07d3",
+      "frozen_head": "1c3c60288d3324a5b0d32db759206c5685192a96",
+      "commits_not_ancestors_of_base": 268,
+      "disposition": "integration_in_progress",
+      "reason": "268 unique commits; reconcile 53 conflicts into current canonical package, conversation, provider and frontend owners."
+    },
+    {
+      "branch": "origin/packet/g1-map-02",
+      "frozen_head": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
+      "commits_not_ancestors_of_base": 15,
+      "disposition": "selective_port_required",
+      "reason": "Coverage preflight and project-center directive already integrated; main env-helper analysis is stronger. Port remaining periphery scope, platform env exclusions and coverage dependency with mixed core/periphery edge regression."
+    },
+    {
+      "branch": "origin/feature/chip-design-rtl-tcl",
+      "frozen_head": "d38ec34c9a525dc4b6a960a90bc4da04254bbed4",
+      "commits_not_ancestors_of_base": 13,
+      "disposition": "already_integrated_and_superseded",
+      "reason": "Squash 0f292d23 (#245), followed by canonical Vivado execution, sealed publication recovery, receipt/lease ports and deterministic Tcl emission."
+    },
+    {
+      "branch": "origin/chore/source-provenance-watermark-20260830",
+      "frozen_head": "cfdd83b1755a0768e6638e5f2d239d10d2924922",
+      "commits_not_ancestors_of_base": 3,
+      "disposition": "historical_proposal_requires_new_packet",
+      "reason": "649c405c changes 1123 files and introduces attribution headers plus a signed source manifest bound to an old index. Requires current provenance review and new signature; old signatures cannot attest current source."
+    },
+    {
+      "branch": "origin/ops/gardener-campaign-20260929",
+      "frozen_head": "d96c41c8f64354dd7658611511ddd5a25854a3ce",
+      "commits_not_ancestors_of_base": 39,
+      "disposition": "historical_campaign_not_activated",
+      "reason": "Scheduler already integrated at f46d0d16; main adds RID-500 refusal 44e8f8d1 and canonical module relocation efe99500. Old branch queue/policy binds a stale campaign and would widen effects."
+    },
+    {
+      "branch": "origin/g2/knowledge-correlation-bootstrap",
+      "frozen_head": "6e8264be25dac91606e962a070ba786e79bf48fa",
+      "commits_not_ancestors_of_base": 122,
+      "disposition": "incompatible_authority_stack_pure_components_candidate_for_later_packets",
+      "reason": "Retired contract edits, independent Gate2ClosureLedger SQLite, AtomicProjectTwinStore/lifecycle writer and unadmitted output CLI are incompatible with current kernel. Pure knowledge normalization, retrieval proposals and provenance contracts remain useful research source."
+    },
+    {
+      "branch": "origin/archive/legacy-20260830",
+      "frozen_head": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+      "commits_not_ancestors_of_base": 878,
+      "disposition": "retained_archive",
+      "reason": "Historical checkpoint; no archive branch mutation or blanket legacy restoration."
+    }
+  ]
+}

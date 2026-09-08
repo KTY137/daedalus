@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ApiError, getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts, type TaskDetail } from '@/shared/api';
 import type { OpenDispatch } from '@/features/conversation/model';
 import { relativeTime, taskStateLabel } from '@/features/conversation/model';
+import { boundExecutionLine, dispatchEvidenceLabel } from '@/features/conversation/dispatch';
 import {
   APPLIED_WORD,
   appliedReading,
@@ -12,7 +13,7 @@ import {
 } from './outcome';
 import { ActivityLog } from './ActivityLog';
 import { Timeline } from './Timeline';
-import type { LiveState } from './live';
+import { liveExecutionStatus, watcherGuidance, type LiveState } from './live';
 
 /**
  * ARBEIT — what waits on you, what is running, what just happened.
@@ -41,6 +42,8 @@ export interface WorkRailProps {
   draftsScoped: boolean;
   live: LiveState;
   openDispatches: OpenDispatch[];
+  unresolvedDispatches?: number;
+  dispatchReadState?: 'loading' | 'ready' | 'error';
   /** the conversation is on another page; this jumps to it */
   onGoDecision: () => void;
 }
@@ -51,6 +54,9 @@ export interface WorkRailProps {
  * as the identifier it is, never rounded to a friendlier one.
  */
 const WATCHER: Record<string, string> = {
+  alive: 'bereit',
+  busy: 'arbeitet',
+  wedged: 'möglicherweise festgefahren',
   running: 'läuft',
   idle: 'wartet',
   stopped: 'gestoppt',
@@ -147,6 +153,7 @@ function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
   }, [dispatch.ref, state.kind]);
 
   const open = state.kind !== 'shut';
+  const evidence = boundExecutionLine(dispatch);
 
   return (
     <li className="work-row live">
@@ -156,7 +163,10 @@ function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
           <code>{dispatch.ref}</code>
           {dispatch.since && <span>seit {relativeTime(dispatch.since) || dispatch.since}</span>}
           <span>noch kein Bericht</span>
+          {dispatch.lane && <span>Lane {dispatch.lane}</span>}
+          <span>{dispatchEvidenceLabel(dispatch.descriptionSource)}</span>
         </span>
+        {evidence && <span className="work-row-meta" aria-label="Gebundene Ausführungsevidenz">{evidence}</span>}
       </button>
 
       {state.kind === 'reading' && <p className="work-detail-note">Zustand wird vom Bus gelesen …</p>}
@@ -283,8 +293,10 @@ function Section({
   );
 }
 
-export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, onGoDecision }: WorkRailProps) {
+export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, unresolvedDispatches = 0, dispatchReadState, onGoDecision }: WorkRailProps) {
   const watcher = watcherLabel(live.watcher);
+  const guidance = watcherGuidance(live.watcher, project, live.connected);
+  const execution = liveExecutionStatus({ streamLive: live.connected, inFlight: live.inFlight, queued: live.queued });
   const quarantined = live.quarantined || 0;
   const unread = live.unread || 0;
   /**
@@ -302,11 +314,15 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
    */
   const running = openDispatches.length;
   /** Whether the counts above were reported at all, or merely defaulted. */
-  const countsRead = live.unread !== undefined || live.quarantined !== undefined;
+  const countsRead = live.unread !== undefined && live.quarantined !== undefined;
 
   return (
-    <div className="work" aria-label="Arbeit">
+    <div className="work" aria-label="Arbeit" data-live-project={project}>
       <Section title="Wartet auf dich" count={waiting} tone="wait">
+        {!countsRead && <p className="work-detail-note">
+          Aufmerksamkeitsstatus unvollständig · {live.unread === undefined ? 'ungelesen unbekannt' : `${live.unread} ungelesen`}
+          {' · '}{live.quarantined === undefined ? 'Quarantäne unbekannt' : `${live.quarantined} Quarantäne`}
+        </p>}
         {waiting === 0 ? (
           <p className="work-none">
             {!draftsScoped && project
@@ -367,11 +383,16 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
           {openDispatches.map((d) => (
             <DispatchRow key={d.ref} dispatch={d} />
           ))}
-          {running === 0 && openDispatches.length === 0 && (
+          {running === 0 && unresolvedDispatches === 0 && (
             <li className="work-row">
-              <span className="work-row-what">Nichts in Arbeit</span>
+              <span className="work-row-what">{dispatchReadState === 'ready' ? 'Keine offenen Aufträge im aktuellen Verlauf' : 'Offene Aufträge noch nicht bestätigt'}</span>
             </li>
           )}
+          {unresolvedDispatches > 0 && <li className="work-row bad">
+            <span>{unresolvedDispatches} projektgebundene Dispatch-Evidenzen sind nicht sicher interpretierbar</span>
+          </li>}
+          {dispatchReadState === 'loading' && <li className="work-row quiet">Offene Aufträge werden mit dem kanonischen Verlauf abgeglichen.</li>}
+          {dispatchReadState === 'error' && <li className="work-row bad">Aktueller Verlauf nicht lesbar; letzter bestätigter Stand.</li>}
           <li className="work-row quiet">
             <span className="work-row-meta">
               {/* Never a friendly zero: an unread stream reports what it last
@@ -385,6 +406,10 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
               )}
               {!live.connected && <span className="work-stale">Strom unterbrochen — Stand von zuletzt</span>}
             </span>
+            <span className="work-row-meta">{execution.text}</span>
+            {guidance && <span className="work-row-meta" aria-label="Empfohlene Wächter-Aktion">
+              {guidance.message}{guidance.command && <> · <code>{guidance.command}</code></>}
+            </span>}
           </li>
         </ul>
       </Section>
@@ -402,6 +427,8 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
                   <span>{report.status}</span>
                   {report.lane && <span>Lane {report.lane}</span>}
                   {report.project && <span>{report.project}</span>}
+                  {report.agent && <span>Agent {report.agent}</span>}
+                  {report.createdAt && <time dateTime={report.createdAt}>{relativeTime(report.createdAt) || report.createdAt}</time>}
                   <code>{report.name}</code>
                 </span>
               </li>

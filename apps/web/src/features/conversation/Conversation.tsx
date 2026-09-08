@@ -13,7 +13,8 @@ import {
   newConversation,
   observeConversationTurn,
   queueTask,
-  streamTask
+  streamTask,
+  subprocessCancellationFrom
 } from '@/shared/api';
 import type { ConversationCancellationStatus, EditorContextReceipt, TaskSnapshot } from '@/shared/api';
 import type { EffortLevel, IkarusAskAction, RuntimeRow } from '@/shared/contracts';
@@ -174,6 +175,8 @@ export interface ConversationProps {
   onProvider?: (id: string) => void;
   /** something was queued, so the caller can refresh what depends on it */
   onDispatched?: (binding: { project: string; generation: number }) => void;
+  /** Changes in the existing project event stream request a fresh durable read. */
+  workSignal?: string;
   compact?: boolean;
   /** a thread chosen in the rail; a new serial makes the same id a fresh request */
   pickThread?: { project: string; generation: number; id: string; serial: number };
@@ -187,6 +190,8 @@ export interface ConversationProps {
     settled: number;
     labels: Record<string, string>;
     openDispatches: OpenDispatch[];
+    unresolvedDispatches?: number;
+    dispatchReadState?: 'loading' | 'ready' | 'error';
   }) => void;
 }
 
@@ -202,6 +207,7 @@ export function Conversation({
   provider,
   onProvider,
   onDispatched,
+  workSignal,
   compact,
   pickThread,
   onThreadState
@@ -241,6 +247,8 @@ export function Conversation({
   const [settled, setSettled] = useState(0);
   /** dispatches this thread started that have not reported back */
   const [openDispatches, setOpenDispatches] = useState<OpenDispatch[]>([]);
+  const [unresolvedDispatches, setUnresolvedDispatches] = useState(0);
+  const [dispatchReadState, setDispatchReadState] = useState<'loading' | 'ready' | 'error'>('ready');
 
   const sentAt = useRef(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -475,6 +483,8 @@ export function Conversation({
     threadRef.current = '';
     setThread('');
     setOpenDispatches([]);
+    setUnresolvedDispatches(0);
+    setDispatchReadState(id ? 'loading' : 'ready');
     freshFrom.current = 0;
     if (!id) {
       resumePending.current = false;
@@ -493,6 +503,7 @@ export function Conversation({
         if (!isCurrent()) return;
         const view = payload.conversation;
         if (!conversationConfirmsProject(view, id, forProject)) {
+          setDispatchReadState('error');
           saveThreadId(forProject, '');
           setError('Der gespeicherte Verlauf gehört nicht zu diesem Projekt. Ein neuer Chat beginnt ohne ihn.');
           return;
@@ -506,11 +517,15 @@ export function Conversation({
         threadRef.current = id;
         setThread(id);
         setTurns(rows);
-        setOpenDispatches(openDispatchesFrom(view));
+        const dispatches = openDispatchesFrom(view, forProject);
+        setOpenDispatches(dispatches.items);
+        setUnresolvedDispatches(dispatches.unresolved);
+        setDispatchReadState('ready');
       })
       .catch(() => {
         if (!isCurrent()) return;
         saveThreadId(forProject, '');
+        setDispatchReadState('error');
         setError('Der bisherige Verlauf konnte nicht bestätigt werden. Ein neuer Chat beginnt ohne ihn.');
       })
       .finally(() => {
@@ -542,8 +557,31 @@ export function Conversation({
   }, [runtimes]);
 
   useEffect(() => {
-    onThreadState?.({ project, generation, id: thread, settled, labels: runtimeLabels, openDispatches });
-  }, [generation, onThreadState, openDispatches, project, runtimeLabels, settled, thread]);
+    const id = threadRef.current;
+    if (!id || !workSignal) return;
+    let alive = true;
+    const current = () => alive && threadRef.current === id
+      && bindingRef.current.project === project && bindingRef.current.generation === generation;
+    setDispatchReadState('loading');
+    getConversation(id).then(({ conversation }) => {
+      if (!current()) return;
+      if (!conversationConfirmsProject(conversation, id, project)) {
+        setDispatchReadState('error');
+        return;
+      }
+      const dispatches = openDispatchesFrom(conversation, project);
+      setOpenDispatches(dispatches.items);
+      setUnresolvedDispatches(dispatches.unresolved);
+      setDispatchReadState('ready');
+    }).catch(() => {
+      if (current()) setDispatchReadState('error');
+    });
+    return () => { alive = false; };
+  }, [generation, project, workSignal]);
+
+  useEffect(() => {
+    onThreadState?.({ project, generation, id: thread, settled, labels: runtimeLabels, openDispatches, unresolvedDispatches, dispatchReadState });
+  }, [dispatchReadState, generation, onThreadState, openDispatches, project, runtimeLabels, settled, thread, unresolvedDispatches]);
 
   const ensureThread = useCallback(async (scope: number): Promise<string> => {
     if (threadRef.current) return threadRef.current;
@@ -795,6 +833,12 @@ export function Conversation({
   const requestCancellation = useCallback(async () => {
     const target = activeRequest;
     if (!target) return;
+    const scope = chatScope.current;
+    const requestProject = projectRef.current;
+    const requestGeneration = bindingRef.current.generation;
+    const isCurrent = () => scope === chatScope.current
+      && requestProject === projectRef.current && requestGeneration === bindingRef.current.generation
+      && target.conversationId === threadRef.current;
     const clearTargetIfCurrent = () => {
       setActiveRequest((current) => (
         current?.conversationId === target.conversationId
@@ -809,10 +853,15 @@ export function Conversation({
     };
     try {
       const payload = await cancelConversationTurn(target.conversationId, target.requestId, clientId('cancel'));
+      if (!isCurrent()) return;
       const status = payload.cancellation?.status || 'unknown';
       mark(status);
+      const cancellationProcess = subprocessCancellationFrom(payload.cancellation?.subprocess, target.requestId);
+      if (cancellationProcess) setTurns((prev) => prev.map((turn) => turn.localId === target.localTurnId
+        ? { ...turn, cancellationProcess } : turn));
       if (status === 'already_terminal' || status === 'unknown') clearTargetIfCurrent();
     } catch (reason) {
+      if (!isCurrent()) return;
       const notSupported = reason instanceof ApiError
         && reason.kind === 'notfound'
         && /unknown endpoint|kennt .* nicht/i.test(reason.message);
@@ -1020,6 +1069,8 @@ export function Conversation({
           settle(payload, replyId, scope, requestProject, sendClaim);
         },
         onCancelled: (cancellation) => {
+          const cancellationProcess = subprocessCancellationFrom(cancellation.subprocess, request.request_id);
+          if (cancellationProcess) patchReply((turn) => ({ ...turn, cancellationProcess }));
           const terminal = cancelledObservation(cancellation.status);
           endUnconfirmed(terminal.text, terminal.cancellation);
         },
@@ -1031,7 +1082,8 @@ export function Conversation({
           if (!isCurrent()) return;
           if (status.cancellation?.status) {
             const cancellation = status.cancellation.status;
-            patchReply((turn) => ({ ...turn, cancellation }));
+            const cancellationProcess = subprocessCancellationFrom(status.cancellation.subprocess, request.request_id);
+            patchReply((turn) => ({ ...turn, cancellation, cancellationProcess: cancellationProcess ?? turn.cancellationProcess }));
           }
           if (status.state === 'final' && status.final) {
             finishDeltas();

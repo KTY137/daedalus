@@ -87,6 +87,8 @@ case that should now be unreachable.
 from __future__ import annotations
 
 import hashlib
+from .cancellation import CancellationSignal, terminate_owned_subprocess
+from ...providers._openai_compat import ProviderCancelled
 import json
 import math
 import os
@@ -2638,9 +2640,9 @@ def _neutral_cwd() -> str:
 
 def _claude(message: str, effort: str | None = None, model: str | None = None,
             context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
-    from ..runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from ..runtime_registry import runtime_subprocess_env
 
-    path = resolve_runtime_command("claude_code_cli")
+    path = _claude_command_for_chat()
     if not path:
         return None
     # Before the argv exists: a refused start costs zero spawns.
@@ -2667,7 +2669,8 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
 
 
 def _codex(message: str, effort: str | None = None, model: str | None = None,
-           context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
+           context: str = "", *, timeout_s: float | None = 150.0,
+           cancellation: CancellationSignal | None = None) -> str | None:
     """Codex CLI chat brain -- the lightweight, read-only, non-agentic sibling
     of ``CodexCLIProvider`` (providers/codex_cli.py), which stays reserved for
     the agentic, write-capable offload/task path. Mirrors ``_claude`` above:
@@ -2708,6 +2711,10 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
     property the old ``stdin=DEVNULL`` was there to provide."""
     from ..runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus spawned Codex CLI")
     path = resolve_runtime_command("codex_cli")
     if not path:
         return None
@@ -2737,14 +2744,49 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
             # back in argv and the spawn refuses instead of being re-parsed.
             _refuse_cmd_shim("codex", args, endpoint=path)
             with open(prompt_path, "rb") as fin:
-                subprocess.run(
-                    args, capture_output=True, text=True, encoding="utf-8",
-                    errors="replace", timeout=timeout_s, stdin=fin, check=False,
-                    env=runtime_subprocess_env("codex_cli"),
-                )
+                if cancellation is None:
+                    subprocess.run(
+                        args, capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=timeout_s, stdin=fin, check=False,
+                        env=runtime_subprocess_env("codex_cli"),
+                    )
+                else:
+                    proc = subprocess.Popen(
+                        args, stdin=fin, stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        env=runtime_subprocess_env("codex_cli"),
+                    )
+                    deadline = None if timeout_s is None else _time.monotonic() + timeout_s
+                    try:
+                        while proc.poll() is None:
+                            if cancellation.cancelled():
+                                terminate_owned_subprocess(cancellation, proc, grace_s=0.5)
+                                raise ProviderCancelled("Codex CLI cancelled; owned child stopped")
+                            if deadline is not None and _time.monotonic() >= deadline:
+                                proc.kill()
+                                proc.wait(timeout=2.0)
+                                return None
+                            try:
+                                proc.wait(timeout=0.05)
+                            except subprocess.TimeoutExpired:
+                                pass
+                    finally:
+                        if proc.poll() is None:
+                            proc.kill()
+                            proc.wait(timeout=2.0)
             return (message_path.read_text(encoding="utf-8") or "").strip() or None
     except (OSError, subprocess.SubprocessError):
         return None
+
+
+def _codex_stream(message: str, effort: str | None = None, model: str | None = None,
+                  context: str = "", *, timeout_s: float | None = 150.0,
+                  cancellation: CancellationSignal | None = None):
+    """One cancellable whole-answer delta; no unverified Codex token parser."""
+    text = _codex(message, effort, model, context, timeout_s=timeout_s,
+                  cancellation=cancellation)
+    if text:
+        yield text
 
 
 # --------------------------------------------------------------------------- #
@@ -2777,6 +2819,7 @@ class _CancellableAskStream:
         inner: Iterator[tuple[str, dict]],
         finalize: Callable[[dict], dict],
         cancel_event: threading.Event | None = None,
+        provider_cancellation: CancellationSignal | None = None,
     ) -> None:
         self._inner = iter(inner)
         self._finalize = finalize
@@ -2784,9 +2827,16 @@ class _CancellableAskStream:
         self._cancel_requested = False
         self._terminal: str | None = None
         self._cancel_event = cancel_event
+        self._provider_cancellation = provider_cancellation
 
     def __iter__(self) -> "_CancellableAskStream":
         return self
+
+    @property
+    def subprocess_stop_receipt(self) -> dict | None:
+        signal = self._provider_cancellation
+        receipt = signal.subprocess_stop_receipt() if signal is not None else None
+        return receipt.to_dict() if receipt is not None else None
 
     @property
     def cancellation_status(self) -> str | None:
@@ -2921,7 +2971,8 @@ def ask_stream(project: str, message: str, provider: str | None = None,
             _persist_turn(conversation_id, project, message, provider, payload)
         return payload
 
-    cancel_event = threading.Event()
+    provider_cancellation = CancellationSignal("live-stream")
+    cancel_event = provider_cancellation._event
     inner = _ask_stream_inner(
         project,
         message,
@@ -2931,8 +2982,9 @@ def ask_stream(project: str, message: str, provider: str | None = None,
         conversation_id=conversation_id,
         additional_context=additional_context,
         computer_cancelled=cancel_event.is_set,
+        cancellation=provider_cancellation,
     )
-    return _CancellableAskStream(inner, finalize, cancel_event)
+    return _CancellableAskStream(inner, finalize, cancel_event, provider_cancellation)
 
 
 def _reconcile_final(started: str, envelope: dict) -> dict:
@@ -2968,7 +3020,8 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
                       model: str | None = None, effort: str | None = None, *,
                       conversation_id: str | None = None,
                       additional_context: str = "",
-                      computer_cancelled: Callable[[], bool] | None = None):
+                      computer_cancelled: Callable[[], bool] | None = None,
+                      cancellation: CancellationSignal | None = None):
     """Streaming twin of :func:`_ask_inner`. Yields ``(event, payload)`` tuples:
 
       ``("start", {...})``  once, before any text
@@ -3019,6 +3072,9 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             ASK_STREAM_ENTRYPOINT_ID, contract="budget.process_guard",
             endpoint=None, lane="n/a", provider="", reason=str(exc)))
         return
+
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
 
     if conversation_id is not None:
         try:
@@ -3138,7 +3194,8 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             message, model_used, effort,
             _merge_model_context(history, ctx.text, additional_context),
             timeout_s=selection.timeout_s,
-            limit_policy=limit_policy)
+            limit_policy=limit_policy,
+            **({"cancellation": cancellation} if cancellation is not None else {}))
     elif p in _OLLAMA_CLI:
         # The blocking adapter below owns context construction for this lane.
         pass
@@ -3149,7 +3206,8 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         streamer = _claude_stream(
             message, effort, model,
             _merge_model_context(history, ctx.text, additional_context),
-            timeout_s=selection.timeout_s)
+            timeout_s=selection.timeout_s,
+            **({"cancellation": cancellation} if cancellation is not None else {}))
     elif p in _DEEPSEEK and os.environ.get("DEEPSEEK_API_KEY"):
         ctx = _project_context(
             project, message, lane="untrusted",
@@ -3158,7 +3216,15 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             message, model_used, effort,
             _merge_model_context(history, ctx.text, additional_context),
             timeout_s=selection.timeout_s,
-            limit_policy=limit_policy)
+            limit_policy=limit_policy,
+            **({"cancellation": cancellation} if cancellation is not None else {}))
+    elif p in _CODEX and cancellation is not None:
+        model_used = model or os.environ.get("CODEX_MODEL", "") or "codex"
+        ctx = _project_context(project, message, lane="untrusted", limit_policy=limit_policy)
+        streamer = _codex_stream(
+            message, effort, model,
+            _merge_model_context(history, ctx.text, additional_context),
+            timeout_s=selection.timeout_s, cancellation=cancellation)
 
     if streamer is None:
         # Codex currently has no verified token-frame parser; use the same
@@ -3242,29 +3308,30 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
 
 
 def _ollama_stream(
-    message: str,
-    model: str,
-    effort: str | None,
-    context: str = "",
-    *,
+    message: str, model: str, effort: str | None, context: str = "", *,
     timeout_s: float | None = 150.0,
     limit_policy: ExecutionLimitPolicy | None = None,
+    cancellation: CancellationSignal | None = None,
 ):
-    """Yield text deltas from the local Ollama runtime, and refresh the VRAM
-    residency TTL in the background so the NEXT turn skips the ~44s reload."""
-    from ...providers._openai_compat import chat_stream
-    from ...providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
+    """One admitted native request owns generation and model residency."""
+    from ...providers._ollama_native import native_chat_stream
+    from ...providers.ollama import DEFAULT_HOST, ollama_http_base_url, keep_alive_value
 
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus opened the Ollama stream")
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
-    # Before warm_model_async's daemon thread and before the stream request.
     _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + (_LOW_EFFORT_STYLE if (effort or "low").lower() == "low" else "")
-    warm_model_async(host, model)  # non-blocking: never delays this reply
-    yield from chat_stream(
-        base_url=ollama_http_base_url(host) + "/v1", model=model,
-        system=system, user=_with_context(message, context), temperature=0.3,
-        timeout_s=timeout_s,
-        extra=_generation_extra(effort, limit_policy),
+    yield from native_chat_stream(
+        host=ollama_http_base_url(host), model=model,
+        messages=[{"role": "system", "content": system},
+                  {"role": "user", "content": _with_context(message, context)}],
+        keep_alive=keep_alive_value(),
+        num_predict=(_generation_extra(effort, limit_policy) or {}).get("max_tokens"),
+        temperature=0.3, timeout_s=timeout_s,
+        **({"cancelled": cancellation.cancelled} if cancellation is not None else {}),
     )
 
 
@@ -3276,6 +3343,7 @@ def _deepseek_stream(
     *,
     timeout_s: float | None = 150.0,
     limit_policy: ExecutionLimitPolicy | None = None,
+    cancellation: CancellationSignal | None = None,
 ):
     """Yield text deltas from the DeepSeek API. Same OpenAI-compatible
     streaming client Ollama's stream uses (``chat_stream``); only
@@ -3283,6 +3351,10 @@ def _deepseek_stream(
     from ...providers._openai_compat import chat_stream
     from ...providers.deepseek import DEFAULT_BASE_URL
 
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus opened the DeepSeek stream")
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
     _provider_start("deepseek", endpoint=base_url, model=model)
@@ -3291,14 +3363,26 @@ def _deepseek_stream(
         base_url=base_url, model=model, system=system, user=_with_context(message, context),
         api_key=api_key, temperature=0.3, timeout_s=timeout_s,
         extra=_generation_extra(effort, limit_policy),
+        **({"cancelled": cancellation.cancelled} if cancellation is not None else {}),
     )
 
 
 # Claude CLI stream-json frames we care about (verified against 2.1.201):
 #   {"type":"stream_event","event":{"type":"content_block_delta",
 #    "delta":{"type":"text_delta","text":"..."}}}
+def _claude_command_for_chat() -> str:
+    from ..runtime_registry import claude_command_for_spawn
+    try:
+        return claude_command_for_spawn()
+    except RuntimeError as exc:
+        raise ProviderStartRefused(_deny_receipt(
+            PROVIDER_ENTRYPOINT_ID, contract="provider.argv_shim",
+            endpoint=None, lane="trusted", provider="claude", reason=str(exc))) from exc
+
+
 def _claude_stream(message: str, effort: str | None = None, model: str | None = None,
-                   context: str = "", *, timeout_s: float | None = 150.0):
+                   context: str = "", *, timeout_s: float | None = 150.0,
+                   cancellation: CancellationSignal | None = None):
     """Yield text deltas from `claude -p --output-format stream-json
     --include-partial-messages`.
 
@@ -3307,9 +3391,13 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     process dies or emits no deltas the generator simply ends, and the caller
     falls back to the blocking path.
     """
-    from ..runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from ..runtime_registry import runtime_subprocess_env
 
-    path = resolve_runtime_command("claude_code_cli")
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus spawned Claude Code")
+    path = _claude_command_for_chat()
     if not path:
         return
     _provider_start("claude", endpoint=path, model=model)
@@ -3324,6 +3412,8 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     _refuse_cmd_shim("claude", args, endpoint=path)
 
     proc = None
+    watcher = None
+    watcher_done = threading.Event()
     try:
         proc = subprocess.Popen(
             args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -3336,6 +3426,23 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             cwd=_neutral_cwd(),
             env=runtime_subprocess_env("claude_code_cli"),
         )
+        if cancellation is not None:
+            # A blocked stdout read cannot observe a flag itself. This watcher
+            # owns only this child; the durable manager still owns cancellation.
+            stop_deadline = None if timeout_s is None else _time.monotonic() + timeout_s
+            def stop_owned_child() -> None:
+                while not watcher_done.wait(0.05):
+                    if cancellation.cancelled():
+                        terminate_owned_subprocess(cancellation, proc, grace_s=0.5)
+                        return
+                    if stop_deadline is not None and _time.monotonic() >= stop_deadline:
+                        if proc.poll() is None:
+                            proc.kill()
+                            proc.wait(timeout=2.0)
+                        return
+            watcher = threading.Thread(target=stop_owned_child, daemon=True,
+                                       name="ikarus-owned-child-stop")
+            watcher.start()
         proc.stdin.write(prompt)
         proc.stdin.close()
         deadline = (
@@ -3359,9 +3466,16 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             delta = ev.get("delta") or {}
             if delta.get("type") == "text_delta" and delta.get("text"):
                 yield delta["text"]
+        if cancellation is not None and cancellation.cancelled():
+            if watcher is not None:
+                watcher.join(timeout=1.25)
+            raise ProviderCancelled("Claude Code cancelled; owned child stop observed")
     except (OSError, subprocess.SubprocessError, ValueError):
         return
     finally:
+        watcher_done.set()
+        if watcher is not None:
+            watcher.join(timeout=1.25)
         if proc is not None:
             try:
                 if proc.poll() is None:

@@ -1,7 +1,7 @@
 {
   "name": "agent_env",
-  "repo_root": "C:\\Users\\nukei\\Desktop\\agent_env",
-  "_repo_root_comment": "Unified 2026-08-24 (owner order): the g0 worktree is retired, agent_env carries main and is the only checkout. History: main lived in agent_env_g0 from the 2026-08-22 fork ruling until the unification merge 9831ddae.",
+  "repo_root": ".",
+  "_repo_root_comment": "Daedalus distills this checkout itself. Checkout-relative '.' is deliberate: it remains valid in the owner's agent_env checkout, CI, services, and any other clone regardless of host OS or launch directory. History: the g0 worktree was retired on 2026-08-24; keeping its former machine-specific absolute path here made non-owner hosts scan the wrong or nonexistent tree.",
   "_center_comment": "Daedalus distilling ITSELF. The center is the shipping product: the Python package plus the cockpit source. Everything else in the repo is shell -- runs/, inbox/, outbox/, memory/ are runtime state; templates/ and agents/ are data; daedalus.egg-info/ is build metadata; structcore-rs/ is the second engine and has its own toolchain. Shell stays resolvable as an import target, so edges from daedalus/ into it remain true.",
   "center": [
     "daedalus",

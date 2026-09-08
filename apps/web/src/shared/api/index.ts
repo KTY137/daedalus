@@ -738,6 +738,39 @@ export interface ConversationCancellation {
   status: ConversationCancellationStatus;
   created_at?: string;
   resolved_at?: string | null;
+  provider_process_terminated?: boolean | null;
+  subprocess?: SubprocessCancellationEvidence;
+}
+
+export interface SubprocessCancellationEvidence {
+  request_id: number;
+  cancellation_requested: boolean;
+  was_running: boolean;
+  terminate_sent: boolean;
+  kill_sent: boolean;
+  process_exited: boolean;
+  returncode: number | null;
+}
+
+/** A subprocess receipt cannot borrow another request's local-exit evidence. */
+export function subprocessCancellationFrom(value: unknown, requestId: number): SubprocessCancellationEvidence | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const row = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(requestId) || requestId <= 0 || row.request_id !== requestId) return undefined;
+  for (const key of ['cancellation_requested', 'was_running', 'terminate_sent', 'kill_sent', 'process_exited']) {
+    if (typeof row[key] !== 'boolean') return undefined;
+  }
+  if (row.returncode !== null && !Number.isSafeInteger(row.returncode)) return undefined;
+  if (!row.cancellation_requested || row.process_exited !== (row.returncode !== null)) return undefined;
+  return {
+    request_id: requestId,
+    cancellation_requested: row.cancellation_requested as boolean,
+    was_running: row.was_running as boolean,
+    terminate_sent: row.terminate_sent as boolean,
+    kill_sent: row.kill_sent as boolean,
+    process_exited: row.process_exited as boolean,
+    returncode: row.returncode as number | null
+  };
 }
 
 /** The canonical, idempotent request for one generation turn. POST creates
@@ -853,7 +886,12 @@ export function observeConversationTurn(
   es.addEventListener('cancelled', (event) => {
     try {
       const data = read(event);
-      handlers.onCancelled?.({ status: data.status === 'confirmed' ? 'confirmed' : 'unknown', request_id: requestId });
+      handlers.onCancelled?.({
+        status: data.status === 'confirmed' ? 'confirmed' : 'unknown',
+        request_id: requestId,
+        subprocess: subprocessCancellationFrom(data.subprocess, requestId),
+        provider_process_terminated: typeof data.provider_process_terminated === 'boolean' ? data.provider_process_terminated : null
+      });
     } catch {
       handlers.onCancelled?.({ status: 'unknown', request_id: requestId });
     }

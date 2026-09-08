@@ -1,4 +1,51 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-70",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "2ca27e75d810849c6bdecec89ea9a2c8d415f97b",
+    "dependencies": "G1-EXP-TENSOR-GPU-69; exact base_head and retained inputs in this artifact",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "implementation",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "focused_regressions"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "bounded_next_step"
+        ],
+        "projection_note": "Metadata projection only. Explicitly revert the retained implementation commit(s) to restore prior compiler behavior; keep this evidence and its negative results. No schema/store migration or gate transition is authorized."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
   "work_packet_id": "G1-EXP-TENSOR-GPU-70",
   "title": "Align canonical compiler prerequisites for Boolean compatibility collapse",
   "classification": "implementation-gardening",

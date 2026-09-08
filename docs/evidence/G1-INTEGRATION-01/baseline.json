@@ -1,0 +1,65 @@
+{
+  "active_gate": 1,
+  "base_revision": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+  "claim_boundaries": {
+    "full_suite_green": false,
+    "gate_transition": false,
+    "performance_measurement": false,
+    "security_boundary_proven": false
+  },
+  "classification": "ALIGNED",
+  "command": "<repository .venv/Scripts/python.exe> -m pytest -q -n 8 --dist loadfile --junitxml=runs/integration-20260908/baseline.xml",
+  "failures": [
+    {
+      "class": "tests.kernel.test_isolated_attempt_lifecycle",
+      "message": "daedalus.kernel.attempt_contracts.AttemptStateError: trusted attempt start time follows its Event-Store start event",
+      "name": "test_materialization_failure_is_terminalized_but_process_abort_remains_pending"
+    }
+  ],
+  "files": {
+    "attempt-clock-baseline.log": {
+      "compressed_sha256": "ea7e4be3ccb46fa10f998259a7f3e2e14e9438e62588883addd5eebe3785396a",
+      "path": "docs/evidence/G1-INTEGRATION-01/attempt-clock-baseline.log.gz",
+      "raw_bytes": 226,
+      "raw_sha256": "22ddbdd0f8a7334e44de4d53b3dab2adefb6e322d6342eca708c1a0e8a7407e9"
+    },
+    "attempt-clock-baseline.xml": {
+      "compressed_sha256": "0d1fe6186d456d19629c542053151775d9c8d96848b37eb27dad0c0cdb7bf022",
+      "path": "docs/evidence/G1-INTEGRATION-01/attempt-clock-baseline.xml.gz",
+      "raw_bytes": 4581,
+      "raw_sha256": "96da32f331e3fa9a4f82d2dbe7bce83ad0be0998d5ceb95d18c71783ceec8efe"
+    },
+    "baseline.log": {
+      "compressed_sha256": "bf48ea24b68195957bb2e6cd4c39f7ab1f8d185489511699fa71a3e2316590cd",
+      "path": "docs/evidence/G1-INTEGRATION-01/baseline.log.gz",
+      "raw_bytes": 47486,
+      "raw_sha256": "ad7f975051fff7fccb34830406fc4a0d478a7f2518491e2994603503d3f98714"
+    },
+    "baseline.xml": {
+      "compressed_sha256": "75bb6fbf449f7f839e0a6b084ddf44b1465eac7089b15a4343dfcd381bd7be18",
+      "path": "docs/evidence/G1-INTEGRATION-01/baseline.xml.gz",
+      "raw_bytes": 2179853,
+      "raw_sha256": "9faac6334941e96b5832e2805820a51825421dfc79c11c6cb8d1177cc9e8e9e7"
+    }
+  },
+  "focused_followup": {
+    "claim": "The failure did not reproduce in this focused follow-up. It remains a retained baseline failure, not a proven fix.",
+    "command": "<repository .venv/Scripts/python.exe> -m pytest -q tests/kernel/test_isolated_attempt_lifecycle.py tests/kernel/test_isolated_attempt_time_and_preflight.py tests/kernel/test_isolated_attempt_time_tampering.py --junitxml=runs/integration-20260908/attempt-clock-baseline.xml",
+    "passed": 23,
+    "seconds": 1.25,
+    "skipped": 2
+  },
+  "plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.13 (main, Jun 23 2026, 15:23:43) [MSC v.1944 64 bit (AMD64)]",
+  "results": {
+    "failed": 1,
+    "passed": 13162,
+    "seconds": 538.04,
+    "skipped": 419,
+    "subtests_passed": 2237,
+    "warnings": 21,
+    "xfailed": 23
+  },
+  "schema": "daedalus-integration-baseline/1"
+}

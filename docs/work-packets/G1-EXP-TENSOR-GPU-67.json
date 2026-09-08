@@ -1,4 +1,52 @@
 {
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-67",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "99198d4e0dae8a8e7459ec07e8ac52f4e99e5bca",
+    "dependencies": "G1-EXP-TENSOR-GPU-66; exact base_head and retained inputs in this artifact",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "findings",
+          "gardener_decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "findings",
+          "gardener_decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "bounded_next_step"
+        ],
+        "projection_note": "Metadata projection only. Explicitly revert the retained implementation commit(s) to restore prior compiler behavior; keep this evidence and its negative results. No schema/store migration or gate transition is authorized."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
   "work_packet_id": "G1-EXP-TENSOR-GPU-67",
   "title": "Freeze exact Forest/Fourfold node-partition convergence without broadening legacy semantics",
   "classification": "research",

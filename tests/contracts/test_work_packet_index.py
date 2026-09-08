@@ -194,19 +194,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "427 tracked files" in message  # re-measured 2026-09-06 after G1-EXP-TENSOR-GPU-47
+    assert "466 tracked files" in message  # measured 2026-09-08 remote integration
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 424,
+        "assigned_artifacts": 463,
         "legacy_artifacts": 204,
-        "packet_artifacts": 426,
-        "packet_ids": 361,
-        "post_index_artifacts": 222,
+        "packet_artifacts": 465,
+        "packet_ids": 400,
+        "post_index_artifacts": 261,
         "registry_artifacts": 1,
-        "tracked_files": 427,
+        "tracked_files": 466,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -341,6 +341,45 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-TENSOR-GPU-45",
         "G1-EXP-TENSOR-GPU-46",
         "G1-EXP-TENSOR-GPU-47",
+        "G1-EXP-TENSOR-GPU-48",
+        "G1-EXP-TENSOR-GPU-49",
+        "G1-EXP-TENSOR-GPU-50",
+        "G1-EXP-TENSOR-GPU-51",
+        "G1-EXP-TENSOR-GPU-52",
+        "G1-EXP-TENSOR-GPU-53",
+        "G1-EXP-TENSOR-GPU-54",
+        "G1-EXP-TENSOR-GPU-55",
+        "G1-EXP-TENSOR-GPU-56",
+        "G1-EXP-TENSOR-GPU-57",
+        "G1-EXP-TENSOR-GPU-58",
+        "G1-EXP-TENSOR-GPU-59",
+        "G1-EXP-TENSOR-GPU-60",
+        "G1-EXP-TENSOR-GPU-61",
+        "G1-EXP-TENSOR-GPU-62",
+        "G1-EXP-TENSOR-GPU-63",
+        "G1-EXP-TENSOR-GPU-64",
+        "G1-EXP-TENSOR-GPU-65",
+        "G1-EXP-TENSOR-GPU-66",
+        "G1-EXP-TENSOR-GPU-67",
+        "G1-EXP-TENSOR-GPU-68",
+        "G1-EXP-TENSOR-GPU-69",
+        "G1-EXP-TENSOR-GPU-70",
+        "G1-EXP-TENSOR-GPU-71",
+        "G1-EXP-TENSOR-GPU-72",
+        "G1-EXP-TENSOR-GPU-73",
+        "G1-EXP-TENSOR-GPU-74",
+        "G1-EXP-TENSOR-GPU-75",
+        "G1-EXP-TENSOR-GPU-76",
+        "G1-EXP-TENSOR-GPU-77",
+        "G1-EXP-TENSOR-GPU-78",
+        "G1-EXP-TENSOR-GPU-79",
+        "G1-EXP-TENSOR-GPU-80",
+        "G1-EXP-TENSOR-GPU-81",
+        "G1-EXP-TENSOR-GPU-82",
+        "G1-EXP-TENSOR-GPU-83",
+        "G1-EXP-TENSOR-GPU-84",
+        "G1-EXP-TENSOR-GPU-85",
+        "G1-INTEGRATION-01",
         "G1-EXP-TENSOR-LATENT-CEILING-01",
         "G1-EXP-TENSOR-LATENT-CEILING-02",
         "G1-EXP-TENSOR-LATENT-CEILING-03",

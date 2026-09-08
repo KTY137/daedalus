@@ -96,6 +96,8 @@ interface CockpitThreadState extends DecisionBinding {
   settled: number;
   labels: Record<string, string>;
   openDispatches: OpenDispatch[];
+  unresolvedDispatches?: number;
+  dispatchReadState?: 'loading' | 'ready' | 'error';
 }
 
 // Sigma + Graphology are the only heavy renderer dependencies in the app.
@@ -499,7 +501,7 @@ export function Cockpit() {
     const es = openEventStream(project, (name, data) => {
       if (!isCurrent()) return;
       // A report the reader is already looking at is not news to announce.
-      updateLive(binding, (previous) => reduceLiveEvent(previous, name, data, railSeenRef.current));
+      updateLive(binding, (previous) => reduceLiveEvent(previous, name, data, railSeenRef.current, binding.project));
       if (name === 'report') setDraftSignal((n) => n + 1);
     });
     es.addEventListener('error', () => {
@@ -716,6 +718,7 @@ export function Cockpit() {
       }}
       pickThread={currentThreadPick}
       onThreadState={onThreadState}
+      workSignal={JSON.stringify([live.connected, live.inFlight, live.queued, live.recent])}
     />
   );
   const decision = (
@@ -1042,6 +1045,8 @@ export function Cockpit() {
                 draftsScoped={currentPendingDrafts.scoped}
                 live={live}
                 openDispatches={currentThreadState.openDispatches}
+                unresolvedDispatches={currentThreadState.unresolvedDispatches}
+                dispatchReadState={currentThreadState.dispatchReadState}
                 onGoDecision={() => setRailTab('verlauf')}
               />
             )}
