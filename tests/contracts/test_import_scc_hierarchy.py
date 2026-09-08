@@ -484,7 +484,10 @@ CENSUS_MODULES = 485  # re-measured 2026-09-08; cancellation owner and Hermes co
 # one added edge, ignition.gate1 -> primary_tree, and no removed edge/module.
 # All 485 modules, fourteen SCCs, maximum nineteen, exact memberships and the
 # component digest above remain unchanged.
-CENSUS_EDGES = 1931
+# G1-IGNITION-04: the complete comparison against accepted main 24e229c0
+# adds only ignition.gate1 -> atomic. Module count, all fourteen exact
+# components, maximum nineteen and their digest remain unchanged.
+CENSUS_EDGES = 1932
 
 
 def _module_name(path: str) -> str:

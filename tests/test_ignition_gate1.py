@@ -23,6 +23,7 @@ go red would mean the checks measure nothing.
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 
 import pytest
@@ -33,6 +34,7 @@ from daedalus.schemas import EvidencePacket, MissionContract
 from daedalus.spine import picker as spine_picker
 from daedalus.spine.killswitch import KillSwitch
 from daedalus.spine.ledger import SpineLedger
+from daedalus.storage import ArtifactStore
 
 
 _TEST_SWITCH: KillSwitch | None = None
@@ -631,13 +633,18 @@ def test_a_half_finished_rename_is_refused_and_still_writes_a_receipt(
     result = _run_gate1(
         receipt_root=tmp_path / "receipts", collected_at="2026-08-22T00:00:00Z"
     )
-    assert result.packet is None
+    assert result.packet is not None
+    assert result.packet.evaluation_status == "failed"
+    assert result.candidate_snapshot is None
+    assert not any(item.evaluator == "fourfold.snapshot-binding" for item in result.packet.items)
     assert result.receipt_path.exists()
     assert result.receipt["schema"] == "daedalus-gate1-ignition-receipt/1"
-    assert result.receipt["evidence_packet"]["packet_sha256"] is None
+    assert result.receipt["evidence_packet"]["packet_sha256"] == result.packet.digest
+    assert result.receipt["evidence_packet"]["evaluation_status"] == "failed"
+    _retained_packet_bytes(result)
     assert any("does not compile" in blocker for blocker in result.blockers)
     assert any("did not produce a gated candidate" in b for b in result.blockers)
-    assert result.receipt["promotion"]["status"] == "nominated, not promoted"
+    assert result.receipt["promotion"]["status"] == "refused, not promoted"
 
 
 # --------------------------------------------------------------------------- #
@@ -866,7 +873,7 @@ def _synthetic_receipt(*, blockers, collected_at="2026-09-06T00:00:00Z"):
         "mission_sha256": "c" * 64,
         "collected_at": collected_at,
         "blockers": list(blockers),
-        "evidence_packet": {"packet_sha256": "d" * 64},
+        "evidence_packet": {"packet_sha256": "d" * 64, "evaluation_status": "passed"},
         "checks": {"pytest": {"report_sha256": "e" * 64}},
         "fourfold": {"graph_delta_sha256": "f" * 64},
         "evaluator_bundle": {"digest": "1" * 64},
@@ -1144,3 +1151,167 @@ def test_the_blocker_is_measured_not_asserted(slice_result):
         assert len(blocker["measured"]) == len(weak)
     else:
         assert blocker is None
+
+
+def _retained_packet_bytes(result):
+    store = ArtifactStore(result.receipt_path.parent / "store")
+    projected = result.receipt["evidence_packet"]["packet_locator"]
+    locator = store.load_locator(projected["locator_uri"].split(":")[-1])
+    store.verify(locator)
+    assert locator.portable_summary() == projected
+    assert locator.artifact_sha256 == result.packet.digest
+    payload = store.get_bytes(locator.artifact_sha256)
+    assert payload == result.packet.to_json().encode("utf-8")
+    assert EvidencePacket.from_dict(json.loads(payload)).digest == result.packet.digest
+    return payload
+
+
+def test_real_failed_candidate_evidence_survives_two_later_successful_candidates(
+    tmp_path, monkeypatch, record_property,
+):
+    """Run all three arms before asserting retention, including on old source.
+
+    The only candidate perturbation changes one CSV value after composition
+    and before identity capture. Real compilation, pytest, schema and link
+    checks still execute. No observation or verdict is manufactured here.
+    """
+    from daedalus.kernel.source_trees import SourceTreeStore
+
+    receipts = tmp_path / "retention-receipts"
+    mission_store = receipts / gate1.SESSION_MISSION_ID / "store"
+    original_compose = gate1.compose_candidate
+    original_put = ArtifactStore.put_bytes
+    original_capture = SourceTreeStore.capture_tree
+    observed_outputs = []
+    captured_candidates = []
+    observation_dir = tmp_path / "three-run-retention-observations"
+    observation_dir.mkdir()
+    composition_count = 0
+    perturbation = {}
+
+    def compose_with_first_bad_value(*args, **kwargs):
+        nonlocal composition_count
+        candidate = original_compose(*args, **kwargs)
+        composition_count += 1
+        if composition_count == 1:
+            csv = candidate / "data/events.csv"
+            before = csv.read_bytes()
+            assert before.splitlines()[0] == b"id,bias_voltage"
+            assert before.count(b"1,125.0\n") == 1
+            after = before.replace(b"1,125.0\n", b"1,not-a-number\n")
+            csv.write_bytes(after)
+            perturbation.update(before_sha256=hashlib.sha256(before).hexdigest(),
+                                after_sha256=hashlib.sha256(after).hexdigest())
+        return candidate
+
+    def observe_put(store, data, *args, **kwargs):
+        locator = original_put(store, data, *args, **kwargs)
+        if store.root.resolve() == mission_store.resolve():
+            observed_outputs.append((locator, bytes(data)))
+            # Independent test custody retains the red baseline even though
+            # the old production reset deletes its own earlier outputs. Only
+            # the real store is used below to establish production retention.
+            (observation_dir / f"{locator.artifact_sha256}.bin").write_bytes(bytes(data))
+        return locator
+
+    def observe_capture(store, source, *args, **kwargs):
+        result = original_capture(store, source, *args, **kwargs)
+        if kwargs.get("tree_id") == f"{gate1.SESSION_MISSION_ID}-candidate":
+            from pathlib import Path
+            captured_candidates.append((result.ref.sha256, (Path(source) / "data/events.csv").read_bytes()))
+            (observation_dir / f"candidate-{len(captured_candidates)}.csv").write_bytes(captured_candidates[-1][1])
+        return result
+
+    results = []
+    raw_receipts = []
+    outputs_after_run = []
+    fixture_before = gate1.tree_digest(gate1.DEFAULT_FIXTURE)
+    with monkeypatch.context() as patcher:
+        patcher.setattr(gate1, "compose_candidate", compose_with_first_bad_value)
+        patcher.setattr(ArtifactStore, "put_bytes", observe_put)
+        patcher.setattr(SourceTreeStore, "capture_tree", observe_capture)
+        for index in range(3):
+            result = _run_gate1(
+                receipt_root=receipts, workspace=tmp_path / f"retention-work-{index}",
+                collected_at="2026-08-22T00:00:00Z", gate_timeout_s=300,
+            )
+            results.append(result)
+            raw_receipts.append(result.receipt_path.read_bytes())
+            (observation_dir / f"receipt-{index}.json").write_bytes(raw_receipts[-1])
+            outputs_after_run.append(len(observed_outputs))
+
+    # Retain measurements even on the expected red baseline before inspecting
+    # the new packet/retention behavior. All three actual runs have completed.
+    measurement = {
+        "completed_invocations": len(results), "perturbation": perturbation,
+        "observed_output_counts": outputs_after_run,
+        "runs": [{
+            "packet_status": r.packet.evaluation_status if r.packet else None,
+            "packet_sha256": r.packet.digest if r.packet else None,
+            "candidate_source_sha256": r.candidate_source_tree.ref.sha256,
+            "evaluator_bundle_sha256": r.receipt["evaluator_bundle"]["digest"],
+            "receipt_sha256": hashlib.sha256(raw).hexdigest(),
+            "cost": r.receipt.get("cost"), "blockers": list(r.blockers),
+        } for r, raw in zip(results, raw_receipts)],
+    }
+    record_property("three_run_retention_measurement", json.dumps(measurement, sort_keys=True))
+    record_property("three_run_retention_evidence_dir", str(observation_dir))
+    (observation_dir / "measurement.json").write_text(
+        json.dumps(measurement, indent=2), encoding="utf-8",
+    )
+    (observation_dir / "observed-locators.json").write_text(json.dumps([
+        locator.portable_summary() for locator, _ in observed_outputs
+    ], indent=2), encoding="utf-8")
+    assert composition_count == 3 and len(captured_candidates) == 3
+    assert b"not-a-number" in captured_candidates[0][1]
+    assert all(b"not-a-number" not in row for _, row in captured_candidates[1:])
+    assert [identity for identity, _ in captured_candidates] == [r.candidate_source_tree.ref.sha256 for r in results]
+    assert gate1.tree_digest(gate1.DEFAULT_FIXTURE) == fixture_before
+    first, second, third = results
+    assert first.candidate_snapshot is not None
+    assert all(p.status == "complete" for p in first.candidate_snapshot.planes)
+    assert first.receipt["checks"]["pytest"]["passed"] is False
+    assert first.receipt["checks"]["schema"]["passed"] is False
+    assert first.receipt["checks"]["link"]["passed"] is True
+    assert len({r.receipt["evaluator_bundle"]["digest"] for r in results}) == 1
+
+    assert first.packet is not None
+    assert first.packet.evaluation_status == "failed"
+    assert first.blockers and first.receipt["promotion"]["status"] == "refused, not promoted"
+    assert second.packet is not None and second.packet.evaluation_status == "passed"
+    assert all(c["passed"] is True for c in second.receipt["checks"].values())
+    assert second.receipt["replay"]["previous_run_complete"] is False
+    assert second.receipt["replay"]["replay_demonstrated"] is False
+    assert second.blockers
+    assert third.packet is not None and third.packet.evaluation_status == "passed"
+    assert third.receipt["replay"]["previous_run_complete"] is True
+    assert third.receipt["replay"]["replay_demonstrated"] is True
+    assert not third.blockers
+
+    store = ArtifactStore(mission_store)
+    for locator, payload in observed_outputs:
+        store.verify(locator)
+        assert store.get_bytes(locator.artifact_sha256) == payload
+    for result in results:
+        _retained_packet_bytes(result)
+        for item in result.packet.items:
+            locator = store.load_locator(item.evidence_locator.split(":")[-1])
+            store.verify(locator)
+            assert locator.artifact_sha256 == item.output_sha256
+    for raw in raw_receipts:
+        own_receipt_objects = [(locator, payload) for locator, payload in observed_outputs if payload == raw]
+        assert own_receipt_objects, "finalized receipt bytes must be stored before latest publication"
+        assert store.get_bytes(hashlib.sha256(raw).hexdigest()) == raw
+    for predecessor, result in zip(raw_receipts, results[1:]):
+        previous = result.receipt["replay"]["previous_receipt"]
+        assert previous["sha256"] == hashlib.sha256(predecessor).hexdigest()
+        locator = store.load_locator(previous["locator"]["locator_uri"].split(":")[-1])
+        store.verify(locator)
+        assert store.get_bytes(locator.artifact_sha256) == predecessor
+    assert third.receipt_path.read_bytes() == raw_receipts[-1]
+    assert json.loads(raw_receipts[-1]) == third.receipt
+    first_items = {i.evidence_id: i for i in first.packet.items}
+    pytest_output = store.get_bytes(first_items["gate1-check-pytest"].output_sha256).decode("utf-8")
+    schema_output = store.get_bytes(first_items["gate1-check-schema"].output_sha256).decode("utf-8")
+    assert "test_repository_parses_every_csv_row" in pytest_output
+    assert "not-a-number" in schema_output

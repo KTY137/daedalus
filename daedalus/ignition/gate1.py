@@ -48,12 +48,14 @@ the tree and replay produces the same 40-hex sha on any machine. The fixture in
 the repository is never written, and its tree digest is compared before and
 after to prove it.
 
-PROMOTION. The receipt says ``nominated, not promoted`` and this module imports
+PROMOTION. Eligible passed evidence is ``nominated, not promoted``; negative
+evidence is ``refused, not promoted``. This module imports
 nothing from :mod:`daedalus.kernel.promotion`. There is no code path here that
 applies a patch to anything but the scratch candidate tree it built itself.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -69,6 +71,7 @@ from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
 import daedalus.spine.picker as spine_picker
+from daedalus.atomic import write_bytes_atomic
 from daedalus.build import BuildSession, BuildTask, Wave
 from daedalus.ignition import bundle as ignition_bundle
 from daedalus.ignition import checks as ignition_checks
@@ -79,7 +82,10 @@ from daedalus.ignition.runner import (
     fourfold_graph_delta,
     tree_digest,
 )
-from daedalus.kernel.fourfold_evidence import assemble_fourfold_evidence_packet
+from daedalus.kernel.fourfold_evidence import (
+    FourfoldEvidenceUnstorable,
+    assemble_fourfold_evidence_packet,
+)
 from daedalus.kernel.offload_lease import (
     WaveLeaseDenied,
     WaveLeaseKillSwitchEngaged,
@@ -108,8 +114,8 @@ from daedalus.spine.attempt import GateResult, RunnerContext, TaskSpec
 from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.killswitch import KillSwitch
 from daedalus.spine.receipts import mission_contract_for_build_session
-from daedalus.storage import ArtifactStore
-from daedalus.twin import compile_reference_project
+from daedalus.storage import ArtifactStore, ArtifactStoreError, StorageUnavailable
+from daedalus.twin import ReferenceCompileError, compile_reference_project
 from daedalus.twin.contracts import FourfoldSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -117,8 +123,7 @@ ROOT = Path(__file__).resolve().parents[2]
 #: The fixture that plays the target project.
 DEFAULT_FIXTURE = ROOT / "tests" / "fixtures" / "ignition" / "voltage"
 
-#: Where receipts land. One directory per mission, so a replay overwrites the
-#: receipt it is a replay OF instead of accumulating look-alikes.
+#: One latest receipt per mission; immutable prior bytes remain in its CAS.
 DEFAULT_RECEIPT_ROOT = ROOT / "runs" / "ignition"
 
 RETIRED_SYMBOL = "voltage"
@@ -322,19 +327,11 @@ def _admit_ignition_layout(
 
 
 def _reset_evidence_store(store_root: Path) -> Path:
-    """Empty this mission's evidence store, refusing anything that is not one.
+    """Prepare the admitted store without deleting earlier evidence.
 
-    A recursive delete of a caller-named path is exactly the operation that must
-    not be convenient. It proceeds only when the directory contains nothing but
-    the two subdirectories :class:`daedalus.storage.ArtifactStore` creates; a
-    directory holding anything else is left alone and reused, so pointing
-    ``--receipts`` at a populated directory cannot erase it.
+    Keep this private entry seam for the early-admission ordering checks.
+    Content-addressed bytes from previous runs remain immutable and readable.
     """
-
-    if store_root.exists():
-        entries = {child.name for child in store_root.iterdir()}
-        if entries <= _STORE_ENTRIES:
-            shutil.rmtree(store_root, ignore_errors=True)
     store_root.mkdir(parents=True, exist_ok=True)
     return store_root
 
@@ -849,6 +846,116 @@ def _plain_item(
     )
 
 
+def _compilation_refusal_packet(
+    *, error: Exception, mission: MissionContract, attempts: Sequence[Any],
+    contract_sets: Sequence[Any], binding: Mapping[str, Any],
+    candidate: StoredSourceTree, source_revision: str, collected_at: str,
+    compile_elapsed_ms: int, store: ArtifactStore,
+) -> EvidencePacket:
+    """Record the actual refusal without claiming a compiled candidate Twin."""
+    from daedalus.schemas import _locator_sha256
+
+    if not contract_sets:
+        raise IgnitionError("no canonical attempt contracts bind this compiler refusal")
+    attempt_sha = _attempt_chain_digest(contract_sets, "attempt")
+    policy_sha = _attempt_chain_digest(contract_sets, "policy")
+    deterministic = isinstance(error, ReferenceCompileError)
+    detail = {
+        "error_type": type(error).__name__, "error": str(error),
+        "candidate_artifact_sha256": candidate.ref.sha256,
+        "candidate_artifact_locator": candidate.ref.locator,
+        "source_revision": source_revision,
+        "compile_elapsed_ms": compile_elapsed_ms,
+        # These are the actual per-attempt records, with their own identities.
+        # No per-attempt EvidenceItem is relabelled to the composed revision.
+        "attempt_binding": dict(binding),
+        "assurance_reason": (
+            "the reference compiler refused the input under its declared contract"
+            if deterministic else
+            "an unexpected compiler exception is an unverified observation; "
+            "it does not establish a failed scientific check"
+        ),
+    }
+    report = ignition_checks.CheckReport(
+        kind="compile", evaluator="ignition-fourfold-compilation", passed=False,
+        criterion_paths=("daedalus/twin/reference_compiler.py",),
+        subject_paths=("fourfold.json",),
+        detail=detail, output=json.dumps(detail, sort_keys=True),
+    )
+    locator = _store_check(
+        store, report, source_revision=source_revision,
+        created_at=collected_at, trace_id="gate1-voltage-ignition",
+    )
+    item = _plain_item(
+        evidence_id="gate1-compile-refusal", evaluator=report.evaluator,
+        output_sha256=report.output_sha256, locator=locator,
+        source_revision=source_revision, collected_at=collected_at,
+        details=detail, verdict="failed" if deterministic else "error",
+        assurance="deterministic" if deterministic else "unverified",
+    )
+    return EvidencePacket(
+        packet_id="gate1-voltage-evidence", mission_id=mission.mission_id,
+        attempt_id=_packet_attempt_id(attempts), source_revision=source_revision,
+        attempt_contract_sha256=attempt_sha, policy_decision_sha256=policy_sha,
+        subject_sha256=candidate.ref.sha256,
+        candidate_artifact_sha256=candidate.ref.sha256,
+        candidate_artifact_locator=candidate.ref.locator,
+        evaluation_status="failed" if deterministic else "inconclusive",
+        items=(item,),
+        usage=ResourceUsage(wall_time_ms=binding["total_gate_ms"] + compile_elapsed_ms),
+        provenance=ContractProvenance(
+            origin="daedalus.ignition.gate1", source_revision=source_revision,
+            created_at=collected_at, trace_id="gate1-voltage-ignition",
+            input_digests=tuple(sorted({
+                attempt_sha, policy_sha, candidate.ref.sha256,
+                _locator_sha256(candidate.ref.locator),
+                item.output_sha256, _locator_sha256(item.evidence_locator),
+            })),
+        ),
+    )
+
+
+def _retain_packet(packet: EvidencePacket, store: ArtifactStore) -> dict[str, Any]:
+    """Publish only a packet whose item bytes and canonical bytes read back."""
+    from daedalus.schemas import _locator_sha256
+
+    for item in packet.items:
+        locator = store.load_locator(_locator_sha256(item.evidence_locator))
+        store.verify(locator)
+        if locator.artifact_sha256 != item.output_sha256:
+            raise ArtifactStoreError(f"evidence output digest mismatch: {item.evidence_id}")
+    locator = store.put_bytes(
+        packet.to_json().encode("utf-8"), expected_sha256=packet.digest,
+        media_type="application/json",
+        metadata={"kind": "ignition_evidence_packet", "packet_id": packet.packet_id},
+        provenance=packet.provenance.to_dict(),
+    )
+    store.verify(locator)
+    return locator.portable_summary()
+
+
+def _packet_projection(
+    packet: EvidencePacket | None, error: str | None,
+    locator: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "packet_id": packet.packet_id if packet else "gate1-voltage-evidence",
+        "packet_sha256": packet.digest if packet else None,
+        "evaluation_status": packet.evaluation_status if packet else None,
+        "attempt_id": packet.attempt_id if packet else None,
+        "source_revision": packet.source_revision if packet else None,
+        "candidate_artifact_sha256": packet.candidate_artifact_sha256 if packet else None,
+        "packet_locator": dict(locator) if packet and locator else None,
+        "error": error,
+        "items": [{
+            "evidence_id": item.evidence_id, "evaluator": item.evaluator,
+            "assurance": item.assurance, "verdict": item.verdict,
+            "output_sha256": item.output_sha256,
+            "evidence_locator": item.evidence_locator,
+        } for item in (packet.items if packet else ())],
+    }
+
+
 # --------------------------------------------------------------------------- #
 # 6. the slice                                                                 #
 # --------------------------------------------------------------------------- #
@@ -1182,6 +1289,7 @@ def run_gate1_ignition(
         # have, and ``verify_claims`` refuses the snapshot -- the cross-plane
         # verifier catching the half-finished rename one layer before the schema
         # check does. Letting that escape would destroy the receipt that says so.
+        compile_started_at = time.monotonic()
         try:
             candidate_compile = compile_reference_project(
                 candidate_root, source_revision=candidate_digest,
@@ -1189,24 +1297,48 @@ def run_gate1_ignition(
                 source_tree_sha256=candidate_source_tree.ref.sha256,
             )
         except Exception as exc:  # noqa: BLE001 - recorded as a blocker
+            compile_elapsed_ms = round((time.monotonic() - compile_started_at) * 1000)
             blockers.append(
                 f"the candidate Fourfold does not compile: {type(exc).__name__}: {exc}"
             )
+            binding = _attempt_binding(
+                mission, work_item_ids, attempts, attempt_results,
+                contract_sets, reports,
+            )
+            packet = None
+            packet_locator = None
+            packet_error = None
+            try:
+                packet = _compilation_refusal_packet(
+                    error=exc, mission=mission, attempts=attempts,
+                    contract_sets=contract_sets, binding=binding,
+                    candidate=candidate_source_tree,
+                    source_revision=candidate_digest, collected_at=collected_at,
+                    compile_elapsed_ms=compile_elapsed_ms,
+                    store=ArtifactStore(store_root),
+                )
+                packet_locator = _retain_packet(packet, ArtifactStore(store_root))
+            except (ArtifactStoreError, StorageUnavailable, FourfoldEvidenceUnstorable, OSError):
+                # Failed material persistence cannot publish a new latest receipt.
+                raise
+            except Exception as packet_exc:  # noqa: BLE001 - named refusal
+                packet = None
+                packet_error = f"{type(packet_exc).__name__}: {packet_exc}"
+                blockers.append(f"no EvidencePacket could be assembled: {packet_error}")
             refused = _refused_receipt(
                     mission=mission,
                     work_item_ids=work_item_ids,
                     base_revision=base_revision,
                     candidate_revision=candidate_digest,
                     base_compile=base_compile,
-                    binding=_attempt_binding(
-                        mission, work_item_ids, attempts, attempt_results,
-                        contract_sets, reports,
-                    ),
+                    binding=binding,
                     base_pytest=base_pytest,
                     fixture_digest=fixture_digest_before,
                     collected_at=collected_at,
                     blockers=blockers,
                     evaluator_bundle=evaluator_bundle,
+                    packet=packet, packet_error=packet_error,
+                    packet_locator=packet_locator,
                 )
             refused["source_trees"] = {
                 "store_root": str(tree_store_root),
@@ -1224,9 +1356,9 @@ def run_gate1_ignition(
             return IgnitionSliceResult(
                 mission=mission, work_item_ids=work_item_ids,
                 attempt_ids=tuple(a.attempt_id for a in attempts),
-                packet=None, receipt=receipt, receipt_path=receipt_path,
+                packet=packet, receipt=receipt, receipt_path=receipt_path,
                 graph_delta=IgnitionGraphDelta((), (), (), ()),
-                blockers=tuple(blockers),
+                blockers=tuple(receipt.get("blockers") or ()),
                 base_source_tree=base_source_tree,
                 candidate_source_tree=candidate_source_tree,
                 candidate_snapshot=None,
@@ -1430,15 +1562,12 @@ def run_gate1_ignition(
             )
         )
 
-        # THE PACKET IS ASSEMBLED FAIL-SOFT, and the receipt is written either
-        # way. ``assemble_fourfold_evidence_packet`` mints a PASSED packet, and
-        # ``EvidencePacket`` refuses a passed packet that contains a failed or
-        # unverified item -- so a red check does not produce a red packet, it
-        # produces NO packet. Letting that exception escape would destroy the
-        # receipt that says why, which is the one artifact a failed Gate-1 run
-        # is actually for.
+        # Retain truthful negative packets with the same complete bindings.
+        # A structural refusal may still write an absent-packet receipt; failed
+        # material persistence must leave the previous latest receipt intact.
         packet: EvidencePacket | None = None
         packet_error: str | None = None
+        packet_locator: dict[str, Any] | None = None
         try:
             packet = assemble_fourfold_evidence_packet(
                 snapshot=candidate_compile.snapshot,
@@ -1458,8 +1587,13 @@ def run_gate1_ignition(
                 # `receipt_path.parent / "store"` resolves every locator in
                 # this packet rather than six of seven.
                 store=store,
+                status_mode="from_items",
             )
+            packet_locator = _retain_packet(packet, store)
+        except (ArtifactStoreError, StorageUnavailable, FourfoldEvidenceUnstorable, OSError):
+            raise
         except Exception as exc:  # noqa: BLE001 - recorded, never silent
+            packet = None
             packet_error = f"{type(exc).__name__}: {exc}"
             blockers.append(f"no EvidencePacket could be assembled: {packet_error}")
 
@@ -1487,6 +1621,7 @@ def run_gate1_ignition(
             fixture_digest=fixture_digest_before,
             collected_at=collected_at,
             blockers=blockers,
+            packet_locator=packet_locator,
         )
         receipt["cost"] = {
             # WHAT THE EVIDENCE COST, because a receipt that reports only the
@@ -1876,7 +2011,7 @@ def _replay_blockers(replay: Mapping[str, Any]) -> list[str]:
     if replay.get("previous_run_complete") is False:
         return [
             "the previous run did not complete (it ended in blockers or produced no "
-            "evidence packet), so there is no complete run for this one to have "
+            "passed evidence packet), so there is no complete run for this one to have "
             "reproduced; run the slice again to compare two complete runs"
         ]
     unstable = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is False]
@@ -2130,6 +2265,9 @@ def _refused_receipt(
     fixture_digest: str,
     collected_at: str,
     blockers: Sequence[str],
+    packet_locator: Mapping[str, Any] | None = None,
+    packet: EvidencePacket | None = None,
+    packet_error: str | None = None,
 ) -> dict[str, Any]:
     """The receipt for a run that got as far as two attempts and no further.
 
@@ -2171,16 +2309,7 @@ def _refused_receipt(
             }
             for row in binding["attempts"]
         ],
-        "evidence_packet": {
-            "packet_id": "gate1-voltage-evidence",
-            "packet_sha256": None,
-            "evaluation_status": None,
-            "attempt_id": None,
-            "source_revision": None,
-            "candidate_artifact_sha256": None,
-            "error": "the candidate was refused before any evidence could be assembled",
-            "items": [],
-        },
+        "evidence_packet": _packet_projection(packet, packet_error, packet_locator),
         "checks": {},
         "check_kinds": [],
         "discrimination": {
@@ -2205,10 +2334,10 @@ def _refused_receipt(
             "note": "this run was refused before the candidate compiled",
         },
         "promotion": {
-            "status": "nominated, not promoted",
+            "status": "refused, not promoted",
             "auto_merge": False,
             "owner_approval": "not requested",
-            "reason": "nothing reached evidence; there is nothing to nominate",
+            "reason": "candidate compilation was refused; diagnostic evidence cannot nominate",
         },
         "blockers": list(blockers),
         "blocker": _attempt_assurance_blocker(binding),
@@ -2236,6 +2365,7 @@ def _build_receipt(
     fixture_digest: str,
     collected_at: str,
     blockers: Sequence[str],
+    packet_locator: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema": "daedalus-gate1-ignition-receipt/1",
@@ -2267,28 +2397,7 @@ def _build_receipt(
             }
             for row in binding["attempts"]
         ],
-        "evidence_packet": {
-            "packet_id": packet.packet_id if packet else "gate1-voltage-evidence",
-            "packet_sha256": packet.digest if packet else None,
-            "evaluation_status": packet.evaluation_status if packet else None,
-            "attempt_id": packet.attempt_id if packet else None,
-            "source_revision": packet.source_revision if packet else None,
-            "candidate_artifact_sha256": (
-                packet.candidate_artifact_sha256 if packet else None
-            ),
-            "error": packet_error,
-            "items": [
-                {
-                    "evidence_id": item.evidence_id,
-                    "evaluator": item.evaluator,
-                    "assurance": item.assurance,
-                    "verdict": item.verdict,
-                    "output_sha256": item.output_sha256,
-                    "evidence_locator": item.evidence_locator,
-                }
-                for item in (packet.items if packet else ())
-            ],
-        },
+        "evidence_packet": _packet_projection(packet, packet_error, packet_locator),
         "checks": {
             report.kind: {
                 "evaluator": report.evaluator,
@@ -2369,7 +2478,11 @@ def _build_receipt(
             ),
         },
         "promotion": {
-            "status": "nominated, not promoted",
+            "status": (
+                "nominated, not promoted"
+                if packet and packet.evaluation_status == "passed" and not blockers
+                else "refused, not promoted"
+            ),
             "auto_merge": False,
             "owner_approval": "not requested",
             "reason": (
@@ -2388,10 +2501,49 @@ def _build_receipt(
     }
 
 
+def _retain_receipt_bytes(
+    payload: bytes, body: Mapping[str, Any], store: ArtifactStore,
+) -> dict[str, Any]:
+    """Retain exact observed bytes with this run's observation provenance."""
+    digest = hashlib.sha256(payload).hexdigest()
+    locator = store.put_bytes(
+        payload, expected_sha256=digest, media_type="application/octet-stream",
+        metadata={"kind": "ignition_receipt_observation"},
+        provenance=ContractProvenance(
+            origin="daedalus.ignition.gate1-receipt",
+            source_revision=body["replay"]["candidate_revision"],
+            created_at=body["collected_at"], input_digests=(digest,),
+            trace_id="gate1-voltage-ignition",
+        ).to_dict(),
+    )
+    store.verify(locator)
+    return {"sha256": digest, "locator": locator.portable_summary()}
+
+
+def _previous_receipt_body(payload: bytes) -> Mapping[str, Any]:
+    """Malformed history is retained as bytes and supplies no replay authority."""
+    try:
+        previous = json.loads(payload.decode("utf-8"))
+    except (ValueError, UnicodeError):
+        return {}
+    if not isinstance(previous, Mapping):
+        return {}
+    for field in ("replay", "checks", "evidence_packet", "evaluator_bundle",
+                  "discrimination", "fourfold"):
+        if previous.get(field) is not None and not isinstance(previous[field], Mapping):
+            return {}
+    if any(not isinstance(row, Mapping) for row in (previous.get("checks") or {}).values()):
+        return {}
+    before = (previous.get("discrimination") or {}).get("before_state")
+    if before is not None and not isinstance(before, Mapping):
+        return {}
+    return previous
+
+
 def write_receipt(
     receipt: Mapping[str, Any], receipt_root: str | Path
 ) -> tuple[Path, dict[str, Any]]:
-    """Write the receipt, and record how this run relates to the previous one.
+    """Retain both receipts, then atomically publish the finalized latest bytes.
 
     Returns the written body, not just the path. The replay comparison can only
     be made HERE -- it needs the previous receipt, which this is about to
@@ -2403,7 +2555,13 @@ def write_receipt(
     directory = Path(receipt_root).resolve() / str(receipt["mission_id"])
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "receipt.json"
+    store = ArtifactStore(directory / "store")
     body = dict(receipt)
+    body["blockers"] = list(body.get("blockers") or [])
+    if (body.get("evidence_packet") or {}).get("evaluation_status") != "passed":
+        body["blockers"].append(
+            "this run has no explicitly passed EvidencePacket; it cannot demonstrate replay"
+        )
     # THE RUN'S OWN BLOCKERS, recorded before the replay comparison appends its
     # derivative ones. ``previous_run_complete`` below has to read THIS list and
     # not the concatenated one: a replay blocker says the COMPARISON failed, not
@@ -2414,17 +2572,14 @@ def write_receipt(
     # field is what lets the NEXT run read the same thing.)
     body["execution_blockers"] = list(body.get("blockers") or [])
     replay = dict(body.get("replay") or {})
+    # Derive this link from the actual latest bytes, never from a supplied body.
+    replay.pop("previous_receipt", None)
     if path.exists():
-        try:
-            previous = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001 - a corrupt previous receipt is not fatal
-            previous = {}
-        if not isinstance(previous, Mapping):
-            # Valid JSON that is not an object ("[]", "3", "null") used to reach
-            # .get() and raise, turning a corrupt predecessor into a crash
-            # instead of a refusal (Codex round 2). An unreadable previous
-            # receipt is the same as a missing comparison: refused below.
-            previous = {}
+        # Read once, retain before interpretation. I/O failure is not a malformed
+        # JSON observation and must not allow replacement of the previous latest.
+        previous_bytes = path.read_bytes()
+        replay["previous_receipt"] = _retain_receipt_bytes(previous_bytes, body, store)
+        previous = _previous_receipt_body(previous_bytes)
         previous_replay = dict(previous.get("replay") or {})
 
         def _reports(receipt_body: Mapping[str, Any]) -> dict[str, Any]:
@@ -2480,6 +2635,7 @@ def write_receipt(
                     else (previous.get("blockers") or [])
                 )
                 and (previous.get("evidence_packet") or {}).get("packet_sha256")
+                and (previous.get("evidence_packet") or {}).get("evaluation_status") == "passed"
             ),
             # WHAT THE PREVIOUS RUN JUDGED WITH. A criterion change moves the
             # base revision (the suite is seeded into it), so the identity
@@ -2543,6 +2699,7 @@ def write_receipt(
         and replay.get("previous_run_complete")
         and not body.get("blockers")
         and (body.get("evidence_packet") or {}).get("packet_sha256")
+        and (body.get("evidence_packet") or {}).get("evaluation_status") == "passed"
         and not replay.get("criterion_changed_since_previous")
         # `is True`, not `is not False`: a missing comparison is not a passing
         # one (Codex round 2).
@@ -2572,7 +2729,11 @@ def write_receipt(
         # absent beside it would read as "not applicable" rather than "the
         # bundle this run would have named could not be written."
         body["evaluator_bundle_artifact"] = None
-    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload = (json.dumps(body, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    _retain_receipt_bytes(payload, body, store)
+    write_bytes_atomic(path, payload)
+    if path.read_bytes() != payload:
+        raise IgnitionError("published latest receipt differs from its retained bytes")
     return path, body
 
 

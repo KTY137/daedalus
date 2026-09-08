@@ -4754,3 +4754,47 @@ SCC comparison and retained stderr logs. The frozen source SHA256 values are
 for `ignition/gate1.py` and
 `64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a`
 for `primary_tree.py`. This census establishes no Gate closure.
+
+### Ignition negative-evidence retention remeasurement (2026-09-08)
+
+On accepted main `24e229c0f34e5404bc219637b646386529f82035` plus the frozen
+`G1-IGNITION-04` source, the same complete s02 command ran twice with the
+repository-venv CPython 3.12.13. All fields except `corpora[*].wall_seconds`
+matched; their canonical non-timing SHA256 is
+`e15c50747fb071f4973faa294059dcb2dd85ac03f4580ce6b86af5867bad6307`.
+All six corpora remain declared. Four are present in this interpreter's current
+installation; `third_party_typed` finds neither `fastapi` nor `anyio`, and
+`third_party_untyped` finds neither `bs4` nor `click`. Both absence reasons stay
+in the complete outputs. No packages were installed or corpora removed for this
+measurement; the earlier five-present result above remains historical evidence.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,778 functions; annotation-only 94.35%; full resolver 94.23%; marginal 8 functions / 0.1180 pp; 45,190 type-name sites, resolution 99.93%; verified internal 4,053 / 4,478 (90.51%); 425 named-only internal sites |
+| source pin | `d6b652d970c1a5a63a3b8d3960da54befd6eaa440b2ee3122e466a1ee6a8358e` |
+
+Five functions were added in `ignition/gate1.py` and one in
+`kernel/fourfold_evidence.py`; type-name sites increased by 71. The named-only
+internal bucket increased from 419 to 425, and its verified share fell from
+90.62% to 90.51%. These are changed corpus measurements under an unchanged
+resolver, not evidence of resolver improvement. The fixed fixture's 15.7895 pp
+marginal contribution still exceeds the kernel result by more than two orders
+of magnitude. All prior retractions and negative results remain unchanged.
+
+The complete import comparison measures 485 modules and 1,932 edges. Its only
+added edge is `daedalus.ignition.gate1 -> daedalus.atomic`; no module or edge was
+removed. All fourteen nontrivial components, maximum size nineteen, exact
+memberships and digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+are unchanged. The moving census does not relax an architecture invariant.
+
+Raw complete outputs `s02-ignition-retention-corpora-a.json` and
+`s02-ignition-retention-corpora-b.json`, stderr logs, the complete SCC comparison,
+`metadata-measurement-source.json` and `metadata-comparison.json` are retained
+under `runs/g1-ignition-04-20260908`. Every Python source under `daedalus/` and
+all sixteen accepted functional test files were unchanged before and after each
+measurement. Frozen source SHA256:
+`5f2e95487c34890fbef9aad2d62d3dce09e2b179ec2d4fc3514879e19c7518be`
+for `ignition/gate1.py`, and
+`1367e64484514968eb8b710da25d15bbcd021b3ed80a24a39309916105860d19`
+for `kernel/fourfold_evidence.py`. This census establishes no Gate closure.
