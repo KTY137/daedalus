@@ -22,7 +22,7 @@ from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
 from .ikarus_tool_scope import IkarusToolScopeProjection
 from .kernel.contracts import EffectLeaseRequest
 from .kernel.effects import EffectExecutionRequest
-from .schemas import ContractProvenance, EffectScope, MissionContract
+from .schemas import AttemptContract, ContractProvenance, EffectScope, MissionContract
 from .spine.effect_boundary import Effect
 
 
@@ -348,40 +348,59 @@ def build_oneshot_effect_execution_request(
         ) from exc
 
 
-def _bounded_by(value: int | None, ceiling: int | None, label: str) -> None:
+def _bounded_by(
+    value: int | None,
+    ceiling: int | None,
+    label: str,
+    *,
+    authority: str,
+) -> None:
     if ceiling is not None and (value is None or value > ceiling):
         raise IkarusEffectBridgeRefused(
-            f"{label} is broader than the canonical mission budget"
+            f"{label} is broader than the canonical {authority} budget"
         )
 
 
-def validate_oneshot_mission_work_item(
+def _require_attempt_write_scope(
+    values: Iterable[str],
+    attempt: AttemptContract,
+    label: str,
+) -> None:
+    if not set(values).issubset(set(attempt.writable_paths)):
+        raise IkarusEffectBridgeRefused(
+            f"{label} is broader than the canonical attempt writable paths"
+        )
+
+
+def validate_oneshot_mission_attempt(
     mission: MissionContract,
-    work_item_id: str,
+    attempt: AttemptContract,
     request: OneShotRequest,
     runtime_evidence: OneShotRuntimeEvidenceBinding,
     tool_scope: IkarusToolScopeProjection,
     effect_request: EffectLeaseRequest,
     execution: EffectExecutionRequest,
 ) -> None:
-    """Prove that one Ikarus effect chain belongs to one canonical WorkItem.
+    """Prove one Ikarus effect chain belongs to one canonical Attempt/WorkItem.
 
-    ``MissionContract.work_item_ids`` is the existing WorkItem authority; this
-    seam deliberately does not add another WorkItem object or scheduler.  It
-    replays the two pure bridge projections and compares them byte-for-byte so
-    a caller cannot splice a valid request/evidence/tool tuple onto a foreign
-    mission, WorkItem, budget, effect request, or narrowed execution.
+    ``MissionContract.work_item_ids`` remains the WorkItem authority and
+    ``AttemptContract`` remains the attempt authority.  They are deliberately
+    distinct: one WorkItem may have more than one Attempt, while the effect
+    request must name the exact attempt that actually owns the execution.
 
-    This function grants nothing and performs no effect.  A runtime broker must
-    still obtain the canonical lease/authorization and authenticate the sealed
-    provider invocation before execution can start.
+    The seam grants nothing and performs no effect.  It only proves that the
+    existing one-shot/runtime/tool/effect subjects can be composed without
+    inventing a second WorkItem, Attempt, scheduler, or control plane.  The
+    runtime broker must still authenticate the sealed provider invocation.
     """
 
     if type(mission) is not MissionContract:
         raise IkarusEffectBridgeRefused("mission must be an exact MissionContract")
-    if type(work_item_id) is not str or work_item_id not in mission.work_item_ids:
+    if type(attempt) is not AttemptContract:
+        raise IkarusEffectBridgeRefused("attempt must be an exact AttemptContract")
+    if attempt.task_id not in mission.work_item_ids:
         raise IkarusEffectBridgeRefused(
-            "work_item_id must name one exact canonical mission work item"
+            "attempt task_id must name one exact canonical mission work item"
         )
     _bind_subjects(request, runtime_evidence, tool_scope)
     if type(effect_request) is not EffectLeaseRequest:
@@ -394,16 +413,26 @@ def validate_oneshot_mission_work_item(
         )
 
     comparisons = {
-        "mission": (effect_request.mission_id, mission.mission_id),
-        "attempt/work item": (effect_request.attempt_id, work_item_id),
+        "attempt mission": (attempt.mission_id, mission.mission_id),
+        "effect mission": (effect_request.mission_id, mission.mission_id),
+        "effect attempt": (effect_request.attempt_id, attempt.attempt_id),
         "trace": (effect_request.provenance.trace_id, mission.mission_id),
-        "source revision": (
+        "attempt base revision": (attempt.base_revision, mission.source_revision),
+        "effect source revision": (
             effect_request.provenance.source_revision,
-            mission.source_revision,
+            attempt.base_revision,
         ),
         "runtime source revision": (
             runtime_evidence.source_revision,
-            mission.source_revision,
+            attempt.base_revision,
+        ),
+        "attempt runtime manifest": (
+            attempt.runtime_manifest_sha256,
+            runtime_evidence.runtime_manifest_sha256,
+        ),
+        "attempt policy decision": (
+            attempt.policy_decision_sha256,
+            tool_scope.policy_decision_sha256,
         ),
     }
     mismatch = sorted(
@@ -411,34 +440,69 @@ def validate_oneshot_mission_work_item(
     )
     if mismatch:
         raise IkarusEffectBridgeRefused(
-            "Ikarus effect subjects do not name one mission work item: "
+            "Ikarus effect subjects do not name one canonical mission attempt: "
             + ", ".join(mismatch)
         )
 
-    _bounded_by(
-        request.budget.max_cost_microusd,
-        mission.budget.max_cost_microusd,
-        "one-shot cost bound",
+    for value, ceiling, label in (
+        (attempt.budget.max_tokens, mission.budget.max_tokens, "attempt token bound"),
+        (
+            attempt.budget.max_cost_microusd,
+            mission.budget.max_cost_microusd,
+            "attempt cost bound",
+        ),
+        (
+            attempt.budget.max_wall_time_s,
+            mission.budget.max_wall_time_s,
+            "attempt wall-time bound",
+        ),
+        (
+            request.budget.max_tokens,
+            attempt.budget.max_tokens,
+            "one-shot token bound",
+        ),
+        (
+            request.budget.max_cost_microusd,
+            attempt.budget.max_cost_microusd,
+            "one-shot cost bound",
+        ),
+        (
+            request.budget.max_wall_time_s,
+            attempt.budget.max_wall_time_s,
+            "one-shot wall-time bound",
+        ),
+        (
+            effect_request.effect_scope.max_cost_microusd,
+            attempt.budget.max_cost_microusd,
+            "effect-request cost bound",
+        ),
+        (
+            effect_request.effect_scope.timeout_s,
+            attempt.budget.max_wall_time_s,
+            "effect-request timeout",
+        ),
+        (
+            execution.max_cost_microusd,
+            attempt.budget.max_cost_microusd,
+            "execution cost bound",
+        ),
+    ):
+        _bounded_by(
+            value,
+            ceiling,
+            label,
+            authority="mission" if label.startswith("attempt ") else "attempt",
+        )
+
+    _require_attempt_write_scope(
+        effect_request.effect_scope.writable_paths,
+        attempt,
+        "effect-request writable scope",
     )
-    _bounded_by(
-        request.budget.max_wall_time_s,
-        mission.budget.max_wall_time_s,
-        "one-shot wall-time bound",
-    )
-    _bounded_by(
-        effect_request.effect_scope.max_cost_microusd,
-        mission.budget.max_cost_microusd,
-        "effect-request cost bound",
-    )
-    _bounded_by(
-        effect_request.effect_scope.timeout_s,
-        mission.budget.max_wall_time_s,
-        "effect-request timeout",
-    )
-    _bounded_by(
-        execution.max_cost_microusd,
-        mission.budget.max_cost_microusd,
-        "execution cost bound",
+    _require_attempt_write_scope(
+        execution.writable_paths,
+        attempt,
+        "execution writable scope",
     )
 
     try:
@@ -500,5 +564,5 @@ __all__ = [
     "IkarusEffectBridgeRefused",
     "build_oneshot_effect_execution_request",
     "build_oneshot_effect_lease_request",
-    "validate_oneshot_mission_work_item",
+    "validate_oneshot_mission_attempt",
 ]
