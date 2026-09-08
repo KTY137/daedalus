@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 
+from daedalus.ignition.runner import fourfold_graph_delta
 from daedalus.schemas import ContractProvenance
 from daedalus.spine.envelope import canonical_sha
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
@@ -12,6 +13,7 @@ from daedalus.twin.relation_compiler import compile_relation_blocks, relation_bl
 from daedalus.twin.semiring import BooleanSemiring
 
 REVISION = "6" * 40
+CANDIDATE_REVISION = "7" * 40
 CREATED_AT = "2026-09-09T00:00:00+02:00"
 IMPORTS = RelationSignature("code", "imports", "code")
 
@@ -101,6 +103,42 @@ def _complete_code_snapshot(
     )
 
 
+def _candidate_with_relation_change(base: FourfoldSnapshot) -> FourfoldSnapshot:
+    code_relations = base.plane_map["code"].relation_sha256s
+    changed_relations = tuple(sorted((code_relations[0], _digest("candidate-imports"))))
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane.plane,
+            source_revision=CANDIDATE_REVISION,
+            status=plane.status,
+            node_ids=plane.node_ids,
+            relation_sha256s=(changed_relations if plane.plane == "code" else plane.relation_sha256s),
+            evidence_sha256s=plane.evidence_sha256s,
+            reason=plane.reason,
+        )
+        for plane in base.planes
+    )
+    candidate_forest_sha = _digest("candidate-forest")
+    provenance = ContractProvenance(
+        origin="test.relation-digest-authority-seam.candidate",
+        source_revision=CANDIDATE_REVISION,
+        created_at=CREATED_AT,
+        input_digests=(
+            candidate_forest_sha,
+            *(plane.digest for plane in planes),
+        ),
+        trace_id="relation-digest-authority-seam-candidate",
+    )
+    return FourfoldSnapshot(
+        repository_id=base.repository_id,
+        source_revision=CANDIDATE_REVISION,
+        source_forest_sha256=candidate_forest_sha,
+        planes=planes,
+        bindings=(),
+        provenance=provenance,
+    )
+
+
 def test_plane_relation_digests_are_a_canonical_set_not_a_forest_order_map() -> None:
     forest, snapshot = _fixture()
     code_plane = snapshot.plane_map["code"]
@@ -128,3 +166,27 @@ def test_compiler_remains_correct_when_digest_order_cannot_identify_edge_positio
         ("src/c.py", "src/a.py", True),
     )
     assert compiled.semantic_fact_count == 2
+
+
+def test_ignition_graph_delta_is_not_a_revision_bound_relation_delta_receipt() -> None:
+    forest, snapshot = _fixture()
+    base = _complete_code_snapshot(forest, snapshot)
+    candidate = _candidate_with_relation_change(base)
+
+    assert candidate.source_revision != base.source_revision
+    assert candidate.source_forest_sha256 != base.source_forest_sha256
+    assert candidate.plane_map["code"].relation_sha256s != base.plane_map["code"].relation_sha256s
+    assert candidate.digest != base.digest
+
+    delta = fourfold_graph_delta(base, candidate)
+
+    assert delta.added_nodes == ()
+    assert delta.removed_nodes == ()
+    assert delta.added_bindings == ()
+    assert delta.removed_bindings == ()
+    assert set(delta.to_dict()) == {
+        "added_nodes",
+        "removed_nodes",
+        "added_bindings",
+        "removed_bindings",
+    }
