@@ -1,0 +1,71 @@
+{
+  "packet_id": "G1-IKARUS-36",
+  "measured_on": "2026-09-08",
+  "host": "the repository owner's Windows 11 workstation",
+  "cli": "Claude Code 2.1.263 at C:/Users/Administrator/.local/bin/claude.exe",
+  "artifacts": {
+    "prompt.txt": {
+      "sha256": "3f0e27a718f90166f14675cff3fd8fde2f70d19acca41f25eafa4e76b8ed57e6",
+      "what": "the exact 1153-char Ikarus chat prompt (_claude_prompt('verbessere Daedalus','low','')) sent on stdin in every probe below"
+    },
+    "probe1_sonnet.json": {
+      "sha256": "4dcb20d9b9f1658f2b8e5cc9554ef62c226c13af650dd122a187dce76f48d30b",
+      "what": "claude -p --tools \"\" --model sonnet --max-turns 1 --max-budget-usd 0.25 --no-session-persistence --output-format json; rc=0, num_turns=1, stop_reason=end_turn, total_cost_usd=0.211466, wall 20979 ms",
+      "role": "ACCEPTED shape; replayed verbatim by tests/test_ikarus_voice_invocation.py"
+    },
+    "probe2_bare.json": {
+      "sha256": "668073026c05549eee5b4c74b7500d40f858bb5dd19243e918ddd887c87a8ba8",
+      "what": "the same plus --bare; rc=1, is_error=true WITH subtype=\"success\", terminal_reason=api_error, result=\"Not logged in - Please run /login\", total_cost_usd=0",
+      "role": "RETAINED NEGATIVE EVIDENCE: --bare is rejected on this host, and this body is why the parser may never key on subtype alone"
+    },
+    "probe3_opus.json": {
+      "sha256": "72b285e2f9b983c5f1163f48e4142981584d470606452897247f9674c3274efb",
+      "what": "the same without --model (CLI default claude-opus-5[1m]); rc=1, subtype=error_max_budget_usd, NO result key, total_cost_usd=0.529010 against a $0.25 cap (2.12x)",
+      "role": "RETAINED NEGATIVE EVIDENCE: a --max-budget-usd cap is an abort switch, not a price bound"
+    },
+    "live_a20_blocking_and_stream.json": {
+      "sha256": "4b35a341eed45bf5ff7ca56856abc23044224830a5e85fc7e5d87a4f1703b624",
+      "what": "the A20 acceptance run through the shipped code: one _claude turn (23.203 s wall, num_turns=1, end_turn, $0.253992, 783-char answer) and one _claude_stream turn (17.890 s wall, num_turns=2, stop_reason=tool_use, subtype=error_max_turns, $0.243142, 0 chars), plus the scratch ledger",
+      "role": "AFTER measurement; the streaming half is a measured FAILURE, retained as such"
+    },
+    "live_stream_repeat.json": {
+      "sha256": "b585582e202f78fd08f55d029bfc82f4c94ad5beaeeea2243f00bedcc7330934",
+      "what": "a second live _claude_stream turn: 14.688 s, num_turns=2, stop_reason=tool_use, subtype=error_max_turns, $0.253388, 0 chars",
+      "role": "the streaming tool-attempt reproduced 2/2; it is not one-off noise"
+    },
+    "baseline-voice.log.txt": {
+      "sha256": "86c430b9b6952ca4d8857231712321ffbdfeba3efd7f3dd2f400439c75b2c58d",
+      "what": "BEFORE: tests/test_ikarus_stream.py tests/test_ikarus_chat_shim_argv.py tests/test_ikarus_claude_stream_cancellation.py tests/test_ikarus_llm_voice.py -> 51 passed in 2.35s",
+      "role": "suite evidence"
+    },
+    "baseline-budget.log.txt": {
+      "sha256": "d045ac518b2b378c5d9547d37ea7b43179b2be850560897dfcb4aef15b879515",
+      "what": "BEFORE: tests/test_budget.py tests/test_budget_is_installed.py tests/test_spend_coverage.py tests/test_council_vendors.py -> 266 passed in 17.58s",
+      "role": "suite evidence"
+    },
+    "baseline-keep.log.txt": {
+      "sha256": "f5093ab72f4c8b7a558a92bc04e26ca841604e36bebc4794b2d5949cc22d5729",
+      "what": "BEFORE: the nine keep-passing suites incl. tests/test_ikarus_context.py -> 149 passed in 26.03s",
+      "role": "suite evidence"
+    },
+    "after-all.log.txt": {
+      "sha256": "04629cd9273438874ea95ba2eadd147b3598f14635ed023cda1732993542e283",
+      "what": "AFTER: every suite this packet claims, in one run -> 513 passed, 1 skipped (the live test) in 34.39s",
+      "role": "suite evidence"
+    },
+    "after-ikarus-all.log.txt": {
+      "sha256": "76489634c3dea955cd6f598af53d845549b2baebaa36a1d9b719839ecd26d5c9",
+      "what": "AFTER: every tests/test_ikarus*.py file -> 1 failed, 567 passed, 5 skipped. The single failure, test_ikarus_computer_autonomy.py::test_plan_and_replan_are_advisory_mission_bound_artifacts, is a PRE-EXISTING baseline failure (a pytest tmp-path case mismatch, 'pytest-of-Administrator' vs 'pytest-of-administrator'); reproduced unchanged at the base revision in the primary checkout, which contains none of this packet's edits.",
+      "role": "suite evidence"
+    },
+    "live_stream_probe_reproducer.py.txt": {
+      "sha256": "f46f592dbbe68af9ee24f69f5b1b4c3941fe72094c2659d866f84dffe1a13cc5",
+      "what": "the 15-line script that produced live_stream_repeat.json; run with PYTHONPATH=<worktree> and a scratch DAEDALUS_BUDGET_LEDGER. Stored as .txt so the tests/test_budget.py vendor-spawn drift detector does not read it as a new unregistered spend site.",
+      "role": "reproducer for the third live turn"
+    }
+  },
+  "not_retained": [
+    "No credential, API key, session id header or raw child stderr is stored here. The three probe bodies carry a CLI session_id and uuid, which are correlation ids, not credentials.",
+    "The live bodies store the answer's character count, not the answer text, and the streaming body's text_head is empty because the turn produced no text."
+  ]
+}

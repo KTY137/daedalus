@@ -16,6 +16,7 @@ prompt assembly is asserted directly.
 from __future__ import annotations
 
 import tempfile
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -172,6 +173,19 @@ class ProjectContextTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # Both lanes get the context; the metadata reaches the chat envelope.         #
 # --------------------------------------------------------------------------- #
+#: One well-formed `claude -p --output-format json` result body (the shape
+#: measured 2026-09-08, docs/evidence/G1-IKARUS-36/probe1_sonnet.json).
+_CLAUDE_RESULT_OK = json.dumps({
+    "type": "result", "subtype": "success", "is_error": False,
+    "result": "ok", "num_turns": 1, "stop_reason": "end_turn",
+    "terminal_reason": "completed", "duration_ms": 12,
+    "total_cost_usd": 0.01, "permission_denials": [],
+    "modelUsage": {"claude-sonnet-5": {"inputTokens": 1, "outputTokens": 1,
+                                       "cacheReadInputTokens": 0,
+                                       "cacheCreationInputTokens": 0}},
+})
+
+
 class BrainLaneContextTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -197,7 +211,13 @@ class BrainLaneContextTest(unittest.TestCase):
         def fake_run(args, **kw):
             captured["input"] = kw.get("input")
             m = mock.MagicMock()
-            m.stdout = "ok"
+            # G1-IKARUS-36: the chat spawn now carries `--output-format json`
+            # and the parser refuses to speak a non-result body as an answer.
+            # The subject of this test is the PROMPT, so the double emits the
+            # smallest well-formed result body.
+            m.stdout = _CLAUDE_RESULT_OK
+            m.stderr = ""
+            m.returncode = 0
             return m
 
         with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
@@ -236,7 +256,13 @@ class BrainLaneContextTest(unittest.TestCase):
         def fake_run(args, **kw):
             captured["input"] = kw.get("input")
             m = mock.MagicMock()
-            m.stdout = "ok"
+            # G1-IKARUS-36: the chat spawn now carries `--output-format json`
+            # and the parser refuses to speak a non-result body as an answer.
+            # The subject of this test is the PROMPT, so the double emits the
+            # smallest well-formed result body.
+            m.stdout = _CLAUDE_RESULT_OK
+            m.stderr = ""
+            m.returncode = 0
             return m
 
         # "hello there" has no dotted token -> _project_context short-circuits.

@@ -1,0 +1,25 @@
+        report = events[-1][1]
+        assert report["state"] == "completed"
+        assert (report["planner_calls"], report["tool_steps"], report["replans"], report["repair_calls"]) == (4, 1, 1, 0)
+        assert report["task_success_verified"] is False
+        assert report["plan"]["advisory"] is True and report["plan"]["revision"] == 2
+        assert report["plan"]["steps"] == revised["steps"]
+        assert service.calls[0][-1] == "planned-fixture-step-0001"
+        assert len([payload for event, payload in events if payload.get("phase") == "plan"]) == 2
+        raw_plan = artifact(root, report["plan"]["artifact"])
+        assert json.loads(raw_plan["response"]) == revised
+        assert raw_plan["mission_sha256"] == report["mission_sha256"]
+>       assert raw_plan["authority_root"] == str(root)
+E       AssertionError: assert 'C:\\Users\\A...an_are_advis0' == 'C:\\Users\\A...an_are_advis0'
+E         
+E         Skipping 42 identical leading characters in diff, use -v to show
+E         Skipping 48 identical trailing characters in diff, use -v to show
+E         - pytest-of-Administra
+E         ?           ^
+E         + pytest-of-administra
+E         ?           ^
+
+tests\test_ikarus_computer_autonomy.py:118: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_ikarus_computer_autonomy.py::test_plan_and_replan_are_advisory_mission_bound_artifacts
+1 failed, 567 passed, 5 skipped, 94 subtests passed in 33.95s

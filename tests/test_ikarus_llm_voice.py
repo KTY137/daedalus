@@ -38,7 +38,7 @@ def test_chat_auto_route_uses_llm_client_and_records_resolved_provider(monkeypat
     def fake_llm(provider, message, model=None, effort=None, project=None, *,
                  conversation_id=None, timeout_s=150.0, limit_policy=None,
                  additional_context="", response_schema=None, cancelled=None,
-                 transport=None):
+                 transport=None, telemetry=None):
         assert response_schema is None  # Computer JSON constraints do not alter ordinary chat.
         assert cancelled is None and transport is None
         seen.update(provider=provider, conversation_id=conversation_id,
@@ -80,7 +80,7 @@ def test_chat_unbounded_policy_removes_attempt_timeout_and_token_caps(monkeypatc
     def fake_llm(provider, message, model=None, effort=None, project=None, *,
                  conversation_id=None, timeout_s=150.0, limit_policy=None,
                  additional_context="", response_schema=None, cancelled=None,
-                 transport=None):
+                 transport=None, telemetry=None):
         assert response_schema is None
         assert cancelled is None and transport is None
         calls.append((timeout_s, limit_policy))
