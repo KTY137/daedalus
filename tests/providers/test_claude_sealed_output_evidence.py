@@ -1,4 +1,4 @@
-"""Regression tests for Claude output and executor-evidence boundaries."""
+"""Regression tests for sealed Claude output and executor-owned runtime evidence."""
 from __future__ import annotations
 
 import hashlib
@@ -193,8 +193,9 @@ def test_claude_provider_does_not_invent_terminal_phase_without_terminal_receipt
     assert "work_item_id" not in result
 
 
-
 def test_claude_bridge_terminal_report_uses_provider_execution_evidence(monkeypatch) -> None:
+    # Every similarly named request field is adversarial: only provider output
+    # may cross the terminal-report evidence boundary.
     request = {
         "objective": "verify runtime evidence",
         "repo_root": "/isolated/worktree",
