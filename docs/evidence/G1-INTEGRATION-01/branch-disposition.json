@@ -8,7 +8,7 @@
       "branch": "origin/exp/tensor-kernel-contract-01",
       "frozen_head": "d0ede21fa097869b311098e3f9591626f1a524bf",
       "commits_not_ancestors_of_base": 97,
-      "disposition": "integration_in_progress",
+      "disposition": "merged_into_verified_integration_branch",
       "reason": "Initial 94 commits plus three GPU-86 commits found at pre-acceptance refresh; both count accumulation and independent receipt validation reviewed. Retain all experiment and negative evidence.",
       "initial_frozen_head": "97e5e66a07028060005e071270d201a31a28b98b"
     },
@@ -16,15 +16,19 @@
       "branch": "origin/g1/ikarus-runtime-invocation-binding-07d3",
       "frozen_head": "1c3c60288d3324a5b0d32db759206c5685192a96",
       "commits_not_ancestors_of_base": 268,
-      "disposition": "integration_in_progress",
+      "disposition": "merged_into_verified_integration_branch",
       "reason": "268 unique commits; reconcile 53 conflicts into current canonical package, conversation, provider and frontend owners."
     },
     {
       "branch": "origin/packet/g1-map-02",
       "frozen_head": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
       "commits_not_ancestors_of_base": 15,
-      "disposition": "selective_port_required",
-      "reason": "Coverage preflight and project-center directive already integrated; main env-helper analysis is stronger. Port remaining periphery scope, platform env exclusions and coverage dependency with mixed core/periphery edge regression."
+      "disposition": "selectively_integrated_with_review_corrections",
+      "reason": "Coverage preflight and project-center directive already integrated; main env-helper analysis is stronger. Port remaining periphery scope, platform env exclusions and coverage dependency with mixed core/periphery edge regression.",
+      "source_commits": [
+        "d54bd41f0ec56e7cd2a17b98cf5aaf315faf0ba2",
+        "43fdd6cbd5530e0cd7971050631bd001de669db8"
+      ]
     },
     {
       "branch": "origin/feature/chip-design-rtl-tcl",

@@ -122,5 +122,19 @@ canonical `settleTurn` now keeps partial text and refuses the offer. The initial
 49-pass/2-fail browser run and final green run are retained. Generated Three.js
 shader whitespace is left exactly as emitted by the reproducible Vite build.
 
+The MAP selective port and independent review correction are included. The
+final 311-test mapping run passes, and the independent reviewer passes 130
+focused cases. Stale supplied scope refuses before ranking; portable consumed
+scope remains in drift/inventory evidence and the existing snapshot acceptance
+path. The deliberate two-case mutation failure and corrected run are retained.
+
+The unchanged-main real-server GUI baseline ran 225 cases: 223 passed and two
+failed. Both are stale test contracts: substring Dusk also matched Spatial Dusk,
+and the resume fixture lacked the canonical project-binding receipt. The tests
+now require exact theme names and carry authentic bound fixture shape. Queue
+assertions retain their numeric/project-switch negatives with the new displayed
+label. No retries, sleeps or skips hide these failures. Full integrated real-API
+GUI and whole Python acceptance are pending separately from the focused passes.
+
 Scientific Gate-2/3 evidence is not supplied by this integration. No gate
 closure, full security boundary, or performance superiority is claimed.

@@ -26,6 +26,11 @@
       "surface": "interrupted stream actions",
       "finding": "A legacy DOM selector hid executable action offers from interrupted final responses",
       "resolution": "Test now uses canonical .offer-acts; settleTurn retains partial text and refuses action on stream_interrupted. Initial failed browser run retained before final green 51 cases."
+    },
+    {
+      "surface": "mapping declared periphery",
+      "finding": "Stale reach scope could be ranked beneath a fresh ignore fingerprint; snapshot accept also dropped the new consumed-scope field",
+      "resolution": "Refuse stale reports before ranking; bind portable consumed scope in drift/inventory and preserve in render.accept. 311 tests pass; independent reviewer130 tests pass. Genuine 2-failure mutation and corrected2-pass logs retained."
     }
   ],
   "artifacts": [
@@ -238,6 +243,84 @@
       "sha256": "26fe10f5f7c6d23e3739ad7058382d0cac07d675ef49c8bd923b38cd0cd074f9",
       "archive": "frontend-summary.json.gz",
       "archive_sha256": "518c9ae18669decd099090bd811922f1496f360091c55c301693baaf7173b6d8"
+    },
+    {
+      "source": "frontend-real-gui-baseline-archive.log",
+      "sha256": "ae9b6f1554c485f7fd9b80c05d9bfb2ce0e6d65e9f842785ac883596a9d1dd1b",
+      "archive": "frontend-real-gui-baseline-archive.log.gz",
+      "archive_sha256": "12a4fff1b702d36c286a56e02c0d3b423c078f085b54116a119728c3bc9bd242"
+    },
+    {
+      "source": "frontend-real-gui-baseline-archive.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-baseline-archive.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "frontend-real-gui-baseline.json",
+      "sha256": "1815965f32395e36f5a5e9edf2e9a1e33b7ef27d87eaa719cad130f7139f924d",
+      "archive": "frontend-real-gui-baseline.json.gz",
+      "archive_sha256": "21337e4164ed23259a54e590f2d8d2ae347fc99e529db1a518e7a3741440f4b1"
+    },
+    {
+      "source": "frontend-real-gui-baseline.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-baseline.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "integration-registry-final.xml",
+      "sha256": "4a078d4654db53d9744a91368bd914373ac83a79150067d4b190ba762b19ea50",
+      "archive": "integration-registry-final.xml.gz",
+      "archive_sha256": "4cd443f609b927315a614c2c22bc5ab8e62fdc891c5a23cccf93e6fa7cd71386"
+    },
+    {
+      "source": "tensor-integrated.log",
+      "sha256": "3366603c836406575b23a36f9dea122893ba7ecc419fa06904d0de2fefdd8c4f",
+      "archive": "tensor-integrated.log.gz",
+      "archive_sha256": "8b04f95be676f548dd7a9fd49ab90cd70aa7a054e402b378e7fb799df8962638"
+    },
+    {
+      "source": "tensor-integrated.xml",
+      "sha256": "6504a4586dcbd204bf7d0b5acb709190d365921776153a969ca34b109b1d372a",
+      "archive": "tensor-integrated.xml.gz",
+      "archive_sha256": "7022473ab64f995584907432c72466f0d48d01b2b66f564aeed12839f862a942"
+    },
+    {
+      "source": "cli-scope-corrected.log",
+      "sha256": "e61e2d43200a346693d872fdd8bbc752477e6dd915d998545e74d4aec05db97c",
+      "archive": "cli-scope-corrected.log.gz",
+      "archive_sha256": "d77fd3375a0ec4c17c7745b16b65cb3180de41a0594c26c05a3c389cf518af66"
+    },
+    {
+      "source": "cli-scope-corrected.xml",
+      "sha256": "eff8900ff78f9d4eb057cda164213763317012c3ea32899c3cbe5934125db812",
+      "archive": "cli-scope-corrected.xml.gz",
+      "archive_sha256": "42fc62cce17e996e36dc473e29997df1620158b42caa491777a0a04e15d23d29"
+    },
+    {
+      "source": "cli-scope-red-mutation.log",
+      "sha256": "806641e1f1e22d37ea8acbc31adb18c911233fde0e2392e1d8016b05037bea24",
+      "archive": "cli-scope-red-mutation.log.gz",
+      "archive_sha256": "861b862ff9e2eb9b2e755b00d9391794d0d8c85caf62157ab701488c6196b63e"
+    },
+    {
+      "source": "cli-scope-red-mutation.xml",
+      "sha256": "b55d41f22acd3aaac4d193c8e49bf98696e353cd68b6404e857286313d0eb34a",
+      "archive": "cli-scope-red-mutation.xml.gz",
+      "archive_sha256": "fb1b6767e86690ed8f7e9845ce0c4f0771337c406ddef33d8e8252e8477196f6"
+    },
+    {
+      "source": "map-final.log",
+      "sha256": "cc4f6c8b4a5e94eeb7de5494d9fd54d076fcb1088876336bace9a83e86132896",
+      "archive": "map-final.log.gz",
+      "archive_sha256": "39f3d64f880122a37575776a8fa50879ed076028e12f2548aefe41a2aa6aa6ac"
+    },
+    {
+      "source": "map-final.xml",
+      "sha256": "7907fa426fa65a6a8e554062932a655e1b0dcac10f9eeb1396d6cfb3953b5017",
+      "archive": "map-final.xml.gz",
+      "archive_sha256": "176cd1dc5297383796f2c3b45f89a68ea702661e8e6679058b279c1485df4380"
     }
   ],
   "gate_transition": false,
@@ -249,5 +332,11 @@
     "integrated_build": "passed",
     "browser_scope": "built preview with mocked canonical HTTP contracts; real-server full GUI acceptance remains pending",
     "whitespace_exception": "generated Three.js shader literals retained byte-for-byte in Vite output"
+  },
+  "tensor_integrated": {
+    "passed": 425,
+    "skipped": 3,
+    "includes": "GPU86 and cross-plane directionality verifier repair",
+    "performance_claim": false
   }
 }
