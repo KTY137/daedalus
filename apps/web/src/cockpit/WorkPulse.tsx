@@ -105,6 +105,23 @@ function reportLine(report: LiveReportBrief): string {
 }
 
 /**
+ * Execution identity on a terminal report is observed evidence, not a routing
+ * hint. Render only fields that crossed the terminal-report projection itself;
+ * never infer a runtime from lane or an Attempt/WorkItem from request/chat text.
+ */
+export function terminalExecutionLine(report: LiveReportBrief): string | undefined {
+  const parts: string[] = [];
+  if (report.runtimeId) parts.push(`Runtime ${briefText(report.runtimeId)}`);
+  if (report.phase) parts.push(`Phase ${briefText(report.phase)}`);
+  if (report.workItemId) parts.push(`WorkItem ${shortRef(report.workItemId)}`);
+  if (report.attemptId) parts.push(`Attempt ${shortRef(report.attemptId)}`);
+  if (report.terminalReceiptSha256) {
+    parts.push(`Receipt ${shortRef(report.terminalReceiptSha256)}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
+/**
  * Confidence label for dispatch identity. A bound versioned snapshot is
  * durable evidence on the dispatch fact itself; legacy action/turn text is a
  * compatibility reconstruction from the bounded conversation window and must
@@ -324,13 +341,23 @@ export function WorkPulse({ project, live }: { project: string; live: LiveWorkSt
 
       {scoped.recent.length > 0 ? (
         <div aria-label="Letzte Berichte">
-          {scoped.recent.map((report, index) => (
-            <div className="focuscard-counts" key={report.id || `${report.name}:${report.createdAt || index}`}>
-              {index === 0 ? 'Zuletzt berichtet: ' : 'Davor: '}
-              {reportLine(report)}
-              {report.summary ? ` · ${report.summary}` : ''}
-            </div>
-          ))}
+          {scoped.recent.map((report, index) => {
+            const executionEvidence = terminalExecutionLine(report);
+            return (
+              <div key={report.id || `${report.name}:${report.createdAt || index}`}>
+                <div className="focuscard-counts">
+                  {index === 0 ? 'Zuletzt berichtet: ' : 'Davor: '}
+                  {reportLine(report)}
+                  {report.summary ? ` · ${report.summary}` : ''}
+                </div>
+                {executionEvidence && (
+                  <div className="focuscard-counts" aria-label="Beobachtete Ausführungsevidenz">
+                    {executionEvidence}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <span className="focuscard-counts">Noch kein Abschlussbericht beobachtet</span>
