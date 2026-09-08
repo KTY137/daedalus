@@ -106,28 +106,36 @@ test('missing identity stays visibly unbound instead of inheriting confidence', 
   expect(boundExecutionLine(pulse.items[0])).toBeUndefined();
 });
 
-test('project-bound incompatible identity is visible as unresolved without leaking foreign work', () => {
+test('project-bound incompatible or incomplete identity is visible as unresolved without leaking foreign work', () => {
   const conversation = {
     turns: [],
     open_dispatches: [
       dispatch('future-schema', 1, {
         schema: 'conversation.dispatch.identity.v2',
         project: PROJECT,
-        objective: 'Neue Schema-Version'
+        objective: 'Neue Schema-Version',
+        lane: 'local_only'
       }),
       dispatch('missing-objective', 2, {
         schema: 'conversation.dispatch.identity.v1',
         project: PROJECT,
         lane: 'local_only'
       }),
-      dispatch('foreign-future-schema', 3, {
+      dispatch('missing-lane', 3, {
+        schema: 'conversation.dispatch.identity.v1',
+        project: PROJECT,
+        objective: 'Ohne Lane keine vollständige gebundene Arbeitsidentität'
+      }),
+      dispatch('foreign-future-schema', 4, {
         schema: 'conversation.dispatch.identity.v9',
         project: 'other-project',
-        objective: 'Darf nicht sichtbar werden'
+        objective: 'Darf nicht sichtbar werden',
+        lane: 'local_only'
       }),
-      dispatch('unattributed-future-schema', 4, {
+      dispatch('unattributed-future-schema', 5, {
         schema: 'conversation.dispatch.identity.v9',
-        objective: 'Ohne Projekt nicht zurechenbar'
+        objective: 'Ohne Projekt nicht zurechenbar',
+        lane: 'local_only'
       })
     ]
   };
@@ -135,5 +143,5 @@ test('project-bound incompatible identity is visible as unresolved without leaki
   const pulse = dispatchPulseFromConversation(conversation, PROJECT);
   expect(pulse.total).toBe(0);
   expect(pulse.items).toEqual([]);
-  expect(pulse.unresolved).toBe(2);
+  expect(pulse.unresolved).toBe(3);
 });

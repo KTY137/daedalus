@@ -58,7 +58,8 @@ interface AcceptedDispatch extends DispatchPulseItem {
  * - a versioned identity snapshot bound to the dispatch is preferred because
  *   it survives the bounded conversation-turn window;
  * - recognized identity snapshots must name this exact project and carry a
- *   non-empty objective, otherwise they are rejected rather than guessed;
+ *   non-empty objective AND lane, otherwise they are rejected rather than
+ *   presented as complete bound evidence;
  * - an unsupported identity schema is also rejected instead of falling back to
  *   an older turn whose attribution may no longer describe the bound dispatch;
  * - project-bound rejected identity snapshots increment `unresolved`, so a
@@ -108,7 +109,8 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
       }
 
       const objective = text(detail.objective);
-      if (!objective) {
+      const lane = text(detail.lane);
+      if (!objective || !lane) {
         unresolved += 1;
         return;
       }
@@ -119,7 +121,7 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
         startedAt: text(link.created_ts),
         description: objective,
         descriptionSource: 'bound',
-        lane: text(detail.lane),
+        lane,
         workItemId: text(detail.work_item_id),
         attemptId: text(detail.attempt_id),
         agent: text(detail.agent),
