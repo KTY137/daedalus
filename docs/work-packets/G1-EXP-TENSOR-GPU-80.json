@@ -1,0 +1,191 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-80",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "d755959fa4930ed3e9b24b3cdb2611b014450fc1",
+    "dependencies": "G1-EXP-TENSOR-GPU-79 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["implementation", "branch_hygiene"],
+        "projection_note": "Rollback restores the former two-stage scalar fact materialization and late per-relation bound check. It does not alter public APIs, Fourfold authority, relation semantics or persisted schemas."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-80",
+  "work_packet": "G1-EXP-TENSOR-GPU-80",
+  "title": "Collapse scalar relation-fact materialization into one bounded indexed map",
+  "classification": "closed-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "d755959fa4930ed3e9b24b3cdb2611b014450fc1",
+  "implementation_head": "301ed8030171e11230e1785a6e3daacd2839d340",
+  "scope": "Implement only the GPU-79 frozen production-kernel gardening step. Reduce transient allocation inside the canonical Forest/Fourfold relation compiler without adding another backend, graph authority, cache, public surface or projection owner. Preserve Boolean, Natural and Evidence-DAG observer semantics, exact relation deduplication, Fourfold admission/refusal behavior and TypedRelationBlock ownership.",
+  "implementation": {
+    "production_path": "daedalus/twin/relation_compiler.py",
+    "production_commit": "155b8a5e7af0bee6fc5e024032f202be508b7c11",
+    "production_blob": "61ba3e1c95cc70707272be255357cb3903ae33fe",
+    "test_path": "tests/twin/test_relation_compiler_observer_semantics.py",
+    "test_commit": "301ed8030171e11230e1785a6e3daacd2839d340",
+    "test_blob": "98c00857cd05ff9ea208c92bc6bf797c9cde4c77",
+    "before": {
+      "scalar_coordinate_storage": "facts[signature][coordinate] allocated an empty evidence-bundle set for every Boolean/Natural semantic coordinate even though scalar observers never consume provenance bundles",
+      "scalar_block_materialization": "each selected relation then allocated a second entries dict and copied every coordinate into True or 1 before TypedRelationBlock._from_indexed",
+      "entry_bound": "MAX_BLOCK_ENTRIES was checked only after the second entries dict had been fully materialized"
+    },
+    "after": {
+      "scalar_coordinate_storage": "the canonical facts bucket stores the final True/1 scalar directly for Boolean/Natural observers",
+      "scalar_block_materialization": "the same per-signature coordinate map is passed directly to TypedRelationBlock._from_indexed; no second scalar coordinate-value map is built",
+      "evidence_storage": "Evidence-DAG observers retain the existing per-coordinate witness-bundle set and normalize those values to EvidenceValue in the same map before indexed-block construction",
+      "entry_bound": "a new distinct coordinate is refused before insertion when the per-relation facts bucket has reached MAX_BLOCK_ENTRIES"
+    },
+    "public_api_changed": false,
+    "wire_schema_changed": false,
+    "benchmark_schema_changed": false,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_projector_added": false
+  },
+  "semantic_invariants": {
+    "boolean_duplicate_witnesses": "collapse to one semantic coordinate with value true",
+    "natural_duplicate_witnesses": "collapse to one semantic coordinate with value 1; ingest witness multiplicity is not path multiplicity",
+    "evidence_dag_duplicate_witnesses": "retain canonical alternative witness bundles and materialize one EvidenceValue per semantic coordinate",
+    "source_of_truth": "KnowledgeForest plus verified FourfoldSnapshot remain authority; relation blocks remain regenerable computational projections",
+    "indexed_block_owner": "TypedRelationBlock._from_indexed remains the single CSR materialization owner",
+    "bound_behavior": "duplicate facts at an existing coordinate remain admissible at the bound; only a new coordinate beyond MAX_BLOCK_ENTRIES is refused"
+  },
+  "result": {
+    "closed": true,
+    "second_scalar_coordinate_map_removed": true,
+    "scalar_empty_evidence_set_allocation_removed": true,
+    "per_relation_entry_bound_moved_to_insertion": true,
+    "evidence_observer_semantics_preserved": true,
+    "public_api_unchanged": true,
+    "performance_claim": false,
+    "memory_superiority_claim": false,
+    "summary": "Boolean and Natural compilation now keep their final scalar in the already-required bounded per-signature fact map and hand that same map to the existing indexed CSR owner. This deletes the compiler's second scalar coordinate map and the unused empty evidence-set allocation while making the per-relation entry ceiling fail before growth."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "d755959fa4930ed3e9b24b3cdb2611b014450fc1",
+    "production_commit": "155b8a5e7af0bee6fc5e024032f202be508b7c11",
+    "production_blob": "daedalus/twin/relation_compiler.py@61ba3e1c95cc70707272be255357cb3903ae33fe",
+    "test_commit": "301ed8030171e11230e1785a6e3daacd2839d340",
+    "test_blob": "tests/twin/test_relation_compiler_observer_semantics.py@98c00857cd05ff9ea208c92bc6bf797c9cde4c77",
+    "implementation_compare": {
+      "base": "d755959fa4930ed3e9b24b3cdb2611b014450fc1",
+      "head": "301ed8030171e11230e1785a6e3daacd2839d340",
+      "commits": 2,
+      "files": 2,
+      "production_additions": 28,
+      "production_deletions": 19,
+      "test_additions": 88,
+      "test_deletions": 0
+    },
+    "implementation_fourfold_tensor_run": {
+      "run_id": 34172181877,
+      "head_sha": "301ed8030171e11230e1785a6e3daacd2839d340",
+      "status_at_packet_freeze": "in_progress",
+      "observed_successful_jobs": [
+        "Contracts (Python 3.12, hash 0)",
+        "Contracts (Python 3.10, hash 0)",
+        "Contracts (Python 3.10, hash 123456)"
+      ],
+      "observed_python_3_12_hash_0_steps": [
+        "Compile integrated modules",
+        "Run integrated contract surface",
+        "Emit bounded packed CPU bitset Tensor baseline",
+        "Retain bounded packed CPU bitset diagnostic",
+        "Emit canonical TypedRelationBlock validation profile",
+        "Retain canonical TypedRelationBlock validation profile",
+        "Verify public package API"
+      ],
+      "complete_repository_collection_at_packet_freeze": "in_progress"
+    },
+    "implementation_tauri_run": {
+      "run_id": 34172181883,
+      "head_sha": "301ed8030171e11230e1785a6e3daacd2839d340",
+      "status_at_packet_freeze": "in_progress"
+    },
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "focused observer-semantics and bounded-materialization contracts plus hosted PR matrix",
+    "focused_contracts_added": [
+      "scalar observers reuse the exact final fact bucket passed to TypedRelationBlock._from_indexed",
+      "Boolean and Natural buckets contain final True/1 scalars rather than evidence sets",
+      "per-relation MAX_BLOCK_ENTRIES refusal occurs before a new coordinate grows the bucket"
+    ],
+    "implementation_workflow_run": 34172181877,
+    "exact_closure_workflow_recorded_outside_packet_after_docs_commit": true,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "notes": "The packet freezes code/test evidence without relabelling an in-progress workflow as green. Exact closure-head workflow conclusions are retained in PR/campaign evidence after this docs-only closure commit. Diagnostic timing/memory outputs remain non-authoritative and claim=none."
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "documentation_files_changed": 1,
+    "production_additions": 28,
+    "production_deletions": 19,
+    "test_additions": 88,
+    "test_deletions": 0,
+    "second_scalar_coordinate_map_removed": true,
+    "scalar_empty_evidence_set_allocation_removed": true,
+    "late_bound_check_removed": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-81 only: audit TypedRelationBlock._from_indexed for the remaining full list(entries.items()) transient used to validate and sort canonical coordinates. Determine whether canonical row-major CSR can be built with a lower transient-memory ordering strategy inside the existing owner without changing error precedence, semiring semantics or the public API. Prefer a measured deletion/rewrite inside relation_blocks.py; do not add a backend, cache, graph abstraction or helper subsystem merely to avoid one list."
+}
