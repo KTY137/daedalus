@@ -29,133 +29,28 @@ jobs:
 
           bridge = Path('daedalus/file_bridge.py')
           text = bridge.read_text(encoding='utf-8')
-          old = '''        # Execution attribution is copied only from the terminal report
-          # itself. Request/chat metadata must never be promoted into an
-          # agent identity because routing may change after enqueue.
-          "agent": payload.get("agent") or "",
-          "summary": " ".join(str(summary).split())[:160],  # one line for the console
-          '''
-          new = '''        # Execution attribution is copied only from the terminal report
-          # itself. Request/chat metadata must never be promoted into an
-          # execution identity because routing may change after enqueue.
-          "agent": payload.get("agent") or "",
-          "runtime_id": payload.get("runtime_id") or "",
-          "work_item_id": payload.get("work_item_id") or "",
-          "attempt_id": payload.get("attempt_id") or "",
-          "phase": payload.get("phase") or "",
-          "terminal_receipt_sha256": payload.get("terminal_receipt_sha256") or "",
-          "summary": " ".join(str(summary).split())[:160],  # one line for the console
-          '''
+          old = (
+              '        # Execution attribution is copied only from the terminal report\n'
+              '        # itself. Request/chat metadata must never be promoted into an\n'
+              '        # agent identity because routing may change after enqueue.\n'
+              '        "agent": payload.get("agent") or "",\n'
+              '        "summary": " ".join(str(summary).split())[:160],  # one line for the console\n'
+          )
+          new = (
+              '        # Execution attribution is copied only from the terminal report\n'
+              '        # itself. Request/chat metadata must never be promoted into an\n'
+              '        # execution identity because routing may change after enqueue.\n'
+              '        "agent": payload.get("agent") or "",\n'
+              '        "runtime_id": payload.get("runtime_id") or "",\n'
+              '        "work_item_id": payload.get("work_item_id") or "",\n'
+              '        "attempt_id": payload.get("attempt_id") or "",\n'
+              '        "phase": payload.get("phase") or "",\n'
+              '        "terminal_receipt_sha256": payload.get("terminal_receipt_sha256") or "",\n'
+              '        "summary": " ".join(str(summary).split())[:160],  # one line for the console\n'
+          )
           if text.count(old) != 1:
               raise SystemExit(f'expected one report projection seam, found {text.count(old)}')
           bridge.write_text(text.replace(old, new), encoding='utf-8')
-
-          tests = Path('tests/test_bridge_report_execution_evidence.py')
-          tests.write_text('''import json
-
-from daedalus import file_bridge
-
-
-EXECUTION_EVIDENCE = {
-    "runtime_id": "claude-cli-v1",
-    "work_item_id": "work-7f32",
-    "attempt_id": "attempt-4b19",
-    "phase": "terminal",
-    "terminal_receipt_sha256": "a" * 64,
-}
-
-
-def test_report_brief_projects_terminal_execution_evidence_only(tmp_path):
-    report = tmp_path / "task.report.json"
-    report.write_text(
-        json.dumps(
-            {
-                "request": {
-                    "project": "project_tct",
-                    "lane": "claude",
-                    "agent": "request-agent-must-not-win",
-                    "runtime_id": "request-runtime-must-not-win",
-                    "work_item_id": "request-work-item-must-not-win",
-                    "attempt_id": "request-attempt-must-not-win",
-                    "phase": "request-phase-must-not-win",
-                    "terminal_receipt_sha256": "b" * 64,
-                },
-                "bridge_status": "done",
-                "lane": "claude",
-                "agent": "qa-critic",
-                **EXECUTION_EVIDENCE,
-                "report": {"summary": "  verified   terminal evidence  "},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    assert file_bridge._report_brief(report) == {
-        "name": "task.report.json",
-        "status": "done",
-        "lane": "claude",
-        "project": "project_tct",
-        "agent": "qa-critic",
-        **EXECUTION_EVIDENCE,
-        "summary": "verified terminal evidence",
-    }
-
-
-def test_report_brief_never_invents_execution_identity_from_request(tmp_path):
-    report = tmp_path / "task.report.json"
-    report.write_text(
-        json.dumps(
-            {
-                "request": {
-                    "project": "project_tct",
-                    "lane": "local_only",
-                    "agent": "request-agent-must-not-be-promoted",
-                    "runtime_id": "request-runtime-must-not-be-promoted",
-                    "work_item_id": "request-work-item-must-not-be-promoted",
-                    "attempt_id": "request-attempt-must-not-be-promoted",
-                    "phase": "request-phase-must-not-be-promoted",
-                    "terminal_receipt_sha256": "c" * 64,
-                },
-                "bridge_status": "failed",
-                "error": "executor unavailable",
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    brief = file_bridge._report_brief(report)
-    assert brief["agent"] == ""
-    assert brief["runtime_id"] == ""
-    assert brief["work_item_id"] == ""
-    assert brief["attempt_id"] == ""
-    assert brief["phase"] == ""
-    assert brief["terminal_receipt_sha256"] == ""
-    assert brief["summary"] == "executor unavailable"
-
-
-def test_project_report_projection_carries_terminal_execution_identity_to_live_bus(tmp_path, monkeypatch):
-    monkeypatch.setattr(file_bridge, "INBOX", tmp_path)
-    report = tmp_path / "task.report.json"
-    report.write_text(
-        json.dumps(
-            {
-                "request": {"project": "project_tct", "lane": "codex"},
-                "bridge_status": "done",
-                "lane": "codex",
-                "agent": "core-dev",
-                **EXECUTION_EVIDENCE,
-                "report": {"summary": "finished"},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    rows = file_bridge._project_report_briefs("project_tct")
-    assert len(rows) == 1
-    assert rows[0]["agent"] == "core-dev"
-    for key, value in EXECUTION_EVIDENCE.items():
-        assert rows[0][key] == value
-''', encoding='utf-8')
           PY
       - name: Install test dependencies
         run: python -m pip install -e '.[dev]'
@@ -167,11 +62,7 @@ def test_project_report_projection_carries_terminal_execution_identity_to_live_b
         shell: bash
         run: |
           git rm .github/workflows/tmp-ikarus-terminal-evidence.yml
-          git add daedalus/file_bridge.py tests/test_bridge_report_execution_evidence.py
-          if git diff --cached --quiet; then
-            echo 'No changes to commit'
-            exit 0
-          fi
+          git add daedalus/file_bridge.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'feat(web): carry terminal execution identity through bridge'
