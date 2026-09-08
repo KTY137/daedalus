@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   patch:
-    if: "github.event.head_commit.message == 'chore(ci): repair temporary report evidence workflow'"
+    if: "github.event.head_commit.message == 'chore(ci): make temporary report evidence patch robust'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,29 +30,31 @@ jobs:
 
           path = Path('daedalus/file_bridge.py')
           text = path.read_text(encoding='utf-8')
-          old = '''    return {
-              "name": path.name,
-              "status": payload.get("bridge_status") or "?",
-              "lane": payload.get("lane") or request.get("lane") or "?",
-              "project": request.get("project") or "",
-              "summary": " ".join(str(summary).split())[:160],  # one line for the console
-          }
-          '''
-          new = '''    return {
-              "name": path.name,
-              "status": payload.get("bridge_status") or "?",
-              "lane": payload.get("lane") or request.get("lane") or "?",
-              "project": request.get("project") or "",
-              # Execution attribution is copied only from the terminal report
-              # itself. Request/chat metadata must never be promoted into an
-              # agent identity because routing may change after enqueue.
-              "agent": payload.get("agent") or "",
-              "summary": " ".join(str(summary).split())[:160],  # one line for the console
-          }
-          '''
-          if old not in text:
-              raise SystemExit('expected _report_brief block not found; refusing unsafe patch')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          start = text.index('def _report_brief(')
+          end = text.index('\ndef _project_report_briefs', start)
+          block = text[start:end]
+          lines = block.splitlines()
+          inserted = False
+          for index, line in enumerate(lines[:-1]):
+              if line.strip() != '"project": request.get("project") or "",':
+                  continue
+              if not lines[index + 1].strip().startswith('"summary":'):
+                  continue
+              indent = line[: len(line) - len(line.lstrip())]
+              lines[index + 1:index + 1] = [
+                  f'{indent}# Execution attribution is copied only from the terminal report',
+                  f'{indent}# itself. Request/chat metadata must never be promoted into an',
+                  f'{indent}# agent identity because routing may change after enqueue.',
+                  f'{indent}"agent": payload.get("agent") or "",',
+              ]
+              inserted = True
+              break
+          if not inserted:
+              raise SystemExit('expected _report_brief project/summary seam not found; refusing unsafe patch')
+          patched = '\n'.join(lines)
+          if block.endswith('\n'):
+              patched += '\n'
+          path.write_text(text[:start] + patched + text[end:], encoding='utf-8')
 
           test = Path('tests/test_bridge_report_execution_evidence.py')
           test.write_text('''import json\n\nfrom daedalus import file_bridge\n\n\ndef test_report_brief_projects_terminal_agent_evidence_only(tmp_path):\n    report = tmp_path / "task.report.json"\n    report.write_text(\n        json.dumps(\n            {\n                "request": {\n                    "project": "project_tct",\n                    "lane": "claude",\n                    "agent": "request-agent-must-not-win",\n                },\n                "bridge_status": "done",\n                "lane": "claude",\n                "agent": "qa-critic",\n                "report": {"summary": "  verified   terminal evidence  "},\n            }\n        ),\n        encoding="utf-8",\n    )\n\n    assert file_bridge._report_brief(report) == {\n        "name": "task.report.json",\n        "status": "done",\n        "lane": "claude",\n        "project": "project_tct",\n        "agent": "qa-critic",\n        "summary": "verified terminal evidence",\n    }\n\n\ndef test_report_brief_never_invents_agent_from_request(tmp_path):\n    report = tmp_path / "task.report.json"\n    report.write_text(\n        json.dumps(\n            {\n                "request": {\n                    "project": "project_tct",\n                    "lane": "local_only",\n                    "agent": "request-agent-must-not-be-promoted",\n                },\n                "bridge_status": "failed",\n                "error": "executor unavailable",\n            }\n        ),\n        encoding="utf-8",\n    )\n\n    brief = file_bridge._report_brief(report)\n    assert brief["agent"] == ""\n    assert brief["summary"] == "executor unavailable"\n\n\ndef test_project_report_projection_carries_terminal_agent_to_live_bus(tmp_path, monkeypatch):\n    monkeypatch.setattr(file_bridge, "INBOX", tmp_path)\n    report = tmp_path / "task.report.json"\n    report.write_text(\n        json.dumps(\n            {\n                "request": {"project": "project_tct", "lane": "codex"},\n                "bridge_status": "done",\n                "lane": "codex",\n                "agent": "core-dev",\n                "report": {"summary": "finished"},\n            }\n        ),\n        encoding="utf-8",\n    )\n\n    rows = file_bridge._project_report_briefs("project_tct")\n    assert len(rows) == 1\n    assert rows[0]["agent"] == "core-dev"\n''', encoding='utf-8')
