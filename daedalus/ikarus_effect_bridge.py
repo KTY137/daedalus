@@ -244,6 +244,10 @@ def build_oneshot_effect_execution_request(
         raise IkarusEffectBridgeRefused(
             "effect_request must be an exact EffectLeaseRequest"
         )
+    if effect_request.provenance.trace_id != effect_request.mission_id:
+        raise IkarusEffectBridgeRefused(
+            "effect request provenance is not bound to its mission"
+        )
     required_inputs = {
         request.digest,
         runtime_evidence.digest,
