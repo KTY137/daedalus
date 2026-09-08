@@ -16,13 +16,13 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
         profile_repeats=2,
     )
 
-    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/2"
+    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/3"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert "compile_relation_blocks" in report["measurement_contract"]
     assert "No production delta path" in report["measurement_contract"]
-    assert "non-block residual" in report["measurement_contract"]
+    assert "direct compiler callees" in report["measurement_contract"]
 
     case = report["case"]
     assert case["base_forest_edges"] == 24
@@ -49,12 +49,27 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
     assert attribution["compiler_cumulative_ms_median"] >= 0.0
     assert attribution["selected_block_reconstruction_cumulative_ms_median"] >= 0.0
     assert attribution["non_block_compiler_residual_cumulative_ms_median"] >= 0.0
-    assert attribution["profile_metrics"]["compiler_total"]["calls"] == 1
-    assert attribution["profile_metrics"]["selected_block_reconstruction"]["calls"] == 1
-    assert attribution["profile_metrics"]["typed_block_post_init"]["calls"] == 1
-    assert attribution["profile_metrics"]["fact_aggregation"]["calls"] == 25
-    assert attribution["profile_metrics"]["forest_partition_validation"]["calls"] == 1
-    assert "not labeled as a pure edge-scan wall time" in attribution["interpretation"]
+    assert attribution["observed_same_plane_edge_admission_cumulative_ms_median"] >= 0.0
+    assert attribution["fact_aggregation_direct_cumulative_ms_median"] >= 0.0
+    assert (
+        attribution[
+            "remaining_non_block_after_observed_edge_and_fact_cumulative_ms_median"
+        ]
+        >= 0.0
+    )
+    metrics = attribution["profile_metrics"]
+    assert metrics["compiler_total"]["calls"] == 1
+    assert metrics["selected_block_reconstruction"]["calls"] == 1
+    assert metrics["typed_block_post_init"]["calls"] == 1
+    assert metrics["fact_aggregation"]["calls"] == 25
+    assert metrics["forest_partition_validation"]["calls"] == 1
+    assert metrics["edge_signature_construction"]["calls"] == 25
+    assert metrics["edge_wire_materialization"]["calls"] == 25
+    assert metrics["retained_relation_digest"]["calls"] == 25
+    assert metrics["fact_aggregation_direct"]["calls"] == 25
+    assert "conservative lower bound" in attribution["interpretation"]
+    assert "direct compiler calls" in attribution["interpretation"]
+    assert "not a pure edge-scan wall time" in attribution["interpretation"]
 
     assert report["fail_closed"]["partial_endpoint_plane"] == "refused"
     assert "code=partial" in report["fail_closed"]["message"]
@@ -107,13 +122,55 @@ def test_partial_endpoint_contract_fails_closed_before_sparse_zero_interpretatio
 
 def test_probe_bounds_are_strict_and_reject_bool_aliases() -> None:
     invalid = (
-        {"nodes": True, "row_width": 1, "repeats": 1, "warmup": 0, "profile_repeats": 1},
-        {"nodes": 4, "row_width": 3, "repeats": 1, "warmup": 0, "profile_repeats": 1},
-        {"nodes": 8, "row_width": True, "repeats": 1, "warmup": 0, "profile_repeats": 1},
-        {"nodes": 8, "row_width": 2, "repeats": 0, "warmup": 0, "profile_repeats": 1},
-        {"nodes": 8, "row_width": 2, "repeats": 1, "warmup": -1, "profile_repeats": 1},
-        {"nodes": 8, "row_width": 2, "repeats": 1, "warmup": 0, "profile_repeats": True},
-        {"nodes": 8, "row_width": 2, "repeats": 1, "warmup": 0, "profile_repeats": 0},
+        {
+            "nodes": True,
+            "row_width": 1,
+            "repeats": 1,
+            "warmup": 0,
+            "profile_repeats": 1,
+        },
+        {
+            "nodes": 4,
+            "row_width": 3,
+            "repeats": 1,
+            "warmup": 0,
+            "profile_repeats": 1,
+        },
+        {
+            "nodes": 8,
+            "row_width": True,
+            "repeats": 1,
+            "warmup": 0,
+            "profile_repeats": 1,
+        },
+        {
+            "nodes": 8,
+            "row_width": 2,
+            "repeats": 0,
+            "warmup": 0,
+            "profile_repeats": 1,
+        },
+        {
+            "nodes": 8,
+            "row_width": 2,
+            "repeats": 1,
+            "warmup": -1,
+            "profile_repeats": 1,
+        },
+        {
+            "nodes": 8,
+            "row_width": 2,
+            "repeats": 1,
+            "warmup": 0,
+            "profile_repeats": True,
+        },
+        {
+            "nodes": 8,
+            "row_width": 2,
+            "repeats": 1,
+            "warmup": 0,
+            "profile_repeats": 0,
+        },
         {
             "nodes": 8,
             "row_width": 2,
