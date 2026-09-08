@@ -93,14 +93,16 @@ class CompiledRelationBlocks(Generic[T]):
             self.blocks, Sequence
         ):
             raise ValueError("blocks must be a bounded sequence")
-        if len(self.blocks) > MAX_COMPILED_RELATIONS:
+        block_count = len(self.blocks)
+        if block_count > MAX_COMPILED_RELATIONS:
             raise ValueError(
                 f"compiled block count exceeds limit {MAX_COMPILED_RELATIONS}"
             )
 
         names: set[str] = set()
         ordered: list[tuple[str, TypedRelationBlock[T]]] = []
-        for name, block in _materialize_declared_sequence(self.blocks):
+        for index in range(block_count):
+            name, block = self.blocks[index]
             if type(name) is not str or not name:
                 raise ValueError("compiled block names must be non-empty strings")
             if name in names:
