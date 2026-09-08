@@ -443,11 +443,22 @@ class ClaudeCLIProvider(Provider):
                 else None
             ),
         }
+        execution_evidence: dict[str, str] = {
+            "runtime_id": RUNTIME_ID,
+            "attempt_id": attempt_id,
+        }
+        terminal_receipt_sha256 = runtime_receipt["terminal_receipt_sha256"]
+        if terminal_receipt_sha256 is not None:
+            execution_evidence.update(
+                phase="terminal",
+                terminal_receipt_sha256=terminal_receipt_sha256,
+            )
         if not invocation.executed:
             return {
                 "provider": self.caps.name,
                 "replay": True,
                 "runtime_receipt": runtime_receipt,
+                **execution_evidence,
             }
         value = invocation.value
         if not isinstance(value, dict):
@@ -459,6 +470,7 @@ class ClaudeCLIProvider(Provider):
             "prompt_sha256": value["prompt_sha256"],
             "report_sha256": value["report_sha256"],
             "runtime_receipt": runtime_receipt,
+            **execution_evidence,
         }
 
 
