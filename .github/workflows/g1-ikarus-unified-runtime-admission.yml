@@ -184,7 +184,30 @@ jobs:
           CONTAINERS_CONF=/dev/null podman --remote=false info --format json > runtime-evidence/podman-info.json
           CONTAINERS_CONF=/dev/null podman --remote=false pull "$DAEDALUS_LINUX_OCI_IMAGE"
           CONTAINERS_CONF=/dev/null podman --remote=false image inspect --format json "$DAEDALUS_LINUX_OCI_IMAGE" > runtime-evidence/podman-image.json
-          python -m pytest -q tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network --junitxml=runtime-evidence/linux-oci.xml
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pytest
+          from daedalus.spine import linux_containment as containment
+
+          original_verify = containment._verify_container
+
+          def record_and_verify(raw, *args, **kwargs):
+              Path("runtime-evidence/candidate-container-inspect.json").write_text(
+                  json.dumps(raw, indent=2) + "\n", encoding="utf-8",
+              )
+              return original_verify(raw, *args, **kwargs)
+
+          containment._verify_container = record_and_verify
+          try:
+              raise SystemExit(pytest.main([
+                  "-q",
+                  "tests/test_linux_oci_containment.py::test_live_linux_container_writes_workspace_but_not_root_and_has_no_network",
+                  "--junitxml=runtime-evidence/linux-oci.xml",
+              ]))
+          finally:
+              containment._verify_container = original_verify
+          PY
           python -c "import xml.etree.ElementTree as E; r=E.parse('runtime-evidence/linux-oci.xml').getroot(); assert len(list(r.iter('testcase'))) == 1 and not any(list(r.iter(tag)) for tag in ('failure', 'error', 'skipped'))"
       - run: >-
           python -m py_compile
