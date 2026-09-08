@@ -1,0 +1,155 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-93",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "96287e11df7ed1b6a4cc5bf5ceb282d5fee5dce2",
+    "dependencies": "G1-EXP-TENSOR-GPU-92 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["test_change", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only the focused regression test that pins the existing row-offset validation precedence. Production code, public API, wire schema, benchmark schema, authority and promotion state remain unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-93",
+  "work_packet": "G1-EXP-TENSOR-GPU-93",
+  "title": "Retain independent row-offset validation before CSR row-span traversal",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "96287e11df7ed1b6a4cc5bf5ceb282d5fee5dce2",
+  "test_head": "7e5c8fddc80ab732d62444395424bac44cff4ce1",
+  "scope": "Audit TypedRelationBlock.__post_init__ for a removable duplicate validation traversal across row_offsets and the later row-structured column spans. Fuse or delete work only if direct-constructor error precedence, exact-int refusal, start/shape/monotonicity refusal, range-before-common-count precedence, strictly increasing per-row columns, tuple reuse and all bounded limits remain identical.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_blocks.py::TypedRelationBlock.__post_init__",
+    "finding": "The apparent second use of row_offsets is not redundant validation. The first complete offsets pass establishes exact-int admission and records monotonicity before any structural row-span access. After length/start/monotonicity acceptance and scalar admission, the matched-count path must consume the same boundaries again to delimit each CSR row while validating per-row column range and strict ordering.",
+    "error_precedence": "A fused row-by-row offset/column traversal would allow an earlier column error, start-boundary refusal or monotonicity refusal to fire before a later non-integer row offset. The current contract instead fully scans row-offset element types first. For example row_offsets=(1, 0, 'bad') must report 'block.row_offsets must contain integers' even though the sequence also violates start-at-zero and monotonicity. The count-mismatch fallback separately preserves column type then range refusal before common-entry-count refusal.",
+    "boundedness": "row_offsets is already bounded by MAX_BLOCK_AXIS_LABELS + 1 and canonical tuples are reused. The first pass allocates no per-row state beyond one previous_offset scalar and one boolean. The second use is the actual CSR row-span traversal required to validate column ordering; removing it would require either a parallel trusted constructor, a new row classifier, deferred errors or duplicated structural logic.",
+    "gardener_conclusion": "Retain the independent row-offset validation boundary and the subsequent row-span traversal. Do not introduce a trusted-constructor bypass, validation flag, second block family or alternate CSR admission path merely to eliminate one bounded pass. Pin the error-precedence counterexample in the existing validation-fusion test owner."
+  },
+  "test_change": {
+    "commits": [
+      "c2ef763702dc3e00b0080eb0bca8a88b0383b19f",
+      "7e5c8fddc80ab732d62444395424bac44cff4ce1"
+    ],
+    "blob": "tests/twin/test_relation_block_validation_fusion.py@5707557c91949c3f9fc40b45e737c34277c61d38",
+    "net_files_changed": 1,
+    "net_additions": 6,
+    "net_deletions": 0,
+    "test": "test_row_offset_type_scan_precedes_boundary_and_monotonicity_refusal",
+    "purpose": "Pin that a later non-integer row offset outranks earlier start-boundary and monotonicity violations, which prevents unsafe fusion with row-local column validation.",
+    "history_note": "The first contents edit accidentally omitted the pre-existing tail of the test file; the immediate follow-up commit restored it verbatim. The net GPU-92..GPU-93 test diff is only the six-line focused regression contract, and the intermediate commit remains in history rather than being rewritten.",
+    "production_change": false,
+    "new_test_file": false,
+    "new_helper": false,
+    "new_backend": false,
+    "new_public_api": false,
+    "new_execution_path": false
+  },
+  "semantic_invariants": {
+    "scalar_precedence": "Persisted scalar admission remains before CSR structural validation.",
+    "offset_types": "All row_offsets must be exact integers before boundary, monotonicity or row-span semantics are accepted.",
+    "offset_shape": "row_offsets must contain exactly one boundary per row plus the terminal boundary and must start at zero.",
+    "offset_monotonicity": "Monotonicity remains a distinct refusal after exact-int and shape/start admission.",
+    "column_precedence": "Column exact-int refusal remains before out-of-range refusal; out-of-range refusal remains before common-entry-count refusal; strict per-row ordering remains after common-count consistency.",
+    "tuple_reuse": "Canonical tuple inputs remain reusable without an extra tuple copy.",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; TypedRelationBlock remains a regenerable internal computational view.",
+    "public_api": "No public API, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": false,
+    "duplicate_validation_removed": false,
+    "independent_offset_validation_retained": true,
+    "negative_gardener_evidence_retained": true,
+    "new_helper_added": false,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-93 establishes that the first bounded row-offset pass owns exact-int/error-precedence admission while the later pass is actual row-span CSR validation, not duplicate work. The existing boundary is retained and a focused regression test pins the mixed-invalid counterexample without changing production code."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "96287e11df7ed1b6a4cc5bf5ceb282d5fee5dce2",
+    "test_head": "7e5c8fddc80ab732d62444395424bac44cff4ce1",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "validation_tests": "tests/twin/test_relation_block_validation_fusion.py@5707557c91949c3f9fc40b45e737c34277c61d38",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "diff_audit": "96287e11df7ed1b6a4cc5bf5ceb282d5fee5dce2...7e5c8fddc80ab732d62444395424bac44cff4ce1 is two history commits with a net one-file test-only diff of +6/-0; no production file changed. The second commit restores the accidentally omitted pre-existing test tail, so the final tree preserves all prior validation-owner contracts.",
+    "focused_contract_surface": "The new focused contract pins exact-int row-offset refusal ahead of simultaneous start-boundary and monotonicity invalidity. Existing validation-fusion tests continue to pin scalar-before-structure, offset shape/start, monotonicity, column type/range/count/strict-order precedence, empty rows, canonical digest identity and validated-key sorting.",
+    "ci_requirement": "Exact closure-head Fourfold/Tensor workflow evidence is required before any green-PR statement. Test-head workflows may support diagnosis but are not inherited automatically after the closure documentation commit.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "necessary_validation_boundary_retained": true,
+    "regression_contract_added_to_existing_owner": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 19,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No extra remote ref was moved, archived or deleted in this Tensor packet. The repository currently exposes 19 remote branches, so the owner-declared canonical 11-branch topology has drift; evidence-aware classification belongs on the operations/gardener line and branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-94 only: audit TypedAxis.__post_init__ canonical-label admission for one removable transient or repeated traversal. Preserve exact label validation, duplicate refusal, deterministic lexical canonicalization, tuple reuse for already canonical axes, bounded cardinality and direct-constructor error precedence; if simplification requires a second axis type, trusted constructor, cache or ordering flag, retain the current owner as negative Gardener evidence."
+}
