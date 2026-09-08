@@ -1015,13 +1015,26 @@ def _ask_claude_report(payload: dict[str, Any]) -> dict[str, Any]:
             model=payload["model"],
             timeout_s=int(payload.get("timeout_s", 300)),
         )
-        return {
+        terminal_report = {
             "request": payload,
             "bridge_status": "done",
             "lane": "claude",
             "agent": result["agent"],
             "report": result["report"],
         }
+        # Execution identity is provider evidence, never requested routing
+        # metadata.  Keep this as an allowlist so future provider internals do
+        # not leak into the durable bridge report by accident.
+        for name in (
+            "runtime_id",
+            "work_item_id",
+            "attempt_id",
+            "phase",
+            "terminal_receipt_sha256",
+        ):
+            if name in result:
+                terminal_report[name] = result[name]
+        return terminal_report
     except Exception as exc:
         return {
             "request": payload,

@@ -5,6 +5,7 @@ import hashlib
 import json
 from types import SimpleNamespace
 
+from daedalus import core
 from daedalus.providers import claude_cli as subject
 from daedalus.providers import claude_sealed_operation as sealed
 
@@ -190,3 +191,69 @@ def test_claude_provider_does_not_invent_terminal_phase_without_terminal_receipt
     assert "phase" not in result
     assert "terminal_receipt_sha256" not in result
     assert "work_item_id" not in result
+
+
+
+def test_claude_bridge_terminal_report_uses_provider_execution_evidence(monkeypatch) -> None:
+    request = {
+        "objective": "verify runtime evidence",
+        "repo_root": "/isolated/worktree",
+        "paths": [],
+        "model": "sonnet",
+        "runtime_id": "request-runtime-must-not-win",
+        "work_item_id": "request-work-item-must-not-win",
+        "attempt_id": "request-attempt-must-not-win",
+        "phase": "request-phase-must-not-win",
+        "terminal_receipt_sha256": "9" * 64,
+    }
+    provider_result = {
+        "agent": "qa-critic",
+        "report": {"status": "done", "summary": "verified"},
+        "runtime_id": subject.RUNTIME_ID,
+        "attempt_id": ATTEMPT_ID,
+        "phase": "terminal",
+        "terminal_receipt_sha256": TERMINAL_RECEIPT_SHA256,
+    }
+    monkeypatch.setattr(core, "ask_claude", lambda **_kwargs: provider_result)
+
+    report = core._ask_claude_report(request)
+
+    assert report["runtime_id"] == subject.RUNTIME_ID
+    assert report["attempt_id"] == ATTEMPT_ID
+    assert report["phase"] == "terminal"
+    assert report["terminal_receipt_sha256"] == TERMINAL_RECEIPT_SHA256
+    assert "work_item_id" not in report
+    assert report["request"]["work_item_id"] == "request-work-item-must-not-win"
+
+
+def test_claude_bridge_never_promotes_requested_execution_identity(monkeypatch) -> None:
+    request = {
+        "objective": "verify runtime evidence",
+        "repo_root": "/isolated/worktree",
+        "paths": [],
+        "model": "sonnet",
+        "runtime_id": "request-runtime-must-not-win",
+        "work_item_id": "request-work-item-must-not-win",
+        "attempt_id": "request-attempt-must-not-win",
+        "phase": "request-phase-must-not-win",
+        "terminal_receipt_sha256": "9" * 64,
+    }
+    monkeypatch.setattr(
+        core,
+        "ask_claude",
+        lambda **_kwargs: {
+            "agent": "qa-critic",
+            "report": {"status": "done", "summary": "no runtime evidence"},
+        },
+    )
+
+    report = core._ask_claude_report(request)
+
+    for name in (
+        "runtime_id",
+        "work_item_id",
+        "attempt_id",
+        "phase",
+        "terminal_receipt_sha256",
+    ):
+        assert name not in report
