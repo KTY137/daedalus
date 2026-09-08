@@ -138,3 +138,26 @@ def test_report_brief_keeps_exact_provider_execution_booleans_only(tmp_path):
     assert brief["provider"] == "claude_cli"
     assert brief["replay"] is None
     assert brief["execution_executed"] is None
+
+
+def test_report_brief_preserves_contradictory_provider_execution_facts_for_ui(tmp_path):
+    report = tmp_path / "task.report.json"
+    report.write_text(
+        json.dumps(
+            {
+                "request": {"project": "project_tct", "lane": "claude"},
+                "bridge_status": "done",
+                "lane": "claude",
+                "provider": "claude_cli",
+                "replay": True,
+                "runtime_receipt": {"executed": True},
+                "report": {"summary": "contradictory provider evidence"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    brief = file_bridge._report_brief(report)
+    assert brief["provider"] == "claude_cli"
+    assert brief["replay"] is True
+    assert brief["execution_executed"] is True
