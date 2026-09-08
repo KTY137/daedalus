@@ -222,7 +222,7 @@ on loopback (see Evidence).
 | A9 | `offerSubject` revision states: 40-hex, `HEAD`, short SHA, 39, 41, uppercase, number, object, absent | `valid` / `unreadable` ×6 / `absent`; `sourceRevision` undefined for every non-matching value | PASS |
 | A10 | `OfferConfirm` static markup | names kind, project, lane, objective and the nomination sentence; `requires_confirmation:false` adds the flag-ignored sentence; an unknown kind disables `Loslegen` and says nothing was sent; `Loslegen` / `Nicht jetzt` / `Vorgeschlagene Aktion beantworten` all preserved | PASS |
 | A11 | cadence counting: 40 settled + 1 live turn, instrumented `labelOf` / `resolveModule`, 200 single-turn delta patches | `resolveModule` calls IDENTICAL after 200 patches to after the first pass; `labelOf` growth `< 5 × 200`, not `40 × 200`; `receipts[0]` and its `ledger` array reference-identical across all 201 passes | PASS |
-| A12 | browser: mint held 3000 ms, click `Senden` | the user's text and `Anfrage wird angelegt` are visible in **282 ms** [MEASURED 2026-09-08]; zero turn-creation POSTs at that moment | PASS |
+| A12 | browser: mint held 3000 ms, click `Senden` | the held mint is still unanswered when the user's text and `Anfrage wird angelegt` are visible, the frame beats half the hold, and zero turn-creation POSTs were made at that moment | PASS — see the correction below |
 | A13 | browser: full `llm` block on a `final`, disclosure NOT opened | `18,9 s (Anbieter) · 0,41 USD (gemessen) · Ende: Turn-Limit des Anbieters erreicht` and `Anbieter beendet: …` visible; `.ledger-detail` count 0; the server's English sentence rendered byte-identically | PASS |
 | A14 | browser: `stderr_tail` carrying `ANTHROPIC_API_KEY=sk-live-XXXX` and 900 filler chars | absent from `.turn-text`; absent while collapsed; after `Protokoll aufklappen` exactly one detail line, prefixed `Provider-stderr (gekürzt, ungeprüft):`, under 560 characters; no `a`/`code` element in `.turn-text` | PASS |
 | A15 | browser: `queue_task` offer | panel shows kind/project/lane/objective/nomination before any click; zero queue POSTs before it; after `Loslegen` exactly one POST whose `project`/`objective`/`lane`/`conversation_id`/`turn_id` match what was displayed | PASS |
@@ -346,3 +346,30 @@ All results above are [MEASURED 2026-09-08] on this host.
    turn? (It does not; A11 is the guard and must not be deleted.)
 4. Does anything here grant authority from text rather than from an explicit
    human action?
+
+## Correction: A12 measured a runner, not a property (2026-09-08)
+
+The first revision of A12 asserted the first frame under a fixed **500 ms**.
+That constant was measured on the owner's workstation against a warm scratch
+server (**282 ms**). On a cold GitHub Windows runner the same frame took
+**619 ms** and the check went red: `[MEASURED 2026-09-08, run 34252316106]`
+264 of 265 browser specs passed, this one alone failed, and the failure was
+the stopwatch, not the cockpit — the retained evidence artifact records
+`"first frame took 619 ms while the mint was held for 3000 ms"`.
+
+Widening the constant would have surrendered the property quietly, which is
+the failure mode this packet exists to prevent. The assertion now states the
+causal fact instead:
+
+1. the held mint is **still unanswered** when the frame is observed
+   (`observed.mintAnsweredAtMs === null`, stamped inside the route handler),
+2. the frame beats **half the hold** (`< mintDelayMs / 2`), a bound derived
+   from the delay it must beat rather than from any host's speed,
+3. zero turn-creation POSTs have been made at that moment (unchanged).
+
+A paint that waits for the mint lands at 3000 ms and fails all three on any
+host. `[MEASURED 2026-09-08]` mutation: inserting a 3200 ms await before the
+optimistic paint in `Conversation.tsx` turns the spec red; restored, the eight
+cases pass in 9.8 s against a freshly built bundle. The measured distribution
+is retained here rather than hidden: 282 ms warm workstation, 619 ms cold CI
+runner, both far below the 3000 ms hold.

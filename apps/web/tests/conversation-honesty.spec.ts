@@ -33,18 +33,23 @@ interface Observed {
   queued: number;
   queuedBody: Record<string, unknown> | null;
   mintDelayMs: number;
+  /** When the held thread mint actually answered; null while it is still held. */
+  mintAnsweredAtMs: number | null;
 }
 
 async function prepare(page: Page): Promise<Observed> {
   await stubLiveProject(page);
   await controlledConversation(page);
-  const observed: Observed = { creates: 0, legacy: 0, queued: 0, queuedBody: null, mintDelayMs: 0 };
+  const observed: Observed = {
+    creates: 0, legacy: 0, queued: 0, queuedBody: null, mintDelayMs: 0, mintAnsweredAtMs: null
+  };
   await page.route('**/api/ikarus/**', (route) => {
     observed.legacy += 1;
     return route.fulfill({ status: 500, json: { ok: false, error: 'legacy request forbidden' } });
   });
   await page.route('**/api/conversations', async (route) => {
     if (observed.mintDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, observed.mintDelayMs));
+    observed.mintAnsweredAtMs = Date.now();
     await route.fulfill({ json: { ok: true, conversation_id: 'conv_stream' } });
   });
   await page.route('**/api/conversations/conv_stream/turns', async (route) => {
@@ -70,7 +75,20 @@ async function send(page: Page, message = 'verbessere Daedalus') {
   await expect(page.getByRole('button', { name: 'Abbruch anfordern', exact: true })).toBeEnabled();
 }
 
-/** The measured first-frame property: the turn is painted before the mint. */
+/**
+ * The measured first-frame property: the turn is painted before the mint.
+ *
+ * WHAT IS ASSERTED IS CAUSAL, NOT A STOPWATCH AGAINST THIS RUNNER. An earlier
+ * revision required the paint under a fixed 500 ms; it measured 282 ms on the
+ * owner's workstation with a warm server and 619 ms on a cold GitHub Windows
+ * runner, and failed there [MEASURED 2026-09-08, run 34252316106: 264 of 265
+ * browser specs passed, this one alone red]. Widening the constant would have
+ * been a silent surrender of the property; the property is that the paint does
+ * not WAIT for the network. So: the held mint must still be unanswered when
+ * the frame is observed, no turn has been created yet, and the paint beats
+ * half the hold. A paint that waits for the mint lands at 3000 ms and fails
+ * every one of those three, on any host.
+ */
 test('the sent turn and its phase are painted before the thread mint answers', async ({ page }) => {
   const observed = await prepare(page);
   observed.mintDelayMs = 3000;
@@ -81,7 +99,10 @@ test('the sent turn and its phase are painted before the thread mint answers', a
   await expect(page.locator('.turn.you').last()).toContainText(message);
   await expect(page.locator('.turn.ikarus').last()).toContainText('Anfrage wird angelegt');
   const painted = Date.now() - started;
-  expect(painted, `first frame took ${painted} ms while the mint was held for 3000 ms`).toBeLessThan(500);
+  const answered = observed.mintAnsweredAtMs;
+  expect(answered, `the mint answered ${answered ? answered - started : 0} ms in, before the frame at ${painted} ms`).toBeNull();
+  expect(painted, `first frame took ${painted} ms while the mint was held for ${observed.mintDelayMs} ms`)
+    .toBeLessThan(observed.mintDelayMs / 2);
   expect(observed.creates).toBe(0);
   expect(observed.legacy).toBe(0);
 });
