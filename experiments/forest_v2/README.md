@@ -4715,3 +4715,42 @@ hashes in `acceptance.json`. The frozen production file SHA256 is
 base is `eb7834d52949ad10b2bb8c51fccd2a81c48aab20` plus the reviewed packet.
 This source census retains the prior negative research conclusions and carries
 no resolver improvement or Gate closure claim.
+
+### Ignition early-root admission remeasurement (2026-09-08)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`bf69e7195eba4d2c161e61aaead6aaa5695ab5bc` plus the frozen
+`G1-IGNITION-03` implementation. All fields other than wall time matched across
+both complete outputs: all six corpora remain declared, five are present, and
+the absent corpus still records its reason. Every Python source file under
+`daedalus/` was byte-identical before and after the measurements.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,772 functions; annotation-only 94.34%; full resolver 94.23%; marginal 8 functions / 0.1181 pp; 45,119 type-name sites, resolution 99.93%; verified internal 4,046 / 4,465 (90.62%); 419 named-only internal sites |
+| source pin | `af8997cf93e2ff07e6440498667bbed657f72f40b34d5fdf9e6859f4b77ab41e` |
+
+The seven additional functions are five in `ignition/gate1.py` and two in
+`primary_tree.py`; type-name sites increase by 60. This is a changed source
+corpus under the same probe, not measured resolver improvement. The fixed
+fixture's 15.7895 pp marginal contribution still exceeds this kernel row by
+more than two orders of magnitude. All prior retractions, failed expectations
+and measured rows above remain unchanged.
+
+The separate complete import-graph comparison measures 485 modules and 1,931
+edges, one more than accepted main: `daedalus.ignition.gate1` imports
+`daedalus.primary_tree`. All fourteen nontrivial components, their maximum
+size of nineteen, every member and component digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+remain identical; no architecture regression is waived by this moving count.
+
+Raw complete outputs are `s02-ignition-roots-corpora-a.json` and
+`s02-ignition-roots-corpora-b.json` under `runs/g1-ignition-03-20260908`, beside
+`metadata-measurement-source.json`, `metadata-comparison.json`, the complete
+SCC comparison and retained stderr logs. The frozen source SHA256 values are
+`373f7dce0199b77bf8d1a3744df0f67dd37c18a32ceaf98537825d6118c73d5b`
+for `ignition/gate1.py` and
+`64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a`
+for `primary_tree.py`. This census establishes no Gate closure.

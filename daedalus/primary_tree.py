@@ -82,13 +82,17 @@ it and no caller can turn it into a knob.
 from __future__ import annotations
 
 import os
+import stat
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 __all__ = [
     "PRIMARY_ROOT",
     "PrimaryCheckoutWrite",
+    "PlannedRootRelation",
     "assert_write_allowed",
+    "compare_planned_roots",
     "nearest_existing",
     "overlap_reason",
     "planned_overlap_reason",
@@ -219,6 +223,113 @@ def _inside(inner: Path, outer: Path, *, probe: bool) -> _Verdict | None:
         if _identity(ancestor) == outer_id:
             return _Verdict(_INSIDE_VIA, via=ancestor)
     return None
+
+
+class PlannedRootRelation(str, Enum):
+    """The left intended destination's relation to the right destination."""
+
+    DISJOINT = "disjoint"
+    EQUAL = "equal"
+    INSIDE = "inside"
+    CONTAINS = "contains"
+    UNKNOWN = "unknown"
+
+
+def _planned_root_ground(path, *, is_file: bool = False) -> tuple[Path, Path] | None:
+    """Resolve an intended path and inspect its actual existing directory ground.
+
+    Recheck every purportedly missing component with stat: ``Path.exists`` can
+    hide an inspection error, which must not move the ground past that error.
+    A regular endpoint is allowed only for the caller's explicit file question;
+    it never supplies directory ground for another intended destination.
+    """
+    target = _resolve(path)
+    if target is None:
+        return None
+    try:
+        ground = nearest_existing(target)
+        for component in (target, *target.parents):
+            try:
+                status = component.stat()
+            except FileNotFoundError:
+                if component == ground:
+                    return None
+                continue
+            if component != ground:
+                return None  # The existence probe and direct inspection disagree.
+            if is_file and component == target:
+                if not stat.S_ISREG(status.st_mode):
+                    return None
+                ground = component.parent
+                if not stat.S_ISDIR(ground.stat().st_mode):
+                    return None
+            elif not stat.S_ISDIR(status.st_mode):
+                return None
+            break
+        else:
+            return None
+        if _identity(ground) is None:
+            return None
+    except (OSError, ValueError, RuntimeError):
+        return None
+    return target, ground
+
+
+def compare_planned_roots(
+    left: str | os.PathLike[str],
+    right: str | os.PathLike[str],
+    *,
+    right_is_file: bool = False,
+) -> PlannedRootRelation:
+    """Compare two intended destinations without creating either one.
+
+    Both directory roots may be absent. Inspect their existing ground, find a
+    common directory by the existing filesystem identity mechanism, and compare
+    the remaining intended segments beneath that directory. Sharing ground is
+    not overlap: ``ground/new-work`` and ``ground/new-receipts`` stay disjoint.
+
+    The result describes LEFT relative to RIGHT. Unknown resolution, ground or
+    path type returns ``UNKNOWN``, never a permissive answer. ``right_is_file``
+    explicitly allows a regular or missing file leaf, for comparisons against
+    a reserved receipt; all intermediate components must still be directories.
+    File link-count admission remains the caller's separate responsibility.
+
+    This is an entry-time comparison, not a reservation against concurrent
+    filesystem replacement. Existing public checkout predicates retain their
+    stricter existing-protected-root contract and their original diagnostics.
+    """
+    left_info = _planned_root_ground(left)
+    right_info = _planned_root_ground(right, is_file=right_is_file)
+    if left_info is None or right_info is None:
+        return PlannedRootRelation.UNKNOWN
+    left_path, left_ground = left_info
+    right_path, right_ground = right_info
+    unexamined = False
+    for left_ancestor in (left_ground, *left_ground.parents):
+        left_id = _identity(left_ancestor)
+        if left_id is None:
+            unexamined = True
+            continue
+        for right_ancestor in (right_ground, *right_ground.parents):
+            right_id = _identity(right_ancestor)
+            if right_id is None:
+                unexamined = True
+                continue
+            if left_id != right_id:
+                continue
+            left_tail = left_path.relative_to(left_ancestor)
+            right_tail = right_path.relative_to(right_ancestor)
+            if left_tail == right_tail:
+                return PlannedRootRelation.EQUAL
+            if right_tail in left_tail.parents:
+                return PlannedRootRelation.INSIDE
+            if left_tail in right_tail.parents:
+                return PlannedRootRelation.CONTAINS
+            return PlannedRootRelation.DISJOINT
+    # Separate examinable volumes have no common ancestor. Failure to inspect
+    # an ancestor is different: it may conceal the identity needed to compare.
+    return (PlannedRootRelation.UNKNOWN if unexamined
+            else PlannedRootRelation.DISJOINT)
 
 
 # --------------------------------------------------------------------------- #
