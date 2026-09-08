@@ -62,23 +62,24 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured on frozen G1-IGNITION-03 source with CPython 3.12.13; both
-    # complete raw runs and source hashes are retained under
-    # runs/g1-ignition-03-20260908. Prior integration rows remain in the README;
-    # this moving corpus census is not a resolver superiority claim.
+    # Re-measured 2026-09-08 on main 24e229c0 plus the frozen G3-BASE-01
+    # package (24 modules under daedalus/eval/gate3) with CPython 3.12.13; both
+    # complete raw runs are retained under docs/evidence/G3-BASE-01. Prior
+    # rows remain in the README; this moving corpus census is not a resolver
+    # superiority claim.
     assert entry["corpus_pin"] == {
-        "files": 485,
-        "sha256": "af8997cf93e2ff07e6440498667bbed657f72f40b34d5fdf9e6859f4b77ab41e",
+        "files": 509,
+        "sha256": "ee7c7ee4f567c93fc3e1c50152528f2dde9991293a715ca019f5f7e79d3355e7",
     }
-    assert entry["functions"] == 6772
-    assert entry["annotation_only_pct"] == 94.34  # the control
-    assert entry["full_resolver_pct"] == 94.23
+    assert entry["functions"] == 6941
+    assert entry["annotation_only_pct"] == 94.4  # the control
+    assert entry["full_resolver_pct"] == 94.28
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1181
+    assert entry["marginal_pp"] == 0.1153
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["type_name_sites"] == 45119
+    assert entry["type_name_sites"] == 46223
     assert entry["internal_named_only"] == 419
-    assert entry["verified_share_of_internal_pct"] == 90.62
+    assert entry["verified_share_of_internal_pct"] == 90.99
 
 
 

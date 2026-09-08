@@ -4754,3 +4754,38 @@ SCC comparison and retained stderr logs. The frozen source SHA256 values are
 for `ignition/gate1.py` and
 `64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a`
 for `primary_tree.py`. This census establishes no Gate closure.
+
+### G3-BASE-01 re-landing remeasurement (2026-09-08)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`24e229c0f34e5404bc219637b646386529f82035` plus the frozen `G3-BASE-01`
+package (`daedalus/eval/gate3`, 24 modules). All fields other than wall time
+and root path matched across both complete outputs; all six corpora remain
+declared, five are present, and the absent corpus still records its reason.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 509 parsed files, 6,941 functions; annotation-only 94.40%; full resolver 94.28%; marginal 8 functions / 0.1153 pp; 46,223 type-name sites, resolution 99.93%; verified internal 4,229 / 4,648 (90.99%); 419 named-only internal sites |
+| source pin | `ee7c7ee4f567c93fc3e1c50152528f2dde9991293a715ca019f5f7e79d3355e7` |
+
+The 24 additional files and 169 additional functions are exactly the new
+`daedalus/eval/gate3` package; type-name sites increase by 1,104. The marginal
+contribution stays at 8 functions and moves from 0.1181 pp to 0.1153 pp only
+because the denominator grew. This is a changed source corpus under the same
+probe, not measured resolver improvement. The fixed fixture's 15.7895 pp
+marginal contribution still exceeds this kernel row by more than two orders
+of magnitude. All prior retractions, failed expectations and measured rows
+above remain unchanged.
+
+The separate complete import-graph comparison measures 509 modules and 1,997
+edges. All fourteen nontrivial components, their maximum size of nineteen,
+every member and the component digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+remain identical: the package adds modules and edges, not a cycle.
+
+Raw complete outputs are `s02-g3-base-01-corpora-a.json.gz` and
+`s02-g3-base-01-corpora-b.json.gz` under `docs/evidence/G3-BASE-01`, with
+SHA256 values in `acceptance.json` beside them. This census establishes no
+Gate closure and no Gate-3 baseline evidence.
