@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 
+import daedalus.core as core
 import daedalus.providers as providers
 import daedalus.runtime_registry as registry
 
@@ -130,3 +131,21 @@ def test_codex_batch_probe_policy_is_not_changed_by_claude_guard(monkeypatch) ->
     assert row["available"] is True
     assert row["command_path"] == resolved
     run.assert_called_once()
+
+def test_core_provider_health_surfaces_canonical_claude_dispatch_refusal(monkeypatch) -> None:
+    refusal = (
+        "Claude CLI is installed, but canonical dispatch is not activated "
+        "(provider.claude wiring=inventory_only)"
+    )
+    rows = [
+        {"name": "ollama", "available": True, "last_error": ""},
+        {"name": "claude_cli", "available": False, "last_error": refusal},
+    ]
+    monkeypatch.setattr(core, "_provider_health", lambda: rows)
+
+    payload = core.provider_health("daedalus")
+
+    assert payload["providers"] == rows
+    assert payload["warnings"] == [f"Claude lane unavailable: {refusal}"]
+    assert all("not on PATH" not in warning for warning in payload["warnings"])
+

@@ -114,8 +114,16 @@ def provider_health(project: str | None = None) -> dict[str, Any]:
     warnings = []
     if not any(row["name"] == "ollama" and row["available"] for row in rows):
         warnings.append("Ollama is not fully available; local bench work may fail.")
-    if not any(row["name"] == "claude_cli" and row["available"] for row in rows):
-        warnings.append("Claude CLI is not on PATH; Claude lane may be unavailable.")
+
+    claude_row = next((row for row in rows if row.get("name") == "claude_cli"), None)
+    if not claude_row or not bool(claude_row.get("available")):
+        detail = str((claude_row or {}).get("last_error") or "").strip()
+        if detail:
+            warnings.append(f"Claude lane unavailable: {detail}")
+        else:
+            warnings.append(
+                "Claude lane is unavailable; canonical provider readiness could not be proven."
+            )
     return envelope(project, providers=rows, warnings=warnings)
 
 
