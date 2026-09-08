@@ -137,6 +137,30 @@ def _configured(meta: ProviderMetadata) -> bool:
     return any(bool(os.environ.get(key)) for key in meta.env_keys)
 
 
+def _claude_dispatch_readiness() -> tuple[bool, str]:
+    """Project the canonical effect boundary instead of executable presence.
+
+    A discovered Claude binary is necessary but not sufficient for Daedalus to
+    dispatch it.  ``provider.claude`` deliberately stays INVENTORY_ONLY until
+    the production composition root can mint the complete sealed runtime
+    authority bundle.  Surfacing that blocker here keeps routing and the chat UI
+    from advertising a provider that the canonical execution boundary must
+    refuse.
+    """
+
+    from ..spine.effect_boundary import REGISTRY_BY_ID, Wiring
+
+    row = REGISTRY_BY_ID.get("provider.claude")
+    if row is None:
+        return False, "provider.claude is missing from the canonical effect registry"
+    if row.wiring is not Wiring.CENTRAL:
+        return False, (
+            "Claude CLI is installed, but canonical dispatch is not activated "
+            f"(provider.claude wiring={row.wiring.value})"
+        )
+    return True, ""
+
+
 def _availability_probe(name: str) -> tuple[bool, str]:
     if not _PROVIDERS[name].implemented:
         return False, "provider placeholder; implementation pending"
@@ -150,7 +174,9 @@ def _availability_probe(name: str) -> tuple[bool, str]:
         from ..runtime_registry import cached_runtime_status
 
         row = cached_runtime_status("claude_code_cli")
-        return bool(row.get("available")), str(row.get("last_error") or "")
+        if not bool(row.get("available")):
+            return False, str(row.get("last_error") or "")
+        return _claude_dispatch_readiness()
 
     try:
         return get_provider(name).available(), ""
