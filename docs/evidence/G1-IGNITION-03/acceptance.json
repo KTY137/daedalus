@@ -990,6 +990,643 @@
       "sha256": "2b8d9338f47457852ac351cd2aa1953cd4a4787b942814928a13855e6e000633",
       "archive": "evidence-archive-harness.py.gz",
       "archive_sha256": "d3889f8897ebf504a727ac65857966bab425a5fe597e15d114ad1cd7df39c76a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-acceptance.json",
+      "sha256": "698d7c717f18fcc0d5fa3491692cdf26dd78ca275661be26de59b22ba156c1f6",
+      "archive": "handoff--ci-2ed5-ignition-acceptance.json.gz",
+      "archive_sha256": "d299cda738da96c3257aa4e91af50cf570e392aa1b5d9ef33962d542504b72eb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "archive": "handoff--ci-2ed5-ignition-artifacts.json.gz",
+      "archive_sha256": "a64394c1413f6f5573961df1e730c73ab6442eef5129c60c367478e4f8ec222b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-checkout-binding.json",
+      "sha256": "11aff55600f3d2338f8a4ee950693707cca4ad6c3aaa7a2f7b2484338662a817",
+      "archive": "handoff--ci-2ed5-ignition-checkout-binding.json.gz",
+      "archive_sha256": "18d691dd96ca44c73f9e3aec301c092f01b7b5049aa28b354f69fa16f33ac372"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-checkout-commit.json",
+      "sha256": "ffd704745a986766fdcd5b6ccf3a3e0c5532adf352434872a70b02262423a992",
+      "archive": "handoff--ci-2ed5-ignition-checkout-commit.json.gz",
+      "archive_sha256": "213dccf4726519a22fcd8ab3941b32a65721162d0c0eb533df5538590f55f9c3"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-isolated-wheel-check.json",
+      "sha256": "5f88e9fdb3fe421985ca76d95ce9e663a3e6c8ba40ca0a5a6aea91826337dd55",
+      "archive": "handoff--ci-2ed5-ignition-isolated-wheel-check.json.gz",
+      "archive_sha256": "01c52512769330a2c52791310d09073d50240274f1b6a739c88a0f3a69283f1d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-isolated-wheel.log",
+      "sha256": "c3d71f5f036a7dc6f088d1d82fed5a43e077121c0057cf81a72a2f9cf7a8f470",
+      "archive": "handoff--ci-2ed5-ignition-isolated-wheel.log.gz",
+      "archive_sha256": "af28bb9c397b600ab889d413acd535b395c42358ddf35bfca1420edf844b121f"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-jobs.json",
+      "sha256": "97fdcde1672d21ead72be08971faa47c296991831e328f0c816e030bec06b465",
+      "archive": "handoff--ci-2ed5-ignition-jobs.json.gz",
+      "archive_sha256": "156f6f37f71489ae4cd896020815c8243f8e0f630cfca513e6c5f8b4800c0a92"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-polls.jsonl",
+      "sha256": "bb1145f64d779c127d56c5ca1e108cdd7fe3568169628510be9e763936829bc8",
+      "archive": "handoff--ci-2ed5-ignition-polls.jsonl.gz",
+      "archive_sha256": "0e58fa058f10d666c1391bfcb1d3e6f4e0cbe7d177467b2292fdae859036c933"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed0-check.json",
+      "sha256": "a603c154dd3e202e1650b1afb00aaa6e6b0c90a597d01351467cccfeba6e1deb",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed0-check.json.gz",
+      "archive_sha256": "90b5c5f1fd353d74e3c943ff0676171c91ccbed7c6b026f88569b5e8b805a106"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed0.log",
+      "sha256": "82f470401e7f810b5aeb317246d7f281847b307eb8501f0a22ddb24534727dd5",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed0.log.gz",
+      "archive_sha256": "a9710356fb81760258a8850a0b12cb8cbb1693fda5e044f06790ff33d455fdd7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed123456-check.json",
+      "sha256": "05628bb5c93b531a005f2007b4fb83918b13135d57aa72e8804e0376362dfc11",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed123456-check.json.gz",
+      "archive_sha256": "f5714d41aa80be41d6699a05a6dc430b928d6ec38fd4ba4229395b798931234a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed123456.log",
+      "sha256": "827b7a43a4af2c9278a0664a2a4418f7f4fc6b7278f49c71644424732db87fe3",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed123456.log.gz",
+      "archive_sha256": "27e8cccf80fcc53be03e35b6a7d74b8b20d35443917b1a71a730388cb5832c83"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed0-check.json",
+      "sha256": "ac8290471f5e18591a136f23ff13f10dac2a9da7f464cbbfa0fd243b9526b148",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed0-check.json.gz",
+      "archive_sha256": "448384d393172cc6650696b7ad2245673e39304f877c1e1176ac5034ce34054a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed0.log",
+      "sha256": "10ff0562f3eebe969012c21d4e6cc05c1e2451d9bda57f63ffeeef17f5fff0fb",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed0.log.gz",
+      "archive_sha256": "61e7ef351818de666eaf416fefb1e44c7e072a822623da830575495e66aa2eb2"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed123456-check.json",
+      "sha256": "a79d0b8460329f37f232c37cbcf5b0186de1b740bdff7a45cfe291f238efef83",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed123456-check.json.gz",
+      "archive_sha256": "868a29ba27a406fa27f3c47c03d1380bac4f8e9bfd2ba591688437c3b400cbd0"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed123456.log",
+      "sha256": "436ca3815d15b621f3062b733d816c70b24588d1d5af42d432882bc8234f34a5",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed123456.log.gz",
+      "archive_sha256": "253812c9ca9a2af9b5001ba30a228404cae1537487f4b0e484a6efe9eca22fa8"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-run.json",
+      "sha256": "0551e5de819251f72102afb591624a9a5a6c2a5cc68ae4919fe940a056de5b2f",
+      "archive": "handoff--ci-2ed5-ignition-run.json.gz",
+      "archive_sha256": "f5c0b17a8f547bedcef0b3c9e4d0c48b9e5b182c37523de4cd817bc71ae20f2b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-source-commit.json",
+      "sha256": "498663fd273a6c29968f86e4d6f0ea097fc597ef058c6d80cad573c8aa59d8de",
+      "archive": "handoff--ci-2ed5-ignition-source-commit.json.gz",
+      "archive_sha256": "669d805c4c11a3aef90efced1afb3e214a18e3358287accfdd0fef2d57bb90e2"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-checks-current.json",
+      "sha256": "525f12a5f525b1eef848475361d533adac5a0c2ec71c5e0e833fecee8025ae23",
+      "archive": "handoff--ci-2ed5-other-checks-current.json.gz",
+      "archive_sha256": "6e863e9f2d8bb91a2de35c5ff1aca719546900a10195e5cbe7c82db2a449668e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-checks-history.jsonl",
+      "sha256": "d4e68e0f64cfcc926b08fef6b0e5226a733d35a6beba15471e11515bb76618d6",
+      "archive": "handoff--ci-2ed5-other-checks-history.jsonl.gz",
+      "archive_sha256": "716c42e7db5245c8caab237086a4734cf18b337af7cb84128e671c0c164499e1"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-file-manifest.json",
+      "sha256": "68c4b7a9d65e8056322f8d49f3bc1b7a2e807706e5db48100d4b818992f7a79c",
+      "archive": "handoff--ci-2ed5-other-file-manifest.json.gz",
+      "archive_sha256": "21df3791ad74e72c47b6011b6bf21d1593ab964036918791b733052ba21eb3cd"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-initial.json",
+      "sha256": "8ec07d5cf2e507fa327c85900c4fb80cb4a0077a82970dbe0c53b8e0743e1f16",
+      "archive": "handoff--ci-2ed5-other-initial.json.gz",
+      "archive_sha256": "c6eecf40ceb74c59cf32fcc4ebf003732c1f1fe58a20ccd690ba8492d28df4be"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242676-artifacts.json",
+      "sha256": "2efdfb2140d5d5009dfd16d5140a4bd2a371465f6e88ea928c217e5341367b14",
+      "archive": "handoff--ci-2ed5-other-run-34209242676-artifacts.json.gz",
+      "archive_sha256": "4cbbe01a319f744d85acc2f8fe9e46ff4814a56b14d8e384f2ea28900d86608d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242676-jobs.json",
+      "sha256": "deb6fe1066ac396681a68b1c274b76805d48a606892120098c49a095c6b07414",
+      "archive": "handoff--ci-2ed5-other-run-34209242676-jobs.json.gz",
+      "archive_sha256": "43f7606fa187271276f69f16f67b9b0036804155ca1adcf7f675d29688a03221"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242676-run.json",
+      "sha256": "c3852c234c77ace6344ab6d6725466227b1f747dba0a911205f0056847f47c6e",
+      "archive": "handoff--ci-2ed5-other-run-34209242676-run.json.gz",
+      "archive_sha256": "bd46e0eb6cef79447030268476c84efcf566b9cbc756f869b8cc2cc0dc7992af"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242711-artifacts.json",
+      "sha256": "7f7b27453d31b92d375904f049b9d0bda43e17f3c4af70ec44e2045fe720b4e6",
+      "archive": "handoff--ci-2ed5-other-run-34209242711-artifacts.json.gz",
+      "archive_sha256": "53e15e9501c7594e1c8169b86db3e31318fe6a04bb1d55f65cf18bd4e42942a1"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242711-jobs.json",
+      "sha256": "e0cb8066a0e29b137b5602702f6a0b0015286ae9590e777155c04217af3c696e",
+      "archive": "handoff--ci-2ed5-other-run-34209242711-jobs.json.gz",
+      "archive_sha256": "2b7cabdfe194290a40bb92073cd382bc63377f41f846710386db0a8d6af05f39"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242711-run.json",
+      "sha256": "b16969ba3630b829e01464497f048113749d29311df5c0c87db32c8a4f6f621a",
+      "archive": "handoff--ci-2ed5-other-run-34209242711-run.json.gz",
+      "archive_sha256": "d4bef296f7a4715b5c53682dd9e4a441d2b9738180ccd7e5bb1ed83dd5e45e9a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-runs-final.json",
+      "sha256": "7a3a475ea25a0c11c6166beccad27d31b708e42ca97fd08610be9babf71b1958",
+      "archive": "handoff--ci-2ed5-other-runs-final.json.gz",
+      "archive_sha256": "73bce9004c2568a82a19164560bb2075afa9d028d940e7f881e0a638f317201f"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-summary.json",
+      "sha256": "e0e8432f7b29c88d82e1f6918173a2c4022fec3993fe16d167e5254dd16187c8",
+      "archive": "handoff--ci-2ed5-other-summary.json.gz",
+      "archive_sha256": "8e896503488e67b4b11630360d1513cea60930fa133f2dcc0c5e61521f5b83a0"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-tauri-job-102006027844.log",
+      "sha256": "437ce01565f3ce3ad25c09e4d904b8a1d359f7df9dd290eed095996aae8dcf69",
+      "archive": "handoff--ci-2ed5-other-tauri-job-102006027844.log.gz",
+      "archive_sha256": "e89f945ba916e29c530e020ed31765eb28b11b22b8de62f06c08a7bb264f2572"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-tauri-job-current.json",
+      "sha256": "342c0be442b0c441552f239aa8e9a488f7499e5a83f3aa05605d35cf7643d73b",
+      "archive": "handoff--ci-2ed5-other-tauri-job-current.json.gz",
+      "archive_sha256": "afb2509bea291b2e933be54393d573aca528933b00ba03348b57200eceed14cb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/committed-source-normalization.json",
+      "sha256": "0cd655185a970388951a92861d683fc13581a0f4e4fc1c30844d7e5ad3e0e9d7",
+      "archive": "handoff--committed-source-normalization.json.gz",
+      "archive_sha256": "2b46d92ea7d273b14b8be5ce34909d091d1191f54f390487528b2081a96c4420"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/main-fast-forward-result.json",
+      "sha256": "f5c84c8bd61771fcb51a6f3aca4bc448412b32adee1907ebdd3ca985d2f806bd",
+      "archive": "handoff--main-fast-forward-result.json.gz",
+      "archive_sha256": "9bec95e9e536e310fd7f850ad5e5de203ab1c58654e0aebbe42a4736ac4b1901"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/main-merge-admission.json",
+      "sha256": "47c37ab3ffff1d8c9c182fa51ab0ffa78d8aaa46a266d7543990aba06520258f",
+      "archive": "handoff--main-merge-admission.json.gz",
+      "archive_sha256": "9999b0ec5995038285059e2ae078d4d0966469017de4d71fd4943fd6a6c8c063"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/main-merge-result.json",
+      "sha256": "40da6ced49250d03c6fcc69f5273d4bb972fd1e7bd47d6a028c22bdb2faadde1",
+      "archive": "handoff--main-merge-result.json.gz",
+      "archive_sha256": "b6a6d9390d185cfd981146a9f83990c1e943450f7154c6f5e24f0cc679605c82"
     }
-  ]
+  ],
+  "final_outcome": {
+    "recorded_at": "2026-09-08T09:31:38.902951+00:00",
+    "classification": "ALIGNED evidence-only parent handoff for accepted G1-IGNITION-03; no Gate transition or candidate promotion",
+    "outcome": "FINAL_SOURCE_CI_PASSED_AND_REVIEWED_MAIN_MERGE_COMPLETE",
+    "historical_fields": "All preceding values, including LOCAL_ACCEPTANCE_PASSED_CI_PENDING and retained failures, remain the initial 2026-09-08 local-acceptance observations. This appended final record documents the later source CI and reviewed main merge.",
+    "accepted_source": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+    "github_acceptance": {
+      "successful_jobs": 12,
+      "failed_jobs": 0,
+      "cancelled_jobs": 0,
+      "conditional_skipped_jobs": 4,
+      "pending_jobs": 0,
+      "expected_skips": [
+        {
+          "name": "matrix.label",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029487"
+        },
+        {
+          "name": "Release acceptance (full product and Linux OCI)",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006028861"
+        },
+        {
+          "name": "Complete suite (manual only)",
+          "workflow": "Fourfold, Tensor and integration contracts",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006029844"
+        },
+        {
+          "name": "Publish trusted-main prerelease",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029601"
+        }
+      ],
+      "ignition": {
+        "run_id": 34209242699,
+        "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699",
+        "run_attempt": 1,
+        "successful_jobs": 5,
+        "linux_matrix": [
+          {
+            "job_id": 102006027895,
+            "name": "ignition (3.12, 0)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027895",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:20:57Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:20:54.3634929Z 329 passed, 10 skipped, 17 warnings in 145.14s (0:02:25)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py312-seed0.log.gz"
+          },
+          {
+            "job_id": 102006027913,
+            "name": "ignition (3.10, 123456)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027913",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:22:26Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:22:24.1749514Z 329 passed, 10 skipped in 234.97s (0:03:54)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py310-seed123456.log.gz"
+          },
+          {
+            "job_id": 102006027983,
+            "name": "ignition (3.12, 123456)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027983",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:21:07Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:21:04.8521489Z 329 passed, 10 skipped, 17 warnings in 154.68s (0:02:34)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py312-seed123456.log.gz"
+          },
+          {
+            "job_id": 102006028085,
+            "name": "ignition (3.10, 0)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006028085",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:21:50Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:21:48.6862064Z 329 passed, 10 skipped in 199.55s (0:03:19)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py310-seed0.log.gz"
+          }
+        ],
+        "isolated_wheel": {
+          "job_id": 102006027635,
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027635",
+          "conclusion": "success",
+          "log_archive": "handoff--ci-2ed5-ignition-isolated-wheel.log.gz"
+        },
+        "count_evidence": "Four Linux Python3.10/3.12 x hash0/123456 jobs retain the real pytest stdout. This workflow uploads no JUnit artifact; the isolated wheel job is a build/import check, not an additional pytest count."
+      },
+      "other_workflows": {
+        "successful_jobs": 7,
+        "conditional_skipped_jobs": 4,
+        "failed_jobs": 0,
+        "runs": [
+          {
+            "id": 34209242711,
+            "name": "Fourfold, Tensor and integration contracts",
+            "head_sha": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+            "event": "pull_request",
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242711",
+            "jobs": [
+              {
+                "id": 102006027742,
+                "name": "Isolated wheel imports",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:32Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006027742"
+              },
+              {
+                "id": 102006027905,
+                "name": "Contracts (Python 3.10, hash 123456)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:53Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006027905"
+              },
+              {
+                "id": 102006028034,
+                "name": "Contracts (Python 3.10, hash 0)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:46Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028034"
+              },
+              {
+                "id": 102006028072,
+                "name": "Contracts (Python 3.12, hash 123456)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:39Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028072"
+              },
+              {
+                "id": 102006028197,
+                "name": "Contracts (Python 3.12, hash 0)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:15Z",
+                "completed_at": "2026-09-08T09:18:44Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028197"
+              },
+              {
+                "id": 102006028206,
+                "name": "Complete repository collection",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:19:28Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028206"
+              },
+              {
+                "id": 102006029844,
+                "name": "Complete suite (manual only)",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006029844"
+              }
+            ]
+          },
+          {
+            "id": 34209242676,
+            "name": "Tauri Desktop",
+            "head_sha": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+            "event": "pull_request",
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242676",
+            "jobs": [
+              {
+                "id": 102006027844,
+                "name": "Linux x86-64 PR validation",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:25:49Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006027844"
+              },
+              {
+                "id": 102006028861,
+                "name": "Release acceptance (full product and Linux OCI)",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006028861"
+              },
+              {
+                "id": 102006029487,
+                "name": "matrix.label",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029487"
+              },
+              {
+                "id": 102006029601,
+                "name": "Publish trusted-main prerelease",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029601"
+              }
+            ]
+          }
+        ],
+        "summary_archive": "handoff--ci-2ed5-other-summary.json.gz"
+      },
+      "scope": "Triggered source checks only. Manual/release/publication jobs are expected skips, not passes. No fresh untriggered runtime or GUI result, release acceptance or Gate closure is claimed."
+    },
+    "ci_checkout_binding": {
+      "run_head_sha": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+      "actual_checkout_sha": "6171bde00a977da83dff50b651888731a5c381ae",
+      "source_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "checkout_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "trees_identical": true,
+      "checkout_parents": [
+        "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+        "2ed5a5d0c7cd9a14f886383806b916be92a99e7d"
+      ],
+      "explanation": "GitHub checks bind the PR source head while actions/checkout executes the virtual PR merge. Retained GitHub commit/tree metadata and checkout logs establish identical complete trees; the virtual CI merge is distinct from the later manually reviewed main merge.",
+      "proof_archive": "handoff--ci-2ed5-ignition-checkout-binding.json.gz"
+    },
+    "main_integration": {
+      "pull_request": "https://github.com/KTY137/daedalus/pull/319",
+      "base": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+      "accepted_source": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+      "merge_commit": "24e229c0f34e5404bc219637b646386529f82035",
+      "merged_at": "2026-09-08T09:27:15Z",
+      "state": "MERGED",
+      "source_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "merge_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "trees_identical": true,
+      "authorization": "User goal: integrate reviewed GitHub work into main, then continue through Gate3; source merge after independent review and complete CI, no candidate promotion.",
+      "fast_forward_and_wip_proof": {
+        "merge": "24e229c0f34e5404bc219637b646386529f82035",
+        "accepted_source": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+        "tree": "2511549b11cc2266f058ec137783461d62250e6c",
+        "tree_equal": true,
+        "original_user_file_sha256": "8c39bf52aa056e507a0d0b16e7e2f12993d717d5fd48744d748fed1ff9236668",
+        "original_status_before": "M vault/Sessions/2026-09-06.md",
+        "original_status_after": "M vault/Sessions/2026-09-06.md",
+        "successor_base": "24e229c0f34e5404bc219637b646386529f82035"
+      },
+      "proof_archives": [
+        "handoff--main-merge-admission.json.gz",
+        "handoff--main-merge-result.json.gz",
+        "handoff--main-fast-forward-result.json.gz"
+      ]
+    },
+    "committed_source_normalization": {
+      "initial_negative_control": "Raw equality assertion rejected at SCC metadata test; do not claim all local metadata test bytes equal committed LF bytes.",
+      "source_head": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+      "paths": [
+        {
+          "path": "daedalus/ignition/gate1.py",
+          "measured_worktree_sha256": "373f7dce0199b77bf8d1a3744df0f67dd37c18a32ceaf98537825d6118c73d5b",
+          "committed_git_blob_sha256": "373f7dce0199b77bf8d1a3744df0f67dd37c18a32ceaf98537825d6118c73d5b",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "daedalus/primary_tree.py",
+          "measured_worktree_sha256": "64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a",
+          "committed_git_blob_sha256": "64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/ignition/test_gate1_root_admission.py",
+          "measured_worktree_sha256": "ca80daa2e611d9bba4fb823a3823927f58826174ce36695630fd08784e671e1b",
+          "committed_git_blob_sha256": "ca80daa2e611d9bba4fb823a3823927f58826174ce36695630fd08784e671e1b",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/ignition/test_voltage_ignition_faults.py",
+          "measured_worktree_sha256": "66041fd26cb8045e7c1897df310f0f196905a53c57b3c5a9b7523bd1d5a6f96a",
+          "committed_git_blob_sha256": "66041fd26cb8045e7c1897df310f0f196905a53c57b3c5a9b7523bd1d5a6f96a",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/test_primary_tree_fence.py",
+          "measured_worktree_sha256": "e52fc209012568387f85cfb8fe6d7dfccb8db9ef854d76bbe43e9702988663df",
+          "committed_git_blob_sha256": "e52fc209012568387f85cfb8fe6d7dfccb8db9ef854d76bbe43e9702988663df",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/contracts/test_import_scc_hierarchy.py",
+          "measured_worktree_sha256": "e0a8278b1557a053509f87613bd071b74a15b1daa88cdcea4ee13726bacfa773",
+          "committed_git_blob_sha256": "b01762e4247d30fa9af599233583624b4ba836ab3fb77d676e5853e34954df91",
+          "byte_identical": false,
+          "difference": "only Git CRLF-to-LF normalization in metadata test; AST and all normalized bytes identical",
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/contracts/test_work_packet_index.py",
+          "measured_worktree_sha256": "6b4df98d5f9a7749212165bd478b2f1dafd575777b88b36e2e0bad07cccfc39b",
+          "committed_git_blob_sha256": "6b4df98d5f9a7749212165bd478b2f1dafd575777b88b36e2e0bad07cccfc39b",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "experiments/forest_v2/s02_types/test_external_corpora.py",
+          "measured_worktree_sha256": "5f064c7f401ccac68e8c2c2baa45da0e78e7ee6f16b31aa08136a5d95cb1e2de",
+          "committed_git_blob_sha256": "29c1ec46489de529532446773d2a560f922add47482d841be6f1ef82ef008877",
+          "byte_identical": false,
+          "difference": "only Git CRLF-to-LF normalization in metadata test; AST and all normalized bytes identical",
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        }
+      ],
+      "production_and_functional_test_paths": [
+        "daedalus/ignition/gate1.py",
+        "daedalus/primary_tree.py",
+        "tests/ignition/test_gate1_root_admission.py",
+        "tests/ignition/test_voltage_ignition_faults.py",
+        "tests/test_primary_tree_fence.py"
+      ],
+      "all_five_production_and_functional_test_raw_bytes_identical": true,
+      "other_byte_identical_metadata_test": "tests/contracts/test_work_packet_index.py",
+      "metadata_tests_with_crlf_to_lf_only": [
+        "tests/contracts/test_import_scc_hierarchy.py",
+        "experiments/forest_v2/s02_types/test_external_corpora.py"
+      ],
+      "all_eight_paths_normalized_bytes_and_ast_verified": true,
+      "raw_equality_claim": "No all-file raw-byte equality is claimed: exactly two measured local metadata tests differ from committed bytes by CRLF-to-LF normalization. Their full normalized bytes and AST were independently compared; the five production/functional paths and packet-index test are raw-byte identical.",
+      "proof_archive": "handoff--committed-source-normalization.json.gz"
+    },
+    "retention_verification": {
+      "existing_archives_verified": 154,
+      "new_archives": 36,
+      "total_archives": 190,
+      "original_and_archive_sha256_verified": true,
+      "new_gzip_mtime": 0,
+      "new_gzip_compresslevel": 9,
+      "new_gzip_repeat_bytes_identical": true,
+      "new_archive_files": [
+        "handoff--ci-2ed5-ignition-acceptance.json.gz",
+        "handoff--ci-2ed5-ignition-artifacts.json.gz",
+        "handoff--ci-2ed5-ignition-checkout-binding.json.gz",
+        "handoff--ci-2ed5-ignition-checkout-commit.json.gz",
+        "handoff--ci-2ed5-ignition-isolated-wheel-check.json.gz",
+        "handoff--ci-2ed5-ignition-isolated-wheel.log.gz",
+        "handoff--ci-2ed5-ignition-jobs.json.gz",
+        "handoff--ci-2ed5-ignition-polls.jsonl.gz",
+        "handoff--ci-2ed5-ignition-py310-seed0-check.json.gz",
+        "handoff--ci-2ed5-ignition-py310-seed0.log.gz",
+        "handoff--ci-2ed5-ignition-py310-seed123456-check.json.gz",
+        "handoff--ci-2ed5-ignition-py310-seed123456.log.gz",
+        "handoff--ci-2ed5-ignition-py312-seed0-check.json.gz",
+        "handoff--ci-2ed5-ignition-py312-seed0.log.gz",
+        "handoff--ci-2ed5-ignition-py312-seed123456-check.json.gz",
+        "handoff--ci-2ed5-ignition-py312-seed123456.log.gz",
+        "handoff--ci-2ed5-ignition-run.json.gz",
+        "handoff--ci-2ed5-ignition-source-commit.json.gz",
+        "handoff--ci-2ed5-other-checks-current.json.gz",
+        "handoff--ci-2ed5-other-checks-history.jsonl.gz",
+        "handoff--ci-2ed5-other-file-manifest.json.gz",
+        "handoff--ci-2ed5-other-initial.json.gz",
+        "handoff--ci-2ed5-other-run-34209242676-artifacts.json.gz",
+        "handoff--ci-2ed5-other-run-34209242676-jobs.json.gz",
+        "handoff--ci-2ed5-other-run-34209242676-run.json.gz",
+        "handoff--ci-2ed5-other-run-34209242711-artifacts.json.gz",
+        "handoff--ci-2ed5-other-run-34209242711-jobs.json.gz",
+        "handoff--ci-2ed5-other-run-34209242711-run.json.gz",
+        "handoff--ci-2ed5-other-runs-final.json.gz",
+        "handoff--ci-2ed5-other-summary.json.gz",
+        "handoff--ci-2ed5-other-tauri-job-102006027844.log.gz",
+        "handoff--ci-2ed5-other-tauri-job-current.json.gz",
+        "handoff--committed-source-normalization.json.gz",
+        "handoff--main-fast-forward-result.json.gz",
+        "handoff--main-merge-admission.json.gz",
+        "handoff--main-merge-result.json.gz"
+      ]
+    },
+    "gate_transition": false
+  }
 }

@@ -19,6 +19,10 @@ on:
       - "tests/fixtures/ignition/**"
       - "tests/ignition/**"
       - "tests/test_ignition_gate1.py"
+      - "tests/test_ignition_receipt_retention.py"
+      - "tests/kernel/test_fourfold_evidence*.py"
+      - "tests/test_fourfold_snapshot_locator.py"
+      - "tests/test_artifact_store.py"
       - "tests/test_ignition_bundle.py"
       - "tests/test_ignition_bundle_gitattributes.py"
       - "tests/test_gate_host_preflight_coverage.py"
@@ -67,6 +71,7 @@ jobs:
           python -m pytest -q
           tests/ignition/
           tests/test_ignition_gate1.py
+          tests/test_ignition_receipt_retention.py
           tests/test_ignition_bundle.py
           tests/test_ignition_bundle_gitattributes.py
           tests/test_gate_host_preflight_coverage.py
@@ -74,6 +79,12 @@ jobs:
           tests/test_mapping_switches_indirect.py
           tests/test_structcore_center_directive.py
           tests/kernel/test_fourfold_evidence.py
+          tests/kernel/test_fourfold_evidence_adversarial.py
+          tests/kernel/test_fourfold_evidence_source_review.py
+          tests/kernel/test_fourfold_evidence_owner_binding.py
+          tests/kernel/test_fourfold_evidence_outer_ports.py
+          tests/test_fourfold_snapshot_locator.py
+          tests/test_artifact_store.py
           tests/kernel/test_fourfold_approval_integration.py
           tests/kernel/test_owner_approval.py
           tests/twin/test_wiki_reference.py

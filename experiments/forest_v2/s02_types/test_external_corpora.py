@@ -62,23 +62,23 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured on frozen G1-IGNITION-03 source with CPython 3.12.13; both
+    # Re-measured on frozen G1-IGNITION-04 source with CPython 3.12.13; both
     # complete raw runs and source hashes are retained under
-    # runs/g1-ignition-03-20260908. Prior integration rows remain in the README;
+    # runs/g1-ignition-04-20260908. Prior measured rows remain in the README;
     # this moving corpus census is not a resolver superiority claim.
     assert entry["corpus_pin"] == {
         "files": 485,
-        "sha256": "af8997cf93e2ff07e6440498667bbed657f72f40b34d5fdf9e6859f4b77ab41e",
+        "sha256": "d6b652d970c1a5a63a3b8d3960da54befd6eaa440b2ee3122e466a1ee6a8358e",
     }
-    assert entry["functions"] == 6772
-    assert entry["annotation_only_pct"] == 94.34  # the control
+    assert entry["functions"] == 6778
+    assert entry["annotation_only_pct"] == 94.35  # the control
     assert entry["full_resolver_pct"] == 94.23
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1181
+    assert entry["marginal_pp"] == 0.1180
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["type_name_sites"] == 45119
-    assert entry["internal_named_only"] == 419
-    assert entry["verified_share_of_internal_pct"] == 90.62
+    assert entry["type_name_sites"] == 45190
+    assert entry["internal_named_only"] == 425
+    assert entry["verified_share_of_internal_pct"] == 90.51
 
 
 
@@ -88,7 +88,7 @@ def test_fixture_row_shows_what_the_kernel_row_cannot() -> None:
     assert entry["marginal_pp"] == 15.7895
     assert entry["internal_named_only"] == 5
     assert entry["verified_share_of_internal_pct"] == 76.19
-    # two orders of magnitude apart from the current kernel's 0.1181 pp
+    # two orders of magnitude apart from the current kernel's 0.1180 pp
     assert entry["marginal_pp"] > row("kernel")["marginal_pp"] * 100
 
 

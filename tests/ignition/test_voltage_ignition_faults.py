@@ -14,9 +14,14 @@ differently the difference is asserted as measured rather than assumed. One
 difference was the late, dirty F5 refusal, retained as the negative baseline
 in G1-IGNITION-03. The shipped door now admits its layout before writing;
 these rows assert early source and prior-evidence preservation.
+
+G1-IGNITION-04 adds unknown compiler diagnostics after real source capture,
+including refusal to invent evidence when an actual attempt binding is absent.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 from pathlib import Path
 
@@ -308,3 +313,208 @@ def test_crash_between_rename_writes_leaves_no_evaluable_candidate(
     )
     assert first.result.candidate_snapshot.digest == second.result.candidate_snapshot.digest
     assert second.result.receipt["replay"]["replay_demonstrated"] is True
+
+
+_UNKNOWN_COMPILE_MESSAGE = "G1-IGNITION-04 unknown compiler infrastructure fault"
+
+
+@pytest.fixture(scope="module", params=(False, True), ids=("bound", "missing-binding"))
+def unknown_candidate_compile(request, tmp_path_factory, door):
+    """Two real door runs total, shared by the diagnostic/retention assertions.
+
+    Base compilation, both attempts and source capture run normally. Only the
+    candidate compiler raises an unknown infrastructure error. The second case
+    additionally withholds one actual contract-set read to prove that absent
+    binding data cannot be replaced with invented evidence authority.
+    """
+    from daedalus.kernel.attempt_execution import AttemptResult
+    from daedalus.kernel.source_trees import SourceTreeStore
+    from daedalus.storage import ArtifactStore
+
+    case_root = tmp_path_factory.mktemp("unknown-candidate-compile")
+    source = _fixture_copy(case_root)
+    source_before = _file_map(source)
+    fixture_before = tree_digest(FIXTURE)
+    receipts = case_root / "receipts"
+    workspace = case_root / "workspace"
+    store_root = receipts / gate1.SESSION_MISSION_ID / "store"
+    store = ArtifactStore(store_root)
+    prior_bytes = b"an earlier evidence observation must survive compiler refusal\n"
+    prior = store.put_bytes(
+        prior_bytes,
+        metadata={"kind": "prior-compiler-fault-control"},
+        provenance={
+            "origin": "tests.ignition.compiler-fault-retention",
+            "source_revision": fixture_before,
+            "created_at": "2026-09-06T00:00:00Z",
+            "input_digests": [hashlib.sha256(prior_bytes).hexdigest()],
+            "trace_id": None,
+        },
+    )
+    prior_files = _file_map(store_root)
+    captures, base_compiles, failed_inputs = [], [], []
+    contract_reads, output_writes = [], {}
+    real_compile = gate1.compile_reference_project
+    real_capture = SourceTreeStore.capture_tree
+    real_contract_set = AttemptResult.contract_set
+    real_put = ArtifactStore.put_bytes
+
+    def observe_capture(self, candidate, **kwargs):
+        captured = real_capture(self, candidate, **kwargs)
+        captures.append((Path(candidate), kwargs, captured))
+        return captured
+
+    def failing_candidate_compile(candidate, **kwargs):
+        if kwargs.get("trace_id") == "gate1-bias-voltage-candidate":
+            failed_inputs.append((Path(candidate), dict(kwargs)))
+            raise RuntimeError(_UNKNOWN_COMPILE_MESSAGE)
+        compiled = real_compile(candidate, **kwargs)
+        base_compiles.append(compiled)
+        return compiled
+
+    def observed_contract_set(self):
+        actual = real_contract_set(self)
+        contract_reads.append(actual)
+        if request.param and len(contract_reads) == 1:
+            return None
+        return actual
+
+    def observe_put(self, data, **kwargs):
+        locator = real_put(self, data, **kwargs)
+        if self.root == store.root:
+            output_writes[locator.locator_uri] = bytes(data)
+        return locator
+
+    with pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(SourceTreeStore, "capture_tree", observe_capture)
+        patcher.setattr(gate1, "compile_reference_project", failing_candidate_compile)
+        patcher.setattr(AttemptResult, "contract_set", observed_contract_set)
+        patcher.setattr(ArtifactStore, "put_bytes", observe_put)
+        result = door(
+            fixture_root=source, receipt_root=receipts, workspace=workspace,
+        )
+    return {
+        "result": result, "source": source, "source_before": source_before,
+        "fixture_before": fixture_before, "workspace": workspace,
+        "store": store, "prior": prior, "prior_bytes": prior_bytes,
+        "prior_files": prior_files, "captures": captures,
+        "base_compiles": base_compiles, "failed_inputs": failed_inputs,
+        "contract_reads": contract_reads, "output_writes": output_writes,
+        "missing_binding": request.param,
+    }
+
+
+def test_unknown_compile_refusal_keeps_actual_attempt_and_source_identities(
+    unknown_candidate_compile, door_exit_code,
+):
+    from daedalus.kernel.source_trees import SourceTreeStore
+
+    case = unknown_candidate_compile
+    result = case["result"]
+    assert len(case["base_compiles"]) == 1
+    assert all(plane.status == "complete" for plane in case["base_compiles"][0].snapshot.planes)
+    assert len(case["failed_inputs"]) == 1
+    candidate_path, compile_arguments = case["failed_inputs"][0]
+    captured = next(
+        tree for path, kwargs, tree in case["captures"]
+        if kwargs.get("origin") == "daedalus.ignition.gate1-candidate"
+    )
+    assert candidate_path == case["workspace"] / "candidate"
+    assert result.candidate_source_tree.ref == captured.ref
+    assert compile_arguments["source_tree_sha256"] == captured.ref.sha256
+    assert compile_arguments["source_revision"] == tree_digest(candidate_path)
+    assert result.receipt["source_trees"]["candidate_sha256"] == captured.ref.sha256
+    tree_store = SourceTreeStore.open_existing(result.receipt["source_trees"]["store_root"])
+    assert tree_store.load_tree(captured.ref).to_dict() == captured.manifest.to_dict()
+    assert result.receipt["replay"]["candidate_revision"] == compile_arguments["source_revision"]
+    assert len(case["contract_reads"]) == 2
+    assert all(contracts is not None and contracts.complete for contracts in case["contract_reads"])
+    assert tuple(c.attempt.attempt_id for c in case["contract_reads"]) == result.attempt_ids
+    assert all(row["gate_passed"] is True for row in result.receipt["attempts"])
+    assert sum(c is None for c in result.attempt_contract_sets) == int(case["missing_binding"])
+    assert result.candidate_snapshot is None
+    assert result.receipt["fourfold"]["base_snapshot_sha256"] == case["base_compiles"][0].snapshot.digest
+    for field in ("candidate_source_bundle_sha256", "candidate_snapshot_sha256",
+                  "graph_delta", "graph_delta_sha256"):
+        assert result.receipt["fourfold"][field] is None
+    assert all(not nodes for nodes in result.graph_delta.to_dict().values())
+    assert any(_UNKNOWN_COMPILE_MESSAGE in blocker for blocker in result.blockers)
+    assert result.receipt["replay"]["replay_demonstrated"] is False
+    assert door_exit_code(result) == 1
+    assert _file_map(case["source"]) == case["source_before"]
+    assert tree_digest(FIXTURE) == case["fixture_before"]
+
+
+def test_unknown_compile_refusal_persists_only_a_truthfully_bound_diagnostic(
+    unknown_candidate_compile,
+):
+    from daedalus.kernel.fourfold_evidence import FOURFOLD_EVALUATOR
+    from daedalus.schemas import EvidencePacket
+    from daedalus.spine.envelope import canonical_sha
+
+    case = unknown_candidate_compile
+    result, store = case["result"], case["store"]
+    projection = result.receipt["evidence_packet"]
+    if case["missing_binding"]:
+        assert result.packet is None
+        assert projection["packet_sha256"] is None
+        assert projection.get("packet_locator") is None
+        assert projection.get("evaluation_status") is None
+        assert any("contract" in blocker.lower() for blocker in result.blockers)
+        assert projection["error"], "packet absence must carry a named refusal"
+        return
+
+    packet = result.packet
+    assert isinstance(packet, EvidencePacket)
+    assert packet.evaluation_status == "inconclusive"
+    assert EvidencePacket.from_dict(packet.to_dict()).digest == packet.digest
+    assert packet.source_revision == case["failed_inputs"][0][1]["source_revision"]
+    assert packet.subject_sha256 == result.candidate_source_tree.ref.sha256
+    assert packet.candidate_artifact_sha256 == result.candidate_source_tree.ref.sha256
+    assert packet.candidate_artifact_locator == result.candidate_source_tree.ref.locator
+    for field, member in [("attempt_contract_sha256", "attempt"),
+                          ("policy_decision_sha256", "policy")]:
+        expected = canonical_sha({
+            "schema": f"daedalus-ignition-{member}-chain/1",
+            "digests": [getattr(c, member).digest for c in case["contract_reads"]],
+        })
+        assert getattr(packet, field) == expected
+    assert all(item.evaluator != FOURFOLD_EVALUATOR for item in packet.items)
+    diagnostics = []
+    for item in packet.items:
+        locator = store.load_locator(item.evidence_locator.rsplit(":", 1)[-1])
+        store.verify(locator)
+        payload = store.get_bytes(locator.artifact_sha256)
+        assert payload == case["output_writes"][item.evidence_locator]
+        assert hashlib.sha256(payload).hexdigest() == item.output_sha256
+        if _UNKNOWN_COMPILE_MESSAGE.encode() in payload:
+            diagnostics.append(item)
+            assert b"RuntimeError" in payload
+            assert item.verdict == "error"
+            assert item.assurance == "unverified"
+            assert item.provenance.source_revision == packet.source_revision
+    assert diagnostics, "the actual compiler exception bytes must remain retrievable"
+    portable = projection["packet_locator"]
+    packet_locator = store.load_locator(portable["locator_uri"].rsplit(":", 1)[-1])
+    store.verify(packet_locator)
+    assert portable == packet_locator.portable_summary()
+    assert packet_locator.artifact_sha256 == packet.digest
+    assert store.get_bytes(packet_locator.artifact_sha256) == packet.to_json().encode("utf-8")
+    assert projection["packet_sha256"] == packet.digest
+    assert projection["evaluation_status"] == "inconclusive"
+
+
+def test_unknown_compile_refusal_retains_prior_evidence_without_nomination(
+    unknown_candidate_compile,
+):
+    case = unknown_candidate_compile
+    result, store = case["result"], case["store"]
+    for relative, old_bytes in case["prior_files"].items():
+        assert (store.root / relative).read_bytes() == old_bytes
+    retained = store.load_locator(case["prior"].locator_sha256)
+    store.verify(retained)
+    assert retained.manifest_bytes == case["prior"].manifest_bytes
+    assert store.get_bytes(retained.artifact_sha256) == case["prior_bytes"]
+    assert result.receipt["promotion"]["status"] == "refused, not promoted"
+    assert result.receipt["promotion"]["auto_merge"] is False
+    assert json.loads(result.receipt_path.read_bytes()) == result.receipt
