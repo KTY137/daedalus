@@ -243,6 +243,43 @@ def _base_tree_binding(
     }
 
 
+#: Master plan section 8.1, the self-Renovation leakage boundary, as code.
+#: A candidate produced from ``daedalus/`` sources may not touch the trust
+#: kernel (spine, kernel policy enforcement, promotion, approvals, contracts),
+#: the plan, its amendment chain, the agent constitution, the mechanical veto
+#: policy, its own evaluator (this module) or the tests of that evaluator.
+#: Compared case-insensitively against the admitted repository-relative path
+#: BEFORE the repository is observed. A prefix ending in "/" names a directory;
+#: any other prefix matches the path itself and every path that continues it
+#: (``daedalus/kernel/promotion`` covers ``promotion.py``, ``promotion_*.py``).
+#: The tuple is unconditional: a foreign repository that happens to carry an
+#: ``AGENTS.md`` is refused the same way, which is the safe direction.
+SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
+    "daedalus/spine/",
+    "daedalus/kernel/policy/",
+    "daedalus/kernel/promotion",
+    "daedalus/kernel/approvals.py",
+    "daedalus/kernel/contracts/",
+    "daedalus/ariadne/campaign.py",
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".agentenv/",
+    "tests/test_ariadne",
+)
+
+
+def protected_prefix_for(relative: str) -> str | None:
+    """The boundary entry an admitted relative path falls under, or None."""
+    folded = relative.casefold()
+    for prefix in SELF_RENOVATION_PROTECTED_PREFIXES:
+        needle = prefix.casefold()
+        if folded == needle or folded.startswith(needle):
+            return prefix
+    return None
+
+
 def _admit_target_path(value: str) -> str:
     """Pure path admission: no filesystem, no repository, no HEAD.
 
@@ -265,6 +302,12 @@ def _admit_target_path(value: str) -> str:
     if relative.split("/", 1)[0].casefold() in ignored:
         raise AriadneRequestError(
             "target_path must not enter a mandatory ignored root"
+        )
+    protected = protected_prefix_for(relative)
+    if protected is not None:
+        raise AriadneRequestError(
+            "target_path is inside the self-Renovation leakage boundary "
+            f"(master plan section 8.1): {protected}"
         )
     return relative
 
