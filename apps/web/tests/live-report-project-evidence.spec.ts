@@ -152,16 +152,51 @@ test('terminal reports require exact project evidence before entering Work Pulse
   await expect(pulse).not.toContainText('padded-event.report.json');
   await expect(pulse).not.toContainText('padded-event-agent');
 
+  // A correctly scoped report may still contain malformed optional execution
+  // identity. Keep the report, but do not normalize those identity fields into
+  // facts the producer did not canonically emit.
+  await page.evaluate((selectedProject) => {
+    (window as any).__projectEventSource.emit('report', {
+      name: 'malformed-execution.report.json',
+      project: selectedProject,
+      status: 'done',
+      agent: 'qa-critic',
+      runtime_id: ' claude_code_cli ',
+      work_item_id: ' work-item-padded ',
+      attempt_id: ' attempt-padded ',
+      phase: ' completed ',
+      terminal_receipt_sha256: 'not-a-sha256',
+      summary: 'report is valid but optional execution identity is not canonical'
+    });
+  }, project);
+  await expect(pulse).toContainText('malformed-execution.report.json');
+  await expect(pulse).not.toContainText('Runtime claude_code_cli');
+  await expect(pulse).not.toContainText('work-item-padded');
+  await expect(pulse).not.toContainText('attempt-padded');
+  await expect(pulse).not.toContainText('Phase completed');
+  await expect(pulse).not.toContainText('Receipt not-a-sha256');
+
   await page.evaluate((selectedProject) => {
     (window as any).__projectEventSource.emit('report', {
       name: 'bound.report.json',
       project: selectedProject,
       status: 'done',
       agent: 'qa-critic',
+      runtime_id: 'claude_code_cli',
+      work_item_id: 'work-item-0123456789abcdef',
+      attempt_id: 'attempt-0123456789abcdef',
+      phase: 'completed',
+      terminal_receipt_sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       summary: 'verified terminal evidence'
     });
   }, project);
   await expect(pulse).toContainText('bound.report.json');
   await expect(pulse).toContainText('Agent qa-critic');
   await expect(pulse).toContainText('verified terminal evidence');
+  const observed = pulse.getByLabel('Beobachtete Ausführungsevidenz').first();
+  await expect(observed).toContainText('Runtime claude_code_cli');
+  await expect(observed).toContainText('Phase completed');
+  await expect(observed).toContainText('WorkItem work-item-0123456789abcdef');
+  await expect(observed).toContainText('Attempt attempt-0123456789abcdef');
+  await expect(observed).toContainText('Receipt aaaaaaaaaaaaaa…aaaaaaaaa');
 });
