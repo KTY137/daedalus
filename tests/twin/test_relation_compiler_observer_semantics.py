@@ -172,6 +172,94 @@ def test_evidence_observer_retains_alternative_witness_bundles() -> None:
     assert compiled.forest_edge_count == 2
 
 
+@pytest.mark.parametrize(
+    ("semiring", "expected_value"),
+    ((BooleanSemiring(), True), (NaturalSemiring(), 1)),
+)
+def test_scalar_observer_reuses_final_fact_bucket_for_indexed_block(
+    monkeypatch: pytest.MonkeyPatch,
+    semiring: object,
+    expected_value: object,
+) -> None:
+    forest, snapshot = _fixture()
+    recorded_buckets: list[dict[tuple[int, int], object]] = []
+    indexed_entries: list[dict[tuple[int, int], object]] = []
+    original_record_fact = relation_compiler._record_fact
+    original_from_indexed = relation_compiler.TypedRelationBlock._from_indexed
+
+    def recording_fact(facts: dict[object, dict[tuple[int, int], object]], **kwargs: object) -> None:
+        original_record_fact(facts, **kwargs)  # type: ignore[arg-type]
+        recorded_buckets.append(facts[kwargs["signature"]])
+
+    def recording_from_indexed(
+        cls: type[object],
+        subject: object,
+        signature: object,
+        row_axis: object,
+        column_axis: object,
+        entries: dict[tuple[int, int], object],
+        backend: object,
+    ) -> object:
+        indexed_entries.append(entries)
+        return original_from_indexed(
+            subject,
+            signature,
+            row_axis,
+            column_axis,
+            entries,
+            backend,
+        )
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", recording_fact)
+    monkeypatch.setattr(
+        relation_compiler.TypedRelationBlock,
+        "_from_indexed",
+        classmethod(recording_from_indexed),
+    )
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        semiring,  # type: ignore[arg-type]
+        signatures=(SIGNATURE,),
+    )
+
+    assert recorded_buckets
+    bucket = recorded_buckets[0]
+    assert all(recorded is bucket for recorded in recorded_buckets)
+    assert indexed_entries == [bucket]
+    assert indexed_entries[0] is bucket
+    assert tuple(bucket.values()) == (expected_value,)
+    assert _single_value(compiled) == expected_value
+
+
+def test_fact_recording_refuses_before_per_relation_bucket_overflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(relation_compiler, "MAX_BLOCK_ENTRIES", 1)
+    facts: dict[RelationSignature, dict[tuple[int, int], object]] = {}
+
+    relation_compiler._record_fact(
+        facts,
+        signature=SIGNATURE,
+        source_index=0,
+        target_index=0,
+        scalar_value=True,
+        evidence_atoms=None,
+    )
+    with pytest.raises(ValueError, match="exceeds bounded entry limit 1"):
+        relation_compiler._record_fact(
+            facts,
+            signature=SIGNATURE,
+            source_index=0,
+            target_index=1,
+            scalar_value=True,
+            evidence_atoms=None,
+        )
+
+    assert facts[SIGNATURE] == {(0, 0): True}
+
+
 class AlternateNaturalBackend:
     name = "natural"
     zero = 0
