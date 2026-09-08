@@ -8,14 +8,21 @@ _PROBE = importlib.import_module("experiments.tensor_gpu.relation_delta_rebuild_
 
 
 def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None:
-    report = _PROBE.run_probe(nodes=12, row_width=2, repeats=2, warmup=0)
+    report = _PROBE.run_probe(
+        nodes=12,
+        row_width=2,
+        repeats=2,
+        warmup=0,
+        profile_repeats=2,
+    )
 
-    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/1"
+    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/2"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert "compile_relation_blocks" in report["measurement_contract"]
     assert "No production delta path" in report["measurement_contract"]
+    assert "non-block residual" in report["measurement_contract"]
 
     case = report["case"]
     assert case["base_forest_edges"] == 24
@@ -35,6 +42,19 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
     assert rebuild["delta_compile_ms"]["samples"] == 2
     assert rebuild["base_compile_ms"]["median_ms"] >= 0.0
     assert rebuild["delta_compile_ms"]["median_ms"] >= 0.0
+
+    attribution = report["full_rebuild_attribution"]
+    assert attribution["profile_repeats"] == 2
+    assert attribution["profiled_compile_wall_ms"]["samples"] == 2
+    assert attribution["compiler_cumulative_ms_median"] >= 0.0
+    assert attribution["selected_block_reconstruction_cumulative_ms_median"] >= 0.0
+    assert attribution["non_block_compiler_residual_cumulative_ms_median"] >= 0.0
+    assert attribution["profile_metrics"]["compiler_total"]["calls"] == 1
+    assert attribution["profile_metrics"]["selected_block_reconstruction"]["calls"] == 1
+    assert attribution["profile_metrics"]["typed_block_post_init"]["calls"] == 1
+    assert attribution["profile_metrics"]["fact_aggregation"]["calls"] == 25
+    assert attribution["profile_metrics"]["forest_partition_validation"]["calls"] == 1
+    assert "not labeled as a pure edge-scan wall time" in attribution["interpretation"]
 
     assert report["fail_closed"]["partial_endpoint_plane"] == "refused"
     assert "code=partial" in report["fail_closed"]["message"]
@@ -87,11 +107,20 @@ def test_partial_endpoint_contract_fails_closed_before_sparse_zero_interpretatio
 
 def test_probe_bounds_are_strict_and_reject_bool_aliases() -> None:
     invalid = (
-        {"nodes": True, "row_width": 1, "repeats": 1, "warmup": 0},
-        {"nodes": 4, "row_width": 3, "repeats": 1, "warmup": 0},
-        {"nodes": 8, "row_width": True, "repeats": 1, "warmup": 0},
-        {"nodes": 8, "row_width": 2, "repeats": 0, "warmup": 0},
-        {"nodes": 8, "row_width": 2, "repeats": 1, "warmup": -1},
+        {"nodes": True, "row_width": 1, "repeats": 1, "warmup": 0, "profile_repeats": 1},
+        {"nodes": 4, "row_width": 3, "repeats": 1, "warmup": 0, "profile_repeats": 1},
+        {"nodes": 8, "row_width": True, "repeats": 1, "warmup": 0, "profile_repeats": 1},
+        {"nodes": 8, "row_width": 2, "repeats": 0, "warmup": 0, "profile_repeats": 1},
+        {"nodes": 8, "row_width": 2, "repeats": 1, "warmup": -1, "profile_repeats": 1},
+        {"nodes": 8, "row_width": 2, "repeats": 1, "warmup": 0, "profile_repeats": True},
+        {"nodes": 8, "row_width": 2, "repeats": 1, "warmup": 0, "profile_repeats": 0},
+        {
+            "nodes": 8,
+            "row_width": 2,
+            "repeats": 1,
+            "warmup": 0,
+            "profile_repeats": _PROBE.MAX_PROFILE_REPEATS + 1,
+        },
     )
     for case in invalid:
         with pytest.raises(ValueError):
