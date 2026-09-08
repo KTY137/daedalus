@@ -120,6 +120,7 @@ def _claude_runtime_subjects(tmp_path: Path):
             timeout=True,
             cost_reporting=True,
             workspace_write=True,
+            workspace_isolation=True,
         ),
         declared_tools=("claude",),
         egress_transports=("provider-api",),
