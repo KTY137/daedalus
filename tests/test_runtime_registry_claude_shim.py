@@ -132,6 +132,7 @@ def test_codex_batch_probe_policy_is_not_changed_by_claude_guard(monkeypatch) ->
     assert row["command_path"] == resolved
     run.assert_called_once()
 
+
 def test_core_provider_health_surfaces_canonical_claude_dispatch_refusal(monkeypatch) -> None:
     refusal = (
         "Claude CLI is installed, but canonical dispatch is not activated "
@@ -148,4 +149,3 @@ def test_core_provider_health_surfaces_canonical_claude_dispatch_refusal(monkeyp
     assert payload["providers"] == rows
     assert payload["warnings"] == [f"Claude lane unavailable: {refusal}"]
     assert all("not on PATH" not in warning for warning in payload["warnings"])
-
