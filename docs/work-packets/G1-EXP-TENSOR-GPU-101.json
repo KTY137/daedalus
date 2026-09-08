@@ -1,0 +1,154 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-101",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "45dd5003204e14dca208e5c1b0f9c46ff56363e7",
+    "dependencies": "G1-EXP-TENSOR-GPU-100 and the canonical compile_relation_blocks/TypedRelationBlock owners",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "attribution_contract"]},
+      "contracts_and_behavior": {"source_fields": ["attribution_contract", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only the added cProfile attribution from the existing GPU-100 diagnostic plus its focused assertions and this research record. No production authority, compiler API, backend, cache, delta contract or persisted runtime state is added."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-101",
+  "work_packet": "G1-EXP-TENSOR-GPU-101",
+  "title": "Attribute the full-rebuild compiler envelope without a second projection path",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "45dd5003204e14dca208e5c1b0f9c46ff56363e7",
+  "probe_head": "69feac15a7c1373bfac99900ed97aea750ad604f",
+  "contract_head": "d3e28e13e1e808a21e3d3f0eaa8e3ef92f037d5b",
+  "scope": "Extend the existing GPU-100 relation-delta diagnostic, not production, so the unchanged compile_relation_blocks call is profiled directly. Attribute its real selected TypedRelationBlock._from_indexed reconstruction call and report the remaining compiler cumulative envelope as a bounded non-block residual. Keep the residual explicitly broader than pure edge discovery because it also contains Forest/Fourfold partition checks, edge admission, fact aggregation, signature/axis setup and receipt construction. Do not build or simulate an incremental backend.",
+  "attribution_contract": {
+    "probe": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "schema": "daedalus-tensor-relation-delta-rebuild/2",
+    "ordinary_timing": "GPU-100 base/delta compile medians remain ordinary unprofiled compile_relation_blocks wall timings.",
+    "profiled_subject": "Only the delta full rebuild is profiled after ordinary timing. Every profiled result must retain the exact delta CompiledRelationBlocks digest.",
+    "compiler_total": "cProfile cumulative/self attribution for the existing compile_relation_blocks code object.",
+    "selected_block_reconstruction": "cProfile cumulative/self attribution for the real TypedRelationBlock._from_indexed call made by the compiler; no replacement constructor is invoked.",
+    "additional_observers": [
+      "TypedRelationBlock.__post_init__",
+      "relation_compiler._record_fact",
+      "relation_compiler._forest_node_partition"
+    ],
+    "non_block_residual": "max(0, compile_relation_blocks cumulative - TypedRelationBlock._from_indexed cumulative). This is a bounded compiler-envelope residual, not a pure edge-scan wall-time measurement.",
+    "profile_repeats": "bounded exact-int range 1..5 with default 3; bool aliases are refused.",
+    "claim_boundary": "Profiled timings are diagnostic and distorted by profiling. They are not additive to ordinary wall medians and do not establish an incremental, memory, Tensor-vs-Forest or GPU win."
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; the diagnostic never becomes a graph or fact owner.",
+    "projection_owner": "compile_relation_blocks remains unchanged and is the only projection owner used for base, delta, profiled delta and partial-plane refusal cases.",
+    "closed_world": "Selected relation endpoint planes remain complete; partial code remains refused before sparse zero interpretation.",
+    "fixed_axes": "The GPU-100 fixed-axis one-coordinate delta fixture is retained unchanged.",
+    "canonical_output": "Each profiled compile must have the exact digest of the ordinary delta compile.",
+    "bounded_memory": "The profiler is bounded to at most five sequential samples and retains only compact aggregate metrics in the report.",
+    "public_api": "No public API, wire schema outside the diagnostic report, production authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": true,
+    "workflow_change": false,
+    "work_packet_record_added": true,
+    "incremental_backend_implemented": false,
+    "parallel_projection_implemented": false,
+    "trusted_constructor_added": false,
+    "cache_or_registry_added": false,
+    "summary": "GPU-101 closes the bounded instrumentation step: the existing GPU-100 diagnostic now profiles the unchanged compiler and separates the real selected-block reconstruction call from a conservatively named non-block compiler residual while preserving digest equality and fail-closed semantics. No production code is changed and no performance result is claimed until hosted evidence exists."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "45dd5003204e14dca208e5c1b0f9c46ff56363e7",
+    "probe_commit": "69feac15a7c1373bfac99900ed97aea750ad604f",
+    "probe_path": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "probe_blob": "f46f492f0fb4acad1284c86582cea0fc86f2d57c",
+    "test_commit": "d3e28e13e1e808a21e3d3f0eaa8e3ef92f037d5b",
+    "test_path": "tests/twin/test_tensor_relation_delta_rebuild_probe.py",
+    "test_blob": "0dc930903c1e5cdcf5a2cfa9cf3b533fd238d8a5",
+    "production_relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "production_relation_block_blob_unchanged": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "focused_contract_added": true,
+    "digest_equivalence_asserted_in_probe": true,
+    "profile_metric_call_counts_contract_pinned": true,
+    "partial_endpoint_fail_closed_contract_retained": true,
+    "ordinary_gpu100_amplification_contract_retained": true,
+    "hosted_ci_on_contract_head": "No workflow run was visible for d3e28e13e1e808a21e3d3f0eaa8e3ef92f037d5b at packet closure time; therefore no green claim is made.",
+    "hosted_measurement_artifact": false,
+    "exact_closure_head_green": false,
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 1,
+    "workflow_files_changed": 0,
+    "documentation_files_changed": 1,
+    "new_production_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false,
+    "reuse": "The existing GPU-100 probe and existing compiler/TypedRelationBlock owners are extended/observed rather than adding another profiler workflow or projection implementation."
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 28,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-102: consume the first exact hosted schema-v2 artifact from this canonical branch and decide, from the retained profile, whether the dominant removable work is inside selected-block reconstruction or the broader non-block compiler envelope. If no hosted run is available, do not invent numbers. If the non-block residual dominates, inspect a single existing compiler owner for a revision-bound delta seam; if reconstruction dominates, stop and audit only the measured sub-owner. No delta API or backend until the measurement justifies one."
+}
