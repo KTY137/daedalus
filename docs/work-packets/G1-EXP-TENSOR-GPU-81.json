@@ -1,0 +1,200 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-81",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "f007f0eaa8d1ad0581ee59ab910ebd37c695f320",
+    "dependencies": "G1-EXP-TENSOR-GPU-80 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["implementation", "branch_hygiene"],
+        "projection_note": "Rollback restores eager list(entries.items()) materialization before indexed-key validation and sorting. It does not alter public APIs, Fourfold authority, semiring semantics, persisted schemas or promotion state."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-81",
+  "work_packet": "G1-EXP-TENSOR-GPU-81",
+  "title": "Sort indexed relation keys without eager item-pair materialization",
+  "classification": "closed-gardening",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "f007f0eaa8d1ad0581ee59ab910ebd37c695f320",
+  "implementation_head": "11b891636b7fbdb1ab8e087a61bcbc00c056faf3",
+  "scope": "Implement only the GPU-80 frozen TypedRelationBlock._from_indexed gardening step. Remove the eager full list(entries.items()) transient while preserving one canonical CSR materialization owner, deterministic row-major canonicalization, exact indexed-key validation precedence, semiring behavior and the existing public API. Do not add a backend, cache, graph abstraction, registry or helper subsystem.",
+  "implementation": {
+    "production_path": "daedalus/twin/relation_blocks.py",
+    "production_commit": "164e763906a3e043a161d15a6a5e06926bf2f189",
+    "production_blob": "98cd0ebd8517496c0938666360c3d8e5e85378be",
+    "test_path": "tests/twin/test_relation_block_validation_fusion.py",
+    "test_commit": "11b891636b7fbdb1ab8e087a61bcbc00c056faf3",
+    "test_blob": "53f055d52c1422bde828814cc8d199390bafa2ba",
+    "before": {
+      "ordering_transient": "_from_indexed eagerly materialized list(entries.items()), producing a full list of key/value item pairs before any row/column key validation, then sorted that item-pair list",
+      "invalid_key_path": "invalid indexed keys still paid the eager full item-pair materialization before fail-closed type/range refusal",
+      "value_flow": "values travelled inside the duplicated item-pair ordering container before final CSR value-list materialization"
+    },
+    "after": {
+      "validation": "_from_indexed iterates the existing mapping keys first and preserves row-type, row-range, column-type, column-range refusal order",
+      "ordering_transient": "only validated coordinate keys are copied into sorted(entries), so deterministic row-major ordering no longer materializes a second per-entry key/value pair tuple",
+      "invalid_key_path": "invalid keys fail before the sorted-key transient is created",
+      "value_flow": "the original bounded mapping remains the value owner during ordering; values are looked up by each validated sorted key only when the canonical CSR values list is filled"
+    },
+    "public_api_changed": false,
+    "wire_schema_changed": false,
+    "benchmark_schema_changed": false,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_projector_added": false
+  },
+  "semantic_invariants": {
+    "canonical_order": "validated coordinate keys are still sorted lexicographically as (row, column), yielding the same deterministic row-major CSR order",
+    "error_precedence": "row type precedes row range, which precedes column type and column range; all four indexed-key checks still precede sorting",
+    "semiring_values": "_from_indexed does not reinterpret values or semiring names; final TypedRelationBlock constructor remains the persisted scalar admission owner",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authority and TypedRelationBlock remains a regenerable computational projection",
+    "indexed_block_owner": "TypedRelationBlock._from_indexed remains the single indexed CSR materialization owner",
+    "bound_behavior": "MAX_BLOCK_ENTRIES remains checked before indexed ordering"
+  },
+  "result": {
+    "closed": true,
+    "eager_item_pair_list_removed": true,
+    "invalid_key_full_ordering_transient_removed": true,
+    "deterministic_key_order_preserved": true,
+    "error_precedence_preserved": true,
+    "public_api_unchanged": true,
+    "performance_claim": false,
+    "memory_superiority_claim": false,
+    "summary": "The canonical indexed CSR owner now validates the existing mapping keys, sorts only those validated keys, and reads values from the original bounded mapping during CSR fill. This deletes the eager list(entries.items()) item-pair transient without adding another abstraction or changing Fourfold/Tensor semantics."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "f007f0eaa8d1ad0581ee59ab910ebd37c695f320",
+    "production_commit": "164e763906a3e043a161d15a6a5e06926bf2f189",
+    "production_blob": "daedalus/twin/relation_blocks.py@98cd0ebd8517496c0938666360c3d8e5e85378be",
+    "test_commit": "11b891636b7fbdb1ab8e087a61bcbc00c056faf3",
+    "test_blob": "tests/twin/test_relation_block_validation_fusion.py@53f055d52c1422bde828814cc8d199390bafa2ba",
+    "implementation_compare": {
+      "base": "f007f0eaa8d1ad0581ee59ab910ebd37c695f320",
+      "head": "11b891636b7fbdb1ab8e087a61bcbc00c056faf3",
+      "commits": 2,
+      "files": 2,
+      "production_additions": 6,
+      "production_deletions": 7,
+      "test_additions": 8,
+      "test_deletions": 0
+    },
+    "implementation_fourfold_tensor_run": {
+      "run_id": 34175360067,
+      "head_sha": "11b891636b7fbdb1ab8e087a61bcbc00c056faf3",
+      "status": "completed",
+      "conclusion": "success",
+      "python_3_12_hash_0_contract_surface": "416 passed, 2 skipped in 7.02s",
+      "successful_jobs": [
+        "Contracts (Python 3.12, hash 0)",
+        "Contracts (Python 3.12, hash 123456)",
+        "Contracts (Python 3.10, hash 0)",
+        "Contracts (Python 3.10, hash 123456)",
+        "Isolated wheel imports",
+        "Complete repository collection"
+      ],
+      "complete_suite_manual_only": "skipped",
+      "diagnostics": "CPU bitset and TypedRelationBlock profile remained authority=diagnostic-only and claim=none"
+    },
+    "implementation_tauri_run": {
+      "run_id": 34175360072,
+      "head_sha": "11b891636b7fbdb1ab8e087a61bcbc00c056faf3",
+      "status": "completed",
+      "conclusion": "failure",
+      "successful_steps_before_failure": [
+        "Build cockpit",
+        "Build frozen Daedalus backend",
+        "Smoke-test frozen backend and cockpit",
+        "Project and desktop contract tests",
+        "Generate desktop icons"
+      ],
+      "failed_step": "Rust formatting",
+      "skipped_after_failure": ["Rust library tests", "Build Linux validation desktop bundle"]
+    },
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "focused indexed-block validation-fusion contract plus hosted Fourfold/Tensor PR matrix",
+    "focused_contract_added": "source-level guard pins validation-before-ordering, sorted-key materialization, removal of list(entries.items()) and original-mapping value lookup",
+    "existing_contracts_retained": [
+      "direct/from_coordinates canonical block identity, JSON and digest equivalence",
+      "exact integer row/column admission",
+      "out-of-range row/column refusal",
+      "incomparable key refusal before sorting",
+      "constructor error precedence"
+    ],
+    "implementation_workflow_run": 34175360067,
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "notes": "The exact implementation head passed the focused Fourfold/Tensor hosted matrix and complete repository collection. Complete suite (manual only) was skipped, and the independent Tauri workflow failed at Rust formatting. Diagnostic timing values are retained as claim=none and do not establish a speed or memory win."
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "documentation_files_changed": 1,
+    "production_additions": 6,
+    "production_deletions": 7,
+    "test_additions": 8,
+    "test_deletions": 0,
+    "production_net_lines": -1,
+    "eager_item_pair_ordering_container_removed": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-82 only: audit every canonical caller of TypedRelationBlock._from_indexed to determine whether any already guarantees deterministic row-major key insertion. If no caller-wide guarantee exists, retain sorted(entries) as the minimal deterministic ordering transient rather than inventing an ordered-map flag, helper, backend or second constructor. If a real common guarantee exists, prefer deleting sorting/state inside the same owner and pin it with focused contracts before any broader benchmark claim."
+}
