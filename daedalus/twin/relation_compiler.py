@@ -386,6 +386,7 @@ def compile_relation_blocks(
     discovered: set[RelationSignature] = set()
     binding_records: list[tuple[CrossPlaneBinding, RelationSignature, int, int]] = []
     included_binding_keys: set[tuple[str, str, str, str, str]] = set()
+    verified_binding_count = len(snapshot.bindings) if include_verified_bindings else 0
     if include_verified_bindings:
         for binding in snapshot.bindings:
             signature = RelationSignature(
@@ -393,9 +394,6 @@ def compile_relation_blocks(
                 binding.relation,
                 binding.target_plane,
             )
-            source_index = node_location[binding.source_node_id][1]
-            target_index = node_location[binding.target_node_id][1]
-            binding_records.append((binding, signature, source_index, target_index))
             included_binding_keys.add(
                 (
                     binding.source_plane,
@@ -405,6 +403,11 @@ def compile_relation_blocks(
                     binding.relation,
                 )
             )
+            if requested_set is not None and signature not in requested_set:
+                continue
+            source_index = node_location[binding.source_node_id][1]
+            target_index = node_location[binding.target_node_id][1]
+            binding_records.append((binding, signature, source_index, target_index))
             discovered.add(signature)
 
     edge_records: list[tuple[ForestEdge, RelationSignature, int, int]] = []
@@ -476,7 +479,6 @@ def compile_relation_blocks(
     )
     if requested_signatures is None:
         _require_complete_endpoint_planes(snapshot, selected)
-    selected_set = frozenset(selected)
     retain_evidence = observer_name == "evidence-dag"
     scalar_value: bool | int | None
     if observer_name == "boolean":
@@ -491,9 +493,6 @@ def compile_relation_blocks(
         dict[tuple[int, int], Any],
     ] = {}
     for edge, signature, source_index, target_index in edge_records:
-        if signature not in selected_set:
-            continue
-
         atoms = _forest_edge_atoms(edge) if retain_evidence else None
         _record_fact(
             facts,
@@ -505,8 +504,6 @@ def compile_relation_blocks(
         )
 
     for binding, signature, source_index, target_index in binding_records:
-        if signature not in selected_set:
-            continue
         _record_fact(
             facts,
             signature=signature,
@@ -561,7 +558,7 @@ def compile_relation_blocks(
         semantic_fact_count=semantic_fact_count,
         forest_edge_count=len(forest.edges),
         forest_hyperedge_count=len(forest.hyperedges),
-        verified_binding_count=len(binding_records),
+        verified_binding_count=verified_binding_count,
     )
 
 
