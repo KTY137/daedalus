@@ -161,6 +161,22 @@ class _DeclaredSignatureCatalog(Sequence[RelationSignature]):
         raise AssertionError("declared signature catalog iterator was consumed")
 
 
+class _TrackingSignatureCatalog(Sequence[object]):
+    def __init__(self, *values: object) -> None:
+        self._values = values
+        self.indices: list[int] = []
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def __getitem__(self, index: int) -> object:
+        self.indices.append(index)
+        return self._values[index]
+
+    def __iter__(self) -> Iterator[object]:
+        raise AssertionError("tracking signature catalog iterator was consumed")
+
+
 class _UnboundedSignatures:
     def __iter__(self) -> Iterator[RelationSignature]:
         raise AssertionError("unbounded signature iterable was consumed")
@@ -290,6 +306,42 @@ def test_explicit_signature_catalog_materializes_declared_cardinality_only() -> 
     )
 
     assert tuple(compiled.block_map) == (relation_block_name(selected),)
+
+
+def test_selected_signature_admission_reuses_one_materialized_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    imports = RelationSignature("code", "imports", "code")
+    declares = RelationSignature("code", "declares", "type")
+    catalog = _TrackingSignatureCatalog(imports, declares)
+
+    def forbidden_sorted(*args: object, **kwargs: object) -> object:
+        raise AssertionError("selected signatures allocated a second sorted container")
+
+    monkeypatch.setattr(relation_compiler, "sorted", forbidden_sorted, raising=False)
+
+    selected = relation_compiler._selected_signatures(catalog, set())  # type: ignore[arg-type]
+
+    assert selected == (declares, imports)
+    assert catalog.indices == [0, 1]
+    assert not hasattr(relation_compiler, "_materialize_declared_sequence")
+
+
+def test_selected_signature_type_error_keeps_declared_materialization_precedence() -> None:
+    valid = RelationSignature("code", "imports", "code")
+    catalog = _TrackingSignatureCatalog(object(), valid)
+
+    with pytest.raises(ValueError, match="RelationSignature records"):
+        relation_compiler._selected_signatures(catalog, set())  # type: ignore[arg-type]
+
+    assert catalog.indices == [0, 1]
+
+
+def test_selected_signature_duplicate_refusal_remains_explicit() -> None:
+    signature = RelationSignature("code", "imports", "code")
+
+    with pytest.raises(ValueError, match="signatures must not contain duplicates"):
+        relation_compiler._selected_signatures((signature, signature), set())
 
 
 def test_explicit_signature_catalog_rejects_unbounded_iterable_before_consumption() -> None:
