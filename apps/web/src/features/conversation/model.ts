@@ -46,8 +46,21 @@ export interface RouteStart {
   intent?: string;
   shell?: string;
   provider_used?: string;
+  /** The model the server named before any text; drawn, never guessed. */
+  model_used?: string;
+  /** The server's own wall-clock budget for this run, when it says one. */
+  timeout_s?: number;
 }
 
+/**
+ * What the backend said about the language-model leg of one turn.
+ *
+ * Everything below `reason` is ADDITIVE and OPTIONAL (G1-UI-22): the fields
+ * exist so a finished run can say what it cost, how long it took and why it
+ * ended. They are all provider SELF-REPORTS relayed by the kernel. A cost
+ * here is not the amount the budget ledger settled — that ledger prices
+ * `anthropic_cli` at a flat worst case — so the row that draws it says so.
+ */
 export interface LlmSelection {
   provider?: string;
   requested?: string | null;
@@ -55,6 +68,21 @@ export interface LlmSelection {
   timeout_s?: number;
   max_attempts?: number;
   reason?: string;
+  /** Attempts actually spent. Already emitted by the backend today. */
+  attempts?: number;
+  /** `null` means the provider ran and reported no cost; absent means no cost information exists. */
+  cost_usd_measured?: number | null;
+  cost_basis?: 'provider_reported' | 'estimate';
+  duration_ms?: number;
+  stop_reason?: string;
+  subtype?: string;
+  num_turns?: number;
+  /** Untrusted provider output. Escaped, clipped, and never in the answer bubble. */
+  stderr_tail?: string;
+  model_used?: string;
+  /** What the budget ledger actually charged, when the backend relays it. */
+  ledger_charged_usd?: number;
+  ledger_basis?: string;
 }
 
 export interface ContextReceipt {
@@ -216,6 +244,10 @@ function num(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+function int(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
 function bool(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
@@ -251,6 +283,39 @@ export function envelopeFrom(value: unknown): TurnEnvelope | undefined {
     if (attempts !== undefined) llm.max_attempts = attempts;
     const reason = str(value.llm.reason);
     if (reason) llm.reason = reason;
+    // ---- additive execution evidence (G1-UI-22) ----
+    const spent = int(value.llm.attempts);
+    if (spent !== undefined) llm.attempts = spent;
+    // `null` survives on purpose: "ran, reported no cost" is not "no cost field".
+    if ('cost_usd_measured' in value.llm) {
+      const cost = value.llm.cost_usd_measured;
+      if (cost === null) llm.cost_usd_measured = null;
+      else {
+        const usd = num(cost);
+        if (usd !== undefined && usd >= 0) llm.cost_usd_measured = usd;
+      }
+    }
+    // Exactly two literals. An unrecognised basis is DROPPED, never upgraded
+    // to `gemessen` by a malformed label.
+    if (value.llm.cost_basis === 'provider_reported' || value.llm.cost_basis === 'estimate') {
+      llm.cost_basis = value.llm.cost_basis;
+    }
+    const took = num(value.llm.duration_ms);
+    if (took !== undefined && took >= 0) llm.duration_ms = took;
+    const stop = str(value.llm.stop_reason);
+    if (stop) llm.stop_reason = stop;
+    const subtype = str(value.llm.subtype);
+    if (subtype) llm.subtype = subtype;
+    const providerTurns = int(value.llm.num_turns);
+    if (providerTurns !== undefined) llm.num_turns = providerTurns;
+    const stderrTail = str(value.llm.stderr_tail);
+    if (stderrTail) llm.stderr_tail = stderrTail;
+    const ran = str(value.llm.model_used);
+    if (ran) llm.model_used = ran;
+    const charged = num(value.llm.ledger_charged_usd);
+    if (charged !== undefined && charged >= 0) llm.ledger_charged_usd = charged;
+    const chargedBasis = str(value.llm.ledger_basis);
+    if (chargedBasis) llm.ledger_basis = chargedBasis;
     if (Object.keys(llm).length > 0) out.llm = llm;
   }
   if (isRecord(value.context)) {
@@ -508,6 +573,109 @@ export function waitLabel(seconds: number): string {
   return `${seconds.toFixed(1).replace('.', ',')} s`;
 }
 
+/**
+ * Frozen glosses for provider end states. ONLY values that were actually
+ * observed on a run are translated (MEASURED 2026-09-08, Claude Code 2.1.263:
+ * `tool_use`, `error_max_turns`, `error_max_budget_usd`, `success`). An
+ * unmeasured value is printed verbatim — inventing German for a state nobody
+ * saw would be the surface authoring a claim the provider did not make.
+ */
+export const PROVIDER_END_DE: Readonly<Record<string, string>> = {
+  success: 'regulär beendet',
+  tool_use: 'wollte Werkzeuge benutzen',
+  error_max_turns: 'Turn-Limit des Anbieters erreicht',
+  error_max_budget_usd: 'Budget-Limit des Anbieters erreicht'
+};
+
+export function endLabel(value: string): string {
+  return PROVIDER_END_DE[value] ?? value;
+}
+
+export const COST_BASIS_DE = {
+  provider_reported: 'gemessen',
+  estimate: 'geschätzt',
+  unknown: 'Basis nicht angegeben'
+} as const;
+
+export const HONESTY_DE = {
+  selfReport: 'Anbieter-Selbstauskunft; der Budget-Ledger verbucht nach eigener Preisliste.',
+  derived: 'Der Text oben stammt unverändert vom Server; diese Zeile ist aus den Feldern der Antwort abgeleitet.',
+  noReason: 'Kein Grund übermittelt',
+  nomination: 'Nominierung, keine Übernahme. Nichts wird automatisch gemerged oder promotet; die Freigabe bleibt beim Owner.',
+  flagIgnored: 'Der Server meldet „requires_confirmation: false“. Diese Oberfläche fragt trotzdem.',
+  stderr: 'Provider-stderr (gekürzt, ungeprüft)'
+} as const;
+
+/** German money, at the precision a two-decimal USD figure actually carries. */
+export function costLabel(usd: number): string {
+  if (!Number.isFinite(usd) || usd < 0) return '';
+  if (usd === 0) return '0,00 USD';
+  if (usd < 0.005) return 'unter 0,01 USD';
+  return `${usd.toFixed(2).replace('.', ',')} USD`;
+}
+
+/**
+ * A provider-reported duration. Unlike `waitLabel`, whose seconds come from a
+ * browser round trip, this one is a millisecond measurement, so tenths are
+ * resolvable — but past a hundred seconds a tenth is noise, not information.
+ */
+export function durationLabel(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '';
+  if (seconds >= 100) return `${Math.round(seconds)} s`;
+  return `${seconds.toFixed(1).replace('.', ',')} s`;
+}
+
+/** How the cockpit reads an offered action, for the panel AND the request. */
+export interface OfferSubject {
+  /** verbatim; '' when the server sent none */
+  kind: string;
+  project: string;
+  lane: string;
+  objective: string;
+  /** only when a full 40-character lowercase hex revision arrived */
+  sourceRevision?: string;
+  revisionState: 'absent' | 'valid' | 'unreadable';
+  /** descriptive server data; NEVER this surface's authority to act */
+  requiresConfirmation: boolean;
+  /** whether this cockpit has an endpoint for that kind at all */
+  executable: boolean;
+}
+
+/**
+ * The one derivation of an offered action, used by BOTH the confirm panel and
+ * the queue request. Deriving them twice is how a surface ends up showing one
+ * project and posting another; the fallbacks below are exactly the fallbacks
+ * the request uses, which is the whole point.
+ */
+export function offerSubject(action: unknown, fallbackProject: string): OfferSubject | undefined {
+  if (!isRecord(action)) return undefined;
+  const args = isRecord(action.args) ? action.args : {};
+  const kind = str(action.kind) || '';
+  const raw = args.source_revision;
+  let revisionState: OfferSubject['revisionState'] = 'absent';
+  let sourceRevision: string | undefined;
+  if (raw !== undefined && raw !== null && raw !== '') {
+    if (typeof raw === 'string' && /^[0-9a-f]{40}$/.test(raw)) {
+      revisionState = 'valid';
+      sourceRevision = raw;
+    } else {
+      // A shortened, uppercased or non-hex value is NOT normalised into a
+      // revision. Displaying `HEAD` as a revision would be an invention.
+      revisionState = 'unreadable';
+    }
+  }
+  return {
+    kind,
+    project: str(args.project) || fallbackProject,
+    lane: str(args.lane) || 'local_only',
+    objective: str(args.objective) || '',
+    sourceRevision,
+    revisionState,
+    requiresConfirmation: action.requires_confirmation !== false,
+    executable: kind === 'queue_task'
+  };
+}
+
 /** `vor 2 min`, `vor 3 h`, `gestern`, or the date — for the thread list. */
 export function relativeTime(iso: string | undefined, now: number = Date.now()): string {
   if (!iso) return '';
@@ -617,7 +785,9 @@ export type LedgerKey =
   | 'context'
   | 'refusal'
   | 'editor'
+  | 'execution'
   | 'answer'
+  | 'failure'
   | 'mismatch'
   | 'offer'
   | 'dispatch'
@@ -671,6 +841,8 @@ function routeRow(turn: Turn, labelOf: (id: string) => string | undefined): Ledg
   }
   const name = labelOf(provider || '') || provider || '';
   if (!name) return undefined;
+  const startedModel = turn.started?.model_used;
+  if (startedModel && !name.toLowerCase().includes(startedModel.toLowerCase())) detail.push(`Modell ${startedModel}`);
   return {
     key: 'route',
     label: 'Route',
@@ -745,6 +917,95 @@ function answerRow(
   if (turn.envelope?.stream_interrupted) detail.push('Stream unterbrochen; der Text kann unvollständig sein.');
   if (turn.conversationPersisted === false) detail.push('Nicht dauerhaft gespeichert.');
   return { key: 'answer', label: 'Antwort', datum: bits.join(' · '), tone, detail: detail.length ? detail : undefined, stamp: true };
+}
+
+/**
+ * WHAT THE RUN COST AND HOW IT ENDED — one row, not a dashboard.
+ *
+ * Every fragment is a relayed provider self-report. The row exists only when
+ * at least one of them arrived; it never pads itself with `unbekannt`. The
+ * cost is labelled with its basis and carries the ledger caveat, because the
+ * kernel prices this vendor at a flat worst case and the two numbers are
+ * different facts about the same call.
+ */
+function executionRow(turn: Turn): LedgerRow | undefined {
+  const llm = turn.envelope?.llm;
+  if (!llm) return undefined;
+  const hasCostKey = 'cost_usd_measured' in llm;
+  const end = llm.subtype || llm.stop_reason;
+  if (llm.duration_ms === undefined && !hasCostKey && !end && llm.num_turns === undefined) return undefined;
+
+  const parts: string[] = [];
+  if (llm.duration_ms !== undefined) parts.push(`${durationLabel(llm.duration_ms / 1000)} (Anbieter)`);
+  let showedCost = false;
+  if (typeof llm.cost_usd_measured === 'number') {
+    parts.push(`${costLabel(llm.cost_usd_measured)} (${COST_BASIS_DE[llm.cost_basis || 'unknown']})`);
+    showedCost = true;
+  } else if (hasCostKey) {
+    parts.push('Kosten nicht gemessen');
+  }
+  if (end) parts.push(`Ende: ${endLabel(end)}`);
+  let turnsInDatum = false;
+  if (parts.length === 0 && llm.num_turns !== undefined) {
+    parts.push(`${llm.num_turns} Anbieter-Turns`);
+    turnsInDatum = true;
+  }
+  if (parts.length === 0) return undefined;
+
+  const detail: string[] = [];
+  if (turn.seconds !== undefined) {
+    detail.push(`Hier gemessen: ${waitLabel(turn.seconds)} (kompletter Rundweg inkl. Verlauf anlegen)`);
+  }
+  if (!turnsInDatum && llm.num_turns !== undefined) detail.push(`Turns des Anbieters: ${llm.num_turns}`);
+  if (llm.attempts !== undefined) detail.push(`Versuche: ${llm.attempts}`);
+  if (llm.subtype && llm.stop_reason && llm.subtype !== llm.stop_reason) detail.push(`Stop-Grund: ${llm.stop_reason}`);
+  const envModel = turn.envelope?.model_used;
+  if (llm.model_used && llm.model_used !== envModel) detail.push(`Modell laut Lauf: ${llm.model_used}`);
+  if (showedCost) detail.push(HONESTY_DE.selfReport);
+  if (llm.ledger_charged_usd !== undefined) {
+    detail.push(`Vom Budget-Ledger verbucht: ${costLabel(llm.ledger_charged_usd)}${llm.ledger_basis ? ` (${llm.ledger_basis})` : ''}`);
+  }
+  if (llm.stderr_tail) detail.push(`${HONESTY_DE.stderr}: ${llm.stderr_tail.slice(0, 500)}`);
+
+  const tone: RowTone = end && end.startsWith('error_')
+    ? 'bad'
+    : llm.cost_usd_measured === null
+      ? 'warn'
+      : 'info';
+  return { key: 'execution', label: 'Ausführung', datum: parts.join(' · '), tone, detail: detail.length ? detail : undefined };
+}
+
+/**
+ * WHY IT ENDED WITHOUT AN ANSWER, in German, on the collapsed spine.
+ *
+ * Before this row the reader of a dead 150-second turn saw exactly
+ * `FEHLGESCHLAGEN · 150 s`. The reason is derived from structured fields, never
+ * from translating the server's own sentence: the bubble above keeps that
+ * sentence byte-identical, and the detail line says this row is derived.
+ *
+ * A refusal already has its own `Prüfung` row and owns that fact, so this row
+ * stays out of the way whenever one is present.
+ */
+function failureRow(turn: Turn, stderrShownElsewhere: boolean): LedgerRow | undefined {
+  const env = turn.envelope;
+  if (env?.refusal) return undefined;
+  const failed = env?.intent === 'error' || turn.origin?.intent === 'error';
+  const interrupted = env?.stream_interrupted === true;
+  if (!failed && !interrupted) return undefined;
+  const llm = env?.llm;
+
+  let datum: string;
+  if (llm?.subtype) datum = `Anbieter beendet: ${endLabel(llm.subtype)}`;
+  else if (llm?.stop_reason) datum = `Anbieter beendet: ${endLabel(llm.stop_reason)}`;
+  else if (interrupted) datum = 'Stream ohne vollständige Antwort beendet';
+  else if (llm?.attempts !== undefined && llm.attempts >= 1) datum = `Kein nutzbares Ergebnis nach ${llm.attempts} Versuch(en)`;
+  else datum = HONESTY_DE.noReason;
+
+  const detail: string[] = [HONESTY_DE.derived];
+  if (llm?.stderr_tail && !stderrShownElsewhere) {
+    detail.push(`${HONESTY_DE.stderr}: ${llm.stderr_tail.slice(0, 500)}`);
+  }
+  return { key: 'failure', label: 'Fehler', datum, tone: failed ? 'bad' : 'warn', detail };
 }
 
 function mismatchRow(turn: Turn): LedgerRow | undefined {
@@ -843,12 +1104,15 @@ function cancelRow(turn: Turn): LedgerRow | undefined {
 export function ledgerFor(turn: Turn, labelOf: (id: string) => string | undefined): LedgerRow[] {
   if (turn.role !== 'ikarus') return [];
   const stamp = stampForTurn(turn, labelOf);
+  const execution = executionRow(turn);
   const rows = [
     routeRow(turn, labelOf),
     contextRow(turn),
     refusalRow(turn),
     editorRow(turn),
+    execution,
     answerRow(turn, stamp, labelOf),
+    failureRow(turn, Boolean(execution && turn.envelope?.llm?.stderr_tail)),
     mismatchRow(turn),
     offerRow(turn),
     dispatchRow(turn),
@@ -877,4 +1141,48 @@ export function settleTurn(turn: Turn, payload: IkarusAskPayload, seconds: numbe
     conversationPersisted: payload.conversation_persisted,
     offer: offerIsOpen && !payload.stream_interrupted && payload.action ? payload.action : undefined
   };
+}
+
+
+/* -------------------------------------------------------------- receipts */
+
+/** Everything the surface derives about ONE turn, in one object. */
+export interface TurnReceipt {
+  stamp: Stamp | undefined;
+  ledger: LedgerRow[];
+  activity: TurnActivity | undefined;
+  cites: Citation[];
+}
+
+/**
+ * INCREMENTAL DERIVATION, keyed by turn object identity.
+ *
+ * The whole receipt set used to be recomputed from scratch on every batched
+ * stream delta, because `setTurns((prev) => prev.map(...))` always returns a
+ * new array: a citation regex ran over every settled answer in the thread once
+ * per animation frame. Streaming replaces exactly ONE turn object per patch,
+ * so an unchanged turn is reference-identical and its receipt can be reused —
+ * which also gives `memo(Ledger)` a stable `rows` array to compare.
+ *
+ * Correctness rests on that identity discipline. A future `setTurns` that
+ * rebuilds every turn would silently restore the per-frame cost; the counting
+ * case in `conversation.spec.ts` is the guard against exactly that.
+ */
+export function createReceiptCache(
+  labelOf: (id: string) => string | undefined,
+  resolveModule: (needle: string) => string | undefined
+): (turns: readonly Turn[]) => TurnReceipt[] {
+  const cache = new WeakMap<Turn, TurnReceipt>();
+  return (turns) => turns.map((turn) => {
+    const hit = cache.get(turn);
+    if (hit) return hit;
+    const receipt: TurnReceipt = {
+      stamp: stampForTurn(turn, labelOf),
+      ledger: ledgerFor(turn, labelOf),
+      activity: activityForTurn(turn, labelOf),
+      cites: turn.role === 'ikarus' && !turn.streaming ? citationsFrom(turn.text, resolveModule) : []
+    };
+    cache.set(turn, receipt);
+    return receipt;
+  });
 }

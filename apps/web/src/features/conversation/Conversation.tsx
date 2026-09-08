@@ -17,7 +17,7 @@ import {
   subprocessCancellationFrom
 } from '@/shared/api';
 import type { ConversationCancellationStatus, EditorContextReceipt, TaskSnapshot } from '@/shared/api';
-import type { EffortLevel, IkarusAskAction, RuntimeRow } from '@/shared/contracts';
+import type { EffortLevel, RuntimeRow } from '@/shared/contracts';
 import { armVariants, bubbleVariants, pressProps, revealVariants, useReducedMotionPref } from '@/shared/ui/motion';
 import { ContextPlan } from '@/features/knowledge/ContextPlan';
 import { shortLabel } from '@/features/twin/graph';
@@ -26,21 +26,20 @@ import { BrainPicker, type RuntimeState, type WaitLedger } from './BrainPicker';
 import { CommandMenu } from './CommandMenu';
 import { EffortPicker } from './EffortPicker';
 import { Ledger } from './Ledger';
+import { OfferConfirm } from './OfferConfirm';
 import { helpText, looksLikeCommand, matchCommands, parseCommand, type CommandAction, type CommandSpec } from './commands';
 import {
-  activityForTurn,
   cancelledObservation,
   cancellationLabel,
-  citationsFrom,
   conversationConfirmsProject,
+  createReceiptCache,
   elapsedLabel,
-  ledgerFor,
+  offerSubject,
   openDispatchesFrom,
   positiveTurnId,
   resumedTurns,
   settleTurn,
-  stampForTurn,
-  type Citation,
+  type OfferSubject,
   type OpenDispatch,
   type Turn
 } from './model';
@@ -608,18 +607,20 @@ export function Conversation({
 
   const runAction = useCallback(
     async (
-      action: IkarusAskAction,
+      subject: OfferSubject,
       threadId: string,
       localTurnId: string,
       backendTurnId?: number,
       conversationPersisted?: boolean
     ) => {
-      const objective = action.args?.objective || '';
-      const lane = action.args?.lane || 'local_only';
+      // The SAME derivation the confirm panel displayed. Deriving the request
+      // shape twice is how a surface shows one project and posts another.
+      const objective = subject.objective;
+      const lane = subject.lane;
       const scope = taskScope.current;
       const requestProject = project;
       const requestGeneration = generation;
-      const actionProject = action.args?.project || requestProject;
+      const actionProject = subject.project;
       const isCurrentRequest = () => (
         scope === taskScope.current
         && bindingRef.current.project === requestProject
@@ -735,7 +736,10 @@ export function Conversation({
     async (localTurnId: string, accept: boolean) => {
       const turn = turns.find((t) => t.localId === localTurnId);
       if (!turn?.offer) return;
-      const action = turn.offer;
+      const subject = offerSubject(turn.offer, project);
+      // Belt and braces beside the disabled control: this cockpit executes
+      // exactly one action kind and never guesses an endpoint for another.
+      if (!subject || (accept && !subject.executable)) return;
       if (claimedOffers.current.has(localTurnId)) return;
       claimedOffers.current.add(localTurnId);
 
@@ -749,14 +753,14 @@ export function Conversation({
         return;
       }
       try {
-        const outcome = await runAction(action, thread, localTurnId, turn.backendTurnId, turn.conversationPersisted);
+        const outcome = await runAction(subject, thread, localTurnId, turn.backendTurnId, turn.conversationPersisted);
         if (outcome === null) return;
         setTurns((prev) => prev.map((t) => (t.localId === localTurnId ? { ...t, offerOutcome: outcome } : t)));
       } finally {
         claimedOffers.current.delete(localTurnId);
       }
     },
-    [runAction, thread, turns]
+    [project, runAction, thread, turns]
   );
 
   /* ---- settling a turn ---- */
@@ -1054,8 +1058,12 @@ export function Conversation({
           if (!isCurrent()) return;
           const started = {
             intent: typeof data.intent === 'string' ? data.intent : undefined,
-            shell: typeof (data as { shell?: unknown }).shell === 'string' ? String((data as { shell?: unknown }).shell) : undefined,
-            provider_used: typeof data.provider_used === 'string' ? data.provider_used : undefined
+            shell: typeof data.shell === 'string' ? data.shell : undefined,
+            provider_used: typeof data.provider_used === 'string' ? data.provider_used : undefined,
+            model_used: typeof data.model_used === 'string' && data.model_used ? data.model_used : undefined,
+            timeout_s: typeof data.timeout_s === 'number' && Number.isFinite(data.timeout_s) && data.timeout_s > 0
+              ? data.timeout_s
+              : undefined
           };
           patchReply((turn) => ({ ...turn, started }));
         },
@@ -1206,16 +1214,16 @@ export function Conversation({
       id === 'deterministic' ? 'lokaler Index' : runtimes.find((r) => r.id === id)?.label || undefined,
     [runtimes]
   );
-  /** DERIVED, not stored: the ledger, stamp and citations of every turn. */
-  const receipts = useMemo(
-    () => turns.map((t) => ({
-      stamp: stampForTurn(t, labelOf),
-      ledger: ledgerFor(t, labelOf),
-      activity: activityForTurn(t, labelOf),
-      cites: t.role === 'ikarus' && !t.streaming ? citationsFrom(t.text, resolveModule) : ([] as Citation[])
-    })),
-    [labelOf, resolveModule, turns]
-  );
+  /**
+   * DERIVED, not stored: the ledger, stamp and citations of every turn.
+   *
+   * Derivation is INCREMENTAL and keyed by turn object identity. `patchReply`
+   * replaces exactly one turn object per animation frame, so an unchanged turn
+   * keeps its receipt — including a reference-identical `rows` array, which is
+   * what makes the memoised Ledger below actually skip work.
+   */
+  const deriveReceipts = useMemo(() => createReceiptCache(labelOf, resolveModule), [labelOf, resolveModule]);
+  const receipts = useMemo(() => deriveReceipts(turns), [deriveReceipts, turns]);
   const showNudge = Boolean(!busy && !provider && lastProvider === 'deterministic' && runtimes.some((r) => r.available));
   const hasUnhandledThreadPick = Boolean(
     pickThread
@@ -1408,6 +1416,7 @@ export function Conversation({
                       streaming={t.streaming}
                       elapsed={t.streaming && !t.text ? elapsed : undefined}
                       activity={receipt.activity?.label}
+                      budgetSeconds={t.started?.timeout_s}
                     />
                   )}
 
@@ -1432,15 +1441,12 @@ export function Conversation({
                         </div>
                       )}
 
-                      {t.offer && (
-                        <div className="offer-acts" role="group" aria-label="Vorgeschlagene Aktion beantworten">
-                          <button type="button" className="primary" onClick={() => void answerOffer(id, true)}>
-                            Loslegen
-                          </button>
-                          <button type="button" onClick={() => void answerOffer(id, false)}>
-                            Nicht jetzt
-                          </button>
-                        </div>
+                      {t.offer && offerSubject(t.offer, project) && (
+                        <OfferConfirm
+                          subject={offerSubject(t.offer, project)!}
+                          onAccept={() => void answerOffer(id, true)}
+                          onDecline={() => void answerOffer(id, false)}
+                        />
                       )}
 
                       {(Boolean(t.text && !t.streaming)

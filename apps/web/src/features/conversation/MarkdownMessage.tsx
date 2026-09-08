@@ -9,6 +9,8 @@ interface MarkdownMessageProps {
   elapsed?: number;
   /** observed request/stream activity; never a model reasoning claim */
   activity?: string;
+  /** the server's own wall-clock budget for this run; absent draws no denominator */
+  budgetSeconds?: number;
 }
 
 /**
@@ -101,12 +103,20 @@ export const MarkdownMessage = memo(function MarkdownMessage({
   text,
   streaming = false,
   elapsed,
-  activity
+  activity,
+  budgetSeconds
 }: MarkdownMessageProps) {
   if (!text && streaming) {
+    // A 150 s wait is only legible against the budget the SERVER named. When
+    // it names none, no denominator is invented.
+    const clock = elapsed !== undefined && elapsed >= 2
+      ? budgetSeconds !== undefined && budgetSeconds > 0
+        ? ` · ${elapsed} s von ${Math.round(budgetSeconds)} s`
+        : ` · ${elapsed} s`
+      : '';
     return (
       <div className="turn-text markdown thinking">
-        <span>{activity || 'Ikarus arbeitet'}{elapsed !== undefined && elapsed >= 2 ? ` · ${elapsed} s` : ''}</span>
+        <span>{activity || 'Ikarus arbeitet'}{clock}</span>
         <i /><i /><i />
       </div>
     );

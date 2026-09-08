@@ -4,17 +4,25 @@ import { subprocessCancellationFrom, type ConversationView } from '@/shared/api'
 import type { IkarusAskPayload } from '@/shared/contracts';
 import { COMMANDS, helpText, looksLikeCommand, matchCommands, parseCommand } from './commands';
 import { MarkdownMessage } from './MarkdownMessage';
+import { OfferConfirm } from './OfferConfirm';
 import {
   activityForTurn,
   cancelledObservation,
   conversationConfirmsProject,
+  costLabel,
+  createReceiptCache,
+  durationLabel,
   envelopeFrom,
   ledgerFor,
+  offerSubject,
   openDispatchesFrom,
   relativeTime,
   resumedTurns,
   settleTurn,
   stampForTurn,
+  COST_BASIS_DE,
+  HONESTY_DE,
+  PROVIDER_END_DE,
   type Turn
 } from './model';
 import { createTextBatcher } from './streaming';
@@ -315,6 +323,247 @@ export function runConversationSpec(): ConversationSpecResult[] {
   const childTurn: Turn = { role: 'ikarus', text: '', requestId: 12, cancellation: 'confirmed', cancellationProcess: subprocessCancellationFrom(childExit, 12) };
   const childRow = ledgerFor(childTurn, labelOf).find((row) => row.key === 'cancel');
   check('observed local child exit never becomes remote-termination proof', childRow?.detail?.includes('Lokaler CLI-Prozess beendet · Remote-Termination nicht bewiesen') === true);
+
+
+  /* ================================================================
+     G1-UI-22 — what the run cost, why it ended, and what a yes runs.
+
+     Every shape below is one this host actually produced or one the
+     narrowing must refuse. The measured Claude Code 2.1.263 run of
+     2026-09-08 is the reference: 18.9 s, $0.4056 self-reported,
+     stop_reason `tool_use`, subtype `error_max_turns`, 2 turns.
+     ================================================================ */
+
+  const runLlm = {
+    provider: 'claude_code_cli',
+    cost_usd_measured: 0.4056,
+    cost_basis: 'provider_reported',
+    duration_ms: 18900,
+    subtype: 'error_max_turns',
+    stop_reason: 'tool_use',
+    num_turns: 2,
+    attempts: 1,
+    model_used: 'claude-opus-5[1m]'
+  };
+  const runEnv = envelopeFrom({ llm: runLlm });
+  check('every additive execution field survives narrowing',
+    runEnv?.llm?.cost_usd_measured === 0.4056 && runEnv?.llm?.cost_basis === 'provider_reported'
+      && runEnv?.llm?.duration_ms === 18900 && runEnv?.llm?.subtype === 'error_max_turns'
+      && runEnv?.llm?.stop_reason === 'tool_use' && runEnv?.llm?.num_turns === 2
+      && runEnv?.llm?.attempts === 1 && runEnv?.llm?.model_used === 'claude-opus-5[1m]',
+    JSON.stringify(runEnv?.llm));
+  const runRow = ledgerFor({ role: 'ikarus', text: 'x', envelope: runEnv }, labelOf).find((r) => r.key === 'execution');
+  check('the execution row says duration, cost with its basis, and how it ended',
+    runRow?.datum === '18,9 s (Anbieter) · 0,41 USD (gemessen) · Ende: Turn-Limit des Anbieters erreicht', runRow?.datum);
+  check('a provider error end is bad-toned', runRow?.tone === 'bad', runRow?.tone);
+  check('the execution detail keeps the raw stop reason, the turns, the attempts and the ledger caveat',
+    (runRow?.detail || []).includes('Stop-Grund: tool_use')
+      && (runRow?.detail || []).includes('Turns des Anbieters: 2')
+      && (runRow?.detail || []).includes('Versuche: 1')
+      && (runRow?.detail || []).includes(HONESTY_DE.selfReport),
+    (runRow?.detail || []).join('|'));
+  check('a model named only by the run is reported as such, never merged away',
+    (runRow?.detail || []).includes('Modell laut Lauf: claude-opus-5[1m]'), (runRow?.detail || []).join('|'));
+
+  const datumOf = (llm: Record<string, unknown>): string | undefined =>
+    ledgerFor({ role: 'ikarus', text: 'x', envelope: envelopeFrom({ llm }) }, labelOf).find((r) => r.key === 'execution')?.datum;
+  check('an estimate says it is an estimate',
+    datumOf({ ...runLlm, cost_basis: 'estimate' })?.includes('0,41 USD (geschätzt)') === true, datumOf({ ...runLlm, cost_basis: 'estimate' }));
+  const noBasis = { ...runLlm } as Record<string, unknown>;
+  delete noBasis.cost_basis;
+  check('a cost without a basis says the basis is missing',
+    datumOf(noBasis)?.includes('0,41 USD (Basis nicht angegeben)') === true, datumOf(noBasis));
+  for (const bogus of ['gemessen', 'provider-reported', true, 1, null]) {
+    check(`an unrecognised cost basis ${JSON.stringify(bogus)} is dropped, never read as measured`,
+      datumOf({ ...runLlm, cost_basis: bogus })?.includes('(Basis nicht angegeben)') === true
+        && datumOf({ ...runLlm, cost_basis: bogus })?.includes('(gemessen)') === false,
+      datumOf({ ...runLlm, cost_basis: bogus }));
+  }
+  const nullCost = envelopeFrom({ llm: { ...runLlm, cost_usd_measured: null } });
+  check('a null cost survives narrowing as null, distinct from an absent key',
+    nullCost?.llm !== undefined && 'cost_usd_measured' in nullCost.llm && nullCost.llm.cost_usd_measured === null);
+  const nullRow = ledgerFor({ role: 'ikarus', text: 'x', envelope: nullCost }, labelOf).find((r) => r.key === 'execution');
+  check('a provider that ran and reported no cost says so', nullRow?.datum.includes('Kosten nicht gemessen') === true, nullRow?.datum);
+  check('a run that ended in a provider error stays bad-toned even when the cost is unmeasured',
+    nullRow?.tone === 'bad', nullRow?.tone);
+  const nullQuiet = ledgerFor({ role: 'ikarus', text: 'x', envelope: envelopeFrom({
+    llm: { duration_ms: 8100, cost_usd_measured: null, subtype: 'success' }
+  }) }, labelOf).find((r) => r.key === 'execution');
+  check('an unmeasured cost on an otherwise clean run is warn-toned, not quietly info',
+    nullQuiet?.tone === 'warn' && nullQuiet?.datum === '8,1 s (Anbieter) · Kosten nicht gemessen · Ende: regulär beendet',
+    `${nullQuiet?.datum}|${nullQuiet?.tone}`);
+  const noCostKey = { ...runLlm } as Record<string, unknown>;
+  delete noCostKey.cost_usd_measured;
+  check('an absent cost key draws no cost fragment at all',
+    datumOf(noCostKey) === '18,9 s (Anbieter) · Ende: Turn-Limit des Anbieters erreicht', datumOf(noCostKey));
+  check('a negative or non-finite cost is dropped',
+    envelopeFrom({ llm: { cost_usd_measured: -1 } })?.llm === undefined
+      && envelopeFrom({ llm: { cost_usd_measured: Number.NaN } })?.llm === undefined);
+  check('an unmeasured provider end value is printed verbatim, never invented in German',
+    datumOf({ subtype: 'wat_is_this' }) === 'Ende: wat_is_this', datumOf({ subtype: 'wat_is_this' }));
+  check('the provider end gloss covers only values observed on this host',
+    Object.keys(PROVIDER_END_DE).sort().join(',') === 'error_max_budget_usd,error_max_turns,success,tool_use',
+    Object.keys(PROVIDER_END_DE).join(','));
+  check('the cost basis wording is exactly three cases',
+    `${COST_BASIS_DE.provider_reported}|${COST_BASIS_DE.estimate}|${COST_BASIS_DE.unknown}` === 'gemessen|geschätzt|Basis nicht angegeben');
+  check('money and duration speak German at the precision they carry',
+    costLabel(0.4056) === '0,41 USD' && costLabel(0) === '0,00 USD' && costLabel(0.001) === 'unter 0,01 USD'
+      && durationLabel(18.9) === '18,9 s' && durationLabel(150.3) === '150 s',
+    `${costLabel(0.4056)}|${costLabel(0)}|${costLabel(0.001)}|${durationLabel(18.9)}|${durationLabel(150.3)}`);
+  const ledgerCharged = ledgerFor({ role: 'ikarus', text: 'x', seconds: 150.3, envelope: envelopeFrom({
+    llm: { ...runLlm, ledger_charged_usd: 3, ledger_basis: 'worst_case' }
+  }) }, labelOf).find((r) => r.key === 'execution');
+  check('the amount the budget ledger charged is drawn beside the self-report, not instead of it',
+    (ledgerCharged?.detail || []).includes('Vom Budget-Ledger verbucht: 3,00 USD (worst_case)')
+      && (ledgerCharged?.detail || []).includes(HONESTY_DE.selfReport),
+    (ledgerCharged?.detail || []).join('|'));
+  check('the browser-measured round trip is named as a different measurement',
+    (ledgerCharged?.detail || []).includes('Hier gemessen: 150 s (kompletter Rundweg inkl. Verlauf anlegen)'),
+    (ledgerCharged?.detail || []).join('|'));
+
+  /* ---- the failure row: why a dead turn is dead ---- */
+  const failRow = (payload: Record<string, unknown>, origin?: Turn['origin']) =>
+    ledgerFor({ role: 'ikarus', text: 'x', origin, envelope: envelopeFrom(payload) }, labelOf).find((r) => r.key === 'failure');
+  check('an error with no evidence says no reason was sent',
+    failRow({ intent: 'error' })?.datum === HONESTY_DE.noReason && failRow({ intent: 'error' })?.tone === 'bad',
+    failRow({ intent: 'error' })?.datum);
+  check('attempts alone become the reason',
+    failRow({ intent: 'error', llm: { attempts: 1 } })?.datum === 'Kein nutzbares Ergebnis nach 1 Versuch(en)',
+    failRow({ intent: 'error', llm: { attempts: 1 } })?.datum);
+  check('a provider end wins over the attempt count',
+    failRow({ intent: 'error', llm: { subtype: 'error_max_budget_usd', attempts: 1 } })?.datum
+      === 'Anbieter beendet: Budget-Limit des Anbieters erreicht');
+  check('an interrupted stream is a warn-toned failure of its own',
+    failRow({ intent: 'chat', stream_interrupted: true })?.datum === 'Stream ohne vollständige Antwort beendet'
+      && failRow({ intent: 'chat', stream_interrupted: true })?.tone === 'warn');
+  check('an error intent stored only on the origin still explains itself',
+    failRow({}, { intent: 'error', provider_used: 'claude_code_cli' })?.datum === HONESTY_DE.noReason);
+  check('every failure row says it is derived, not the server sentence',
+    (failRow({ intent: 'error' })?.detail || []).includes(HONESTY_DE.derived));
+  check('a refusal owns its own explanation and draws no second failure row',
+    keys(refusedRows) === 'route,refusal,answer', keys(refusedRows));
+  check('a healthy turn draws neither an execution nor a failure row',
+    keys(modelRows) === 'route,context,answer,offer', keys(modelRows));
+  check('nothing measured about the run draws no execution row',
+    ledgerFor({ role: 'ikarus', text: 'x', envelope: envelopeFrom({ llm: { provider: 'claude_code_cli' } }) }, labelOf)
+      .every((r) => r.key !== 'execution' && r.key !== 'failure'));
+
+  /* ---- untrusted provider stderr is contained, never in the answer ---- */
+  const leak = 'ANTHROPIC_API_KEY=sk-live-XXXX at C:/Users/x `code` [l](javascript:alert(1))';
+  const leakTurn: Turn = { role: 'ikarus', text: 'Fehlgeschlagen.', origin: { intent: 'error', provider_used: 'claude_code_cli' },
+    envelope: envelopeFrom({ intent: 'error', llm: { ...runLlm, stderr_tail: leak + 'x'.repeat(900) } }) };
+  const leakRows = ledgerFor(leakTurn, labelOf);
+  const leakExec = leakRows.find((r) => r.key === 'execution');
+  const leakFail = leakRows.find((r) => r.key === 'failure');
+  check('provider stderr appears once, in a detail line, prefixed and clipped to 500 characters',
+    (leakExec?.detail || []).filter((line) => line.includes('sk-live-XXXX')).length === 1
+      && (leakExec?.detail || []).some((line) => line.startsWith(`${HONESTY_DE.stderr}: `) && line.length <= HONESTY_DE.stderr.length + 502)
+      && (leakFail?.detail || []).every((line) => !line.includes('sk-live-XXXX')),
+    (leakExec?.detail || []).map((l) => l.slice(0, 40)).join('|'));
+  check('provider stderr is never part of the datum a collapsed protokoll shows',
+    !leakExec?.datum.includes('sk-live') && !leakFail?.datum.includes('sk-live'));
+  check('provider stderr never reaches the answer bubble',
+    !renderToStaticMarkup(createElement(MarkdownMessage, { text: leakTurn.text })).includes('sk-live-XXXX'));
+  const strayFail = ledgerFor({ role: 'ikarus', text: 'x', envelope: envelopeFrom({ intent: 'error', llm: { stderr_tail: leak } }) }, labelOf)
+    .find((r) => r.key === 'failure');
+  check('with no execution row the stderr still has exactly one home',
+    (strayFail?.detail || []).filter((line) => line.includes('sk-live-XXXX')).length === 1,
+    (strayFail?.detail || []).join('|'));
+
+  /* ---- the start frame's model and budget reach the surface ---- */
+  const startedFull: Turn = { role: 'ikarus', text: '', streaming: true,
+    started: { intent: 'chat', shell: 'voice', provider_used: 'claude_code_cli', model_used: 'claude-opus-5[1m]', timeout_s: 150 } };
+  check('the model the start frame already carried is drawn in the route detail',
+    (ledgerFor(startedFull, labelOf)[0]?.detail || []).includes('Modell claude-opus-5[1m]'),
+    (ledgerFor(startedFull, labelOf)[0]?.detail || []).join('|'));
+  const budgetHtml = renderToStaticMarkup(createElement(MarkdownMessage, {
+    text: '', streaming: true, elapsed: 31, activity: 'Claude Code antwortet', budgetSeconds: 150
+  }));
+  check('a long wait is legible against the budget the server named', budgetHtml.includes('Claude Code antwortet · 31 s von 150 s'), budgetHtml);
+  const noBudgetHtml = renderToStaticMarkup(createElement(MarkdownMessage, {
+    text: '', streaming: true, elapsed: 31, activity: 'Claude Code antwortet'
+  }));
+  check('without a server budget no denominator is invented', noBudgetHtml.includes('Claude Code antwortet · 31 s') && !noBudgetHtml.includes(' von '));
+
+  /* ---- the offered action, as the panel shows it and the request sends it ---- */
+  const queueAction = { kind: 'queue_task', args: { project: 'atlas', objective: 'Parser härten', lane: 'local_only' }, requires_confirmation: true };
+  const subject = offerSubject(queueAction, 'fallback');
+  check('the offer subject is the exact shape the request will use',
+    subject?.kind === 'queue_task' && subject.project === 'atlas' && subject.lane === 'local_only'
+      && subject.objective === 'Parser härten' && subject.executable === true && subject.requiresConfirmation === true,
+    JSON.stringify(subject));
+  check('an omitted project and lane fall back exactly as the request falls back',
+    offerSubject({ kind: 'queue_task', args: {} }, 'atlas')?.project === 'atlas'
+      && offerSubject({ kind: 'queue_task', args: {} }, 'atlas')?.lane === 'local_only');
+  check('a full 40-character revision is readable',
+    offerSubject({ kind: 'queue_task', args: { source_revision: 'db38a762991b04cbc96c3cbed5209d6a517fa611' } }, 'p')?.revisionState === 'valid');
+  for (const bad of ['HEAD', 'db38a76', 'd'.repeat(39), 'a'.repeat(41), 'DB38A762991B04CBC96C3CBED5209D6A517FA611', 5, {}]) {
+    const derived = offerSubject({ kind: 'queue_task', args: { source_revision: bad } }, 'p');
+    check(`a revision of ${JSON.stringify(bad)} is reported unreadable, never normalised`,
+      derived?.revisionState === 'unreadable' && derived.sourceRevision === undefined, JSON.stringify(derived));
+  }
+  check('an absent revision is absent, not unreadable',
+    offerSubject({ kind: 'queue_task', args: {} }, 'p')?.revisionState === 'absent');
+  check('an action kind this cockpit has no endpoint for is not executable',
+    offerSubject({ kind: 'run_campaign', args: {} }, 'p')?.executable === false
+      && offerSubject({ kind: 'run_campaign', args: {} }, 'p')?.kind === 'run_campaign');
+  check('a non-object action derives nothing', offerSubject('queue_task', 'p') === undefined && offerSubject(undefined, 'p') === undefined);
+
+  const panel = renderToStaticMarkup(createElement(OfferConfirm, { subject: subject!, onAccept: () => {}, onDecline: () => {} }));
+  check('the confirm panel names the action, project, lane and objective before any click',
+    panel.includes('queue_task') && panel.includes('atlas') && panel.includes('local_only') && panel.includes('Parser härten'), panel.slice(0, 200));
+  check('the confirm panel always states that a nomination is not a promotion', panel.includes(HONESTY_DE.nomination));
+  check('a descriptive requires_confirmation:false does not silence the panel',
+    renderToStaticMarkup(createElement(OfferConfirm, {
+      subject: offerSubject({ ...queueAction, requires_confirmation: false }, 'p')!, onAccept: () => {}, onDecline: () => {}
+    })).includes(HONESTY_DE.flagIgnored));
+  check('a confirmed offer keeps saying nothing about the flag when the server asked for confirmation',
+    !panel.includes(HONESTY_DE.flagIgnored));
+  const inertPanel = renderToStaticMarkup(createElement(OfferConfirm, {
+    subject: offerSubject({ kind: 'run_campaign', args: { project: 'p' } }, 'p')!, onAccept: () => {}, onDecline: () => {}
+  }));
+  check('an unknown action kind disables the primary control and says nothing was sent',
+    inertPanel.includes('Diese Oberfläche kennt für „run_campaign“ keinen Ausführungsweg. Nichts wurde gesendet.')
+      && /<button[^>]*disabled[^>]*>\s*Loslegen/.test(inertPanel), inertPanel.slice(0, 400));
+  check('the confirm panel keeps the two accessible control names the suites pin',
+    panel.includes('Loslegen') && panel.includes('Nicht jetzt') && panel.includes('Vorgeschlagene Aktion beantworten'));
+
+  /* ---- cadence: derivation is incremental, not per-frame over the thread ---- */
+  let labelCalls = 0;
+  let resolveCalls = 0;
+  const countedLabel = (id: string) => { labelCalls += 1; return labelOf(id); };
+  const countedResolve = (needle: string) => { resolveCalls += 1; return needle.endsWith('.py') ? `mod:${needle}` : undefined; };
+  const settledTurns: Turn[] = Array.from({ length: 40 }, (_, i) => ({
+    role: 'ikarus' as const,
+    text: `Antwort ${i} in daedalus/spine/attempt.py und apps/web/src/features/conversation/model.ts`,
+    localId: `t${i}`,
+    seconds: 1.2,
+    origin: { intent: 'chat', provider_used: 'claude_code_cli', model_used: 'claude' }
+  }));
+  const live: Turn = { role: 'ikarus', text: '', localId: 'live', streaming: true, started: { provider_used: 'claude_code_cli' } };
+  let thread: Turn[] = [...settledTurns, live];
+  const derive = createReceiptCache(countedLabel, countedResolve);
+  const first = derive(thread);
+  const resolveAfterFirst = resolveCalls;
+  const labelAfterFirst = labelCalls;
+  check('the first pass derives every turn', first.length === 41 && resolveAfterFirst > 0);
+  let stable = true;
+  let current = first;
+  for (let i = 0; i < 200; i += 1) {
+    // Exactly what `patchReply` does: a new ARRAY, one new turn OBJECT.
+    const previous = thread;
+    const last = previous[previous.length - 1];
+    const patched: Turn = { ...last, text: `${last.text}x` };
+    thread = previous.map((t) => (t === last ? patched : t));
+    const next = derive(thread);
+    if (next[0] !== first[0] || next[0].ledger !== first[0].ledger || next[17] !== current[17]) stable = false;
+    current = next;
+  }
+  check('two hundred stream deltas never re-scan a settled answer for citations',
+    resolveCalls === resolveAfterFirst, `${resolveAfterFirst} -> ${resolveCalls}`);
+  check('per-frame runtime lookups stay a small constant, not the whole thread',
+    labelCalls - labelAfterFirst < 5 * 200, `${labelAfterFirst} -> ${labelCalls}`);
+  check('an unchanged turn keeps its receipt and its rows array by reference', stable);
 
   /* ---- relative time ---- */
   const now = Date.parse('2026-09-02T12:00:00Z');
