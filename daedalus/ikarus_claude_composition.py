@@ -30,7 +30,10 @@ from .ikarus_tool_scope import IkarusToolScopeProjection
 from .kernel.contracts import EffectLeaseRequest
 from .kernel.effects import EffectExecutionRequest
 from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from .providers.claude_cli import ClaudeWorkspaceGrant
+from .providers.claude_cli import (
+    RUNTIME_ID as CLAUDE_RUNTIME_ID,
+    ClaudeWorkspaceGrant,
+)
 from .runtimes.provider_executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
@@ -79,6 +82,10 @@ class MissionBoundClaudeInvocation:
         if type(self.sealed_bundle) is not ClaudeSealedInvocationBundle:
             raise TypeError(
                 "sealed_bundle must be an exact ClaudeSealedInvocationBundle"
+            )
+        if self.request.runtime_id != CLAUDE_RUNTIME_ID:
+            raise IkarusClaudeCompositionRefused(
+                "mission-bound Claude invocation selected a non-Claude runtime"
             )
         if self.attempt.mission_id != self.mission.mission_id:
             raise IkarusClaudeCompositionRefused(
@@ -191,6 +198,10 @@ def compose_oneshot_claude_sealed_invocation(
     Only that conjunction is representable as the public Claude sealed bundle.
     """
 
+    if request.runtime_id != CLAUDE_RUNTIME_ID or runtime_evidence.runtime_id != CLAUDE_RUNTIME_ID:
+        raise IkarusClaudeCompositionRefused(
+            "Claude composition requires the canonical claude_code_cli runtime binding"
+        )
     try:
         validate_oneshot_mission_attempt(
             mission,
@@ -302,6 +313,10 @@ def _authenticated_payload_body(
 ) -> dict[str, Any]:
     """Read provider call arguments only from the authenticated payload body."""
 
+    if invocation.request.runtime_id != CLAUDE_RUNTIME_ID:
+        raise IkarusClaudeCompositionRefused(
+            "mission-bound invocation no longer names the Claude runtime"
+        )
     try:
         payload = invocation.sealed_bundle.invocation_payload.to_dict()
     except Exception as exc:  # noqa: BLE001 - malformed authority is a refusal.
@@ -399,9 +414,9 @@ def dispatch_mission_bound_claude_invocation(
         raise IkarusClaudeCompositionRefused(
             "sealed Claude result does not name the canonical Attempt"
         )
-    if result.get("runtime_id") != invocation.request.runtime_id:
+    if result.get("runtime_id") != CLAUDE_RUNTIME_ID:
         raise IkarusClaudeCompositionRefused(
-            "sealed Claude result does not name the selected canonical runtime"
+            "sealed Claude result does not name the canonical Claude runtime"
         )
     return {
         **result,
