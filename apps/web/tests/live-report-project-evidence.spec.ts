@@ -84,7 +84,10 @@ test('terminal reports require exact project evidence before entering Work Pulse
     }
   }));
 
-  const res = await page.goto('/', { waitUntil: 'domcontentloaded' });
+  // Work Pulse is part of the Chat workspace. Navigate to the owning surface
+  // explicitly so the evidence assertions cannot accidentally depend on the
+  // default workspace selection.
+  const res = await page.goto('/?view=chat', { waitUntil: 'domcontentloaded' });
   expect(res, 'the server did not answer GET / at all').not.toBeNull();
   expect(res!.status(), 'GET / did not come back 200').toBe(200);
   expect(await res!.text(), 'the built web app is missing').not.toMatch(NOT_BUILT);
