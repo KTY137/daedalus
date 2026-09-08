@@ -394,6 +394,8 @@ def compile_relation_blocks(
                 binding.relation,
                 binding.target_plane,
             )
+            if requested_set is not None and signature not in requested_set:
+                continue
             included_binding_keys.add(
                 (
                     binding.source_plane,
@@ -403,8 +405,6 @@ def compile_relation_blocks(
                     binding.relation,
                 )
             )
-            if requested_set is not None and signature not in requested_set:
-                continue
             source_index = node_location[binding.source_node_id][1]
             target_index = node_location[binding.target_node_id][1]
             binding_records.append((binding, signature, source_index, target_index))
