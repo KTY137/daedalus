@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'chore(ci): add temporary report evidence workflow'
+    if: "github.event.head_commit.message == 'chore(ci): repair temporary report evidence workflow'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
