@@ -62,6 +62,16 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+/**
+ * Identity evidence must not be normalized while it crosses a trust boundary.
+ * In particular, trimming a project string before the scope check would turn
+ * `" project "` into evidence for `"project"` and defeat the byte-exact
+ * attribution invariant documented by reduceLiveWork().
+ */
+function exactText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 export function reportBrief(value: unknown): LiveReportBrief | undefined {
   const row = object(value);
   const name = text(row.name);
@@ -69,7 +79,7 @@ export function reportBrief(value: unknown): LiveReportBrief | undefined {
   return {
     id: text(row.id),
     name,
-    project: text(row.project),
+    project: exactText(row.project),
     lane: text(row.lane),
     agent: text(row.agent),
     status: text(row.status) || 'unbekannt',
