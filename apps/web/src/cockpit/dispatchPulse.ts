@@ -28,6 +28,10 @@ export interface DispatchPulseProjection {
 const DISPLAY_LIMIT = 3;
 const DISPATCH_IDENTITY_SCHEMA = 'conversation.dispatch.identity.v1';
 const DISPATCH_IDENTITY_PREFIX = 'conversation.dispatch.identity.';
+const DISPATCH_IDENTITY_FIELDS = [
+  'project', 'objective', 'lane', 'work_item_id', 'attempt_id',
+  'agent', 'tool', 'runtime_id', 'phase'
+] as const;
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -54,6 +58,16 @@ function integer(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function claimsDispatchIdentity(detail: Record<string, unknown>): boolean {
+  const schema = typeof detail.schema === 'string' ? detail.schema.trim() : undefined;
+  return Boolean(schema?.startsWith(DISPATCH_IDENTITY_PREFIX))
+    || DISPATCH_IDENTITY_FIELDS.some((field) => hasOwn(detail, field));
+}
+
 interface AcceptedDispatch extends DispatchPulseItem {
   order: number;
 }
@@ -68,6 +82,8 @@ interface AcceptedDispatch extends DispatchPulseItem {
  * - lifecycle must still be exactly `dispatched`;
  * - a versioned identity snapshot bound to the dispatch is preferred because
  *   it survives the bounded conversation-turn window;
+ * - identity-shaped detail without a valid schema is unresolved too: it must
+ *   never fall through to a causal chat turn and inherit legacy confidence;
  * - recognized identity snapshots must name this exact project and carry a
  *   non-empty objective AND lane, already in canonical byte form, otherwise
  *   they are rejected rather than normalized into plausible bound evidence;
@@ -80,8 +96,9 @@ interface AcceptedDispatch extends DispatchPulseItem {
  *   preserving the same fail-closed cross-project boundary as the item list;
  * - execution attribution (agent/tool/runtime/phase/WorkItem/Attempt) is copied
  *   only from canonical bound fields; legacy chat turns never manufacture it;
- * - legacy dispatches with no identity schema may still derive lane/objective
- *   from their causal turn, with the existing cross-project checks preserved;
+ * - legacy dispatches with no identity-shaped detail may still derive
+ *   lane/objective from their causal turn, with the existing cross-project
+ *   checks preserved;
  * - `descriptionSource` keeps bound evidence distinct from that legacy
  *   reconstruction so the UI cannot present both with equal confidence;
  * - malformed rows disappear instead of becoming plausible-looking work.
@@ -110,13 +127,12 @@ export function dispatchPulseFromConversation(value: unknown, project: string): 
     if (!ref) return;
 
     const detail = object(latest.detail);
-    const rawIdentitySchema = typeof detail.schema === 'string' ? detail.schema : undefined;
-    const claimedIdentitySchema = rawIdentitySchema?.trim();
-    if (claimedIdentitySchema?.startsWith(DISPATCH_IDENTITY_PREFIX)) {
+    if (claimsDispatchIdentity(detail)) {
       const identityProject = boundText(detail.project);
       if (identityProject !== project) return;
 
-      if (rawIdentitySchema !== claimedIdentitySchema || rawIdentitySchema !== DISPATCH_IDENTITY_SCHEMA) {
+      const rawIdentitySchema = typeof detail.schema === 'string' ? detail.schema : undefined;
+      if (rawIdentitySchema !== DISPATCH_IDENTITY_SCHEMA) {
         unresolved += 1;
         return;
       }
