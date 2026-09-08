@@ -67,7 +67,7 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # docs/evidence/G1-INTEGRATION-01; this moving census is not a superiority claim.
     assert entry["corpus_pin"] == {
         "files": 485,
-        "sha256": "924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df",
+        "sha256": "b88367227824e604fb252435f759c64abc391b5f2c8a114b2bd45607c749fdbe",
     }
     assert entry["functions"] == 6765
     assert entry["annotation_only_pct"] == 94.35  # the control

@@ -4698,3 +4698,20 @@ functions remain a small contribution; the hand-answered fixture remains over
 100 times larger in percentage-point contribution. Previous retractions,
 failed expectations and raw negative counts above are retained. This
 remeasurement establishes no Gate 2 or Gate 3 acceptance.
+
+
+### Podman inspection correction remeasurement (2026-09-08)
+
+The bounded `G1-RUNTIME-04` correction changes only the existing containment
+verifier body. Two complete s02 runs on CPython 3.12.13 have identical fields
+apart from wall time. All counts and rates in the preceding integration row
+remain unchanged; the exact normalized corpus pin moves from
+`924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df` to
+`b88367227824e604fb252435f759c64abc391b5f2c8a114b2bd45607c749fdbe`.
+Both complete results are retained as `s02-podman-corpora-a.json.gz` and
+`s02-podman-corpora-b.json.gz` under `docs/evidence/G1-INTEGRATION-01`, with
+hashes in `acceptance.json`. The frozen production file SHA256 is
+`7f52a56da9d01731e4de141a2f51fcdfc9ba80e524cd41c1f972a2e3b1371871`;
+base is `eb7834d52949ad10b2bb8c51fccd2a81c48aab20` plus the reviewed packet.
+This source census retains the prior negative research conclusions and carries
+no resolver improvement or Gate closure claim.

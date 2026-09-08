@@ -346,6 +346,149 @@ def test_resolved_configuration_is_attested_not_merely_requested(tmp_path: Path)
     assert str(workspace) not in json.dumps(summary)
 
 
+
+def _podman_none_network() -> dict:
+    # Observed unchanged Podman 4.9.3 inspection, before candidate start.
+    return {"none": {
+        "EndpointID": "",
+        "Gateway": "",
+        "IPAddress": "",
+        "IPPrefixLen": 0,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "MacAddress": "",
+        "NetworkID": "none",
+        "DriverOpts": None,
+        "IPAMConfig": None,
+        "Links": None,
+    }}
+
+
+@pytest.mark.parametrize("effective,bounding", [([], []), (None, []), ([], None), (None, None)])
+@pytest.mark.parametrize("network_marker", [False, True], ids=["empty-map", "podman-none"])
+def test_empty_capability_representations_preserve_verified_facts(
+    tmp_path: Path, effective, bounding, network_marker: bool,
+) -> None:
+    workspace = tmp_path.resolve()
+    command = ("python3", "-c", "print('ok')")
+    body = _inspect(workspace, command)
+    body["EffectiveCaps"] = effective
+    body["BoundingCaps"] = bounding
+    if network_marker:
+        body["NetworkSettings"]["Networks"] = _podman_none_network()
+
+    facts = L._verify_container(
+        [body], preflight=_preflight(tmp_path), container_id=CONTAINER_ID,
+        container_name="daedalus-gate-test", workspace=workspace,
+        command=command, hooks_dir=_hooks(tmp_path),
+    )
+    assert facts.effective_capabilities == ()
+    assert facts.bounding_capabilities == ()
+    assert facts.network_mode == "none"
+    assert facts.no_new_privileges is True
+
+
+def _invalid_inspection_representations():
+    for field in ("EffectiveCaps", "BoundingCaps"):
+        yield pytest.param(
+            lambda body, field=field: body.pop(field), "capability",
+            id=f"{field}-missing",
+        )
+        for label, value in (
+            ("object", {}), ("string", ""), ("false", False), ("true", True),
+            ("zero", 0), ("float-zero", 0.0), ("nonempty", ["CAP_NET_RAW"]),
+            ("null-element", [None]),
+        ):
+            yield pytest.param(
+                lambda body, field=field, value=value: body.__setitem__(field, value),
+                "capability", id=f"{field}-{label}",
+            )
+    yield pytest.param(
+        lambda body: body["NetworkSettings"].pop("Networks"), "network",
+        id="networks-missing",
+    )
+    for label, value in (
+        ("null", None), ("list", []), ("string", ""), ("false", False),
+        ("zero", 0), ("none-null", {"none": None}), ("none-empty", {"none": {}}),
+        ("bridge", {"bridge": {}}), ("extra-network", {**_podman_none_network(), "bridge": {}}),
+    ):
+        yield pytest.param(
+            lambda body, value=value: body["NetworkSettings"].__setitem__("Networks", value),
+            "network", id=f"networks-{label}",
+        )
+    for field in _podman_none_network()["none"]:
+        yield pytest.param(
+            lambda body, field=field: body["NetworkSettings"]["Networks"]["none"].pop(field),
+            "network", id=f"none-{field}-missing",
+        )
+    for field, value in (
+        ("EndpointID", "endpoint"), ("Gateway", "10.0.0.1"),
+        ("IPAddress", "10.0.0.2"), ("IPv6Gateway", "::1"),
+        ("GlobalIPv6Address", "::2"), ("MacAddress", "00:11:22:33:44:55"),
+        ("NetworkID", "bridge"), ("IPPrefixLen", 24), ("GlobalIPv6PrefixLen", 64),
+        ("DriverOpts", {}), ("IPAMConfig", {}), ("Links", []),
+        ("Aliases", []), ("IPPrefixLen", False), ("IPPrefixLen", 0.0),
+        ("GlobalIPv6PrefixLen", False), ("GlobalIPv6PrefixLen", 0.0),
+        ("EndpointID", None), ("NetworkID", None),
+    ):
+        yield pytest.param(
+            lambda body, field=field, value=value: body["NetworkSettings"]["Networks"]["none"].__setitem__(field, value),
+            "network", id=f"none-{field}-{type(value).__name__}-{value!r}",
+        )
+    yield pytest.param(
+        lambda body: body["HostConfig"].__setitem__("NetworkMode", "bridge"),
+        "network=none", id="none-marker-cannot-override-network-mode",
+    )
+
+
+@pytest.mark.parametrize("mutate,reason", list(_invalid_inspection_representations()))
+def test_invalid_inspection_representation_refuses_start_and_removes_container(
+    tmp_path: Path, monkeypatch, mutate, reason: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    uid, gid = workspace.stat().st_uid, workspace.stat().st_gid
+    preflight = _preflight(tmp_path, uid=uid, gid=gid)
+    container_name = "daedalus-gate-" + "a" * 32
+    command = ("python3", "-c", "print('ok')")
+    calls: list[tuple[str, ...]] = []
+    cleanup: list[tuple[str, ...]] = []
+
+    def checked(argv, *, env, operation):
+        calls.append(tuple(argv))
+        if operation == "container create":
+            return _completed(tuple(argv), stdout=(CONTAINER_ID + "\n").encode())
+        assert operation == "container configuration inspection"
+        body = _inspect(workspace.resolve(), command, name=container_name, uid=uid, gid=gid)
+        # A valid other field must not mask a missing, malformed or nonempty one.
+        # Keep [] here so the original capability guard can reach network cases.
+        body["NetworkSettings"]["Networks"] = _podman_none_network()
+        mutate(body)
+        return _completed(tuple(argv), stdout=json.dumps([body]).encode())
+
+    def no_start(*args, **kwargs):
+        pytest.fail("candidate attach must not start after invalid inspection")
+
+    monkeypatch.setattr(L, "_preflight", lambda: preflight)
+    monkeypatch.setattr(L.uuid, "uuid4", lambda: type("U", (), {"hex": "a" * 32})())
+    monkeypatch.setattr(L, "_checked_control", checked)
+    monkeypatch.setattr(L.subprocess, "Popen", no_start)
+    monkeypatch.setattr(
+        L, "_best_effort_control",
+        lambda runtime, runtime_env, oci_runtime, process_monitor, *args: (
+            cleanup.append(tuple(args)) or _completed(tuple(args))
+        ),
+    )
+    with (tmp_path / "gate.out").open("wb") as output:
+        with pytest.raises(ContainmentUnavailable, match=reason):
+            L.spawn_oci_contained(command, workspace, output=output)
+    assert len(calls) == 2
+    assert cleanup == [("rm", "--force", "--ignore", "--time=0", CONTAINER_ID)]
+    hooks_arg = next(part for part in calls[0] if part.startswith("--hooks-dir="))
+    assert not Path(hooks_arg.split("=", 1)[1]).exists()
+
+
 def test_manifest_list_reference_digest_variant_and_structured_idmaps_are_admitted(
     tmp_path: Path,
 ) -> None:
@@ -829,14 +972,22 @@ def test_spawn_surfaces_cleanup_failure_after_partial_create(
     reason="requires opt-in native Linux plus a local digest-pinned Podman image",
 )
 def test_live_linux_container_writes_workspace_but_not_root_and_has_no_network(
-    tmp_path: Path,
+    tmp_path: Path, record_property,
 ) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     script = workspace / "probe.py"
     script.write_text(
         """
-import pathlib, socket
+import json, pathlib, socket
+status = {}
+for line in pathlib.Path('/proc/self/status').read_text().splitlines():
+    name, separator, value = line.partition(':')
+    if separator and name in {'CapEff', 'CapBnd', 'NoNewPrivs'}:
+        if name in status:
+            raise RuntimeError('duplicate procfs status field')
+        status[name] = value.strip()
+print('PROC_STATUS=' + json.dumps(status, sort_keys=True))
 pathlib.Path('/workspace/inside.txt').write_text('ok')
 try:
     pathlib.Path('/outside.txt').write_text('escape')
@@ -864,3 +1015,15 @@ else:
     assert "ROOT_WRITE=REFUSED" in text
     assert "NETWORK=REFUSED" in text
     assert "ALLOWED" not in text
+    observations = [line.removeprefix("PROC_STATUS=") for line in text.splitlines() if line.startswith("PROC_STATUS=")]
+    assert len(observations) == 1, text
+    status = json.loads(observations[0])
+    assert set(status) == {"CapEff", "CapBnd", "NoNewPrivs"}
+    for field in ("CapEff", "CapBnd"):
+        value = status[field]
+        record_property(field, value)
+        assert isinstance(value, str) and value
+        assert all(char in "0123456789abcdefABCDEF" for char in value)
+        assert int(value, 16) == 0, status
+    record_property("NoNewPrivs", status["NoNewPrivs"])
+    assert status["NoNewPrivs"] == "1", status

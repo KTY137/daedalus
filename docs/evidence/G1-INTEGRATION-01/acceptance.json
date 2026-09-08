@@ -12,7 +12,7 @@
     "passing_subtests": 2237,
     "seconds": 530.4
   },
-  "status": "local_acceptance_passed_final_github_checks_pending",
+  "status": "runtime_correction_focused_passed_full_suite_and_linux_ci_pending",
   "failures": [
     "Two queue projection fixtures omit the actual required lane",
     "Old Codex wire test assumes no whole-answer stream delta",
@@ -527,6 +527,390 @@
       "sha256": "5e8d92f9f7500354a534e448ce3c282dda2e104dc4b9c7517f3ae2d46ce0d923",
       "archive": "workflow-references-final.xml.gz",
       "archive_sha256": "143bf3c80299f4ef8e758cc9e23ca8cec75a94fb0f78a1205c31098732e9b9cc"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-7d23-linux310-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/linux-oci.xml",
+      "sha256": "acd0ba0547bd893ec28ef2445ac6356f80c67e8945db1ec8b45ac5eb1d7795fa",
+      "archive": "final-ci-7d23-linux310-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "fdf5bc2da457d03c9d12dab35d3b99e447af69d36b1b9b194377a91441402f11"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-7d23-linux310-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/podman-info.json",
+      "sha256": "ef0a4b322e14494a9a6d7c773adba27bf5634db9b763d0bcdf853909014211a9",
+      "archive": "final-ci-7d23-linux310-artifacts-podman-info.json.gz",
+      "archive_sha256": "82b2ed186030c438408ce2ca26b8a9f9eefd656bfb71884b61bc9ff952ce36f9"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-7d23-linux312-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/linux-oci.xml",
+      "sha256": "5a16f4f54f52ebc1bb11bc90c6e0b45f30fc207c8e8debac3c31e1db974bc293",
+      "archive": "final-ci-7d23-linux312-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "5e28c35395c5675b0f0d56e74bc35933b17133fc27f4654b5fe92b7572e34fb5"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-7d23-linux312-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/podman-info.json",
+      "sha256": "6de724bd838b683f2abbf91e3cd8544e334dc914c33da53fb56f0578f6ec70b1",
+      "archive": "final-ci-7d23-linux312-artifacts-podman-info.json.gz",
+      "archive_sha256": "c2e661d4c5804935b92aa77c4df7eaf7b03c417eefde246b71b224ed2fbaa66b"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/candidate-container-inspect.json",
+      "sha256": "cc1a991dcfe82ec6d253a26ff3a7d385d4869b5c8d099efeb8464a3ce00266ae",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "90162e5ba966c9ba3bd3f5a976aab8634688f5fe28041e806cf238d53a783329"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/linux-oci.xml",
+      "sha256": "cb9903b336c8f0d77d449efc51c2e5595a7774ac949d73d64adc1180d18293f6",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "68cc6d75ade5b6d6f7c636d6715a157e7d85b9cbb2d48df70029aba06db93db5"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/podman-info.json",
+      "sha256": "9af3b3d1fbc8d998c89c8c72c25c9bcd8a44d9ee4a7ddbd8c7d3c2c5319e1698",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-podman-info.json.gz",
+      "archive_sha256": "a8c3ec92167e375e92ea9743374d702d40ae791f7f6637f74fefbd7a0d0a77d9"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/candidate-container-inspect.json",
+      "sha256": "17befd5c197f5723e927a4ca4728c15ac37ca67c832d03583b607b8bada9c759",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "4576b9c2ab8159fb8fc82c913939b13c34275f705fdfda098a7372fe388c1ed0"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/linux-oci.xml",
+      "sha256": "c7b605754ce5fd2564b04a0d0c793af64dc1b6435cf57a701837931ae0e1b5b6",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "5f4278cd53711f5a9c3dbae8f667e5cb457807207a8832bcb608621145025776"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/podman-info.json",
+      "sha256": "e69d8bdc24b7cf44ebe67dfa539b114acf04d63fd64a1480ef8465862d61be6e",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-podman-info.json.gz",
+      "archive_sha256": "f2c222193b4488cecad2f074c4a66e3afe14cf2adb8eff97cd982e5bc26476c3"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-stat-after.txt",
+      "sha256": "a4e643f5e368f684187c027711066872507314c814e926d692682c978ffb554d",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "b7e71b3da3282df7a7ff09010eb890e2d27e6f2642ecbc6ffef2c9d9a89b135a"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-stat-before.txt",
+      "sha256": "1a9a78f015cb961e1ca8015f9d541ff1059bf339341f9f95793bf17fee34ae46",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "1c00547ac5574316d38d5aa551bcc32b7c07a898ab05ac5cf94c801c9955c001"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-summary.json",
+      "sha256": "2c809525ef388df87572301b7a852c3fdebc9782ada95832b3e38c69b6a24ecc",
+      "archive": "final-ci-7d23-summary.json.gz",
+      "archive_sha256": "cb4adcf00f13f68e4d0f63b036e28266e2fc701c08c8b86dced9001784478f13"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-caps-observations.json",
+      "sha256": "9c1b700ca085bd5275ae0ff78de51e1a4ab7c41f4f663579dfd9ded444394b00",
+      "archive": "diagnostic-ci-eb7834-caps-observations.json.gz",
+      "archive_sha256": "4ef72e80e7effd027a90ec4bca4f241e8cfb5d05ff7aad1c7c9f17cd028074b9"
+    },
+    {
+      "source": "runs/integration-20260908/podman-closure-metadata.log",
+      "sha256": "f0eb9c23350c62a9cab9e2cd3074b6ffbbcd91b455b64def6f15e8e01c5b6f2a",
+      "archive": "podman-closure-metadata.log.gz",
+      "archive_sha256": "4d6f24059fb1294d0215cc8b4b054d743392e75fd8b166b93a1059bf4883edde"
+    },
+    {
+      "source": "runs/integration-20260908/podman-closure-metadata.xml",
+      "sha256": "64f69df754ed65f945ae279609f35f9a6194ba9aa4e8886d432bf8777c4386cb",
+      "archive": "podman-closure-metadata.xml.gz",
+      "archive_sha256": "0d613aa624481bd5f5c387d1a308fc6f2b822c29ca3192c1c1f146495ee9dfd0"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-actual-replay.json",
+      "sha256": "3c78ab649d3d161302457033d54f1658327b19f7e42e6fca875a6656e43b6a8d",
+      "archive": "podman-inspect-actual-replay.json.gz",
+      "archive_sha256": "b60c2f6c3948bd8080a4f3d073fd4b2903232acac9d879b3051c0138272a07a5"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-green.log",
+      "sha256": "445d18774923245143ffac57ac246163537169f870a4214beaecd1fc11af668c",
+      "archive": "podman-inspect-codec-green.log.gz",
+      "archive_sha256": "59abd577aae87b4864d7a286bf5330b3958c48ecc8ee1b1371c4380c233957ad"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-green.xml",
+      "sha256": "74e0b0fb7f7286896eaa6e593182a94a347e95c800905ef6d41368ad588d7466",
+      "archive": "podman-inspect-codec-green.xml.gz",
+      "archive_sha256": "7bfeb6cdf2db739e54501622cd608a3637c3870df3004f5b68dcadff76a72e1a"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-red.log",
+      "sha256": "ab8d9a5a47c33a35d1dc3a9282090465d491933a89425bb9c6424d9cdb8d84a5",
+      "archive": "podman-inspect-codec-red.log.gz",
+      "archive_sha256": "04f338096fa8bbf761ffba6a47b3c851b6f9e93456567dbee3fc78a952482a5b"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-red.xml",
+      "sha256": "c36c2b58ba37c2a30844a84a6c701c1129f32b7e83930fc9d99cea56793146e7",
+      "archive": "podman-inspect-codec-red.xml.gz",
+      "archive_sha256": "b1fc8b4df3a2475fac2f12539e791216bb0e32464f088f727510f4ad27ccd527"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-reviewed.log",
+      "sha256": "1d12ce444b91330b878a2a45fe03a48cec8ab75917161ce70710ed4cb7ca8fca",
+      "archive": "podman-inspect-codec-reviewed.log.gz",
+      "archive_sha256": "14b90426b259366ed6bf9062b28e2ab421a1590674f221da7031018d7488d421"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-reviewed.xml",
+      "sha256": "fe35d320686e0d78ecf417e86db865ce383d0c5448a08a828f0e27d98e70e1f5",
+      "archive": "podman-inspect-codec-reviewed.xml.gz",
+      "archive_sha256": "0ef8e5003b6c0076f0bad7430d6313dfebd7d1d633ece8427860874b587b112f"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-source.json",
+      "sha256": "1dd5a38e1b575b1133b4bc93ad9185a3153242baff5ea96dce60332489459bcc",
+      "archive": "podman-inspect-codec-source.json.gz",
+      "archive_sha256": "264567a1fca4e0f56e2631276ca09ab9224cd13acb318be63cfd7d93caabf4b1"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-independent-review.json",
+      "sha256": "7b446f791cd43b4d98b893eac33c5fa73e2d736434816dc11acb0417d4853050",
+      "archive": "podman-inspect-independent-review.json.gz",
+      "archive_sha256": "4e4ae7843054047e29f236f53ac187c160366e177785f62e8beffcb916134fe7"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-independent-review.log",
+      "sha256": "198f8059abe064212abb1baa2ec61ed5f279e56bd4a2dba2eabfe305eb111b0c",
+      "archive": "podman-inspect-independent-review.log.gz",
+      "archive_sha256": "f5b0a93f9e7c6b1dfe7618ca44ef545f7d93c651c50e57bb844c43a85a4b74e8"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-independent-review.xml",
+      "sha256": "a5fecc15f6b651705a18edc64012595f4b4300ea33aff53b29bcfaafa4d83435",
+      "archive": "podman-inspect-independent-review.xml.gz",
+      "archive_sha256": "d9367c2a997974354588dc2cb755a59261ba3c4f084a7ce7b26e6114e9860d61"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-integration-focused.log",
+      "sha256": "43bb1a6bf1ab79acaae7b274769f7fc8a175fa8257045eebd8509905852494df",
+      "archive": "podman-inspect-integration-focused.log.gz",
+      "archive_sha256": "6e3cff93205d448fc046b86355970f99235b80f4e4b00664efb8a7dee07ef3d8"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-integration-focused.xml",
+      "sha256": "a1d656bcb80d0a6f5e3e67c72054f358ba8c9d5ac2340881cab2e8c4809b5003",
+      "archive": "podman-inspect-integration-focused.xml.gz",
+      "archive_sha256": "dec3a7e973e7c9a9b26e910711ac41ca43e2444fb855b2d5a83bc224bed5b961"
+    },
+    {
+      "source": "runs/integration-20260908/podman-registry-final.log",
+      "sha256": "c9cea2dabbb295f2b3187c3eadfd3ef5becfa44895af912fb2604cbdd65a093f",
+      "archive": "podman-registry-final.log.gz",
+      "archive_sha256": "90b861205e15e78377a6b9d6ff5bfeb27a21748427c375182ff8aa79e068bda5"
+    },
+    {
+      "source": "runs/integration-20260908/podman-registry-final.xml",
+      "sha256": "9f0d1b849f0ec3bfe5447f826742a2751b262ab6a3a5c8693b8ecb1b73c58c91",
+      "archive": "podman-registry-final.xml.gz",
+      "archive_sha256": "1f594d94fed70ba315b0875db2ce04a53d59c1fc3f757980159e68f981cb32e6"
+    },
+    {
+      "source": "runs/integration-20260908/s02-podman-corpora-a.json",
+      "sha256": "1d730a78751374a5083032d648e67d492ad539835fdca23aa91abe996c66ce12",
+      "archive": "s02-podman-corpora-a.json.gz",
+      "archive_sha256": "132c60431d5d8b14c87f378e1518c73db41585d02562e1d695c0eac019cab3db"
+    },
+    {
+      "source": "runs/integration-20260908/s02-podman-corpora-b.json",
+      "sha256": "c063ca5cb0cc0c3d5a75101ef6e2434d8a82e95753b98c19cbeb0075962476cc",
+      "archive": "s02-podman-corpora-b.json.gz",
+      "archive_sha256": "fecc209477b2bfe703e78ea1c01e3e115e86a76396edd89964812d1330060b34"
+    },
+    {
+      "source": "runs/integration-20260908/G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.draft.md",
+      "sha256": "3d051729ef61e2d9ace98f3f10e95fb656cb9b2e84469fdd3f796ce8674c91cc",
+      "archive": "G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.draft.md.gz",
+      "archive_sha256": "1d89bc7d82403961fec7d56d1ace5af321f475c88a0a4a09ffe7dd258fe30d65"
     }
   ],
   "gate_transition": false,
@@ -664,5 +1048,66 @@
     "remediation": "Authenticated Apt reinstalls the exact installed owning package, before/after policy hashes must match, stat/package/override evidence retained, kernel refusal unchanged.",
     "scope": "runtime matrix and existing Tauri release OCI setup; Tauri setup and pinned image now precede real Genesis tests",
     "release_limitation": "Tauri Linux whole GUI still includes a Windows-only live case. Existing strict skip refusal remains; no release acceptance or publication claimed."
+  },
+  "ci_podman_representation_negative": {
+    "diagnostic_head": "eb7834d52949ad10b2bb8c51fccd2a81c48aab20",
+    "linux_lanes": [
+      "Python 3.10",
+      "Python 3.12"
+    ],
+    "runtime": "rootless Podman 4.9.3",
+    "capability_fields": {
+      "EffectiveCaps": "present JSON null",
+      "BoundingCaps": "present JSON null"
+    },
+    "network_settings": "Networks contains exactly one none marker with NetworkID none and empty addresses, gateways and MAC; HostConfig.NetworkMode is none",
+    "observed_refusal": "Original capability admission refuses before start in both lanes; one live test, one failure, no skips per lane",
+    "container_started": false,
+    "seccomp_restore_measured": "Authenticated exact-version package reinstall restores mode0644 from mode0777 with unchanged profile bytes",
+    "correction_packet": "G1-RUNTIME-04",
+    "correction_acceptance": "pending real live container result",
+    "preceding_head_result": "7d23:18 successful jobs,2 Linux capability failures,2 cancelled jobs,4 conditional skips; cancellations are not passes"
+  },
+  "podman_representation_correction": {
+    "packet": "G1-RUNTIME-04",
+    "base": "eb7834d52949ad10b2bb8c51fccd2a81c48aab20",
+    "production_sha256": "7f52a56da9d01731e4de141a2f51fcdfc9ba80e524cd41c1f972a2e3b1371871",
+    "test_sha256": "a14cb86327a5223deeefec6c9fccc227dd8ed978978f29c4f86ce67b09dd9eac",
+    "red": {
+      "failed": 10,
+      "passed": 58,
+      "deselected": 45
+    },
+    "reviewed_containment": {
+      "passed": 112,
+      "skipped": 1
+    },
+    "independent": {
+      "passed": 68,
+      "deselected": 45,
+      "blocking_findings": 0
+    },
+    "broad_windows": {
+      "passed": 244
+    },
+    "closure_corpus_metadata": {
+      "passed": 82,
+      "failed": 1,
+      "failure": "new primary packet omitted from explicit moving ID census; corrected without changing metadata completeness rules"
+    },
+    "corrected_registry": {
+      "passed": 24
+    },
+    "actual_inspect_replay": "Both Linux raw captures pass every inspector field; two workspace paths rebound and local hooks owner checked; parser-only, no candidate start",
+    "live_linux": "pending actual procfs masks, no-new-privileges, filesystem/network effects and HTTP Genesis acceptance",
+    "new_network_refusals": "Missing/null/nonmapping Networks metadata now refuses rather than treating unknown as empty"
+  },
+  "s02_podman_remeasurement": {
+    "corpus_sha256": "b88367227824e604fb252435f759c64abc391b5f2c8a114b2bd45607c749fdbe",
+    "complete_runs": 2,
+    "non_timing_fields_identical": true,
+    "counts_and_rates_unchanged": true,
+    "prior_retractions_retained": true,
+    "gate_claim": false
   }
 }
