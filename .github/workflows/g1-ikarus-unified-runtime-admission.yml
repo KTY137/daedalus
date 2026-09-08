@@ -26,6 +26,7 @@ on:
       - "apps/web/tests/mission-control.spec.ts"
       - "daedalus/claude_bridge.py"
       - "daedalus/ikarus_cancellation.py"
+      - "daedalus/ikarus_claude_composition.py"
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
@@ -60,6 +61,7 @@ on:
       - "tests/test_gui_check_budget.py"
       - "tests/test_ikarus_bridge_progress.py"
       - "tests/test_ikarus_cancellation.py"
+      - "tests/test_ikarus_claude_composition.py"
       - "tests/test_ikarus_claude_stream_cancellation.py"
       - "tests/test_ikarus_codex_cancellation.py"
       - "tests/test_ikarus_http_cancellation.py"
@@ -131,6 +133,7 @@ jobs:
           python -m py_compile
           daedalus/claude_bridge.py
           daedalus/ikarus_cancellation.py
+          daedalus/ikarus_claude_composition.py
           daedalus/ikarus_effect_bridge.py
           daedalus/ikarus_oneshot.py
           daedalus/ikarus_tool_scope.py
@@ -165,6 +168,7 @@ jobs:
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_cancellation.py
+          tests/test_ikarus_claude_composition.py
           tests/test_ikarus_claude_stream_cancellation.py
           tests/test_ikarus_codex_cancellation.py
           tests/test_ikarus_http_cancellation.py
@@ -206,6 +210,7 @@ jobs:
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_cancellation.py
+          tests/test_ikarus_claude_composition.py
           tests/test_ikarus_claude_stream_cancellation.py
           tests/test_ikarus_codex_cancellation.py
           tests/test_ikarus_http_cancellation.py
