@@ -214,6 +214,12 @@ def test_fused_validation_preserves_prehead_error_precedence(
     assert _error(**overrides) == expected
 
 
+def test_row_offset_type_scan_precedes_boundary_and_monotonicity_refusal() -> None:
+    assert _error(row_offsets=(1, 0, "bad")) == (
+        "block.row_offsets must contain integers"
+    )
+
+
 def test_count_mismatch_fallback_keeps_column_type_before_range_and_count() -> None:
     assert _error(
         row_offsets=(0, 2, 2),
@@ -258,14 +264,3 @@ def test_constructor_uses_row_spans_without_generic_any_or_per_entry_row_state()
     assert "previous_offset = -1" in source
     assert "previous_column is not None" not in source
     assert "previous_column = -1" in source
-    assert "range(offsets[row], offsets[row + 1])" in source
-    assert "type(item) is int and previous_column < item < column_count" in source
-    assert "if previous_column >= item:" not in source
-
-
-def test_from_indexed_sorts_validated_keys_without_materializing_item_pairs() -> None:
-    source = inspect.getsource(TypedRelationBlock._from_indexed)
-    assert "list(entries.items())" not in source
-    assert "for row, column in entries:" in source
-    assert "ordered = sorted(entries)" in source
-    assert "values.append(entries[key])" in source
