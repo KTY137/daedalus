@@ -284,11 +284,17 @@ export function envelopeFrom(value: unknown): TurnEnvelope | undefined {
     const reason = str(value.llm.reason);
     if (reason) llm.reason = reason;
     // ---- additive execution evidence (G1-UI-22) ----
-    const spent = int(value.llm.attempts);
+    // The voice lane (G1-IKARUS-36) nests its execution evidence under
+    // `llm.invocation`; a flat block is accepted too. When both carry a key
+    // the nested one wins: it is the measured invocation, not a summary.
+    const src: Record<string, unknown> = isRecord(value.llm.invocation)
+      ? { ...value.llm, ...value.llm.invocation }
+      : value.llm;
+    const spent = int(src.attempts);
     if (spent !== undefined) llm.attempts = spent;
     // `null` survives on purpose: "ran, reported no cost" is not "no cost field".
-    if ('cost_usd_measured' in value.llm) {
-      const cost = value.llm.cost_usd_measured;
+    if ('cost_usd_measured' in src) {
+      const cost = src.cost_usd_measured;
       if (cost === null) llm.cost_usd_measured = null;
       else {
         const usd = num(cost);
@@ -297,24 +303,24 @@ export function envelopeFrom(value: unknown): TurnEnvelope | undefined {
     }
     // Exactly two literals. An unrecognised basis is DROPPED, never upgraded
     // to `gemessen` by a malformed label.
-    if (value.llm.cost_basis === 'provider_reported' || value.llm.cost_basis === 'estimate') {
-      llm.cost_basis = value.llm.cost_basis;
+    if (src.cost_basis === 'provider_reported' || src.cost_basis === 'estimate') {
+      llm.cost_basis = src.cost_basis;
     }
-    const took = num(value.llm.duration_ms);
+    const took = num(src.duration_ms);
     if (took !== undefined && took >= 0) llm.duration_ms = took;
-    const stop = str(value.llm.stop_reason);
+    const stop = str(src.stop_reason);
     if (stop) llm.stop_reason = stop;
-    const subtype = str(value.llm.subtype);
+    const subtype = str(src.subtype);
     if (subtype) llm.subtype = subtype;
-    const providerTurns = int(value.llm.num_turns);
+    const providerTurns = int(src.num_turns);
     if (providerTurns !== undefined) llm.num_turns = providerTurns;
-    const stderrTail = str(value.llm.stderr_tail);
+    const stderrTail = str(src.stderr_tail);
     if (stderrTail) llm.stderr_tail = stderrTail;
-    const ran = str(value.llm.model_used);
+    const ran = str(src.model_used);
     if (ran) llm.model_used = ran;
-    const charged = num(value.llm.ledger_charged_usd);
+    const charged = num(src.ledger_charged_usd);
     if (charged !== undefined && charged >= 0) llm.ledger_charged_usd = charged;
-    const chargedBasis = str(value.llm.ledger_basis);
+    const chargedBasis = str(src.ledger_basis);
     if (chargedBasis) llm.ledger_basis = chargedBasis;
     if (Object.keys(llm).length > 0) out.llm = llm;
   }

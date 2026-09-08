@@ -466,6 +466,22 @@ export function runConversationSpec(): ConversationSpecResult[] {
     !renderToStaticMarkup(createElement(MarkdownMessage, { text: leakTurn.text })).includes('sk-live-XXXX'));
   const strayFail = ledgerFor({ role: 'ikarus', text: 'x', envelope: envelopeFrom({ intent: 'error', llm: { stderr_tail: leak } }) }, labelOf)
     .find((r) => r.key === 'failure');
+  /* ---- the voice lane nests its evidence under llm.invocation ---- */
+  const nestedEnv = envelopeFrom({ llm: { provider: 'claude_code_cli', attempts: 1, invocation: { ...runLlm } } });
+  const nestedExec = ledgerFor({ role: 'ikarus', text: 'x', envelope: nestedEnv }, labelOf).find((r) => r.key === 'execution');
+  const flatExec = ledgerFor({ role: 'ikarus', text: 'x', envelope: runEnv }, labelOf).find((r) => r.key === 'execution');
+  check('execution evidence nested under llm.invocation renders exactly like the flat shape',
+    nestedExec !== undefined && nestedExec.datum === flatExec?.datum
+      && JSON.stringify(nestedExec.detail) === JSON.stringify(flatExec?.detail),
+    `${nestedExec?.datum} vs ${flatExec?.datum}`);
+  const nestedWins = envelopeFrom({ llm: { provider: 'claude_code_cli', stop_reason: 'flat', invocation: { stop_reason: 'nested' } } });
+  check('when both shapes carry a key the measured (nested) value wins', nestedWins?.llm?.stop_reason === 'nested');
+  const strayLong = ledgerFor({ role: 'ikarus', text: 'x', envelope: envelopeFrom({ intent: 'error', llm: { stderr_tail: leak + 'x'.repeat(900) } }) }, labelOf)
+    .find((r) => r.key === 'failure');
+  check('with no execution row the stderr is still clipped to 500 characters',
+    (strayLong?.detail || []).some((line) => line.startsWith(`${HONESTY_DE.stderr}: `) && line.length <= HONESTY_DE.stderr.length + 502)
+      && (strayLong?.detail || []).every((line) => line.length <= HONESTY_DE.stderr.length + 502),
+    (strayLong?.detail || []).map((l) => String(l.length)).join('|'));
   check('with no execution row the stderr still has exactly one home',
     (strayFail?.detail || []).filter((line) => line.includes('sk-live-XXXX')).length === 1,
     (strayFail?.detail || []).join('|'));
