@@ -68,15 +68,15 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # this moving corpus census is not a resolver superiority claim.
     assert entry["corpus_pin"] == {
         "files": 485,
-        "sha256": "d6b652d970c1a5a63a3b8d3960da54befd6eaa440b2ee3122e466a1ee6a8358e",
+        "sha256": "3e5b493b41eceba7a91611d778ba9405f55b77f4afc432f188b38bd9a3a4ba02",
     }
-    assert entry["functions"] == 6778
+    assert entry["functions"] == 6779
     assert entry["annotation_only_pct"] == 94.35  # the control
     assert entry["full_resolver_pct"] == 94.23
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1180
+    assert entry["marginal_pp"] == 0.118
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["type_name_sites"] == 45190
+    assert entry["type_name_sites"] == 45191
     assert entry["internal_named_only"] == 425
     assert entry["verified_share_of_internal_pct"] == 90.51
 

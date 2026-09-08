@@ -4798,3 +4798,31 @@ measurement. Frozen source SHA256:
 for `ignition/gate1.py`, and
 `1367e64484514968eb8b710da25d15bbcd021b3ed80a24a39309916105860d19`
 for `kernel/fourfold_evidence.py`. This census establishes no Gate closure.
+
+### Project-registry self-row remeasurement (2026-09-08)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus the frozen `G1-PROJECTS-01`
+change to `daedalus/foundation/projects.py`. All fields other than wall time
+and root path matched across both complete outputs; all six corpora remain
+declared, five are present, and the absent corpus still records its reason.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,779 functions; annotation-only 94.35%; full resolver 94.23%; marginal 8 functions / 0.1180 pp; 45,191 type-name sites, resolution 99.93%; verified internal 4,053 / 4,478 (90.51%); 425 named-only internal sites |
+| source pin | `3e5b493b41eceba7a91611d778ba9405f55b77f4afc432f188b38bd9a3a4ba02` |
+
+The one additional function is `self_checkout_root` in
+`foundation/projects.py`; type-name sites increase by one. Every rate and
+every other count of the preceding row is unchanged. This is a changed source
+corpus under the same probe, not measured resolver improvement. The fixed
+fixture's 15.7895 pp marginal contribution still exceeds this kernel row by
+more than two orders of magnitude. All prior retractions, failed expectations
+and measured rows above remain unchanged.
+
+Raw complete outputs are `s02-g1-projects-01-corpora-a.json.gz` and
+`s02-g1-projects-01-corpora-b.json.gz` under `docs/evidence/G1-PROJECTS-01`,
+with SHA256 values in `acceptance.json` beside them. This census establishes
+no Gate closure.

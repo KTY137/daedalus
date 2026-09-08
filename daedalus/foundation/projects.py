@@ -22,6 +22,23 @@ ROOT = Path(__file__).resolve().parents[2]
 PROJECT_DIR = ROOT / "projects"
 PROJECT_REGISTRY_LOCK_TIMEOUT_S = 5.0
 
+#: The one relative ``repo_root`` a registry row may carry: exactly "." means
+#: "the checkout that owns this registry". It resolves through
+#: :func:`self_checkout_root`, never through the process working directory.
+#: ``projects/agent_env.json`` relies on it so the same row stays valid in
+#: every clone, CI job and service regardless of host or launch directory.
+SELF_CHECKOUT_ROOT = "."
+
+
+def self_checkout_root() -> Path:
+    """The checkout that owns the project registry (``PROJECT_DIR.parent``).
+
+    Derived from ``PROJECT_DIR`` at call time so a test that points the
+    registry elsewhere moves the self root with it, and so a relocated
+    registry can never keep pointing at the source tree by accident.
+    """
+    return PROJECT_DIR.parent
+
 _SAFE_NAME_RE = re.compile(r"[^a-z0-9_-]+")
 _WINDOWS_RESERVED_NAMES = {
     "con", "prn", "aux", "nul",
@@ -107,6 +124,11 @@ def _registered_root_key(data: object) -> str | None:
     # can accidentally turn an unusable value into a registry identity.
     if "\x00" in raw:
         return None
+    if raw.strip() == SELF_CHECKOUT_ROOT:
+        # The self row is the one relative value with exactly one canonical
+        # meaning (see SELF_CHECKOUT_ROOT); every other relative value still
+        # fails closed below.
+        return _path_key(self_checkout_root())
     try:
         native = Path(raw)
         if native.is_absolute():
@@ -392,14 +414,22 @@ def resolve_registered_project_root(project: object) -> str:
                 raise ProjectRegistryUnavailable(
                     f"project registry row '{project_name}.json' has no valid repo_root"
                 )
-            native_path = Path(raw_root)
-            if not native_path.is_absolute():
-                raise ProjectRegistrationError(
-                    f"registered project '{project_name}' is unavailable: "
-                    "registered repo_root is not absolute on this host"
-                )
+            if raw_root.strip() == SELF_CHECKOUT_ROOT:
+                # Self row (see SELF_CHECKOUT_ROOT): resolve against the
+                # registry's own checkout, not the caller's cwd, so an
+                # effectful service exposes exactly the tree that owns the
+                # registry row it was asked about.
+                candidate_root: object = self_checkout_root()
+            else:
+                native_path = Path(raw_root)
+                if not native_path.is_absolute():
+                    raise ProjectRegistrationError(
+                        f"registered project '{project_name}' is unavailable: "
+                        "registered repo_root is not absolute on this host"
+                    )
+                candidate_root = raw_root
             try:
-                root = _canonical_repo_root(raw_root)
+                root = _canonical_repo_root(candidate_root)
             except ProjectRegistrationError as exc:
                 raise ProjectRegistrationError(
                     f"registered project '{project_name}' is unavailable: {exc}"
