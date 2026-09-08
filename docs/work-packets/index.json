@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 463,
+    "assigned_artifacts": 466,
     "legacy_artifacts": 204,
-    "packet_artifacts": 465,
-    "packet_ids": 400,
-    "post_index_artifacts": 261,
+    "packet_artifacts": 468,
+    "packet_ids": 403,
+    "post_index_artifacts": 264,
     "registry_artifacts": 1,
-    "tracked_files": 466,
+    "tracked_files": 469,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -3654,6 +3654,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-86.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "97e5e66a07028060005e071270d201a31a28b98b",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-85 and its retained exact-head evidence",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-86",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-86.json"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-01.json"
       ],
       "metadata": {
@@ -3763,6 +3779,22 @@
       "origin": "post_index",
       "packet_id": "G1-EXP-TENSOR-LATENT-CEILING-07",
       "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-07.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-FOURFOLD-DIRECTIONALITY-01_VERIFIER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "97e5e66a07028060005e071270d201a31a28b98b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-EXP-TENSOR-GPU-54 directionality contract and the existing canonical projection verifier",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-FOURFOLD-DIRECTIONALITY-01",
+      "primary_artifact": "docs/work-packets/G1-FOURFOLD-DIRECTIONALITY-01_VERIFIER.md"
     },
     {
       "artifacts": [
@@ -5827,6 +5859,22 @@
       "origin": "legacy",
       "packet_id": "G1-LOOP-TERMINAL-250",
       "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MAP-INTEGRATION-03_SELECTIVE_PERIPHERY_AND_SWITCH_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "97e5e66a07028060005e071270d201a31a28b98b",
+        "classification": "ALIGNED",
+        "dependencies": "Master Plan Revision 13; reviewed MAP-02 remote audit; existing project-center and env-helper reintegration",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MAP-INTEGRATION-03",
+      "primary_artifact": "docs/work-packets/G1-MAP-INTEGRATION-03_SELECTIVE_PERIPHERY_AND_SWITCH_PORT.md"
     },
     {
       "artifacts": [
@@ -8154,6 +8202,20 @@
     {
       "artifact_role": "primary",
       "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-86",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-86.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
       "packet_id": "G1-EXP-TENSOR-LATENT-CEILING-01",
       "path": "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-01.json",
       "sections": [
@@ -8240,6 +8302,20 @@
       "format": "json",
       "packet_id": "G1-EXP-TENSOR-LATENT-CEILING-07",
       "path": "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-07.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-FOURFOLD-DIRECTIONALITY-01",
+      "path": "docs/work-packets/G1-FOURFOLD-DIRECTIONALITY-01_VERIFIER.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -9640,6 +9716,20 @@
       "format": "markdown",
       "packet_id": "G1-KERNEL-02",
       "path": "docs/work-packets/G1-KERNEL-02_PROVIDER_CALL_CANCELLATION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MAP-INTEGRATION-03",
+      "path": "docs/work-packets/G1-MAP-INTEGRATION-03_SELECTIVE_PERIPHERY_AND_SWITCH_PORT.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

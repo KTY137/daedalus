@@ -16,6 +16,7 @@ const project = { name: 'atlas', repo_root: 'C:\\work\\atlas', team: {}, reachab
 const storedView = {
   conversation_id: 'conv_1',
   exists: true,
+  project_binding: { state: 'bound', project: project.name, row_count: 2 },
   turn_count: 2,
   narrative: '',
   turns: [
