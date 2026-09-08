@@ -3,6 +3,7 @@ import json
 from daedalus import file_bridge
 
 
+# These are executor-owned terminal facts; request/chat metadata is adversarial input here.
 EXECUTION_EVIDENCE = {
     "runtime_id": "claude-cli-v1",
     "work_item_id": "work-7f32",
