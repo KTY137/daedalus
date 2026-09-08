@@ -408,7 +408,8 @@ def compile_relation_blocks(
             source_index = node_location[binding.source_node_id][1]
             target_index = node_location[binding.target_node_id][1]
             binding_records.append((binding, signature, source_index, target_index))
-            discovered.add(signature)
+            if requested_set is None:
+                discovered.add(signature)
 
     edge_records: list[tuple[ForestEdge, RelationSignature, int, int]] = []
     for edge in forest.edges:
@@ -470,7 +471,8 @@ def compile_relation_blocks(
                 )
             continue
         edge_records.append((edge, signature, source_index, target_index))
-        discovered.add(signature)
+        if requested_set is None:
+            discovered.add(signature)
 
     selected = (
         requested_signatures
