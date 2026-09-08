@@ -1,30 +1,35 @@
 """Measure full relation-block rebuild amplification for one tiny semantic delta.
 
-This is a bounded diagnostic, not a production delta engine.  It keeps the
+This is a bounded diagnostic, not a production delta engine. It keeps the
 existing KnowledgeForest/Fourfold authorities and ``compile_relation_blocks``
-as the only projection owner, then asks a narrower question: when one retained
+as the only projection owner, then asks two narrow questions: when one retained
 same-plane relation fact changes while axis membership stays fixed, how much
-canonical work is repeated by the required full rebuild today?
+canonical work is repeated by the required full rebuild today, and where does
+that rebuild spend its profiled time relative to selected-block reconstruction?
 
 The probe deliberately does not implement or simulate a trusted incremental
-constructor.  It reports the exact changed-coordinate scope, deterministic
-input/output amplification, and ordinary full-rebuild wall timing.  Partial
-endpoint planes are also exercised fail-closed so a future incremental design
-cannot quietly reinterpret unknown sparse zeroes as complete facts.
+constructor. It reports exact changed-coordinate scope, deterministic
+input/output amplification, ordinary full-rebuild wall timing, and cProfile
+attribution from the unchanged compiler. Partial endpoint planes are exercised
+fail-closed so a future incremental design cannot quietly reinterpret unknown
+sparse zeroes as complete facts.
 """
 from __future__ import annotations
 
 import argparse
+import cProfile
 import json
 import platform
 import statistics
+import time
 from pathlib import Path
 from typing import Any, Sequence
 
+import daedalus.twin.relation_compiler as _relation_compiler
 from daedalus.schemas import ContractProvenance
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
 from daedalus.twin import FourfoldSnapshot, PlaneSnapshot, fourfold_from_knowledge_forest
-from daedalus.twin.relation_blocks import RelationSignature
+from daedalus.twin.relation_blocks import RelationSignature, TypedRelationBlock
 from daedalus.twin.relation_compiler import CompiledRelationBlocks, compile_relation_blocks
 from daedalus.twin.semiring import BooleanSemiring
 
@@ -35,15 +40,23 @@ else:  # direct ``python experiments/tensor_gpu/relation_delta_rebuild_probe.py`
     from boolean_probe_contract import write_report
     from cpu_bitset_baseline import MAX_REPEATS, MAX_WARMUP, _measure_repeated
 
-SCHEMA = "daedalus-tensor-relation-delta-rebuild/1"
+SCHEMA = "daedalus-tensor-relation-delta-rebuild/2"
 MAX_NODES = 2_048
+MAX_PROFILE_REPEATS = 5
 BASE_REVISION = "a" * 40
 DELTA_REVISION = "b" * 40
 CREATED_AT = "2026-09-08T19:02:06Z"
 SIGNATURE = RelationSignature("code", "imports", "code")
 
 
-def _validate_case(*, nodes: int, row_width: int, repeats: int, warmup: int) -> None:
+def _validate_case(
+    *,
+    nodes: int,
+    row_width: int,
+    repeats: int,
+    warmup: int,
+    profile_repeats: int,
+) -> None:
     if type(nodes) is not int or not 4 <= nodes <= MAX_NODES:
         raise ValueError(f"nodes must be an integer from 4 to {MAX_NODES}")
     if type(row_width) is not int or not 1 <= row_width < nodes - 1:
@@ -52,6 +65,10 @@ def _validate_case(*, nodes: int, row_width: int, repeats: int, warmup: int) -> 
         raise ValueError(f"repeats must be an integer from 1 to {MAX_REPEATS}")
     if type(warmup) is not int or not 0 <= warmup <= MAX_WARMUP:
         raise ValueError(f"warmup must be an integer from 0 to {MAX_WARMUP}")
+    if type(profile_repeats) is not int or not 1 <= profile_repeats <= MAX_PROFILE_REPEATS:
+        raise ValueError(
+            f"profile_repeats must be an integer from 1 to {MAX_PROFILE_REPEATS}"
+        )
 
 
 def _node_id(index: int) -> str:
@@ -165,8 +182,87 @@ def _timing_summary(samples: Sequence[float]) -> dict[str, float | int]:
     }
 
 
-def run_probe(*, nodes: int = 512, row_width: int = 16, repeats: int = 7, warmup: int = 2) -> dict[str, Any]:
-    _validate_case(nodes=nodes, row_width=row_width, repeats=repeats, warmup=warmup)
+def _entry_metrics(entries: Sequence[Any]) -> dict[str, float | int]:
+    return {
+        "calls": sum(int(entry.callcount) for entry in entries),
+        "self_ms": sum(float(entry.inlinetime) for entry in entries) * 1_000.0,
+        "cumulative_ms": sum(float(entry.totaltime) for entry in entries) * 1_000.0,
+    }
+
+
+def _code_metrics(stats: Sequence[Any], codes: Sequence[Any]) -> dict[str, float | int]:
+    code_ids = {id(code) for code in codes}
+    return _entry_metrics(tuple(entry for entry in stats if id(entry.code) in code_ids))
+
+
+def _profile_compile_once(
+    forest: KnowledgeForest,
+    snapshot: FourfoldSnapshot,
+) -> tuple[CompiledRelationBlocks[bool], float, dict[str, dict[str, float | int]]]:
+    profiler = cProfile.Profile()
+    started = time.perf_counter_ns()
+    profiler.enable()
+    try:
+        compiled = _compile(forest, snapshot)
+    finally:
+        profiler.disable()
+    wall_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+    stats = tuple(profiler.getstats())
+    return compiled, wall_ms, {
+        "compiler_total": _code_metrics(stats, (compile_relation_blocks.__code__,)),
+        "selected_block_reconstruction": _code_metrics(
+            stats,
+            (TypedRelationBlock._from_indexed.__func__.__code__,),
+        ),
+        "typed_block_post_init": _code_metrics(stats, (TypedRelationBlock.__post_init__.__code__,)),
+        "fact_aggregation": _code_metrics(stats, (_relation_compiler._record_fact.__code__,)),
+        "forest_partition_validation": _code_metrics(
+            stats,
+            (_relation_compiler._forest_node_partition.__code__,),
+        ),
+    }
+
+
+def _median_profile_metrics(
+    samples: Sequence[dict[str, dict[str, float | int]]],
+) -> dict[str, dict[str, float | int]]:
+    if not samples:
+        raise ValueError("profile samples must not be empty")
+    names = tuple(samples[0])
+    if any(tuple(sample) != names for sample in samples[1:]):
+        raise AssertionError("profile metric surface drifted inside one case")
+    output: dict[str, dict[str, float | int]] = {}
+    for name in names:
+        calls = {int(sample[name]["calls"]) for sample in samples}
+        if len(calls) != 1:
+            raise AssertionError(f"profile call count for {name} drifted inside one case")
+        output[name] = {
+            "calls": calls.pop(),
+            "self_ms_median": float(
+                statistics.median(float(sample[name]["self_ms"]) for sample in samples)
+            ),
+            "cumulative_ms_median": float(
+                statistics.median(float(sample[name]["cumulative_ms"]) for sample in samples)
+            ),
+        }
+    return output
+
+
+def run_probe(
+    *,
+    nodes: int = 512,
+    row_width: int = 16,
+    repeats: int = 7,
+    warmup: int = 2,
+    profile_repeats: int = 3,
+) -> dict[str, Any]:
+    _validate_case(
+        nodes=nodes,
+        row_width=row_width,
+        repeats=repeats,
+        warmup=warmup,
+        profile_repeats=profile_repeats,
+    )
 
     base_forest = _forest(
         nodes=nodes,
@@ -193,6 +289,20 @@ def run_probe(*, nodes: int = 512, row_width: int = 16, repeats: int = 7, warmup
         repeats=repeats,
         warmup=warmup,
     )
+
+    profiled = tuple(
+        _profile_compile_once(delta_forest, delta_snapshot)
+        for _ in range(profile_repeats)
+    )
+    if any(compiled.digest != delta_compiled.digest for compiled, _, _ in profiled):
+        raise AssertionError("profiling changed canonical compiler output")
+    profile_metrics = _median_profile_metrics(tuple(metrics for _, _, metrics in profiled))
+    profiled_wall = tuple(wall_ms for _, wall_ms, _ in profiled)
+    compiler_cumulative = float(profile_metrics["compiler_total"]["cumulative_ms_median"])
+    block_reconstruction_cumulative = float(
+        profile_metrics["selected_block_reconstruction"]["cumulative_ms_median"]
+    )
+    non_block_residual = max(0.0, compiler_cumulative - block_reconstruction_cumulative)
 
     base_entries = _entries(base_compiled)
     delta_entries = _entries(delta_compiled)
@@ -231,7 +341,10 @@ def run_probe(*, nodes: int = 512, row_width: int = 16, repeats: int = 7, warmup
         "measurement_contract": (
             "Measure only the existing compile_relation_blocks full-rebuild owner. "
             "No production delta path, trusted constructor, cache, second graph authority, "
-            "backend registry or validation bypass is introduced or simulated."
+            "backend registry or validation bypass is introduced or simulated. Profiling "
+            "observes the real selected-block reconstruction call and reports the remaining "
+            "compiler envelope as a bounded non-block residual rather than inventing a second "
+            "projection implementation."
         ),
         "case": {
             "nodes": nodes,
@@ -260,6 +373,33 @@ def run_probe(*, nodes: int = 512, row_width: int = 16, repeats: int = 7, warmup
                 "incremental-speedup claim. Wall timings describe ordinary full rebuilds only."
             ),
         },
+        "full_rebuild_attribution": {
+            "profile_repeats": profile_repeats,
+            "profiled_compile_wall_ms": _timing_summary(profiled_wall),
+            "profile_metrics": profile_metrics,
+            "compiler_cumulative_ms_median": compiler_cumulative,
+            "selected_block_reconstruction_cumulative_ms_median": block_reconstruction_cumulative,
+            "non_block_compiler_residual_cumulative_ms_median": non_block_residual,
+            "selected_block_fraction_of_profiled_compiler_cumulative": (
+                block_reconstruction_cumulative / compiler_cumulative
+                if compiler_cumulative > 0.0
+                else None
+            ),
+            "non_block_residual_fraction_of_profiled_compiler_cumulative": (
+                non_block_residual / compiler_cumulative
+                if compiler_cumulative > 0.0
+                else None
+            ),
+            "interpretation": (
+                "cProfile inclusive attribution only. selected_block_reconstruction is the "
+                "real TypedRelationBlock._from_indexed call made by compile_relation_blocks. "
+                "The non-block residual is compiler cumulative time minus that call and therefore "
+                "contains Forest/Fourfold partition checks, global edge discovery/admission, fact "
+                "aggregation, signature/axis setup and receipt construction; it is deliberately "
+                "not labeled as a pure edge-scan wall time. Profiled timings are diagnostic, "
+                "distorted by profiling, and not additive to the unprofiled medians."
+            ),
+        },
         "fail_closed": {
             "partial_endpoint_plane": "refused",
             "message": partial_refusal,
@@ -284,6 +424,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--row-width", type=int, default=16)
     parser.add_argument("--repeats", type=int, default=7)
     parser.add_argument("--warmup", type=int, default=2)
+    parser.add_argument("--profile-repeats", type=int, default=3)
     parser.add_argument("--output", type=Path)
     return parser
 
@@ -295,6 +436,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         row_width=args.row_width,
         repeats=args.repeats,
         warmup=args.warmup,
+        profile_repeats=args.profile_repeats,
     )
     if args.output is not None:
         write_report(args.output, report)
