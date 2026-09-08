@@ -31,26 +31,16 @@ jobs:
 
           path = Path("daedalus/web_api.py")
           text = path.read_text(encoding="utf-8")
-          old = '''                    link = conv.default_store().link_dispatch(
-                        str(conversation_id), task_id,
-                        turn_id=(int(turn_id) if turn_id is not None else None),
-                        kind="queue_task")
-          '''
-          new = '''                    link = conv.default_store().link_dispatch(
-                        str(conversation_id), task_id,
-                        turn_id=(int(turn_id) if turn_id is not None else None),
-                        kind="queue_task",
-                        detail={
-                            "schema": "conversation.dispatch.identity.v1",
-                            "project": project,
-                            "objective": objective,
-                            "lane": str(result["lane"]),
-                        })
-          '''
-          # The YAML indentation above becomes part of the Python triple-quoted
-          # closing line only in the workflow source, not in the shell script.
-          old = old[:-10] if old.endswith("          ") else old
-          new = new[:-10] if new.endswith("          ") else new
+          old = '                        kind="queue_task")\n'
+          new = (
+              '                        kind="queue_task",\n'
+              '                        detail={\n'
+              '                            "schema": "conversation.dispatch.identity.v1",\n'
+              '                            "project": project,\n'
+              '                            "objective": objective,\n'
+              '                            "lane": str(result["lane"]),\n'
+              '                        })\n'
+          )
           count = text.count(old)
           if count != 1:
               raise SystemExit(f"expected one queue dispatch link seam, found {count}")
