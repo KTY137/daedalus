@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 469,
+    "assigned_artifacts": 470,
     "legacy_artifacts": 204,
-    "packet_artifacts": 471,
-    "packet_ids": 406,
-    "post_index_artifacts": 267,
+    "packet_artifacts": 472,
+    "packet_ids": 407,
+    "post_index_artifacts": 268,
     "registry_artifacts": 1,
-    "tracked_files": 472,
+    "tracked_files": 473,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -6359,6 +6359,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-TOKENIZER-01_TOKENIZER_STATUS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24e229c0f34e5404bc219637b646386529f82035",
+        "classification": "ALIGNED",
+        "dependencies": "none",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-TOKENIZER-01",
+      "primary_artifact": "docs/work-packets/G1-TOKENIZER-01_TOKENIZER_STATUS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TWIN-GARDEN-01R.json"
       ],
       "metadata": {
@@ -10163,6 +10179,20 @@
       "format": "markdown",
       "packet_id": "G1-TESTS-01",
       "path": "docs/work-packets/G1-TESTS-01_SHELL_VOICE_TEST_ISOLATION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-TOKENIZER-01",
+      "path": "docs/work-packets/G1-TOKENIZER-01_TOKENIZER_STATUS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
