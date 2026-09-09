@@ -101,24 +101,84 @@ def test_an_unknown_suffix_claims_no_plane() -> None:
 # --------------------------------------------------------------------------
 # one canonical path
 # --------------------------------------------------------------------------
-def test_production_has_exactly_one_plane_rule() -> None:
+#: Production modules that map a file extension to a plane, other than the
+#: canonical registry, with the reason each is allowed to exist.
+#:
+#: This allowlist is the honest part of the test. The first version searched
+#: only for modules containing ``semantic_planes``, and therefore missed
+#: ``eval/gate3/taskset.py`` entirely -- a fifth production plane rule that had
+#: been there the whole time. A guard that cannot see the thing it guards
+#: against is worse than no guard, because it reads as evidence.
+PLANE_RULE_ALLOWLIST = {
+    "twin/extractors/registry.py": (
+        "THE CANONICAL RULE: artifact -> plane membership, multi-plane."
+    ),
+    "eval/gate3/taskset.py": (
+        "Classifies a TASK by the plane of its gold labels, not an artifact by "
+        "membership, and its extension sets are deliberately DISJOINT. That "
+        "disjointness is load-bearing: a cross-plane comparison needs each task "
+        "in exactly one plane. Applying the canonical multi-plane rule here "
+        "would put every .py task in both code and type -- measured on the live "
+        "corpus it reports type=27 while adding ZERO distinct tasks, which is "
+        "the structural artefact rule R3 exists to refuse."
+    ),
+    "eval/gate3/arms/separate_indices.py": (
+        "An ARM's own partition, and it must be one-file-one-plane or the arm "
+        "double-counts. Its docstring says so: a file spec_for already claims "
+        "as code is never re-claimed by the type proxy."
+    ),
+    "eval/tasks.py": (
+        "The eval package's retrieval universe -- which files a data-plane arm "
+        "may RETRIEVE. Its own comment already disclaims being a global "
+        "classifier and names the registry, gate3 and separate_indices as the "
+        "authorities for their own questions."
+    ),
+    "eval/harness.py": (
+        "_RETRIEVABLE_PLANES plus a plane-walk parameter, shared with "
+        "eval/tasks.py so one definition serves both without an import cycle. "
+        "Not a classifier: it selects which planes to walk, not what a file is."
+    ),
+    "twin/reference_compiler.py": (
+        "Manifest VALIDATION, not classification: it checks that a declared "
+        "code_files entry ends .py/.js and refuses otherwise. It never assigns "
+        "a plane -- the manifest already did."
+    ),
+}
+
+
+def test_production_has_no_undeclared_plane_rule() -> None:
     """A second production plane oracle is the defect this test exists for.
 
     Searched over `daedalus/` only: the two experiment rules live under
     `experiments/` and keep their scope by design.
     """
     import pathlib
+    import re
 
     root = pathlib.Path(__file__).resolve().parents[2] / "daedalus"
+    plane_names = {"code", "type", "data", "knowledge"}
     offenders = []
     for path in root.rglob("*.py"):
+        rel = path.relative_to(root).as_posix()
+        if rel in PLANE_RULE_ALLOWLIST:
+            continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        # A module that both names the planes and maps suffixes to them is a
-        # plane rule. The canonical one is allowed to be exactly that.
-        if "semantic_planes" in text and path.name != "registry.py":
-            if "LanguageSpec(" in text or "PLANE_BY_SUFFIX" in text:
-                offenders.append(str(path.relative_to(root)))
+        # A plane rule names every plane AND maps file extensions to them.
+        if not plane_names.issubset(set(re.findall(r'"(code|type|data|knowledge)"', text))):
+            continue
+        if re.search(r'"\.[a-z0-9]{1,6}"\s*[,:]', text):
+            offenders.append(rel)
     assert not offenders, (
-        "a second production plane rule appeared; the canonical one is "
-        f"{CANONICAL_MODULE}: {offenders}"
+        "an undeclared production plane rule appeared; the canonical one is "
+        f"{CANONICAL_MODULE}. Either delete it, or add it to "
+        f"PLANE_RULE_ALLOWLIST with the reason it must differ: {offenders}"
     )
+
+
+def test_the_allowlist_entries_still_exist() -> None:
+    """An allowlist that outlives its entries silently stops guarding."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2] / "daedalus"
+    missing = [rel for rel in PLANE_RULE_ALLOWLIST if not (root / rel).exists()]
+    assert not missing, f"allowlisted plane rules no longer exist: {missing}"
