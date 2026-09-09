@@ -1,0 +1,426 @@
+name: Temporary Ikarus authenticated handoff cut
+
+on:
+  push:
+    branches:
+      - g1/ikarus-runtime-invocation-binding-07d3
+    paths:
+      - .github/workflows/zz-ikarus-authenticated-handoff-cut.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONHASHSEED: 0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: g1/ikarus-runtime-invocation-binding-07d3
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - name: Apply bounded authenticated-handoff admission cut
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str, *, count: int = 1) -> None:
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(
+                      f"bounded replacement refused for {path}: expected {count}, found {actual}: {old[:80]!r}"
+                  )
+              p.write_text(text.replace(old, new), encoding="utf-8")
+
+          runtime = "daedalus/ikarus_runtime_role.py"
+          replace(
+              runtime,
+              '''Only ``fixture`` bindings are executable in work packet G1-IKARUS-02.  A real
+runtime is represented as ``source-only`` until a later packet connects its
+exact admitted manifest, effect lease, observation authority and executable
+target through the canonical broker.  Treating declaration as authority would
+be the bypass this module exists to prevent.''',
+              '''``fixture`` bindings remain test-only executable descriptors.  Real runtimes
+stay ``source-only`` until their exact admitted authority graph is connected;
+then the descriptor may use ``authenticated-handoff``.  That mode is executable
+only through an exclusive handoff-aware RoleHarness after TaskAttempt has
+authenticated its live runner context.  Treating declaration, a legacy runner,
+or a role name as authority remains a fail-closed bypass.''',
+          )
+          replace(
+              runtime,
+              '''FIXTURE_EXECUTION_MODE = "fixture"
+SOURCE_ONLY_EXECUTION_MODE = "source-only"
+
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
+_EXECUTION_MODES = frozenset({FIXTURE_EXECUTION_MODE, SOURCE_ONLY_EXECUTION_MODE})''',
+              '''FIXTURE_EXECUTION_MODE = "fixture"
+SOURCE_ONLY_EXECUTION_MODE = "source-only"
+AUTHENTICATED_HANDOFF_EXECUTION_MODE = "authenticated-handoff"
+
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
+_EXECUTION_MODES = frozenset(
+    {
+        AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+        FIXTURE_EXECUTION_MODE,
+        SOURCE_ONLY_EXECUTION_MODE,
+    }
+)''',
+          )
+          replace(
+              runtime,
+              '''        else:
+            object.__setattr__(
+                self,
+                "refusal_reason",
+                _required_text(
+                    self.refusal_reason, "refusal_reason", max_length=1000
+                ),
+            )
+
+    @property
+    def executable(self) -> bool:
+        return self.execution_mode == FIXTURE_EXECUTION_MODE''',
+              '''        elif self.execution_mode == SOURCE_ONLY_EXECUTION_MODE:
+            object.__setattr__(
+                self,
+                "refusal_reason",
+                _required_text(
+                    self.refusal_reason, "refusal_reason", max_length=1000
+                ),
+            )
+        else:
+            if self.runtime_id.startswith("fixture."):
+                raise RuntimeRoleRegistryError(
+                    "authenticated-handoff runtime_id cannot use the fixture namespace"
+                )
+            if self.adapter_id.startswith("fixture."):
+                raise RuntimeRoleRegistryError(
+                    "authenticated-handoff adapter_id cannot use the fixture namespace"
+                )
+            if self.origin.startswith("fixture://"):
+                raise RuntimeRoleRegistryError(
+                    "authenticated-handoff origin cannot use the fixture scheme"
+                )
+            if not isinstance(self.refusal_reason, str) or self.refusal_reason != "":
+                raise RuntimeRoleRegistryError(
+                    "an authenticated-handoff binding requires an empty string "
+                    "refusal_reason"
+                )
+
+    @property
+    def executable(self) -> bool:
+        return self.execution_mode in {
+            AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+            FIXTURE_EXECUTION_MODE,
+        }
+
+    @property
+    def requires_authenticated_handoff(self) -> bool:
+        return self.execution_mode == AUTHENTICATED_HANDOFF_EXECUTION_MODE''',
+              count=1,
+          )
+          replace(
+              runtime,
+              '''    @property
+    def executable(self) -> bool:
+        return self.execution_mode == FIXTURE_EXECUTION_MODE
+
+    @property
+    def harness_key(self) -> str:''',
+              '''    @property
+    def executable(self) -> bool:
+        return self.execution_mode in {
+            AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+            FIXTURE_EXECUTION_MODE,
+        }
+
+    @property
+    def requires_authenticated_handoff(self) -> bool:
+        return self.execution_mode == AUTHENTICATED_HANDOFF_EXECUTION_MODE
+
+    @property
+    def harness_key(self) -> str:''',
+              count=1,
+          )
+          replace(
+              runtime,
+              '''__all__ = [
+    "FIXTURE_EXECUTION_MODE",''',
+              '''__all__ = [
+    "AUTHENTICATED_HANDOFF_EXECUTION_MODE",
+    "FIXTURE_EXECUTION_MODE",''',
+          )
+
+          supervisor = "daedalus/ikarus_supervisor.py"
+          replace(
+              supervisor,
+              '"executable fixture has no exact injected RoleHarness: "',
+              '"executable runtime has no exact injected RoleHarness: "',
+          )
+          replace(
+              supervisor,
+              '"runtime-role fixture has a malformed or role-mismatched "',
+              '"runtime-role binding has a malformed or role-mismatched "',
+          )
+          replace(
+              supervisor,
+              '''            if not callable(harness.gate_factory):
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "runtime-role fixture has a non-callable gate_factory",
+                    )
+                )
+                continue
+            resolved_runner_factory, runner_error = _resolved_runner_factory(harness)''',
+              '''            if not callable(harness.gate_factory):
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "runtime-role binding has a non-callable gate_factory",
+                    )
+                )
+                continue
+            if binding.requires_authenticated_handoff and (
+                harness.runner_factory is not None
+                or harness.handoff_runner_factory is None
+            ):
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "authenticated-handoff runtime requires an exclusive "
+                        "handoff_runner_factory",
+                    )
+                )
+                continue
+            resolved_runner_factory, runner_error = _resolved_runner_factory(harness)''',
+          )
+          replace(
+              supervisor,
+              'f"runtime-role fixture {runner_error}"',
+              'f"runtime-role binding {runner_error}"',
+          )
+
+          tests = "tests/test_ikarus_runtime_role.py"
+          replace(
+              tests,
+              '''from daedalus.ikarus_runtime_role import (  # noqa: E402
+    FIXTURE_EXECUTION_MODE,''',
+              '''from daedalus.ikarus_runtime_role import (  # noqa: E402
+    AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+    FIXTURE_EXECUTION_MODE,''',
+          )
+          replace(
+              tests,
+              '''def _item(runtime_id: str) -> PlannedItem:''',
+              '''def _authenticated_handoff_binding(
+    runtime_id: str = "claude_code_cli",
+) -> RuntimeRoleBinding:
+    return RuntimeRoleBinding(
+        role="coder",
+        runtime_id=runtime_id,
+        adapter_id="daedalus.claude-code-cli",
+        adapter_version="1",
+        source_revision="claude-code-cli-admitted-source",
+        origin="provider://anthropic/claude-code-cli",
+        execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+    )
+
+
+def _item(runtime_id: str) -> PlannedItem:''',
+          )
+          marker = '''\n\ndef test_duplicate_unversioned_and_live_claims_are_rejected():'''
+          live_tests = r'''
+
+def test_authenticated_handoff_runtime_rejects_legacy_runner_before_attempt(
+    target_repo, tmp_path, monkeypatch
+):
+    repo, head = target_repo
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "worktrees"))
+    binding = _authenticated_handoff_binding()
+    registry = RuntimeRoleRegistry((binding,))
+    item = _item(binding.runtime_id)
+    session, mission = _plan(repo, head, item, registry)
+    run_dir = tmp_path / "run"
+    called: list[str] = []
+
+    def legacy_runner(planned_item):
+        called.append(planned_item.objective)
+        return _runner_factory("must-not-run")(planned_item)
+
+    harness = RoleHarness(
+        role=binding.role,
+        runner_factory=legacy_runner,
+        gate_factory=_gate_factory,
+    )
+
+    with pytest.raises(SupervisorRefused, match="exclusive handoff_runner_factory"):
+        MissionSupervisor(
+            repo_root=repo,
+            run_dir=run_dir,
+            roles={binding.harness_key: harness},
+            runtime_roles=registry,
+        ).run(session, mission, (item,))
+
+    assert called == []
+    assert not (run_dir / "spine.sqlite3").exists()
+    row = verify_state_ledger(run_dir / "ledger")[-1]["items"][0]
+    assert row["status"] == "refused"
+    assert row["runtime_binding_sha256"] == binding.digest
+    assert "authenticated-handoff" in row["detail"]
+
+
+def test_authenticated_handoff_runtime_executes_only_after_taskattempt_handoff(
+    target_repo, tmp_path, monkeypatch
+):
+    repo, head = target_repo
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "worktrees"))
+    binding = _authenticated_handoff_binding()
+    registry = RuntimeRoleRegistry((binding,))
+    item = _item(binding.runtime_id)
+    session, mission = _plan(repo, head, item, registry)
+    seen_handoffs: list[object] = []
+    seen_metadata: list[dict] = []
+
+    def handoff_factory(planned_item, handoff):
+        seen_handoffs.append(handoff)
+
+        def runner(ctx):
+            metadata = dict(ctx.task.metadata)
+            seen_metadata.append(metadata)
+            for relative in planned_item.paths:
+                target = Path(ctx.worktree) / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("authenticated-handoff\\n", encoding="utf-8")
+            return {"runtime_marker": "authenticated-handoff"}
+
+        return runner
+
+    harness = RoleHarness(
+        role=binding.role,
+        runner_factory=None,
+        gate_factory=_gate_factory,
+        handoff_runner_factory=handoff_factory,
+    )
+    supervisor = MissionSupervisor(
+        repo_root=repo,
+        run_dir=tmp_path / "run",
+        roles={binding.harness_key: harness},
+        runtime_roles=registry,
+    )
+
+    final = supervisor.run(session, mission, (item,))
+
+    assert final["outcome"] == "landed"
+    assert len(seen_handoffs) == 1
+    handoff = seen_handoffs[0]
+    assert handoff.mission_id == mission.mission_id
+    assert handoff.work_item_id == mission.work_item_ids[0]
+    assert handoff.source_revision == head
+    assert seen_metadata == [
+        {
+            **seen_metadata[0],
+            "runtime_execution_mode": AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+        }
+    ]
+    assert final["items"][0]["runtime_binding_sha256"] == binding.digest
+    assert supervisor.results[0].contract_set().attempt is not None
+'''
+          replace(tests, marker, live_tests + marker)
+          replace(
+              tests,
+              '''    # This packet cannot turn a declaration into production authority.
+    with pytest.raises(RuntimeRoleRegistryError, match="execution_mode"):
+        RuntimeRoleBinding(''',
+              '''    with pytest.raises(RuntimeRoleRegistryError, match="fixture namespace"):
+        RuntimeRoleBinding(
+            role="coder",
+            runtime_id="fixture.claude-code-cli",
+            adapter_id="daedalus.claude-code-cli",
+            adapter_version="1",
+            source_revision="fixture-source",
+            origin="provider://anthropic/claude-code-cli",
+            execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+        )
+
+    with pytest.raises(RuntimeRoleRegistryError, match="empty string"):
+        RuntimeRoleBinding(
+            role="coder",
+            runtime_id="claude_code_cli",
+            adapter_id="daedalus.claude-code-cli",
+            adapter_version="1",
+            source_revision="admitted-source",
+            origin="provider://anthropic/claude-code-cli",
+            execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+            refusal_reason="declaration is not admitted",
+        )
+
+    # Unknown execution modes still cannot turn declaration into authority.
+    with pytest.raises(RuntimeRoleRegistryError, match="execution_mode"):
+        RuntimeRoleBinding(''',
+          )
+
+          workflow = ".github/workflows/g1-ikarus-unified-runtime-admission.yml"
+          replace(
+              workflow,
+              '''      - "daedalus/ikarus_os.py"
+      - "daedalus/ikarus_supervisor.py"''',
+              '''      - "daedalus/ikarus_os.py"
+      - "daedalus/ikarus_runtime_role.py"
+      - "daedalus/ikarus_supervisor.py"''',
+          )
+          replace(
+              workflow,
+              '''      - "tests/test_ikarus_tool_scope.py"
+      - "tests/test_ikarus_supervisor.py"''',
+              '''      - "tests/test_ikarus_tool_scope.py"
+      - "tests/test_ikarus_runtime_role.py"
+      - "tests/test_ikarus_supervisor.py"''',
+          )
+          replace(
+              workflow,
+              '''          daedalus/ikarus_os.py
+          daedalus/ikarus_supervisor.py''',
+              '''          daedalus/ikarus_os.py
+          daedalus/ikarus_runtime_role.py
+          daedalus/ikarus_supervisor.py''',
+          )
+          replace(
+              workflow,
+              '''          tests/test_ikarus_tool_scope.py
+          tests/test_ikarus_supervisor.py''',
+              '''          tests/test_ikarus_tool_scope.py
+          tests/test_ikarus_runtime_role.py
+          tests/test_ikarus_supervisor.py''',
+          )
+          PY
+      - name: Verify targeted runtime admission tests
+        run: |
+          python -m py_compile daedalus/ikarus_runtime_role.py daedalus/ikarus_supervisor.py tests/test_ikarus_runtime_role.py
+          python -m pytest -q -p no:cacheprovider tests/test_ikarus_runtime_role.py tests/test_ikarus_supervisor_attempt_identity.py
+      - name: Commit bounded cut
+        shell: bash
+        run: |
+          git config user.name "daedalus-automation"
+          git config user.email "daedalus-automation@users.noreply.github.com"
+          git add daedalus/ikarus_runtime_role.py daedalus/ikarus_supervisor.py tests/test_ikarus_runtime_role.py .github/workflows/g1-ikarus-unified-runtime-admission.yml
+          git diff --cached --check
+          git commit -m "feat(ikarus): admit authenticated runtime handoffs"
+          git push origin HEAD:g1/ikarus-runtime-invocation-binding-07d3
