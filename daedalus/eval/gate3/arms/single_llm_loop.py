@@ -57,18 +57,29 @@ BUDGET DISCIPLINE (rule R1 -- full, undivided budget):
   * ``budget.split()`` is never called -- there is nothing to split; the
     model gets the full context budget on every iteration.
 
-TOKEN ACCOUNTING IS HONEST, NOT SILENTLY ESTIMATED. The reused call seam
-(``tier2._ask`` -> ``_openai_compat.chat_completion``) returns only the
-answer text -- it discards the OpenAI-style ``usage`` block entirely (see
-``chat_completion``'s return type, a bare ``str``). Real provider-reported
-token counts are therefore NOT available through the one canonical path this
-packet is required to reuse, and extending that path is explicitly out of
-scope for this packet ("reuse, do not edit" -- G3-BASE-01 §6). Tokens are
-counted with this repository's own ``count_tokens`` (tiktoken-backed, same
-counter every other arm uses) over the exact context/question/answer text
-exchanged, and ``ArmOutcome.notes["tokens_estimated"]`` is always ``True``
-here with the tokenizer name recorded alongside it -- never a silent claim of
-provider-measured usage.
+TOKEN ACCOUNTING IS HONEST, NOT SILENTLY ESTIMATED. This paragraph used to
+say real usage was unavailable because ``tier2._ask`` reached
+``_openai_compat.chat_completion``, whose return type is a bare ``str``. That
+is no longer true: ``_ask`` calls ``chat_completion_receipt`` and returns a
+receipt carrying the provider's own ``usage`` block (``input_tokens``,
+``output_tokens``, ``total_tokens``, ``tokenizer``) plus a ``usage_status``.
+G3-BASE-01 §F3 recorded the old shape and is superseded on this point.
+
+So both numbers are now carried, and neither is substituted for the other:
+
+  * ``notes["provider_tokens_reported"]`` -- summed from the provider's own
+    usage over the calls that reported it;
+  * ``notes["local_estimate_tokens"]`` -- this repository's ``count_tokens``
+    over the exact context/question/answer text exchanged, as before;
+  * ``notes["tokens_estimated"]`` -- now MEASURED: ``False`` only when every
+    call made came back with usage, ``True`` the moment one did not, with
+    ``provider_calls``/``provider_calls_with_usage``/``usage_status_counts``
+    saying which and why.
+
+Carrying both matters rather than picking one: the local estimator was
+measured to over-count Python by 11.5% and under-count Markdown by 2.4%, an
+error whose sign follows content type. Keeping the provider's number beside it
+makes that difference visible per run instead of assumed away.
 
 ``ArmOutcome.notes["model_id"]`` carries the model id actually used, so a
 ``RunEnvironment.model_id`` populated from this arm's evidence is honest
@@ -169,6 +180,12 @@ class SingleLlmLoopArm:
         best_score: float | None = None
         score_history: list[float] = []
         tokens_used = 0
+        # Real provider-reported usage, accumulated separately from the local
+        # estimate so the two can be compared rather than silently substituted.
+        provider_tokens = 0
+        calls_with_usage = 0
+        calls_made = 0
+        usage_statuses: dict[str, int] = {}
         iterations_run = 0
         provider_errors: list[str] = []
         prior_candidate: str | None = None
@@ -188,6 +205,24 @@ class SingleLlmLoopArm:
             receipt = tier2._ask(prov, question, context)
             iterations_run += 1
             tokens_used += harness.count_tokens(context) + harness.count_tokens(question)
+
+            # tier2._ask has returned a receipt carrying the provider's own
+            # usage block since it moved to chat_completion_receipt. A call that
+            # reports usage is counted from the provider; one that does not
+            # leaves calls_with_usage behind calls_made, which is what makes
+            # notes["tokens_estimated"] below true rather than assumed.
+            calls_made += 1
+            status = receipt.get("usage_status") or "absent"
+            usage_statuses[status] = usage_statuses.get(status, 0) + 1
+            usage = receipt.get("usage")
+            if isinstance(usage, dict):
+                total = usage.get("total_tokens")
+                if total is None:
+                    inp, out = usage.get("input_tokens"), usage.get("output_tokens")
+                    total = (inp or 0) + (out or 0) if (inp or out) else None
+                if isinstance(total, int) and total > 0:
+                    provider_tokens += total
+                    calls_with_usage += 1
 
             if not receipt.get("ok"):
                 provider_errors.append(receipt.get("error") or "unknown provider error")
@@ -213,8 +248,20 @@ class SingleLlmLoopArm:
             "max_iterations": max_iterations,
             "used_default_iterations": used_default_iterations,
             "score_history": score_history,
-            "tokens_estimated": True,
+            # MEASURED, not assumed: false only when every call this arm made
+            # came back with the provider's own usage. One silent call and the
+            # whole run is an estimate again.
+            "tokens_estimated": not (calls_made > 0 and calls_with_usage == calls_made),
             "tokenizer": getattr(harness, "tokenizer_name", lambda: "unknown")(),
+            "provider_calls": calls_made,
+            "provider_calls_with_usage": calls_with_usage,
+            "usage_status_counts": dict(sorted(usage_statuses.items())),
+            # Both numbers travel together on purpose. Substituting one for the
+            # other would hide the estimator's error; carrying both makes it
+            # measurable, which matters because chars/4 was measured to
+            # over-count code by 11.5% and under-count prose by 2.4%.
+            "provider_tokens_reported": provider_tokens,
+            "local_estimate_tokens": tokens_used,
         }
         if provider_errors:
             notes["provider_errors"] = provider_errors

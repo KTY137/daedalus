@@ -329,11 +329,6 @@ def compile_relation_blocks(
         for position, node_id in enumerate(plane.node_ids):
             node_location[node_id] = (plane.plane, position)
 
-    retained_relation_digests = {
-        plane.plane: frozenset(plane.relation_sha256s)
-        for plane in planes
-    }
-
     requested_signatures = (
         None
         if signatures is None
@@ -353,6 +348,21 @@ def compile_relation_blocks(
     )
     if requested_signatures is not None:
         _require_complete_endpoint_planes(snapshot, requested_signatures)
+
+    retained_relation_planes = (
+        FOURFOLD_PLANES
+        if requested_signatures is None
+        else {
+            signature.source_plane
+            for signature in requested_signatures
+            if signature.source_plane == signature.target_plane
+        }
+    )
+    retained_relation_digests = {
+        plane.plane: frozenset(plane.relation_sha256s)
+        for plane in planes
+        if plane.plane in retained_relation_planes
+    }
 
     for hyperedge in forest.hyperedges:
         member_planes: set[str] = set()
