@@ -29,6 +29,7 @@ on:
       - "daedalus/ikarus_claude_attempt_handoff.py"
       - "daedalus/ikarus_claude_composition.py"
       - "daedalus/ikarus_claude_task_attempt_authority.py"
+      - "daedalus/ikarus_claude_task_attempt_runner.py"
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
@@ -67,6 +68,7 @@ on:
       - "tests/test_ikarus_claude_attempt_handoff.py"
       - "tests/test_ikarus_claude_composition.py"
       - "tests/test_ikarus_claude_task_attempt_authority.py"
+      - "tests/test_ikarus_claude_task_attempt_runner.py"
       - "tests/test_ikarus_claude_stream_cancellation.py"
       - "tests/test_ikarus_codex_cancellation.py"
       - "tests/test_ikarus_http_cancellation.py"
@@ -143,6 +145,7 @@ jobs:
           daedalus/ikarus_claude_attempt_handoff.py
           daedalus/ikarus_claude_composition.py
           daedalus/ikarus_claude_task_attempt_authority.py
+          daedalus/ikarus_claude_task_attempt_runner.py
           daedalus/ikarus_effect_bridge.py
           daedalus/ikarus_oneshot.py
           daedalus/ikarus_tool_scope.py
@@ -181,6 +184,7 @@ jobs:
           tests/test_ikarus_claude_attempt_handoff.py
           tests/test_ikarus_claude_composition.py
           tests/test_ikarus_claude_task_attempt_authority.py
+          tests/test_ikarus_claude_task_attempt_runner.py
           tests/test_ikarus_claude_stream_cancellation.py
           tests/test_ikarus_codex_cancellation.py
           tests/test_ikarus_http_cancellation.py
@@ -227,6 +231,7 @@ jobs:
           tests/test_ikarus_claude_attempt_handoff.py
           tests/test_ikarus_claude_composition.py
           tests/test_ikarus_claude_task_attempt_authority.py
+          tests/test_ikarus_claude_task_attempt_runner.py
           tests/test_ikarus_claude_stream_cancellation.py
           tests/test_ikarus_codex_cancellation.py
           tests/test_ikarus_http_cancellation.py
