@@ -5,8 +5,10 @@ The productive path has two deliberately different evidence shapes:
 * ``TaskAttempt`` owns the real pre-effect lifecycle.  A
   :class:`ClaudeTaskAttemptBinding` freezes that owner's Mission/WorkItem/
   Attempt/source/task identity and authenticates the exact isolated
-  ``RunnerContext.worktree`` before a provider runner may use it.  It is inert
-  evidence, not a second Attempt authority or ledger.
+  ``RunnerContext.worktree`` before a provider runner may use it.  The
+  resulting :class:`ClaudeTaskAttemptRunnerHandoff` is an inert copy of that
+  identity plus the authenticated workspace, so provider code never receives
+  the supervisor's retained binding object.
 * ``PreparedAttempt`` is the older kernel handoff used by the already sealed
   Claude composition tests.  Its durable Event-Store checks remain fail-closed
   while the productive supervisor path is cut over to the sole ``TaskAttempt``
@@ -72,6 +74,28 @@ class ClaudeTaskAttemptBinding:
     source_revision: str
     task_sha256: str
     target_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ClaudeTaskAttemptRunnerHandoff:
+    """Provider-facing copy of authenticated TaskAttempt runner evidence.
+
+    The supervisor keeps its original :class:`ClaudeTaskAttemptBinding` for
+    terminal verification.  A provider/runtime factory may receive this value
+    after ``RunnerContext`` authentication without receiving a mutable alias to
+    that retained evidence.  Even deliberate ``object.__setattr__`` mutation of
+    this callback value therefore cannot rewrite the supervisor's later
+    terminal identity check.  The handoff remains evidence only: it grants no
+    provider, runtime, tool, network, spend, or workspace capability by itself.
+    """
+
+    mission_id: str
+    work_item_id: str
+    attempt_id: str
+    source_revision: str
+    task_sha256: str
+    target_paths: tuple[str, ...]
+    worktree: Path
 
 
 def _snapshot_mission(mission: MissionContract) -> MissionContract:
@@ -154,13 +178,17 @@ def bind_task_attempt_claude_identity(
 def require_task_attempt_runner_context(
     binding: ClaudeTaskAttemptBinding,
     context: RunnerContext,
-) -> Path:
+) -> ClaudeTaskAttemptRunnerHandoff:
     """Authenticate the actual TaskAttempt runner/worktree before provider use.
 
     ``RunnerContext.branch`` is currently the transport spelling for the
     TaskAttempt-owned attempt identity.  This seam gives it one explicit
     meaning for Ikarus and refuses any task/source/path substitution before a
     provider runner can treat the materialized worktree as its workspace.
+
+    The returned handoff is a value copy rather than the retained ``binding``
+    object.  It is safe to expose to a runtime/provider factory as descriptive
+    evidence because mutating it cannot alter terminal supervisor verification.
     """
 
     if type(binding) is not ClaudeTaskAttemptBinding:
@@ -204,7 +232,15 @@ def require_task_attempt_runner_context(
         raise IkarusClaudeAttemptHandoffRefused(
             "TaskAttempt runner workspace is not a directory"
         )
-    return workspace
+    return ClaudeTaskAttemptRunnerHandoff(
+        mission_id=binding.mission_id,
+        work_item_id=binding.work_item_id,
+        attempt_id=binding.attempt_id,
+        source_revision=binding.source_revision,
+        task_sha256=binding.task_sha256,
+        target_paths=tuple(binding.target_paths),
+        worktree=workspace,
+    )
 
 
 def require_task_attempt_terminal_contract(
@@ -450,6 +486,7 @@ def execute_started_mission_bound_claude_invocation(
 
 __all__ = [
     "ClaudeTaskAttemptBinding",
+    "ClaudeTaskAttemptRunnerHandoff",
     "IkarusClaudeAttemptHandoffRefused",
     "bind_task_attempt_claude_identity",
     "execute_started_mission_bound_claude_invocation",
