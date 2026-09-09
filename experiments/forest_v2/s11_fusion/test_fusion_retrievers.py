@@ -240,3 +240,109 @@ def test_type_and_presentation_are_never_indexed():
     assert "site/index.html" not in fusion_out
     assert "site/index.html" not in concat_out
     assert "site/index.html" not in code_only_out
+
+
+# --------------------------------------------------------------------------
+# G2-XPLANE-CONFIRM-03: calibration instead of round-robin
+# --------------------------------------------------------------------------
+def test_standardisation_is_parameter_free_and_zero_mean_unit_variance():
+    out = dict(fr._standardise_within_plane([("a", 1.0), ("b", 2.0), ("c", 3.0)]))
+    assert out["b"] == 0.0                      # the mean maps to zero
+    assert round(out["a"], 6) == -round(out["c"], 6)
+    assert round(out["c"], 4) == 1.2247         # (3-2)/sqrt(2/3)
+
+
+def test_degenerate_planes_contribute_the_mean_not_a_penalty():
+    """A plane with one document, or with no spread, must not be pushed to the
+    bottom -- 0.0 is the mean of any standardised distribution."""
+    assert fr._standardise_within_plane([("solo", 9.9)]) == [("solo", 0.0)]
+    assert fr._standardise_within_plane([("a", 2.0), ("b", 2.0)]) == [
+        ("a", 0.0),
+        ("b", 0.0),
+    ]
+    assert fr._standardise_within_plane([]) == []
+
+
+def test_calibration_preserves_within_plane_order_exactly():
+    """The arm must differ from fusion_rrf in the COMBINATION step ONLY.
+
+    Standardisation is monotone, so on a single-plane universe the calibrated
+    ranking has to equal what `_score_plane` already produced. If this ever
+    fails, the arm has changed the scoring too and no comparison against
+    fusion_rrf is attributable to combination.
+    """
+    universe = [
+        _cand("a.py", "alpha alpha alpha beta"),
+        _cand("b.py", "alpha beta"),
+        _cand("c.py", "alpha alpha beta"),
+    ]
+    query = _query("alpha")
+    cache = TokenCache()
+    expected = [
+        path
+        for path, _ in fr._score_plane(fr.word_tokens("alpha"), universe, cache)
+    ]
+
+    assert fr.PlaneCalibratedRetriever().rank(query, universe) == expected
+
+
+def test_rrf_is_literally_round_robin_and_calibration_is_not():
+    """The CONFIRM-03 diagnosis, stated as data rather than as a claim.
+
+    Because `_partition` puts every candidate in exactly one plane, the
+    per-plane rankings are disjoint and `_rrf_combine` sees only rank
+    position. Its output is therefore a strict alternation of planes -- the
+    same interleaving whatever the scores are. Calibration reads each plane's
+    score distribution instead, so it is free to place two documents from one
+    plane before the next plane's best.
+
+    Recorded honestly: on SMALL universes the two agree, because a plane with
+    one document standardises to 0.0 and lands exactly where round-robin would
+    have put it. The difference needs enough documents per plane for the score
+    distributions to have a shape. An earlier version of this test asserted a
+    difference on a 3-document universe and was simply wrong.
+    """
+    code = [
+        _cand("c1.py", "zeta zeta zeta zeta zeta zeta"),
+        _cand("c2.py", "zeta filler filler filler"),
+        _cand("c3.py", "zeta filler filler filler filler"),
+        _cand("c4.py", "zeta filler filler filler filler filler"),
+    ]
+    knowledge = [
+        _cand("k1.md", "zeta zeta filler"),
+        _cand("k2.md", "zeta zeta filler filler"),
+        _cand("k3.md", "zeta zeta filler filler filler"),
+        _cand("k4.md", "zeta zeta filler filler filler filler"),
+    ]
+    query = _query("zeta")
+
+    rrf = fr.FusionRetriever().rank(query, code + knowledge)
+    calibrated = fr.PlaneCalibratedRetriever().rank(query, code + knowledge)
+
+    # RRF alternates strictly: rank 1 of every plane, then rank 2, ...
+    assert [fr.plane_of(path) for path in rrf] == [
+        "code", "knowledge", "code", "knowledge",
+        "code", "knowledge", "code", "knowledge",
+    ]
+    # Calibration does not, and that is the whole difference under test.
+    assert [fr.plane_of(path) for path in calibrated] != [
+        fr.plane_of(path) for path in rrf
+    ]
+    assert rrf != calibrated
+
+
+def test_calibrated_ranking_is_deterministic_on_ties():
+    universe = [_cand("b.py", "kappa"), _cand("a.py", "kappa")]
+    query = _query("kappa")
+    first = fr.PlaneCalibratedRetriever().rank(query, universe)
+    second = fr.PlaneCalibratedRetriever().rank(query, universe)
+    assert first == second == sorted(first)     # path is the declared tie-break
+
+
+def test_calibrated_arm_tallies_returned_planes_like_the_others():
+    universe = [_cand("x.py", "mu"), _cand("y.md", "mu")]
+    arm = fr.PlaneCalibratedRetriever()
+    arm.rank(_query("mu"), universe)
+    counts = arm.returned_plane_counts["raw"]
+    assert counts["code"] == 1
+    assert counts["knowledge"] == 1

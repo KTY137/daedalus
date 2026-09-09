@@ -337,3 +337,97 @@ class SeparateIndicesRetriever:
             plane = plane_of(path)
             if plane in counts:
                 counts[plane] += 1
+
+
+def _standardise_within_plane(
+    scored: Sequence[Tuple[str, float]]
+) -> List[Tuple[str, float]]:
+    """Zero-mean unit-variance within ONE plane's own score distribution.
+
+    Parameter-free on purpose: the transform is fully determined by the
+    plane's own scores, so there is no weight, no ``k`` and no plane prior
+    that could be tuned toward the metric.  ``G2-XPLANE-CONFIRM-03`` makes
+    that a design constraint rather than an implementation detail, because
+    the task sets this runs against were already measured with other arms.
+
+    Degenerate planes (fewer than two scored documents, or zero variance)
+    contribute 0.0, which is the mean of any standardised distribution --
+    not a penalty and not a bonus.
+    """
+    if len(scored) < 2:
+        return [(path, 0.0) for path, _ in scored]
+    values = [score for _, score in scored]
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
+    if variance <= 0.0:
+        return [(path, 0.0) for path, _ in scored]
+    deviation = math.sqrt(variance)
+    return [(path, (score - mean) / deviation) for path, score in scored]
+
+
+class PlaneCalibratedRetriever:
+    """Role ``fusion``: per-plane scoring combined by CALIBRATION, not by rank.
+
+    Built for ``G2-XPLANE-CONFIRM-03`` to test one diagnosis of the 14.1 KILL
+    that ``G2-XPLANE-CONFIRM-02`` measured on ``black``: ``fusion_rrf`` is
+    significantly inferior to plain BM25, and the deficit is UNIFORM across
+    the cross-plane and single-plane strata (-0.0810 vs -0.0710), which points
+    at the combination step rather than at the planes.
+
+    The mechanism it suspects, read out of this module rather than inferred:
+    ``_partition`` puts every candidate in EXACTLY ONE plane bucket, so the
+    per-plane rankings are DISJOINT document sets, not competing opinions
+    about the same documents.  ``_rrf_combine`` then adds ``1/(k + rank)``
+    using rank position only.  Reciprocal Rank Fusion reconciles several
+    rankings *of the same corpus*; over disjoint partitions it degenerates
+    into round-robin interleaving, so the best of four weak matches in a small
+    plane outranks the second-best of two hundred strong matches in a large
+    one.
+
+    This arm changes THAT and nothing else.  ``_partition`` and
+    ``_score_plane`` are reused unchanged -- identical buckets, identical
+    per-plane IDF and length normalisation -- so a difference against
+    ``fusion_rrf`` is attributable to the combination step alone.  If it were
+    also to change the scoring it would test two things at once, which plan
+    §14 forbids.
+
+    It is NOT a pooled index.  Per-plane IDF is retained deliberately, because
+    that is the part ``separate_indices_bm25`` and ``fusion_rrf`` share and
+    the part 14.3 is about.  An arm that pooled the index as well would be
+    testing "is BM25 over everything better", which ``bm25`` already answers.
+    """
+
+    name = "plane_calibrated"
+
+    def __init__(
+        self,
+        cache: Optional[TokenCache] = None,
+        return_k: int = RETURN_K,
+    ) -> None:
+        # Own TokenCache, for the same reason FusionRetriever documents: the
+        # --retriever CLI path zero-arg-constructs the class, so there is no
+        # seam for the harness's pre-warmed cache.
+        self.cache = cache if cache is not None else TokenCache()
+        self.return_k = return_k
+        self.returned_plane_counts: Dict[str, Dict[str, int]] = {}
+
+    def rank(self, query: QueryView, universe: Sequence[Candidate]) -> List[str]:
+        terms = word_tokens(query.text)
+        buckets = _partition(universe)
+        calibrated: List[Tuple[str, float]] = []
+        for plane in FUSION_PLANES:
+            scored = _score_plane(terms, buckets.get(plane, []), self.cache)
+            calibrated.extend(_standardise_within_plane(scored))
+        # Path is the tie-break, exactly as _rrf_combine does, so two documents
+        # with equal calibrated score order deterministically.
+        calibrated.sort(key=lambda item: (-item[1], item[0]))
+        out = [path for path, _score in calibrated[: self.return_k]]
+        self._tally(query.variant, out)
+        return out
+
+    def _tally(self, variant: str, ranking: Sequence[str]) -> None:
+        counts = self.returned_plane_counts.setdefault(variant, _new_counts())
+        for path in ranking[:RETURN_K]:
+            plane = plane_of(path)
+            if plane in counts:
+                counts[plane] += 1

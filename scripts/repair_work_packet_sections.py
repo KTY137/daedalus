@@ -64,6 +64,10 @@ PREFERENCES: dict[str, tuple[str, ...]] = {
         # list of {proposal, reason} explaining which behaviours the design
         # refuses to give up. Both are contract-and-behaviour content.
         "finding", "rejected_consolidations",
+        # wave 6 (GPU-114). `change` is a literal {before, after, reason}
+        # description of the behaviour that moved; `focused_contract_finding`
+        # is a contract finding by its own name. Both read, not guessed.
+        "change", "focused_contract_finding",
     ),
     "acceptance_matrix": (
         "verification", "evidence", "measurement", "audit",
