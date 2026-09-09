@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cProfile
 import importlib
 
 import pytest
@@ -182,3 +183,65 @@ def test_probe_bounds_are_strict_and_reject_bool_aliases() -> None:
     for case in invalid:
         with pytest.raises(ValueError):
             _PROBE.run_probe(**case)
+
+
+def test_stateless_authority_verification_revisits_each_retained_edge_payload() -> None:
+    """Pin the two non-interchangeable verification passes before optimization.
+
+    The first pass is the aggregate ``KnowledgeForest.content_sha256`` binding.
+    The second pass is per-edge Fourfold ``relation_sha256s`` membership. Their
+    semantic jobs differ, but both currently materialize every retained edge in
+    this frozen all-same-plane fixture. This is call-scope evidence only; it is
+    deliberately not a latency or speedup assertion.
+    """
+
+    forest = _PROBE._forest(
+        nodes=12,
+        row_width=2,
+        revision=_PROBE.DELTA_REVISION,
+        add_delta=True,
+    )
+    snapshot = _PROBE._snapshot(forest, revision=_PROBE.DELTA_REVISION)
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        compiled = _PROBE._compile(forest, snapshot)
+    finally:
+        profiler.disable()
+
+    stats = tuple(profiler.getstats())
+    compiler_code = _PROBE.compile_relation_blocks.__code__
+    edge_count = len(forest.edges)
+
+    forest_digest = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=compiler_code,
+        callee_codes=(_PROBE.KnowledgeForest.content_sha256.fget.__code__,),
+    )
+    relation_membership_digest = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=compiler_code,
+        callee_codes=(_PROBE._relation_compiler.canonical_sha.__code__,),
+    )
+    direct_membership_edge_wire = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=compiler_code,
+        callee_codes=(_PROBE.ForestEdge.to_dict.__code__,),
+    )
+    total_edge_wire = _PROBE._code_metrics(
+        stats,
+        (_PROBE.ForestEdge.to_dict.__code__,),
+    )
+
+    assert compiled.source_forest_sha256 == snapshot.source_forest_sha256
+    assert forest_digest["calls"] == 1
+    assert relation_membership_digest["calls"] == edge_count == 25
+    assert direct_membership_edge_wire["calls"] == edge_count
+    assert total_edge_wire["calls"] == edge_count * 2
+    assert forest_digest["cumulative_ms"] >= forest_digest["self_ms"] >= 0.0
+    assert (
+        relation_membership_digest["cumulative_ms"]
+        >= relation_membership_digest["self_ms"]
+        >= 0.0
+    )
