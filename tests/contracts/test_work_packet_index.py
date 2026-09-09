@@ -196,19 +196,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
     # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
     # +3 for the tensor lane's second wave (GPU-109/110/111).
-    assert "526 tracked files" in message  # measured 2026-09-09, +tensor GPU-125
+    assert "527 tracked files" in message  # measured 2026-09-09, +G3-MINT-TEXT-01
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 523,
+        "assigned_artifacts": 524,
         "legacy_artifacts": 204,
-        "packet_artifacts": 525,
-        "packet_ids": 460,
-        "post_index_artifacts": 321,
+        "packet_artifacts": 526,
+        "packet_ids": 461,
+        "post_index_artifacts": 322,
         "registry_artifacts": 1,
-        "tracked_files": 526,
+        "tracked_files": 527,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -595,6 +595,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-TENSOR-GPU-122",
         "G1-EXP-TENSOR-GPU-121",
         "G2-SYMTASK-01",
+        "G3-MINT-TEXT-01",
         # tensor wave 5
         "G1-EXP-TENSOR-GPU-113",
         "G1-EXP-TENSOR-GPU-114",
