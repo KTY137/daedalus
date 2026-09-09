@@ -58,6 +58,12 @@ PREFERENCES: dict[str, tuple[str, ...]] = {
         "implementation", "callsite_inventory", "bounded_contract_result",
         "deterministic_contract_result", "diagnostic_contract_migration",
         "existing_before_after_owner", "audit", "focused_contract_head",
+        # wave 5 (GPU-113). Checked by reading the content, not by matching a
+        # name: `finding` there is a map of `*_role` entries describing what
+        # each retained structure is FOR, and `rejected_consolidations` is a
+        # list of {proposal, reason} explaining which behaviours the design
+        # refuses to give up. Both are contract-and-behaviour content.
+        "finding", "rejected_consolidations",
     ),
     "acceptance_matrix": (
         "verification", "evidence", "measurement", "audit",

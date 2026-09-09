@@ -112,5 +112,53 @@
     "archive_legacy_touched": false,
     "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
   },
-  "next_step": "GPU-114 should move to the measured fact_aggregation_direct bucket. Audit _record_fact's facts.setdefault(signature, {}) path first: Python evaluates the empty-dict default on every call, so the frozen 8,193-fact case may allocate and discard one empty dict per retained fact even after the bucket exists. Replace it only inside the existing owner with an explicit get/create path if focused contracts and hosted evidence preserve Boolean, natural and evidence-dag semantics; do not add a cache or second fact store."
+  "next_step": "GPU-114 should move to the measured fact_aggregation_direct bucket. Audit _record_fact's facts.setdefault(signature, {}) path first: Python evaluates the empty-dict default on every call, so the frozen 8,193-fact case may allocate and discard one empty dict per retained fact even after the bucket exists. Replace it only inside the existing owner with an explicit get/create path if focused contracts and hosted evidence preserve Boolean, natural and evidence-dag semantics; do not add a cache or second fact store.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-113",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "6235b77240d2062963a257696e006af8a5c6b364",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "finding",
+          "objective"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "finding",
+          "rejected_consolidations"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "finding",
+          "verification",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
 }
