@@ -296,11 +296,14 @@ def compile_relation_blocks(
     an equivalent ``RelationSignature`` for every inspected record. Discover-all
     interns each admitted signature by the same canonical three-field key so
     repeated retained rows reuse one record instead of reconstructing it per
-    row. The compiler does not readmit already-authoritative labels through a
-    second coordinate validation pass. The evidence observer retains canonical
-    provenance alternatives; scalar observers keep their final semiring scalars
-    in the same bounded per-signature coordinate map and do not retain per-edge
-    or per-binding provenance in the admission-to-materialization staging records.
+    row. Verified cross-plane binding admission and later fact materialization
+    share one key-indexed staging owner instead of retaining a second full key
+    set beside the staged records. The compiler does not readmit already-authoritative
+    labels through a second coordinate validation pass. The evidence observer
+    retains canonical provenance alternatives; scalar observers keep their final
+    semiring scalars in the same bounded per-signature coordinate map and do not
+    retain per-edge or per-binding provenance in the admission-to-materialization
+    staging records.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -408,10 +411,11 @@ def compile_relation_blocks(
         )
 
     discovered_by_key: dict[tuple[str, str, str], RelationSignature] = {}
-    binding_records: list[
-        tuple[RelationSignature, int, int, CrossPlaneBinding | None]
-    ] = []
-    included_binding_keys: set[tuple[str, str, str, str, str]] = set()
+    binding_records_by_key: dict[
+        tuple[str, str, str, str, str],
+        tuple[RelationSignature, int, int, CrossPlaneBinding | None],
+    ] = {}
+    binding_records = binding_records_by_key.values()
     verified_binding_count = len(snapshot.bindings) if include_verified_bindings else 0
     if include_verified_bindings:
         for binding in snapshot.bindings:
@@ -429,24 +433,20 @@ def compile_relation_blocks(
                 signature = requested_by_key.get(signature_key)
                 if signature is None:
                     continue
-            included_binding_keys.add(
-                (
-                    binding.source_plane,
-                    binding.source_node_id,
-                    binding.target_plane,
-                    binding.target_node_id,
-                    binding.relation,
-                )
+            binding_key = (
+                binding.source_plane,
+                binding.source_node_id,
+                binding.target_plane,
+                binding.target_node_id,
+                binding.relation,
             )
             source_index = node_location[binding.source_node_id][1]
             target_index = node_location[binding.target_node_id][1]
-            binding_records.append(
-                (
-                    signature,
-                    source_index,
-                    target_index,
-                    binding if retain_evidence else None,
-                )
+            binding_records_by_key[binding_key] = (
+                signature,
+                source_index,
+                target_index,
+                binding if retain_evidence else None,
             )
 
     edge_records: list[
@@ -502,7 +502,7 @@ def compile_relation_blocks(
                 edge.target,
                 edge.relation,
             )
-            if binding_key not in included_binding_keys:
+            if binding_key not in binding_records_by_key:
                 raise ValueError(
                     f"cross-plane ForestEdge {edge.relation!r} requires an exact "
                     "included verified Fourfold binding before relation compilation"
