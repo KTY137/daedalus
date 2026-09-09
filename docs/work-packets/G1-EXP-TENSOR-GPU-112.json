@@ -86,5 +86,52 @@
     "production_blob": "768c346920a622a1f6639b172a81352bde4ca3fa",
     "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
   },
-  "next_step": "GPU-113 should inspect whether the remaining requested_signatures tuple and requested_by_key lookup map can be simplified further without duplicating ordering, block construction, or fail-closed semantics. Delete another container only if deterministic output and exact selected lookup remain explicit; otherwise move to the next measured compiler bucket."
+  "next_step": "GPU-113 should inspect whether the remaining requested_signatures tuple and requested_by_key lookup map can be simplified further without duplicating ordering, block construction, or fail-closed semantics. Delete another container only if deterministic output and exact selected lookup remain explicit; otherwise move to the next measured compiler bucket.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-112",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "3cf281fc878e0cec0b69c7cf1c4a4ee536aba801",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "exact_evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "exact_evidence",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
 }

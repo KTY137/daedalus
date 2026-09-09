@@ -76,10 +76,12 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # percentage above were byte-identical across both re-measurements. The
     # pin is CONTENT-addressed, so any edit under daedalus/ moves it even
     # when nothing this test measures has changed -- expect to re-pin on
-    # merges that touch no resolver behaviour at all.
+    # merges that touch no resolver behaviour at all. Third re-pin the same
+    # day (tensor wave 3 edited daedalus/twin/relation_compiler.py): files,
+    # functions and every percentage identical yet again, sha only.
     assert entry["corpus_pin"] == {
         "files": 515,
-        "sha256": "23370ab1a596954babfd7f67d7a3bd77c9cd5b4266ab9df8bb6282bcba651320",
+        "sha256": "8f993883264957450c2ff3122df9a049b51c77a630dcaece33ae285ca329b74e",
     }
     assert entry["functions"] == 7052
     assert entry["annotation_only_pct"] == 94.44  # the control

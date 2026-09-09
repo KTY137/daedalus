@@ -49,6 +49,8 @@ PREFERENCES: dict[str, tuple[str, ...]] = {
         "title", "result", "decision", "finding",
         "bounded_contract_result", "deterministic_contract_result",
         "measurement_contract", "gardener_result",
+        # wave 4 (GPU-112) spellings
+        "objective", "claims",
     ),
     "scope": ("scope", "claim_boundaries", "domain"),
     "contracts_and_behavior": (
@@ -57,22 +59,93 @@ PREFERENCES: dict[str, tuple[str, ...]] = {
         "deterministic_contract_result", "diagnostic_contract_migration",
         "existing_before_after_owner", "audit", "focused_contract_head",
     ),
-    "acceptance_matrix": ("verification", "evidence", "measurement", "audit"),
+    "acceptance_matrix": (
+        "verification", "evidence", "measurement", "audit",
+        "exact_evidence",
+    ),
     "migration_and_rollback": (
         "branch_hygiene", "next_bounded_step", "bounded_next_step",
         "governance", "implementation_head",
+        # GPU-112 spells the forward path `next_step`. There is still no
+        # rollback field in these packets; the projection_note below carries
+        # the rollback statement, as it has since the first wave.
+        "next_step",
     ),
     "evidence_expected_failures_and_review": (
         "evidence", "finding", "claim_boundaries", "gardener_result",
         "unsafe_shortcuts_rejected", "remaining_authority_gap",
         "minimum_inputs_for_next_experiment", "prior_materiality_evidence",
         "audit", "verification",
+        "exact_evidence", "gardener_outcome",
     ),
 }
 
 #: How many fields to name per section, at most. More than this is noise in the
 #: registry; fewer is fine when the packet simply has fewer.
 MAX_FIELDS_PER_SECTION = 3
+
+
+def synthesize_registry_contract(
+    path: Path, payload: dict, repo_root: Path
+) -> dict | None:
+    """Build the metadata block for a packet that carries none at all.
+
+    The fourth wave of this defect (GPU-112) dropped `registry_contract`
+    entirely rather than just its `sections`. Every field below is READ from
+    the packet or DERIVED FROM GIT; none is guessed:
+
+    * `packet_id` -- the packet's own `work_packet` field, cross-checked
+      against the filename;
+    * `active_gate`, `classification` -- the packet's own `masterplan` block,
+      which carries `gate` and `alignment`;
+    * `base_revision` -- the FIRST PARENT of the commit that introduced this
+      file, which is what the packet was written against. Derived rather than
+      invented, because the indexer requires a full SHA-1 and a wrong one is
+      worse than a red index.
+
+    Returns None when any of those is unavailable, so the caller refuses
+    instead of filling a gap with a plausible-looking value.
+    """
+    import subprocess
+
+    packet_id = str(payload.get("work_packet") or "").strip()
+    filename_id = path.name.split("_")[0].removesuffix(".json")
+    if not packet_id or packet_id != filename_id:
+        return None
+
+    masterplan = payload.get("masterplan")
+    if not isinstance(masterplan, dict):
+        return None
+    gate = masterplan.get("gate")
+    classification = masterplan.get("alignment")
+    if not isinstance(gate, int) or not isinstance(classification, str):
+        return None
+
+    try:
+        introducing = subprocess.run(
+            ["git", "log", "--format=%H", "--diff-filter=A", "-1", "--", str(path)],
+            cwd=repo_root, check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        if not introducing:
+            return None
+        base = subprocess.run(
+            ["git", "rev-parse", f"{introducing}^"],
+            cwd=repo_root, check=True, capture_output=True, text=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
+    if len(base) != 40:
+        return None
+
+    return {
+        "packet_id": packet_id,
+        "artifact_role": "primary",
+        "active_gate": gate,
+        "classification": classification,
+        "owner": "repository owner",
+        "base_revision": base,
+        "dependencies": str(payload.get("branch") or "none"),
+    }
 
 
 def plan_for(payload: dict) -> tuple[dict[str, list[str]], list[str]]:
@@ -101,6 +174,7 @@ def main(argv=None) -> int:
 
     root = Path(args.repo_root) / "docs" / "work-packets"
     refused: list[str] = []
+    skipped: list[str] = []
     touched = 0
     for path in sorted(root.glob(args.glob)):
         if path.name == "index.json":
@@ -111,11 +185,24 @@ def main(argv=None) -> int:
             refused.append(f"{path.name}: unparseable ({exc})")
             continue
         registry = payload.get("registry_contract")
+        synthesized = False
         if not isinstance(registry, dict):
-            continue
+            registry = synthesize_registry_contract(
+                path, payload, Path(args.repo_root)
+            )
+            if registry is None:
+                # A NOTE, not a refusal. The indexer demands a registry
+                # contract only of artifacts it classes as new; the tree
+                # carries many legacy packets that predate the rule and are
+                # deliberately tolerated. Exiting non-zero on those would make
+                # this script useless in CI for the case it exists to fix.
+                skipped.append(path.name)
+                continue
+            payload["registry_contract"] = registry
+            synthesized = True
         if registry.get("artifact_role") != "primary":
             continue
-        if "sections" in registry:
+        if "sections" in registry and not synthesized:
             continue
 
         plan, uncoverable = plan_for(payload)
@@ -149,6 +236,8 @@ def main(argv=None) -> int:
 
     if not args.check:
         print(f"packets repaired: {touched}")
+        if skipped:
+            print(f"legacy packets without a registry contract, untouched: {len(skipped)}")
     for line in refused:
         print(f"REFUSED {line}", file=sys.stderr)
     return 1 if refused else 0
