@@ -33,10 +33,12 @@ WHAT THE SUPERVISOR IS NOT, in v1, on purpose:
   here.
 
 ROLES.  Agentic-J gives each subagent a targeted toolset; here a role is a
-:class:`RoleHarness` — a runner factory and a gate factory keyed by name.  The
-supervisor refuses a plan naming a role it was not given BEFORE any attempt
-starts, because "the registry did not know it" must never be discovered
-halfway through a half-executed mission.
+:class:`RoleHarness` — one runner-factory path plus a gate factory keyed by
+name.  A provider-aware role may opt into the authenticated TaskAttempt handoff;
+legacy roles retain their one-argument factory.  The supervisor refuses a plan
+naming a role it was not given BEFORE any attempt starts, because "the registry
+did not know it" must never be discovered halfway through a half-executed
+mission.
 """
 from __future__ import annotations
 
@@ -90,16 +92,24 @@ class StateLedgerBroken(RuntimeError):
 class RoleHarness:
     """What one role is allowed to bring to an attempt.
 
-    ``runner_factory(item)`` returns the ``runner(ctx)`` callable and
-    ``gate_factory(item)`` the ``gate(ctx)`` callable that
-    :class:`TaskAttempt` consumes.  Factories rather than callables so a role
-    can specialise per work item (Agentic-J's coder consults per-plugin
-    skills; ours consults the item) without the supervisor knowing how.
+    Legacy ``runner_factory(item)`` remains available for in-process roles.
+    Provider/runtime integrations instead set ``runner_factory=None`` and use
+    ``handoff_runner_factory(item, handoff)``.  That second factory is invoked
+    only after the real :class:`TaskAttempt` RunnerContext has been
+    authenticated; its handoff is detached evidence and grants no capability
+    by itself.  Exactly one runner-factory path must be selected.
+
+    ``gate_factory(item)`` returns the ``gate(ctx)`` callable that
+    :class:`TaskAttempt` consumes.  Factories rather than callables let a role
+    specialise per work item without the supervisor knowing how.
     """
 
     role: str
-    runner_factory: Callable[["PlannedItem"], Callable[[Any], dict]]
+    runner_factory: Callable[["PlannedItem"], Callable[[Any], dict]] | None
     gate_factory: Callable[["PlannedItem"], Callable[[Any], GateResult]]
+    handoff_runner_factory: (
+        Callable[["PlannedItem", Any], Callable[[Any], dict]] | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +134,45 @@ class PlannedItem:
         object.__setattr__(self, "paths", tuple(str(p) for p in self.paths))
         object.__setattr__(self, "gate_paths", tuple(str(p) for p in self.gate_paths))
         object.__setattr__(self, "runtime_id", self.runtime_id.strip())
+
+
+_AuthenticatedRunnerFactory = Callable[
+    [PlannedItem, Any], Callable[[Any], dict]
+]
+
+
+def _resolved_runner_factory(
+    harness: RoleHarness,
+) -> tuple[_AuthenticatedRunnerFactory | None, str | None]:
+    """Normalize legacy and handoff-aware harnesses to one guarded call shape.
+
+    Creating the legacy adapter executes no caller code.  Both factory styles
+    therefore remain lazy and are reached only after TaskAttempt has entered
+    its effect path and the runner context has been authenticated.
+    """
+
+    legacy = harness.runner_factory
+    authenticated = harness.handoff_runner_factory
+    if legacy is None and authenticated is None:
+        return None, "declares neither runner_factory nor handoff_runner_factory"
+    if legacy is not None and authenticated is not None:
+        return None, "declares both runner_factory and handoff_runner_factory"
+    if authenticated is not None:
+        if not callable(authenticated):
+            return None, "handoff_runner_factory is not callable"
+        return authenticated, None
+    if not callable(legacy):
+        return None, "runner_factory is not callable"
+
+    def invoke_legacy(
+        item: PlannedItem,
+        _handoff: Any,
+        *,
+        factory=legacy,
+    ) -> Callable[[Any], dict]:
+        return factory(item)
+
+    return invoke_legacy, None
 
 
 @dataclass(frozen=True)
@@ -695,7 +744,7 @@ class MissionSupervisor:
         ledger = StateLedger(run_dir / "ledger")
         resolutions: list[
             tuple[
-                Callable[[PlannedItem], Callable[[Any], dict]] | None,
+                _AuthenticatedRunnerFactory | None,
                 Callable[[PlannedItem], Callable[[Any], GateResult]] | None,
                 RuntimeRoleSnapshot | None,
                 str | None,
@@ -718,6 +767,7 @@ class MissionSupervisor:
                 continue
             if item.runtime_id == INPROCESS_RUNTIME_ID:
                 harness = self.roles.get(item.role)
+                resolved_runner_factory = None
                 if task_plan.builder != _task_builder(item, None):
                     error = "role binding drifted after planning"
                 elif harness is None:
@@ -725,16 +775,21 @@ class MissionSupervisor:
                 elif type(harness) is not RoleHarness or harness.role != item.role:
                     error = f"role {item.role!r} has a malformed RoleHarness binding"
                     harness = None
-                elif not callable(harness.runner_factory) or not callable(
-                    harness.gate_factory
-                ):
-                    error = f"role {item.role!r} has non-callable harness factories"
+                elif not callable(harness.gate_factory):
+                    error = f"role {item.role!r} has a non-callable gate_factory"
                     harness = None
                 else:
-                    error = None
+                    resolved_runner_factory, runner_error = _resolved_runner_factory(
+                        harness
+                    )
+                    if runner_error is not None:
+                        error = f"role {item.role!r} {runner_error}"
+                        harness = None
+                    else:
+                        error = None
                 resolutions.append(
                     (
-                        harness.runner_factory if harness is not None else None,
+                        resolved_runner_factory if harness is not None else None,
                         harness.gate_factory if harness is not None else None,
                         None,
                         error,
@@ -799,21 +854,30 @@ class MissionSupervisor:
                     )
                 )
                 continue
-            if not callable(harness.runner_factory) or not callable(
-                harness.gate_factory
-            ):
+            if not callable(harness.gate_factory):
                 resolutions.append(
                     (
                         None,
                         None,
                         binding,
-                        "runtime-role fixture has non-callable harness factories",
+                        "runtime-role fixture has a non-callable gate_factory",
+                    )
+                )
+                continue
+            resolved_runner_factory, runner_error = _resolved_runner_factory(harness)
+            if runner_error is not None:
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        f"runtime-role fixture {runner_error}",
                     )
                 )
                 continue
             resolutions.append(
                 (
-                    harness.runner_factory,
+                    resolved_runner_factory,
                     harness.gate_factory,
                     binding,
                     None,
@@ -1022,8 +1086,13 @@ class MissionSupervisor:
                     raise IkarusClaudeAttemptHandoffRefused(
                         "TaskAttempt Claude identity was not frozen before runner dispatch"
                     )
-                require_task_attempt_runner_context(binding_value, ctx)
-                runner = factory(planned_item)
+                runner_handoff = require_task_attempt_runner_context(
+                    binding_value, ctx
+                )
+                # Both legacy and provider-aware factories share this one call
+                # site. The legacy adapter ignores the detached handoff; an
+                # authenticated factory receives it only after the guard above.
+                runner = factory(planned_item, runner_handoff)
                 if not callable(runner):
                     raise TypeError("runner_factory returned a non-callable")
                 return runner(_snapshot_callback_context(ctx, task_template))
