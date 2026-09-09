@@ -8,8 +8,9 @@ Attempt ledger and that Claude must receive the exact isolated workspace the
 Attempt coordinator prepared before a provider effect is reachable.
 
 No authority is issued here and no state is reconstructed from chat, queue, or
-status JSON.  A replayed/completed/pending Attempt, or a recombined workspace,
-therefore cannot trigger a new Claude provider run through this entrypoint.
+status JSON.  A replayed/completed/pending Attempt, a stale prepared handle, or
+a recombined workspace therefore cannot trigger a new Claude provider run
+through this entrypoint.
 """
 from __future__ import annotations
 
@@ -20,7 +21,12 @@ from typing import Any
 from .ikarus_claude_composition import execute_mission_bound_claude_invocation
 from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
 from .ikarus_tool_scope import IkarusToolScopeProjection
-from .kernel.attempts import AttemptBeginResult, AttemptStartRecord, PreparedAttempt
+from .kernel.attempts import (
+    AttemptBeginResult,
+    AttemptLedger,
+    AttemptStartRecord,
+    PreparedAttempt,
+)
 from .kernel.contracts import EffectLeaseRequest
 from .kernel.effects import EffectExecutionRequest
 from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
@@ -89,6 +95,53 @@ def require_fresh_persisted_attempt_start(
     return start
 
 
+def require_live_pending_attempt(
+    attempt_ledger: AttemptLedger,
+    start: AttemptStartRecord,
+) -> AttemptStartRecord:
+    """Re-read canonical lifecycle state immediately before provider dispatch.
+
+    ``PreparedAttempt`` is an immutable handoff value.  A caller can retain it
+    after another path has already completed the Attempt, so trusting only its
+    embedded ``AttemptBeginResult`` would turn a stale snapshot into execution
+    authority.  The canonical Event-Store is therefore consulted again at the
+    last producer boundary.  The exact persisted start must still be pending.
+    """
+
+    if not isinstance(attempt_ledger, AttemptLedger):
+        raise IkarusClaudeAttemptHandoffRefused(
+            "Claude handoff requires the canonical AttemptLedger"
+        )
+    if type(start) is not AttemptStartRecord:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "Claude handoff requires an exact AttemptStartRecord"
+        )
+    try:
+        matching = tuple(
+            candidate
+            for candidate in attempt_ledger.pending()
+            if candidate.attempt_id == start.attempt_id
+        )
+    except Exception as exc:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "canonical Attempt lifecycle could not be re-read before Claude dispatch"
+        ) from exc
+    if len(matching) != 1:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "prepared Attempt is no longer the live pending Attempt"
+        )
+    candidate = matching[0]
+    try:
+        same_start = candidate is start or candidate == start
+    except (AttributeError, TypeError, ValueError):
+        same_start = False
+    if not same_start:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "live pending Attempt start differs from the prepared Attempt start"
+        )
+    return start
+
+
 def require_fresh_prepared_attempt_workspace(
     prepared: PreparedAttempt,
     attempt: AttemptContract,
@@ -149,6 +202,7 @@ def execute_started_mission_bound_claude_invocation(
     effect_request: EffectLeaseRequest,
     execution: EffectExecutionRequest,
     *,
+    attempt_ledger: AttemptLedger,
     runtime_authorization: RuntimeBoundEffectAuthorization,
     workspace_grant: ClaudeWorkspaceGrant,
     invocation_authority: ProviderInvocationObservationAuthority,
@@ -159,16 +213,22 @@ def execute_started_mission_bound_claude_invocation(
     pre_admission: ProviderExecutablePreAdmissionReceipt,
     at: datetime,
 ) -> dict[str, Any]:
-    """Dispatch Claude only from a fresh, durable, prepared canonical Attempt.
+    """Dispatch Claude only from a live, durable, prepared canonical Attempt.
 
-    The lifecycle/workspace check happens before the existing atomic authority
-    composition seam is entered.  The downstream function still
-    re-authenticates Mission, WorkItem, Attempt, runtime, Effect, workspace, ABI,
-    executable and observation authority; this wrapper contributes only the
-    durable lifecycle fact and exact prepared-workspace identity.
+    Lifecycle/workspace authentication and a live Event-Store re-read happen
+    before the existing atomic authority composition seam is entered.  The
+    downstream function still re-authenticates Mission, WorkItem, Attempt,
+    runtime, Effect, workspace, ABI, executable and observation authority; this
+    wrapper contributes only durable lifecycle facts and exact prepared-workspace
+    identity.
     """
 
-    require_fresh_prepared_attempt_workspace(prepared, attempt, workspace_grant)
+    start = require_fresh_prepared_attempt_workspace(
+        prepared,
+        attempt,
+        workspace_grant,
+    )
+    require_live_pending_attempt(attempt_ledger, start)
     return execute_mission_bound_claude_invocation(
         mission,
         attempt,
@@ -194,4 +254,5 @@ __all__ = [
     "execute_started_mission_bound_claude_invocation",
     "require_fresh_persisted_attempt_start",
     "require_fresh_prepared_attempt_workspace",
+    "require_live_pending_attempt",
 ]
