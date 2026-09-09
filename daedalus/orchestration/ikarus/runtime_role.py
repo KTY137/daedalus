@@ -6,11 +6,12 @@ one local registry and hands the same structural bindings to planning and
 dispatch.  The supervisor remains the harness and ``TaskAttempt`` remains the
 only execution path.
 
-Only ``fixture`` bindings are executable in work packet G1-IKARUS-02.  A real
-runtime is represented as ``source-only`` until a later packet connects its
-exact admitted manifest, effect lease, observation authority and executable
-target through the canonical broker.  Treating declaration as authority would
-be the bypass this module exists to prevent.
+``fixture`` bindings remain test-only executable descriptors. Real runtimes
+stay ``source-only`` until their exact admitted authority graph is connected;
+then the descriptor may use ``authenticated-handoff``. That mode is executable
+only through an exclusive handoff-aware RoleHarness after TaskAttempt has
+authenticated its live runner context. Treating declaration, a legacy runner,
+or a role name as authority remains a fail-closed bypass.
 
 The shape is informed by the bounded upstream study recorded in
 ``docs/research/hermes-agent-v2026.8.19-provenance.json``.  No upstream code is
@@ -31,9 +32,16 @@ RUNTIME_ROLE_BINDING_SCHEMA = "daedalus-ikarus-runtime-role/1"
 INPROCESS_RUNTIME_ID = "inprocess"
 FIXTURE_EXECUTION_MODE = "fixture"
 SOURCE_ONLY_EXECUTION_MODE = "source-only"
+AUTHENTICATED_HANDOFF_EXECUTION_MODE = "authenticated-handoff"
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
-_EXECUTION_MODES = frozenset({FIXTURE_EXECUTION_MODE, SOURCE_ONLY_EXECUTION_MODE})
+_EXECUTION_MODES = frozenset(
+    {
+        AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+        FIXTURE_EXECUTION_MODE,
+        SOURCE_ONLY_EXECUTION_MODE,
+    }
+)
 
 
 class RuntimeRoleRegistryError(ValueError):
@@ -132,7 +140,7 @@ class RuntimeRoleBinding:
                     "an executable fixture binding requires an empty string "
                     "refusal_reason"
                 )
-        else:
+        elif self.execution_mode == SOURCE_ONLY_EXECUTION_MODE:
             object.__setattr__(
                 self,
                 "refusal_reason",
@@ -140,10 +148,35 @@ class RuntimeRoleBinding:
                     self.refusal_reason, "refusal_reason", max_length=1000
                 ),
             )
+        else:
+            if self.runtime_id.startswith("fixture."):
+                raise RuntimeRoleRegistryError(
+                    "authenticated-handoff runtime_id cannot use the fixture namespace"
+                )
+            if self.adapter_id.startswith("fixture."):
+                raise RuntimeRoleRegistryError(
+                    "authenticated-handoff adapter_id cannot use the fixture namespace"
+                )
+            if self.origin.startswith("fixture://"):
+                raise RuntimeRoleRegistryError(
+                    "authenticated-handoff origin cannot use the fixture scheme"
+                )
+            if not isinstance(self.refusal_reason, str) or self.refusal_reason != "":
+                raise RuntimeRoleRegistryError(
+                    "an authenticated-handoff binding requires an empty string "
+                    "refusal_reason"
+                )
 
     @property
     def executable(self) -> bool:
-        return self.execution_mode == FIXTURE_EXECUTION_MODE
+        return self.execution_mode in {
+            AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+            FIXTURE_EXECUTION_MODE,
+        }
+
+    @property
+    def requires_authenticated_handoff(self) -> bool:
+        return self.execution_mode == AUTHENTICATED_HANDOFF_EXECUTION_MODE
 
     def subject(self) -> dict[str, str]:
         """Return the complete versioned subject; never include callables."""
@@ -257,7 +290,14 @@ class RuntimeRoleSnapshot:
 
     @property
     def executable(self) -> bool:
-        return self.execution_mode == FIXTURE_EXECUTION_MODE
+        return self.execution_mode in {
+            AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+            FIXTURE_EXECUTION_MODE,
+        }
+
+    @property
+    def requires_authenticated_handoff(self) -> bool:
+        return self.execution_mode == AUTHENTICATED_HANDOFF_EXECUTION_MODE
 
     @property
     def harness_key(self) -> str:
@@ -383,6 +423,7 @@ class RuntimeRoleRegistry:
 
 
 __all__ = [
+    "AUTHENTICATED_HANDOFF_EXECUTION_MODE",
     "FIXTURE_EXECUTION_MODE",
     "INPROCESS_RUNTIME_ID",
     "RUNTIME_ROLE_BINDING_SCHEMA",

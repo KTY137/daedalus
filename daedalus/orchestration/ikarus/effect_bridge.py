@@ -22,7 +22,7 @@ from .oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
 from .tool_scope import IkarusToolScopeProjection
 from ...kernel.contracts import EffectLeaseRequest
 from ...kernel.effects import EffectExecutionRequest
-from ...schemas import ContractProvenance, EffectScope
+from ...schemas import AttemptContract, ContractProvenance, EffectScope, MissionContract
 from ...spine.effect_boundary import Effect
 
 
@@ -244,6 +244,10 @@ def build_oneshot_effect_execution_request(
         raise IkarusEffectBridgeRefused(
             "effect_request must be an exact EffectLeaseRequest"
         )
+    if effect_request.provenance.trace_id != effect_request.mission_id:
+        raise IkarusEffectBridgeRefused(
+            "effect request provenance is not bound to its mission"
+        )
     required_inputs = {
         request.digest,
         runtime_evidence.digest,
@@ -344,8 +348,221 @@ def build_oneshot_effect_execution_request(
         ) from exc
 
 
+def _bounded_by(
+    value: int | None,
+    ceiling: int | None,
+    label: str,
+    *,
+    authority: str,
+) -> None:
+    if ceiling is not None and (value is None or value > ceiling):
+        raise IkarusEffectBridgeRefused(
+            f"{label} is broader than the canonical {authority} budget"
+        )
+
+
+def _require_attempt_write_scope(
+    values: Iterable[str],
+    attempt: AttemptContract,
+    label: str,
+) -> None:
+    if not set(values).issubset(set(attempt.writable_paths)):
+        raise IkarusEffectBridgeRefused(
+            f"{label} is broader than the canonical attempt writable paths"
+        )
+
+
+def validate_oneshot_mission_attempt(
+    mission: MissionContract,
+    attempt: AttemptContract,
+    request: OneShotRequest,
+    runtime_evidence: OneShotRuntimeEvidenceBinding,
+    tool_scope: IkarusToolScopeProjection,
+    effect_request: EffectLeaseRequest,
+    execution: EffectExecutionRequest,
+) -> None:
+    """Prove one Ikarus effect chain belongs to one canonical Attempt/WorkItem.
+
+    ``MissionContract.work_item_ids`` remains the WorkItem authority and
+    ``AttemptContract`` remains the attempt authority.  They are deliberately
+    distinct: one WorkItem may have more than one Attempt, while the effect
+    request must name the exact attempt that actually owns the execution.
+
+    The seam grants nothing and performs no effect.  It only proves that the
+    existing one-shot/runtime/tool/effect subjects can be composed without
+    inventing a second WorkItem, Attempt, scheduler, or control plane.  The
+    runtime broker must still authenticate the sealed provider invocation.
+    """
+
+    if type(mission) is not MissionContract:
+        raise IkarusEffectBridgeRefused("mission must be an exact MissionContract")
+    if type(attempt) is not AttemptContract:
+        raise IkarusEffectBridgeRefused("attempt must be an exact AttemptContract")
+    if attempt.task_id not in mission.work_item_ids:
+        raise IkarusEffectBridgeRefused(
+            "attempt task_id must name one exact canonical mission work item"
+        )
+    _bind_subjects(request, runtime_evidence, tool_scope)
+    if type(effect_request) is not EffectLeaseRequest:
+        raise IkarusEffectBridgeRefused(
+            "effect_request must be an exact EffectLeaseRequest"
+        )
+    if type(execution) is not EffectExecutionRequest:
+        raise IkarusEffectBridgeRefused(
+            "execution must be an exact EffectExecutionRequest"
+        )
+
+    comparisons = {
+        "attempt mission": (attempt.mission_id, mission.mission_id),
+        "effect mission": (effect_request.mission_id, mission.mission_id),
+        "effect attempt": (effect_request.attempt_id, attempt.attempt_id),
+        "trace": (effect_request.provenance.trace_id, mission.mission_id),
+        "attempt base revision": (attempt.base_revision, mission.source_revision),
+        "effect source revision": (
+            effect_request.provenance.source_revision,
+            attempt.base_revision,
+        ),
+        "runtime source revision": (
+            runtime_evidence.source_revision,
+            attempt.base_revision,
+        ),
+        "attempt runtime manifest": (
+            attempt.runtime_manifest_sha256,
+            runtime_evidence.runtime_manifest_sha256,
+        ),
+        "attempt policy decision": (
+            attempt.policy_decision_sha256,
+            tool_scope.policy_decision_sha256,
+        ),
+    }
+    mismatch = sorted(
+        name for name, (actual, expected) in comparisons.items() if actual != expected
+    )
+    if mismatch:
+        raise IkarusEffectBridgeRefused(
+            "Ikarus effect subjects do not name one canonical mission attempt: "
+            + ", ".join(mismatch)
+        )
+
+    for value, ceiling, label in (
+        (attempt.budget.max_tokens, mission.budget.max_tokens, "attempt token bound"),
+        (
+            attempt.budget.max_cost_microusd,
+            mission.budget.max_cost_microusd,
+            "attempt cost bound",
+        ),
+        (
+            attempt.budget.max_wall_time_s,
+            mission.budget.max_wall_time_s,
+            "attempt wall-time bound",
+        ),
+        (
+            request.budget.max_tokens,
+            attempt.budget.max_tokens,
+            "one-shot token bound",
+        ),
+        (
+            request.budget.max_cost_microusd,
+            attempt.budget.max_cost_microusd,
+            "one-shot cost bound",
+        ),
+        (
+            request.budget.max_wall_time_s,
+            attempt.budget.max_wall_time_s,
+            "one-shot wall-time bound",
+        ),
+        (
+            effect_request.effect_scope.max_cost_microusd,
+            attempt.budget.max_cost_microusd,
+            "effect-request cost bound",
+        ),
+        (
+            effect_request.effect_scope.timeout_s,
+            attempt.budget.max_wall_time_s,
+            "effect-request timeout",
+        ),
+        (
+            execution.max_cost_microusd,
+            attempt.budget.max_cost_microusd,
+            "execution cost bound",
+        ),
+    ):
+        _bounded_by(
+            value,
+            ceiling,
+            label,
+            authority="mission" if label.startswith("attempt ") else "attempt",
+        )
+
+    _require_attempt_write_scope(
+        effect_request.effect_scope.writable_paths,
+        attempt,
+        "effect-request writable scope",
+    )
+    _require_attempt_write_scope(
+        execution.writable_paths,
+        attempt,
+        "execution writable scope",
+    )
+
+    try:
+        created_at = datetime.fromisoformat(
+            effect_request.provenance.created_at.replace("Z", "+00:00")
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise IkarusEffectBridgeRefused(
+            "effect request provenance created_at is not ISO-8601"
+        ) from exc
+    if created_at.tzinfo is None or created_at.utcoffset() is None:
+        raise IkarusEffectBridgeRefused(
+            "effect request provenance created_at must include a timezone"
+        )
+
+    rebuilt_request = build_oneshot_effect_lease_request(
+        request,
+        runtime_evidence,
+        tool_scope,
+        request_id=effect_request.request_id,
+        mission_id=effect_request.mission_id,
+        attempt_id=effect_request.attempt_id,
+        entrypoint_id=effect_request.entrypoint_id,
+        idempotency_namespace=effect_request.idempotency_namespace,
+        kill_switch_ref=effect_request.effect_scope.kill_switch_ref,
+        kill_switch_generation=effect_request.kill_switch_generation,
+        requested_effects=effect_request.requested_effects,
+        created_at=created_at,
+        writable_paths=effect_request.effect_scope.writable_paths,
+        egress_endpoints=effect_request.effect_scope.egress_endpoints,
+        secret_refs=effect_request.effect_scope.secret_refs,
+        timeout_s=effect_request.effect_scope.timeout_s,
+    )
+    if rebuilt_request != effect_request or rebuilt_request.digest != effect_request.digest:
+        raise IkarusEffectBridgeRefused(
+            "effect request is not the exact canonical one-shot projection"
+        )
+
+    rebuilt_execution = build_oneshot_effect_execution_request(
+        request,
+        runtime_evidence,
+        tool_scope,
+        effect_request,
+        execution_id=execution.execution_id,
+        idempotency_key=execution.idempotency_key,
+        requested_effects=execution.requested_effects,
+        writable_paths=execution.writable_paths,
+        egress_endpoints=execution.egress_endpoints,
+        secret_refs=execution.secret_refs,
+        max_cost_microusd=execution.max_cost_microusd,
+    )
+    if rebuilt_execution != execution or rebuilt_execution.digest != execution.digest:
+        raise IkarusEffectBridgeRefused(
+            "execution request is not the exact narrowed one-shot projection"
+        )
+
+
 __all__ = [
     "IkarusEffectBridgeRefused",
     "build_oneshot_effect_execution_request",
     "build_oneshot_effect_lease_request",
+    "validate_oneshot_mission_attempt",
 ]
