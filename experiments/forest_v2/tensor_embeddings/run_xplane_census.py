@@ -36,28 +36,36 @@ from experiments.forest_v2.tensor_embeddings.benchmark import (  # noqa: E402
 SCHEMA = "forest_v2.tensor.xplane_census/1"
 
 
-def fit_to_cap(raw: bytes, cap: int = MAX_CONTENT_BYTES) -> bytes:
-    """Truncate ``raw`` so the *decoded then re-encoded* text still fits ``cap``.
+def legal_budget(raw: bytes) -> int:
+    """The largest byte prefix of ``raw`` that satisfies both frozen contracts.
 
-    Cutting raw bytes at the cap is not enough.  ``Candidate.text`` decodes with
-    ``errors="replace"``, so a cut landing mid-sequence turns a 1-3 byte partial
-    into a 3-byte ``U+FFFD``; the encoder then re-encodes that text and rejects
-    it for exceeding the very cap the caller thought it had respected.  That is
-    what blocked the first run of this census: 30 of 88 cases raised
-    ``role field content exceeds the frozen 65536-byte cap``.
+    Two contracts have to hold at once, and the obvious value satisfies neither:
 
-    Shrinking on the decoded string and re-encoding to check is the only form
-    that is correct for every input, so it is done that way rather than by
-    subtracting a guess.
+    * ``benchmark.BenchmarkCase`` requires ``len(raw)`` to be exactly the whole
+      blob or exactly ``min(size, content_budget)``. An arbitrary re-encoded
+      payload is refused, so the truncation must be a plain **byte prefix**.
+    * ``encoding.RoleFields`` rejects a role field whose text re-encodes above
+      ``MAX_ROLE_FIELD_BYTES``, and ``Candidate.text`` decodes with
+      ``errors="replace"``.
+
+    The trap is that the inflation is not at the cut. ``errors="replace"`` emits
+    one ``U+FFFD`` **per invalid byte**, so a file that is not valid UTF-8 --
+    binary, or latin-1 text -- inflates by up to 3x across its whole length. A
+    fixed safety margin cannot fix that, which is why a 16-byte margin still
+    left 160 failures on a six-case smoke run.
+
+    So the budget is chosen per candidate: start at the full prefix and halve
+    until the decoded text re-encodes under the cap. Every arm still sees the
+    identical candidate at the identical budget, which is what "budget-identical"
+    means in this design; what varies is per *candidate*, never per arm.
     """
-    text = raw.decode("utf-8", "replace")
-    encoded = text.encode("utf-8")
-    while len(encoded) > cap and text:
-        overflow = len(encoded) - cap
-        # Each dropped character frees at least one byte and at most four.
-        text = text[: max(0, len(text) - (overflow // 4 + 1))]
-        encoded = text.encode("utf-8")
-    return encoded
+    budget = min(len(raw), MAX_CONTENT_BYTES)
+    while budget > 0:
+        text = raw[:budget].decode("utf-8", "replace")
+        if len(text.encode("utf-8")) <= MAX_CONTENT_BYTES:
+            return budget
+        budget //= 2
+    return 0
 
 
 def build_cases(
@@ -85,11 +93,11 @@ def build_cases(
                 path=path,
                 blob=blob,
                 size=size,
-                raw=fit_to_cap(blobs[blob]),
-                content_budget=MAX_CONTENT_BYTES,
+                raw=blobs[blob][: legal_budget(blobs[blob])],
+                content_budget=legal_budget(blobs[blob]),
             )
             for path, blob, size in eligible
-            if blob in blobs and blobs[blob]
+            if blob in blobs and blobs[blob] and legal_budget(blobs[blob]) > 0
         )
         if not universe:
             continue
