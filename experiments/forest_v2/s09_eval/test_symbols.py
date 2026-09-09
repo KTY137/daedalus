@@ -121,3 +121,57 @@ def test_a_missing_qualname_is_false_not_an_error() -> None:
 def test_star_args_annotations_count() -> None:
     src = "def f(*args: int, **kw: str):\n    pass\n"
     assert symbols.carries_annotation(src, "f") is True
+
+
+# --------------------------------------------------------------------------
+# the Type-plane ablation
+# --------------------------------------------------------------------------
+def test_stripping_removes_every_annotation_kind() -> None:
+    src = (
+        "def f(a: int, *rest: str, **kw: bytes) -> list[int]:\n"
+        "    x: dict[str, int] = {}\n"
+        "    return [a]\n"
+    )
+    out = symbols.strip_annotations(src)
+    for gone in ("int", "str", "bytes", "list[int]", "dict[str, int]"):
+        assert gone not in out
+    # identifiers, defaults and control flow survive
+    for kept in ("def f(", "a", "rest", "kw", "x = {}", "return [a]"):
+        assert kept in out
+
+
+def test_a_bare_declaration_keeps_its_name() -> None:
+    # `y: int` has nothing left once the annotation goes, but the NAME belongs
+    # to the code plane and must survive the ablation.
+    out = symbols.strip_annotations("def f():\n    y: int\n")
+    assert "y = None" in out
+    assert "int" not in out
+
+
+def test_the_control_is_unparsed_too() -> None:
+    # Both arms must round-trip, or the comparison also measures ast.unparse.
+    src = "def f( a ):\n\n\n    return   a\n"
+    assert symbols.normalize_source(src) == "def f(a):\n    return a"
+
+
+def test_ablation_is_a_no_op_when_nothing_is_annotated() -> None:
+    src = "def f(a):\n    return a\n"
+    assert symbols.strip_annotations(src) == symbols.normalize_source(src)
+
+
+def test_unparseable_source_survives_both_transforms_unchanged() -> None:
+    broken = "def f(:\n"
+    assert symbols.strip_annotations(broken) == broken
+    assert symbols.normalize_source(broken) == broken
+
+
+def test_stripping_does_not_change_which_symbols_exist() -> None:
+    src = (
+        "class C:\n"
+        "    field: int = 0\n"
+        "    def m(self, x: str) -> None:\n"
+        "        pass\n"
+    )
+    assert set(symbols.symbol_table(symbols.strip_annotations(src))) == set(
+        symbols.symbol_table(symbols.normalize_source(src))
+    )

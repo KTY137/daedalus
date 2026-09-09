@@ -1,0 +1,61 @@
+{
+  "anchor": "c3cc5a95d4f72e6ccc27ebae23344fce8cc70786",
+  "cases_scored": 403,
+  "confound_check": {
+    "confounded": false,
+    "mean_indexed_tokens": {
+      "full": 64.19684188869458,
+      "type_ablated": 61.56185819662707
+    },
+    "spread_pct": 4.105,
+    "threshold_pct": 5.0
+  },
+  "cutoff": 10,
+  "mean_score": {
+    "full": {
+      "mrr": 0.144871474263457,
+      "recall": 0.1553281664849127
+    },
+    "type_ablated": {
+      "mrr": 0.14371537382517338,
+      "recall": 0.1532603418364429
+    }
+  },
+  "mrr_max": 20,
+  "paired_delta": {
+    "mrr": {
+      "cases_better": 23,
+      "cases_tied": 354,
+      "cases_worse": 26,
+      "delta_mean": {
+        "ci95_high": 0.0062,
+        "ci95_low": -0.0042,
+        "point": 0.0012,
+        "resamples": 10000
+      },
+      "interval_excludes_zero": false,
+      "reference": "type_ablated",
+      "share_of_resamples_favouring_subject": 0.6885,
+      "subject": "full",
+      "variant": "scrubbed"
+    },
+    "recall": {
+      "cases_better": 3,
+      "cases_tied": 396,
+      "cases_worse": 4,
+      "delta_mean": {
+        "ci95_high": 0.0095,
+        "ci95_low": -0.0039,
+        "point": 0.0021,
+        "resamples": 10000
+      },
+      "interval_excludes_zero": false,
+      "reference": "type_ablated",
+      "share_of_resamples_favouring_subject": 0.7073,
+      "subject": "full",
+      "variant": "scrubbed"
+    }
+  },
+  "schema": "forest_v2.s09.symbol_ablation/1",
+  "variant": "scrubbed"
+}
