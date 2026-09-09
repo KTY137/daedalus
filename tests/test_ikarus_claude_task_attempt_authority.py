@@ -9,7 +9,11 @@ import pytest
 
 import daedalus.ikarus_claude_task_attempt_authority as authority
 from daedalus.ikarus_claude_attempt_handoff import ClaudeTaskAttemptRunnerHandoff
-from daedalus.providers.claude_cli import ClaudeWorkspaceGrant
+from daedalus.providers.claude_cli import (
+    RUNTIME_ID as CLAUDE_RUNTIME_ID,
+    ClaudeWorkspaceGrant,
+)
+from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
 from daedalus.runtimes.provider_runtime_executable_binding import (
     ProviderRuntimeExecutableBindingReceipt,
 )
@@ -64,6 +68,39 @@ def _bind(subjects, tmp_path: Path, handoff=None, **overrides):
         execution,
         **kwargs,
     )
+
+
+def _compose(subjects, tmp_path: Path, handoff=None, **overrides):
+    mission, _, request, evidence, tools, effect_request, execution, members = subjects
+    kwargs = {**members, "at": fixture.fixture.fixture.NOW}
+    kwargs.update(overrides)
+    return authority.compose_task_attempt_bound_claude_invocation(
+        handoff or _handoff(subjects, tmp_path),
+        mission,
+        request,
+        evidence,
+        tools,
+        effect_request,
+        execution,
+        **kwargs,
+    )
+
+
+def _terminal_provider_result(subjects, body):
+    return {
+        "provider": "claude_cli",
+        "runtime_id": CLAUDE_RUNTIME_ID,
+        "attempt_id": subjects[1].attempt_id,
+        "phase": "terminal",
+        "terminal_receipt_sha256": "f" * 64,
+        "runtime_receipt": {
+            "executed": True,
+            "invocation_sha256": body["invocation_sha256"],
+            "start_receipt_sha256": "a" * 64,
+            "terminal_receipt_sha256": "f" * 64,
+        },
+        "report": {"status": "done", "summary": "bounded"},
+    }
 
 
 def test_live_task_attempt_owner_authenticates_existing_provider_authorities(
@@ -201,3 +238,163 @@ def test_live_task_attempt_refuses_nonexact_provider_binding_receipt(
         match="non-exact executable receipt",
     ):
         _bind(subjects, tmp_path)
+
+
+def test_live_task_attempt_dispatches_without_terminal_attempt_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = fixture._subjects(tmp_path)
+    expected = object.__new__(ProviderRuntimeExecutableBindingReceipt)
+    monkeypatch.setattr(
+        authority,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: expected,
+    )
+    invocation = _compose(subjects, tmp_path)
+    body = fixture._provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    calls = []
+
+    def fake_ask_claude(
+        objective,
+        repo_root,
+        paths,
+        model="sonnet",
+        timeout_s=300,
+        *,
+        sealed_bundle=None,
+    ):
+        calls.append(
+            {
+                "objective": objective,
+                "repo_root": repo_root,
+                "paths": paths,
+                "model": model,
+                "timeout_s": timeout_s,
+                "sealed_bundle": sealed_bundle,
+            }
+        )
+        return _terminal_provider_result(subjects, body)
+
+    monkeypatch.setattr(authority, "ask_claude", fake_ask_claude)
+
+    result = authority.dispatch_task_attempt_bound_claude_invocation(invocation)
+
+    assert len(calls) == 1
+    assert calls[0]["repo_root"] == str(tmp_path)
+    assert calls[0]["sealed_bundle"] is invocation.sealed_bundle
+    assert result["mission_id"] == subjects[0].mission_id
+    assert result["work_item_id"] == subjects[1].task_id
+    assert result["attempt_id"] == subjects[1].attempt_id
+    assert result["phase"] == "terminal"
+
+
+def test_live_task_attempt_refuses_payload_path_escape_before_provider_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = fixture._subjects(tmp_path)
+    expected = object.__new__(ProviderRuntimeExecutableBindingReceipt)
+    monkeypatch.setattr(
+        authority,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: expected,
+    )
+    invocation = _compose(subjects, tmp_path)
+    body = fixture._provider_body(subjects, tmp_path)
+    body["paths"] = ["../escape.py"]
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("path escape must not reach Claude")
+
+    monkeypatch.setattr(authority, "ask_claude", fail_if_called)
+
+    with pytest.raises(
+        authority.IkarusClaudeTaskAttemptAuthorityRefused,
+        match="payload path exceeds TaskAttempt owner scope",
+    ):
+        authority.dispatch_task_attempt_bound_claude_invocation(invocation)
+    assert called is False
+
+
+def test_live_task_attempt_refuses_foreign_provider_attempt_before_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = fixture._subjects(tmp_path)
+    expected = object.__new__(ProviderRuntimeExecutableBindingReceipt)
+    monkeypatch.setattr(
+        authority,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: expected,
+    )
+    invocation = _compose(subjects, tmp_path)
+    body = fixture._provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    result = _terminal_provider_result(subjects, body)
+    result["attempt_id"] = "attempt-foreign"
+    monkeypatch.setattr(authority, "ask_claude", lambda *args, **kwargs: result)
+
+    with pytest.raises(
+        authority.IkarusClaudeTaskAttemptAuthorityRefused,
+        match="does not name the live TaskAttempt",
+    ):
+        authority.dispatch_task_attempt_bound_claude_invocation(invocation)
+
+
+def test_live_task_attempt_execute_is_atomic_compose_then_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = fixture._subjects(tmp_path)
+    expected = object.__new__(ProviderRuntimeExecutableBindingReceipt)
+    monkeypatch.setattr(
+        authority,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: expected,
+    )
+    body = fixture._provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    monkeypatch.setattr(
+        authority,
+        "ask_claude",
+        lambda *args, **kwargs: _terminal_provider_result(subjects, body),
+    )
+    mission, _, request, evidence, tools, effect_request, execution, members = subjects
+
+    result = authority.execute_task_attempt_bound_claude_invocation(
+        _handoff(subjects, tmp_path),
+        mission,
+        request,
+        evidence,
+        tools,
+        effect_request,
+        execution,
+        **members,
+        at=fixture.fixture.fixture.NOW,
+    )
+
+    assert result["mission_id"] == mission.mission_id
+    assert result["work_item_id"] == subjects[1].task_id
+    assert result["attempt_id"] == subjects[1].attempt_id
