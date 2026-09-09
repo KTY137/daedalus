@@ -939,6 +939,17 @@ class MissionSupervisor:
                 + " | ".join(preflight_errors)
             )
 
+        # Import the Claude handoff only on the execution path: planning and
+        # read-only supervisor imports must not drag provider/runtime modules
+        # into process startup.  The binding itself is inert evidence; it does
+        # not mint a second Attempt authority or open another control plane.
+        from .ikarus_claude_attempt_handoff import (
+            IkarusClaudeAttemptHandoffRefused,
+            bind_task_attempt_claude_identity,
+            require_task_attempt_runner_context,
+            require_task_attempt_terminal_contract,
+        )
+
         outcome = "landed"
         for index, (
             task,
@@ -992,6 +1003,7 @@ class MissionSupervisor:
                 gate_paths=item.gate_paths,
                 runtime_id=item.runtime_id,
             )
+            attempt_binding = None
 
             def lazy_runner(
                 ctx,
@@ -1000,6 +1012,17 @@ class MissionSupervisor:
                 planned_item=runner_item,
                 task_template=callback_task_template,
             ):
+                # Authenticate the exact context materialized by THIS
+                # TaskAttempt before caller/runtime factory code receives
+                # control.  A valid branch string alone is not provider
+                # authority; mission/work-item/task/source/scope identity was
+                # frozen from the owner before run() crossed the effect seam.
+                binding_value = attempt_binding
+                if binding_value is None:
+                    raise IkarusClaudeAttemptHandoffRefused(
+                        "TaskAttempt Claude identity was not frozen before runner dispatch"
+                    )
+                require_task_attempt_runner_context(binding_value, ctx)
                 runner = factory(planned_item)
                 if not callable(runner):
                     raise TypeError("runner_factory returned a non-callable")
@@ -1028,6 +1051,25 @@ class MissionSupervisor:
                 budget=mission_budget,
                 mission_policy_sha256=mission_policy_sha256,
             )
+            try:
+                attempt_binding = bind_task_attempt_claude_identity(
+                    attempt, mission_snapshot
+                )
+            except IkarusClaudeAttemptHandoffRefused as exc:
+                # No TaskAttempt effect has run yet. Preserve that fact: do not
+                # manufacture an attempt id from the branch we just refused to
+                # authenticate, and make fail-fast see a real terminal bounce.
+                BuildTask.mark(task, "bounced")
+                rows[index]["status"] = "bounced"
+                rows[index]["attempt_id"] = None
+                rows[index]["detail"] = (
+                    "TaskAttempt/Claude identity binding refused before runner "
+                    f"dispatch: {exc}"
+                )
+                outcome = "bounced"
+                ledger.publish(base)
+                continue
+
             result = attempt.run()
             result_sink.append(result)
 
@@ -1040,6 +1082,17 @@ class MissionSupervisor:
                     "canonical attempt contracts could not be reconstructed: "
                     f"{type(exc).__name__}: {exc}"
                 )
+            if contract_error is None:
+                try:
+                    require_task_attempt_terminal_contract(
+                        attempt_binding,
+                        getattr(contracts, "attempt", None),
+                    )
+                except IkarusClaudeAttemptHandoffRefused as exc:
+                    contract_error = (
+                        "terminal AttemptContract does not close the pre-effect "
+                        f"TaskAttempt/Claude identity: {exc}"
+                    )
             attempt_id, identity_error = _canonical_attempt_identity(
                 result,
                 contracts,
@@ -1047,6 +1100,11 @@ class MissionSupervisor:
                 work_item_id=task_plan.work_item_id,
             )
             identity_error = contract_error or identity_error
+            if identity_error is not None:
+                # Terminal producer evidence that does not close the exact
+                # pre-effect owner may remain inspectable by digest, but it is
+                # not allowed to feed a trusted Work Pulse attempt identity.
+                attempt_id = None
             terminal_status = (
                 "landed" if result.ok and identity_error is None else "bounced"
             )
