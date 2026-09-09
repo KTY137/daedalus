@@ -94,9 +94,17 @@ class CompiledRelationBlocks(Generic[T]):
             )
 
         names: set[str] = set()
-        ordered: list[tuple[str, TypedRelationBlock[T]]] = []
+        # The canonical compiler already supplies an exact tuple ordered by
+        # logical block name. Validate that shape in place and retain it when
+        # possible; fall back to the existing normalization list as soon as an
+        # arbitrary Sequence or non-canonical item/order needs normalization.
+        ordered: list[tuple[str, TypedRelationBlock[T]]] | None = (
+            None if type(self.blocks) is tuple else []
+        )
+        previous_name: str | None = None
         for index in range(block_count):
-            name, block = self.blocks[index]
+            declared = self.blocks[index]
+            name, block = declared
             if type(name) is not str or not name:
                 raise ValueError("compiled block names must be non-empty strings")
             if name in names:
@@ -114,11 +122,22 @@ class CompiledRelationBlocks(Generic[T]):
                     "compiled block name does not match its signature"
                 )
             names.add(name)
-            ordered.append((name, block))
-        ordered.sort(key=lambda item: item[0])
-        object.__setattr__(self, "blocks", tuple(ordered))
+            if ordered is None and (
+                type(declared) is not tuple
+                or (previous_name is not None and name < previous_name)
+            ):
+                ordered = [self.blocks[position] for position in range(index)]
+            if ordered is not None:
+                ordered.append((name, block))
+            previous_name = name
+        if ordered is None:
+            canonical_blocks = self.blocks
+        else:
+            ordered.sort(key=lambda item: item[0])
+            canonical_blocks = tuple(ordered)
+            object.__setattr__(self, "blocks", canonical_blocks)
         if self.semantic_fact_count != sum(
-            block.entry_count for _, block in ordered
+            block.entry_count for _, block in canonical_blocks
         ):
             raise ValueError(
                 "semantic_fact_count does not match compiled entries"
