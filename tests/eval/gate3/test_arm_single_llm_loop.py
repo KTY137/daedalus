@@ -322,3 +322,93 @@ def test_never_makes_a_real_network_call(
     assert outcome.error is not None
     assert outcome.success is None
     assert outcome.score is None
+
+
+# --------------------------------------------------------------------------- #
+# real provider usage: measured, never assumed                                #
+# --------------------------------------------------------------------------- #
+def _usage_receipt(text: str, *, total: int | None, status: str = "reported") -> dict:
+    """An ok receipt carrying the provider's own usage block, as
+    ``tier2._ask`` has returned since it moved to ``chat_completion_receipt``."""
+    receipt = _ok_receipt(text)
+    receipt["usage_status"] = status
+    receipt["usage"] = (
+        None if total is None
+        else {"input_tokens": total // 2, "output_tokens": total - total // 2,
+              "total_tokens": total, "tokenizer": "provider/native"}
+    )
+    return receipt
+
+
+def _usage_ask(receipts: list[dict]):
+    calls: list[tuple[dict, str, str]] = []
+
+    def fake_ask(prov: dict, question: str, context: str) -> dict:
+        calls.append((prov, question, context))
+        idx = len(calls) - 1
+        return receipts[idx] if idx < len(receipts) else _err_receipt("exhausted")
+
+    return fake_ask, calls
+
+
+def test_every_call_reporting_usage_makes_tokens_measured_not_estimated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(harness, "detect_provider", lambda *a, **k: dict(_FAKE_PROV))
+    fake_ask, _ = _usage_ask([_usage_receipt("final answer MARK_FULL", total=120)])
+    monkeypatch.setattr(tier2, "_ask", fake_ask)
+
+    outcome = SingleLlmLoopArm().run(
+        _task(_build_repo(tmp_path)), ArmBudget(max_calls=5),
+        _marker_evaluator({"MARK_FULL": 1.0}, default=0.2), seed=0)
+
+    assert outcome.notes["tokens_estimated"] is False
+    assert outcome.notes["provider_tokens_reported"] == 120
+    assert outcome.notes["provider_calls"] == outcome.notes["provider_calls_with_usage"] == 1
+    # The local estimate is carried alongside, never replaced by the provider's.
+    assert outcome.notes["local_estimate_tokens"] > 0
+
+
+def test_one_silent_call_makes_the_whole_run_an_estimate_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The case that matters: partial usage must not read as measured.
+
+    A run where the provider reported on some calls and not others is an
+    estimate, because the missing calls' spend is unknown -- reporting it as
+    measured would present a floor as a total.
+    """
+    monkeypatch.setattr(harness, "detect_provider", lambda *a, **k: dict(_FAKE_PROV))
+    fake_ask, _ = _usage_ask([
+        _usage_receipt("draft one, no marker", total=80),
+        _usage_receipt("still nothing useful", total=None, status="absent"),
+        _usage_receipt("final answer MARK_FULL", total=95),
+    ])
+    monkeypatch.setattr(tier2, "_ask", fake_ask)
+
+    outcome = SingleLlmLoopArm().run(
+        _task(_build_repo(tmp_path)), ArmBudget(max_calls=5),
+        _marker_evaluator({"MARK_FULL": 1.0}, default=0.2), seed=0)
+
+    assert outcome.notes["tokens_estimated"] is True
+    assert outcome.notes["provider_calls_with_usage"] < outcome.notes["provider_calls"]
+    # What WAS reported is still retained -- a floor, honestly labelled.
+    assert outcome.notes["provider_tokens_reported"] == 175
+    assert outcome.notes["usage_status_counts"].get("absent") == 1
+
+
+def test_a_provider_reporting_nothing_keeps_the_old_behaviour(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Receipts without a usage key at all -- the pre-receipt shape."""
+    monkeypatch.setattr(harness, "detect_provider", lambda *a, **k: dict(_FAKE_PROV))
+    fake_ask, _ = _scripted_ask(["final answer MARK_FULL"])
+    monkeypatch.setattr(tier2, "_ask", fake_ask)
+
+    outcome = SingleLlmLoopArm().run(
+        _task(_build_repo(tmp_path)), ArmBudget(max_calls=5),
+        _marker_evaluator({"MARK_FULL": 1.0}, default=0.2), seed=0)
+
+    assert outcome.notes["tokens_estimated"] is True
+    assert outcome.notes["provider_tokens_reported"] == 0
+    assert outcome.notes["usage_status_counts"] == {"absent": 1}
