@@ -52,8 +52,12 @@
     "inner_setdefault_calls_allowed": 0,
     "coordinate_bundle_identity_reused": true,
     "retained_alternatives": [
-      ["witness-a"],
-      ["witness-b"]
+      [
+        "witness-a"
+      ],
+      [
+        "witness-b"
+      ]
     ]
   },
   "evidence": {
@@ -107,5 +111,52 @@
     "archive_legacy_touched": false,
     "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
   },
-  "next_step": "GPU-116 should stop treating setdefault itself as a target and inspect evidence-atom normalization in the same owner: determine whether tuple(sorted(set(evidence_atoms))) is repeating canonicalization already guaranteed by _forest_edge_atoms or CrossPlaneBinding evidence construction. Change it only if the existing input contracts prove canonical, duplicate-free evidence at this seam; otherwise retain the normalization as the authority-safe boundary. No helper cache, second provenance store, or new evidence abstraction."
+  "next_step": "GPU-116 should stop treating setdefault itself as a target and inspect evidence-atom normalization in the same owner: determine whether tuple(sorted(set(evidence_atoms))) is repeating canonicalization already guaranteed by _forest_edge_atoms or CrossPlaneBinding evidence construction. Change it only if the existing input contracts prove canonical, duplicate-free evidence at this seam; otherwise retain the normalization as the authority-safe boundary. No helper cache, second provenance store, or new evidence abstraction.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-115",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "8f5610416cf4b68bc3e26e139e4c4ec0671fc708",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "change",
+          "focused_contract_finding"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
 }

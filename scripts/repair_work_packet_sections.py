@@ -68,6 +68,10 @@ PREFERENCES: dict[str, tuple[str, ...]] = {
         # description of the behaviour that moved; `focused_contract_finding`
         # is a contract finding by its own name. Both read, not guessed.
         "change", "focused_contract_finding",
+        # wave 8 (GPU-116): the PLURAL of a field already listed. Its
+        # entries are contract statements ("the ForestEdge contract itself
+        # cannot prove ..."), read before adding.
+        "findings",
     ),
     "acceptance_matrix": (
         "verification", "evidence", "measurement", "audit",
