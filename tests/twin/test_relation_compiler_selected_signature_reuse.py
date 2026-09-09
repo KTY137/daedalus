@@ -127,3 +127,74 @@ def test_explicit_plan_reuses_validated_signature_without_per_edge_reconstructio
     assert block.signature is selected
     assert tuple(block.iter_entries()) == (("src/a.py", "src/b.py", True),)
     assert compiled.semantic_fact_count == 1
+
+
+def test_discover_all_reuses_one_signature_for_repeated_retained_relation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/a.py", "source_file"),
+            ForestNode("src/b.py", "source_file"),
+            ForestNode("src/c.py", "source_file"),
+        ),
+        edges=(
+            ForestEdge(
+                source="src/a.py",
+                target="src/b.py",
+                relation="imports",
+                directed=True,
+                evidence=(_digest("imports-a-b"),),
+            ),
+            ForestEdge(
+                source="src/b.py",
+                target="src/c.py",
+                relation="imports",
+                directed=True,
+                evidence=(_digest("imports-b-c"),),
+            ),
+        ),
+        hyperedges=(),
+        provenance={
+            "origin": "test.relation-compiler-discover-signature-reuse",
+            "source_revision": REVISION,
+        },
+    )
+    snapshot = fourfold_from_knowledge_forest(
+        forest,
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        trace_id="relation-compiler-discover-signature-reuse",
+    )
+    snapshot = _complete_code_snapshot(forest, snapshot)
+    constructed: list[tuple[str, str, str]] = []
+    original_init = RelationSignature.__init__
+
+    def tracking_init(
+        self: RelationSignature,
+        source_plane: str,
+        relation: str,
+        target_plane: str,
+    ) -> None:
+        constructed.append((source_plane, relation, target_plane))
+        original_init(self, source_plane, relation, target_plane)
+
+    monkeypatch.setattr(RelationSignature, "__init__", tracking_init)
+
+    compiled = compile_relation_blocks(forest, snapshot, BooleanSemiring())
+
+    assert constructed == [("code", "imports", "code")]
+    assert len(compiled.blocks) == 1
+    block = compiled.blocks[0][1]
+    assert (
+        block.signature.source_plane,
+        block.signature.relation,
+        block.signature.target_plane,
+    ) == ("code", "imports", "code")
+    assert tuple(block.iter_entries()) == (
+        ("src/a.py", "src/b.py", True),
+        ("src/b.py", "src/c.py", True),
+    )
+    assert compiled.semantic_fact_count == 2
