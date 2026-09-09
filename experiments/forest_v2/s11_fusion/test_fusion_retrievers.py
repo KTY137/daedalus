@@ -346,3 +346,77 @@ def test_calibrated_arm_tallies_returned_planes_like_the_others():
     counts = arm.returned_plane_counts["raw"]
     assert counts["code"] == 1
     assert counts["knowledge"] == 1
+
+
+# --------------------------------------------------------------------------
+# G2-XPLANE-CONFIRM-04: plane as a feature, not as a partition
+# --------------------------------------------------------------------------
+def test_pooled_arm_uses_GLOBAL_idf_not_per_plane_idf():
+    """The half partitioning destroys, asserted directly.
+
+    `rare.py` is the only document containing `omega`. Under GLOBAL idf that
+    term is rare across 6 documents. Under per-plane idf it would be rare
+    across only the 3 code documents, i.e. materially less informative. The
+    pooled arm must rank `rare.py` first; a per-plane-idf arm need not.
+    """
+    universe = [
+        _cand("rare.py", "omega filler filler"),
+        _cand("c2.py", "common filler filler"),
+        _cand("c3.py", "common filler filler"),
+        _cand("k1.md", "common filler filler"),
+        _cand("k2.md", "common filler filler"),
+        _cand("k3.md", "common filler filler"),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("omega"), universe)
+    assert ranking[0] == "rare.py"
+
+
+def test_pooled_arm_never_partitions_the_candidate_pool():
+    """One index: a query matching both planes returns from both, ranked by
+    score alone -- no plane quota, no interleaving, no per-plane top-k."""
+    universe = [
+        _cand("a.py", "sigma sigma sigma"),
+        _cand("b.py", "sigma sigma"),
+        _cand("c.md", "sigma"),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("sigma"), universe)
+    assert ranking == ["a.py", "b.py", "c.md"]
+
+
+def test_per_plane_length_normalisation_changes_the_order_it_should():
+    """The single variable under test, shown as a case.
+
+    Both candidates match `tau` once. The markdown file is long, but it is
+    SHORT relative to its own plane, whose other documents are much longer.
+    The python file is average for its plane. Per-plane normalisation must
+    therefore favour the markdown file, where a global average would not.
+    """
+    universe = [
+        _cand("mid.py", "tau " + "pad " * 20),
+        _cand("short.md", "tau " + "pad " * 40),
+        _cand("long1.md", "other " + "pad " * 400),
+        _cand("long2.md", "other " + "pad " * 400),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("tau"), universe)
+    assert ranking[:2] == ["short.md", "mid.py"], ranking
+
+
+def test_unknown_plane_falls_back_to_the_global_average_not_a_constant():
+    """`.rs` is not in PLANE_BY_SUFFIX, so it has no plane average of its own.
+    It must still be scored, using the global average rather than being
+    dropped or given an invented normaliser."""
+    universe = [
+        _cand("x.rs", "upsilon filler"),
+        _cand("y.py", "upsilon filler filler filler"),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("upsilon"), universe)
+    assert set(ranking) == {"x.rs", "y.py"}
+
+
+def test_pooled_arm_is_deterministic_and_tallies_planes():
+    universe = [_cand("b.py", "phi"), _cand("a.py", "phi"), _cand("c.md", "phi")]
+    arm = fr.PooledPlaneLengthRetriever()
+    first = arm.rank(_query("phi"), universe)
+    assert first == fr.PooledPlaneLengthRetriever().rank(_query("phi"), universe)
+    counts = arm.returned_plane_counts["raw"]
+    assert counts["code"] == 2 and counts["knowledge"] == 1

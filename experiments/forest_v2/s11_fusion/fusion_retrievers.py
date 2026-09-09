@@ -431,3 +431,118 @@ class PlaneCalibratedRetriever:
             plane = plane_of(path)
             if plane in counts:
                 counts[plane] += 1
+
+
+class PooledPlaneLengthRetriever:
+    """Role: none. Plane as a FEATURE, not as a partition.
+
+    Built for ``G2-XPLANE-CONFIRM-04``. ``CONFIRM-03`` showed two structurally
+    different combination strategies losing to pooled BM25 by almost exactly
+    the same margin, which points at the partition rather than at how the
+    partitions are recombined -- and left the obvious hypothesis untested,
+    because every arm so far partitions the index.
+
+    ``_score_plane`` computes BOTH ``df``/``idf`` AND ``avgdl`` over one
+    plane's candidates, so partitioning changes two things at once. This arm
+    separates them:
+
+    * ``idf`` is computed over the WHOLE universe, exactly as pooled ``bm25``
+      does. That is the half partitioning destroys -- a term's corpus-wide
+      rarity is the signal BM25 is built on, and computing it inside a small
+      plane makes a locally-common term look rare.
+    * ``avgdl`` is computed PER PLANE. That is the half plane genuinely
+      predicts: prose files are long and code files are short, so a single
+      global average systematically penalises the longer plane.
+
+    The result differs from pooled BM25 in exactly one term of the denominator
+    and introduces no new parameter: ``BM25_K1`` and ``BM25_B`` keep their
+    module constants, and each plane's average length is measured from the
+    universe rather than chosen.
+
+    This arm does NOT reuse ``_score_plane``: that function is per-plane by
+    construction, and reusing it would reintroduce the per-plane ``idf`` this
+    arm exists to remove. The BM25 formula below is the same one, with the two
+    normalisers sourced differently -- which is the single variable under test.
+    """
+
+    name = "pooled_plane_length"
+
+    def __init__(
+        self,
+        cache: Optional[TokenCache] = None,
+        return_k: int = RETURN_K,
+    ) -> None:
+        self.cache = cache if cache is not None else TokenCache()
+        self.return_k = return_k
+        self.returned_plane_counts: Dict[str, Dict[str, int]] = {}
+
+    def rank(self, query: QueryView, universe: Sequence[Candidate]) -> List[str]:
+        q_terms = set(word_tokens(query.text))
+        if not q_terms or not universe:
+            return []
+
+        docs: List[Tuple[str, Counter, int, str]] = []
+        df: Counter = Counter()
+        plane_len: Dict[str, int] = defaultdict(int)
+        plane_n: Dict[str, int] = defaultdict(int)
+        total_len = 0
+        for cand in universe:
+            counts = _document(cand, self.cache)
+            length = sum(counts.values())
+            if not length:
+                continue
+            plane = plane_of(cand.path)
+            docs.append((cand.path, counts, length, plane))
+            total_len += length
+            plane_len[plane] += length
+            plane_n[plane] += 1
+            # GLOBAL document frequency: every plane's documents count.
+            for term in q_terms:
+                if term in counts:
+                    df[term] += 1
+        if not docs:
+            return []
+
+        n = len(docs)
+        global_avgdl = total_len / n
+        # PER-PLANE average length. A plane the universe does not contain, or
+        # a document whose plane is unknown, falls back to the global average
+        # rather than to an invented constant.
+        avgdl = {
+            plane: plane_len[plane] / plane_n[plane]
+            for plane in plane_n
+            if plane_n[plane]
+        }
+        idf = {
+            term: math.log(1 + (n - df[term] + 0.5) / (df[term] + 0.5))
+            for term in q_terms
+            if df[term]
+        }
+        if not idf:
+            return []
+
+        scored: List[Tuple[float, str]] = []
+        for path, counts, length, plane in docs:
+            reference = avgdl.get(plane, global_avgdl)
+            score = 0.0
+            for term, weight in idf.items():
+                tf = counts.get(term, 0)
+                if not tf:
+                    continue
+                denom = tf + BM25_K1 * (
+                    1 - BM25_B + BM25_B * length / reference
+                )
+                score += weight * (tf * (BM25_K1 + 1)) / denom
+            if score > 0:
+                scored.append((score, path))
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        out = [path for _score, path in scored[: self.return_k]]
+        self._tally(query.variant, out)
+        return out
+
+    def _tally(self, variant: str, ranking: Sequence[str]) -> None:
+        counts = self.returned_plane_counts.setdefault(variant, _new_counts())
+        for path in ranking[:RETURN_K]:
+            plane = plane_of(path)
+            if plane in counts:
+                counts[plane] += 1
