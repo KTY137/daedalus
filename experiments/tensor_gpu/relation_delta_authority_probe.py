@@ -40,6 +40,10 @@ def _validate_scan_repeats(value: int) -> None:
         raise ValueError(f"scan_repeats must be an integer from 1 to {MAX_SCAN_REPEATS}")
 
 
+def _signature_key(signature: RelationSignature) -> tuple[str, str, str]:
+    return (signature.source_plane, signature.relation, signature.target_plane)
+
+
 def _plane_relation_digests(snapshot: Any) -> dict[str, frozenset[str]]:
     return {
         plane.plane: frozenset(plane.relation_sha256s)
@@ -103,7 +107,7 @@ def _locate_changed_edges(
         raise AssertionError(
             "changed Fourfold relation digests were not present in the supplied authoritative Forest"
         )
-    return tuple(matches), tuple(sorted(signatures)), examined, hashed
+    return tuple(matches), tuple(sorted(signatures, key=_signature_key)), examined, hashed
 
 
 def _timed_locate(
@@ -196,7 +200,9 @@ def run_probe(
         removed_digests,
         repeats=scan_repeats,
     )
-    affected_signatures = tuple(sorted(set(added_signatures) | set(removed_signatures)))
+    affected_signatures = tuple(
+        sorted(set(added_signatures) | set(removed_signatures), key=_signature_key)
+    )
     if not affected_signatures:
         raise AssertionError("bounded fixture unexpectedly produced no affected relation signature")
 
