@@ -1,0 +1,148 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-111",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "dab73ef10dd1607e6de9c7d5638f23eb6644a808",
+    "dependencies": "G1-EXP-TENSOR-GPU-102, G1-EXP-TENSOR-GPU-110, canonical compile_relation_blocks selected-signature path"
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-111",
+  "title": "Reuse validated explicit RelationSignature records instead of reconstructing them per inspected edge",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "dab73ef10dd1607e6de9c7d5638f23eb6644a808",
+  "implementation_head": "8ac1891c1b278b70d87520b37cfd5b4c1bd9b732",
+  "focused_contract_head": "215a12da38b32f3a3f99703f1dc6a279aa2cce1b",
+  "diagnostic_alignment_head": "c9b92043e976f210337d34fd23d457aab7b776f3",
+  "scope": "Refactor only the explicit signatures= path of the existing compile_relation_blocks owner. Key the already validated requested RelationSignature records once by their canonical three-field tuple and reuse those records for matching Forest edges and verified bindings. Preserve discover-all construction, endpoint completeness, Fourfold relation-digest admission, cross-plane verified-binding admission and undirected fail-closed behavior. Do not add a cache, persistent index, second compiler, receipt family, backend or graph authority.",
+  "implementation": {
+    "path": "daedalus/twin/relation_compiler.py",
+    "summary": "Explicit plans now build one bounded requested_by_key mapping from canonical signature tuple to the already validated requested RelationSignature. Selected Forest edges and verified bindings retrieve that record rather than constructing an equivalent RelationSignature for each inspected row. Explicit undirected reverse-conflict detection uses the reverse tuple key without constructing a reverse RelationSignature. Discover-all behavior still constructs canonical RelationSignature records as before.",
+    "semantic_changes": false,
+    "public_api_change": false,
+    "persistent_state_added": false,
+    "parallel_abstraction_added": false
+  },
+  "focused_contract": {
+    "path": "tests/twin/test_relation_compiler_selected_signature_reuse.py",
+    "behavior": "After constructing the requested code:imports:code RelationSignature, the test tracks RelationSignature.__init__ during explicit selected compilation. No new constructor call is permitted; the emitted block must retain object identity with the requested record and preserve the exact canonical Boolean entry while an unrelated retained relation is pruned.",
+    "constructor_calls_during_selected_compile": 0
+  },
+  "diagnostic_contract_migration": {
+    "probe": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "test": "tests/twin/test_tensor_relation_delta_rebuild_probe.py",
+    "reason": "The retained schema-v3 GPU-102 diagnostic encoded the old implementation detail that edge_signature_construction had one direct call per Forest edge. GPU-111 intentionally deletes that work, so the diagnostic was updated rather than restoring obsolete constructor churn merely to satisfy historical instrumentation.",
+    "negative_evidence": {
+      "head": "215a12da38b32f3a3f99703f1dc6a279aa2cce1b",
+      "workflow_run": 34317308446,
+      "result": "failed",
+      "failure": "test_tensor_relation_delta_rebuild_probe expected edge_signature_construction.calls == delta_edge_count; the new compiler correctly produced zero direct constructor calls. Python 3.12/hash-0 reported 1 failed, 443 passed, 2 skipped. The failed run is retained as migration evidence rather than hidden."
+    },
+    "updated_invariant": "edge_signature_construction.calls must be zero in the frozen explicit-plan probe; edge wire materialization, retained relation digest and direct fact aggregation remain one call per retained edge."
+  },
+  "measurement": {
+    "authority": "diagnostic-only; no latency or superiority claim",
+    "head": "c9b92043e976f210337d34fd23d457aab7b776f3",
+    "workflow_run": {
+      "id": 34317586452,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "artifact": {
+      "id": 10090625937,
+      "name": "tensor-relation-delta-rebuild-96d93e7cd8b2926608b9afc10206432b2b4806c2",
+      "report": "relation_delta_rebuild_ci.json",
+      "report_sha256": "dc6ce894badfc70a938495bce032e6b79b7a39aa3d81ead4ae5faebdaae5a987",
+      "archive_sha256": "150d105b9bbcdc1ff37bf63432db866231e4ecc8420868f80e0ee92a2df59215"
+    },
+    "frozen_case": {
+      "nodes": 512,
+      "row_width": 16,
+      "base_edges": 8192,
+      "delta_edges": 8193,
+      "changed_coordinate_count": 1,
+      "rebuild_entries_per_changed_coordinate": 8193.0,
+      "forest_edges_scanned_per_changed_coordinate": 8193.0
+    },
+    "deterministic_call_scope": {
+      "edge_signature_construction": 0,
+      "edge_wire_materialization": 8193,
+      "retained_relation_digest": 8193,
+      "fact_aggregation_direct": 8193,
+      "prior_gpu102_edge_signature_construction": 8193,
+      "interpretation": "The selected-mode constructor call count is deterministically eliminated from 8193 to zero in the same frozen probe shape. This is work-count evidence, not a wall-time speedup claim."
+    },
+    "ordinary_wall_timing_ms": {
+      "base_median": 85.322878,
+      "delta_median": 84.836681,
+      "delta_to_base_ratio": 0.9943016807285848,
+      "interpretation": "Both timings are ordinary full rebuilds from the current hosted run. They are not compared as a GPU-111 speedup because intervening code/environment differences make attribution invalid."
+    },
+    "profiled_current_head_ms": {
+      "compiler_cumulative_median": 200.979069,
+      "selected_block_reconstruction_cumulative_median": 8.932161,
+      "edge_signature_construction_cumulative_median": 0.0,
+      "edge_wire_materialization_cumulative_median": 29.395339,
+      "retained_relation_digest_cumulative_median": 59.581322,
+      "fact_aggregation_direct_cumulative_median": 10.702725,
+      "remaining_non_block_after_observed_edge_and_fact_cumulative_median": 92.367522,
+      "interpretation": "cProfile attribution is diagnostic and profiler-distorted. The authority-bound retained relation digest remains the largest observed direct callee, while a broad residual remains; no latency claim follows."
+    }
+  },
+  "verification": {
+    "masterplan_checked_first": true,
+    "base_exact_head_fourfold_tensor": "34313470439:completed/success on dab73ef10dd1607e6de9c7d5638f23eb6644a808",
+    "base_exact_head_tauri": "34313470427:completed/success on dab73ef10dd1607e6de9c7d5638f23eb6644a808",
+    "initial_expected_diagnostic_invalidation_retained": "34317308446:failed on 215a12da38b32f3a3f99703f1dc6a279aa2cce1b because the historical one-signature-constructor-per-edge assertion was obsolete",
+    "exact_code_test_head_fourfold_tensor": "34317586452:completed/success on c9b92043e976f210337d34fd23d457aab7b776f3; all four Python 3.10/3.12 x hashseed 0/123456 contract arms, isolated wheel imports, public API checks and complete repository collection succeeded; Complete suite (manual only) remained skipped",
+    "exact_code_test_head_tauri_green": false,
+    "manual_full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 2,
+    "probe_files_changed": 1,
+    "workflow_files_changed": 0,
+    "documentation_files_changed": 1,
+    "base_to_code_test_diff": "4 files before this packet: relation_compiler +41/-25, diagnostic probe +19/-12, one focused test +129/-0, diagnostic contract test +3/-3",
+    "existing_projection_owner_reused": true,
+    "per_edge_selected_signature_reconstruction_deleted": true,
+    "new_production_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_receipt_family": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "claim_boundaries": [
+    "GPU-111 proves deletion of per-edge RelationSignature construction in explicit selected mode by identity contract and hosted cProfile call count; it does not claim an end-to-end speedup.",
+    "The current ordinary timing sample is recorded only as current-run evidence and is not attributed against GPU-102 wall timing.",
+    "No incremental Tensor backend, memory superiority, GPU/Tensor-Core superiority, Tensor-vs-Forest superiority, CrewAI superiority or AlphaEvolve superiority is claimed.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review transition or Gate transition is performed."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-112 should apply the Gardener principle to the selected-plan bookkeeping introduced/retained around GPU-111: determine whether the now-redundant requested_set container can be deleted and the existing requested_signatures/requested_by_key owner reused for hyperedge conflict checks, with focused retained/unretained hyperedge fail-closed tests. Do not touch the authority-bound relation-digest verification seam unless a new authority-safe contract appears."
+}
