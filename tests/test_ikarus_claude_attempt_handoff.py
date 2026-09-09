@@ -10,6 +10,7 @@ import pytest
 import daedalus.ikarus_claude_attempt_handoff as handoff
 from daedalus.kernel.attempts import (
     AttemptBeginResult,
+    AttemptLedger,
     AttemptStartRecord,
     PreparedAttempt,
 )
@@ -30,6 +31,16 @@ def _load_composition_fixture():
 
 
 fixture = _load_composition_fixture()
+
+
+class _AttemptLedgerProbe(AttemptLedger):
+    """Type-compatible read probe without opening a second Event-Store in unit tests."""
+
+    def __init__(self, pending_starts):
+        self._pending_starts = tuple(pending_starts)
+
+    def pending(self):
+        return self._pending_starts
 
 
 def _begin_for(attempt, *, execute: bool = True, attempt_sha256: str | None = None):
@@ -79,7 +90,7 @@ def _prepared_for(subjects, *, execute: bool = True, workspace: Path | None = No
     return PreparedAttempt(begin=begin, workspace=selected_workspace)
 
 
-def _execute(prepared, subjects):
+def _execute(prepared, subjects, *, attempt_ledger=None):
     (
         mission,
         attempt,
@@ -90,6 +101,12 @@ def _execute(prepared, subjects):
         execution,
         members,
     ) = subjects
+    if attempt_ledger is None:
+        if isinstance(prepared, PreparedAttempt):
+            start = prepared.begin.start
+        else:
+            start = prepared.start
+        attempt_ledger = _AttemptLedgerProbe((start,))
     return handoff.execute_started_mission_bound_claude_invocation(
         prepared,
         mission,
@@ -99,6 +116,7 @@ def _execute(prepared, subjects):
         tool_scope,
         effect_request,
         execution,
+        attempt_ledger=attempt_ledger,
         runtime_authorization=members["runtime_authorization"],
         workspace_grant=members["workspace_grant"],
         invocation_authority=members["invocation_authority"],
@@ -151,6 +169,75 @@ def test_existing_or_pending_attempt_cannot_start_new_provider_run(tmp_path, mon
         match="fresh durable Attempt-start winner",
     ):
         _execute(prepared, subjects)
+
+    assert calls == []
+
+
+def test_stale_prepared_attempt_cannot_dispatch_after_lifecycle_resolution(
+    tmp_path,
+    monkeypatch,
+):
+    subjects = _dispatch_args(tmp_path)
+    prepared = _prepared_for(subjects)
+    calls = []
+    monkeypatch.setattr(
+        handoff,
+        "execute_mission_bound_claude_invocation",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="no longer the live pending Attempt",
+    ):
+        _execute(
+            prepared,
+            subjects,
+            attempt_ledger=_AttemptLedgerProbe(()),
+        )
+
+    assert calls == []
+
+
+def test_live_ledger_start_must_equal_prepared_start(tmp_path, monkeypatch):
+    subjects = _dispatch_args(tmp_path)
+    prepared = _prepared_for(subjects)
+    different_start = _begin_for(subjects[1]).start
+    calls = []
+    monkeypatch.setattr(
+        handoff,
+        "execute_mission_bound_claude_invocation",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="differs from the prepared Attempt start",
+    ):
+        _execute(
+            prepared,
+            subjects,
+            attempt_ledger=_AttemptLedgerProbe((different_start,)),
+        )
+
+    assert calls == []
+
+
+def test_noncanonical_attempt_ledger_fails_before_provider(tmp_path, monkeypatch):
+    subjects = _dispatch_args(tmp_path)
+    prepared = _prepared_for(subjects)
+    calls = []
+    monkeypatch.setattr(
+        handoff,
+        "execute_mission_bound_claude_invocation",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="canonical AttemptLedger",
+    ):
+        _execute(prepared, subjects, attempt_ledger=object())
 
     assert calls == []
 
