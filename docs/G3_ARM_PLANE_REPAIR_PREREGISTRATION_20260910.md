@@ -154,11 +154,22 @@ not.
 
 That reframes the consequence for the six existing negatives on
 plane-conditioned retrieval, which the previous packet left as an open
-question: measured through the harness, non-code tasks would have been
-**excluded as plane-unindexed rather than scored as zero**. So those negatives
-are not artifacts of this defect. Their real limitation is different and
-narrower — they never tested non-code retrieval at all, which the harness was
-saying plainly the whole time.
+question. **They are not artifacts of this defect** — but the reason matters
+and my first version of this paragraph gave the wrong one.
+
+*Corrected within the hour, before the run's results were read.* I first wrote
+that the negatives were safe because the harness excludes non-code tasks as
+plane-unindexed. That is true of the harness, and it is not the reason those
+negatives are safe. Checked rather than inferred: the load-bearing row
+(`G2-XPLANE-CONFIRM-04`, "12 plane-using retrieval arms, all negative vs pooled
+BM25") is recorded as measured on **suffix-partitioned lexical retrieval** over
+`black` and `fastapi` — a separate instrument with its own plane-partitioned
+corpus, which never calls `_repo_chunks` at all. It is untouched because it
+shares no code path with the defect, not because a guard caught it.
+
+The narrower limitation still stands and is worth keeping separate from the
+above: those measurements tested plane-partitioned retrieval on external
+corpora, not non-code retrieval through this repository's own arm layer.
 
 ### Consequence for the acceptance matrix
 
