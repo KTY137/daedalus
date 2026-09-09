@@ -296,8 +296,8 @@ def compile_relation_blocks(
     does not readmit already-authoritative labels through a second coordinate
     validation pass. The evidence observer retains canonical provenance
     alternatives; scalar observers keep their final semiring scalars in the
-    same bounded per-signature coordinate map and do not retain per-edge
-    provenance in the admission-to-materialization staging records.
+    same bounded per-signature coordinate map and do not retain per-edge or
+    per-binding provenance in the admission-to-materialization staging records.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -396,7 +396,9 @@ def compile_relation_blocks(
         )
 
     discovered: set[RelationSignature] = set()
-    binding_records: list[tuple[CrossPlaneBinding, RelationSignature, int, int]] = []
+    binding_records: list[
+        tuple[RelationSignature, int, int, CrossPlaneBinding | None]
+    ] = []
     included_binding_keys: set[tuple[str, str, str, str, str]] = set()
     verified_binding_count = len(snapshot.bindings) if include_verified_bindings else 0
     if include_verified_bindings:
@@ -423,7 +425,14 @@ def compile_relation_blocks(
             )
             source_index = node_location[binding.source_node_id][1]
             target_index = node_location[binding.target_node_id][1]
-            binding_records.append((binding, signature, source_index, target_index))
+            binding_records.append(
+                (
+                    signature,
+                    source_index,
+                    target_index,
+                    binding if retain_evidence else None,
+                )
+            )
             if requested_by_key is None:
                 discovered.add(signature)
 
@@ -541,18 +550,20 @@ def compile_relation_blocks(
             evidence_atoms=atoms,
         )
 
-    for binding, signature, source_index, target_index in binding_records:
+    for signature, source_index, target_index, binding in binding_records:
+        if retain_evidence:
+            if binding is None:
+                raise AssertionError("evidence observer lost retained binding provenance")
+            atoms = (binding.digest, *binding.evidence_sha256s)
+        else:
+            atoms = None
         _record_fact(
             facts,
             signature=signature,
             source_index=source_index,
             target_index=target_index,
             scalar_value=scalar_value,
-            evidence_atoms=(
-                (binding.digest, *binding.evidence_sha256s)
-                if retain_evidence
-                else None
-            ),
+            evidence_atoms=atoms,
         )
 
     subject = ProjectionSubject(
