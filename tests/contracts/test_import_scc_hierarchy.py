@@ -197,7 +197,13 @@ CURRENT_COMPONENTS_SHA256 = (
 # Genesis, Ariadne, computer-runtime, desktop-owner, contract, containment and
 # Twin projection Python modules became part of the tracked graph.  This is an
 # exact tracked-path census, not a relaxed lower bound.
-CENSUS_MODULES = 514  # re-measured 2026-09-09 on the evening integration (eight packets; 14 components, max 19 unchanged)
+# G3-SEAL-02: 514 -> 515, exactly one added module, ``daedalus.kernel.seals``.
+# It is a domain leaf: it imports the contract wire language and the spine
+# envelope, and nothing imports it at module scope, because
+# ``daedalus.eval.gate3.contracts`` reaches it through a deferred import inside
+# ``RunManifest.__post_init__`` -- a module-level import would make a
+# stdlib-only package depend on the kernel merely to hold a type.
+CENSUS_MODULES = 515  # re-measured 2026-09-09 with G3-SEAL-02 staged
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -487,7 +493,16 @@ CENSUS_MODULES = 514  # re-measured 2026-09-09 on the evening integration (eight
 # G1-IGNITION-04: the complete comparison against accepted main 24e229c0
 # adds only ignition.gate1 -> atomic. Module count, all fourteen exact
 # components, maximum nineteen and their digest remain unchanged.
-CENSUS_EDGES = 2009  # re-measured 2026-09-09 on the evening integration
+# G3-SEAL-02: 2009 -> 2013, and the four are enumerable rather than a delta
+# somebody accepted. Three leave the new module -- ``kernel.seals`` ->
+# ``kernel.contracts.security`` (the seal contract), ``kernel.contracts.base``
+# (the shared validators) and ``spine.envelope`` (canonical JSON/sha). The
+# fourth enters it: ``eval.gate3.contracts`` -> ``kernel.seals``, counted once
+# even though the file names it twice (a ``TYPE_CHECKING`` import for the
+# annotation and the deferred runtime import that enforces the type), because
+# the graph stores targets in a set. Fourteen components, maximum nineteen and
+# the component digest are unchanged: the new node participates in no cycle.
+CENSUS_EDGES = 2013  # re-measured 2026-09-09 with G3-SEAL-02 staged
 
 
 def _module_name(path: str) -> str:

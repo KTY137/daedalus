@@ -194,19 +194,21 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "481 tracked files" in message  # measured 2026-09-08 ignition retention
+    # 481 -> 504 on 2026-09-09: +22 tensor-lane probe packets from
+    # origin/exp/tensor-kernel-contract-01 and +1 for G3-SEAL-02.
+    assert "504 tracked files" in message  # measured 2026-09-09, G3-SEAL-02
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 478,
+        "assigned_artifacts": 501,
         "legacy_artifacts": 204,
-        "packet_artifacts": 480,
-        "packet_ids": 415,
-        "post_index_artifacts": 276,
+        "packet_artifacts": 503,
+        "packet_ids": 438,
+        "post_index_artifacts": 299,
         "registry_artifacts": 1,
-        "tracked_files": 481,
+        "tracked_files": 504,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -530,6 +532,36 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-SCC-02",
         "G1-TENSOR-01",
         "G3-BASE-01",
+        # 22 tensor-lane probes landed together when
+        # origin/exp/tensor-kernel-contract-01 was integrated on 2026-09-09.
+        # Seven of them (89, 103-108) arrived WITHOUT the
+        # registry_contract.sections projection their own predecessors
+        # (101, 102) carry; that regression is repaired in the same commit by
+        # projecting each packet's real fields, never by inventing content.
+        "G1-EXP-TENSOR-GPU-87",
+        "G1-EXP-TENSOR-GPU-88",
+        "G1-EXP-TENSOR-GPU-89",
+        "G1-EXP-TENSOR-GPU-90",
+        "G1-EXP-TENSOR-GPU-91",
+        "G1-EXP-TENSOR-GPU-92",
+        "G1-EXP-TENSOR-GPU-93",
+        "G1-EXP-TENSOR-GPU-94",
+        "G1-EXP-TENSOR-GPU-95",
+        "G1-EXP-TENSOR-GPU-96",
+        "G1-EXP-TENSOR-GPU-97",
+        "G1-EXP-TENSOR-GPU-98",
+        "G1-EXP-TENSOR-GPU-99",
+        "G1-EXP-TENSOR-GPU-100",
+        "G1-EXP-TENSOR-GPU-101",
+        "G1-EXP-TENSOR-GPU-102",
+        "G1-EXP-TENSOR-GPU-103",
+        "G1-EXP-TENSOR-GPU-104",
+        "G1-EXP-TENSOR-GPU-105",
+        "G1-EXP-TENSOR-GPU-106",
+        "G1-EXP-TENSOR-GPU-107",
+        "G1-EXP-TENSOR-GPU-108",
+        # G3-SEAL-02: the kernel binding that closes G3-BASE-01 blocker F4.
+        "G3-SEAL-02",
     }
     post_index_packets = {
         packet_id: packet

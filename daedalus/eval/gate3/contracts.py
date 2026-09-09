@@ -35,7 +35,10 @@ import json
 import math
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from daedalus.kernel.seals import VerifiedBaselineSeal
 
 # The four planes of the Project Twin (plan §5). Used by the label-plane census
 # so a task set cannot silently be single-plane while claiming to test a
@@ -395,6 +398,12 @@ class RunManifest:
     base_revision: str
     plan_digest: str
     owner_seal_ref: str | None = None
+    #: A kernel-authenticated seal, or ``None``.  Supplied only by a caller
+    #: that ran ``daedalus.kernel.seals.SealLedger.consume`` -- this package
+    #: never constructs one.  Deliberately OUTSIDE ``digest`` for the same
+    #: recorded reason as ``owner_seal_ref``: sealing an existing run must not
+    #: change the identity of what was measured.
+    verified_seal: "VerifiedBaselineSeal | None" = None
 
     def __post_init__(self) -> None:
         if not self.base_revision.strip():
@@ -408,28 +417,92 @@ class RunManifest:
         # run time to defend itself; now the mapping simply cannot change.
         object.__setattr__(self, "budgets",
                            MappingProxyType(dict(self.budgets)))
+        if self.verified_seal is not None:
+            # A real type check, not duck typing. Structural checking would let
+            # any object carrying eight correctly-named string attributes seal a
+            # run, and every one of those eight digests is publicly computable
+            # from the manifest -- i.e. duck typing would reproduce exactly the
+            # forgery G3-BASE-01 recorded, one layer down. The import is
+            # deferred so this package keeps a stdlib-only import graph until a
+            # caller actually presents a seal.
+            from daedalus.kernel.seals import VerifiedBaselineSeal
+
+            if not isinstance(self.verified_seal, VerifiedBaselineSeal):
+                raise FreezeError(
+                    "RunManifest.verified_seal must be a kernel-verified "
+                    "VerifiedBaselineSeal, not "
+                    f"{type(self.verified_seal).__name__}"
+                )
 
     @property
     def sealed(self) -> bool:
-        """ALWAYS FALSE here. Sealing is not something this package can do.
+        """True only for a kernel-authenticated seal bound to THIS manifest.
 
-        This property used to return ``bool(owner_seal_ref)`` -- i.e. any
-        caller could seal a run by passing any non-blank string. An independent
-        reviewer sealed a manifest with the literal text "i am definitely the
-        owner trust me", which is exactly the forgery plan §4 invariant 5 and
-        §11 Gate 3 exist to prevent: "Only after that baseline harness is
-        sealed" has to mean an owner sealed it, not a builder typing a string.
+        History, kept because it is the reason for every line below. This
+        property once returned ``bool(owner_seal_ref)`` -- any caller could
+        seal a run by passing any non-blank string, and an independent reviewer
+        sealed a manifest with the literal text "i am definitely the owner
+        trust me". That is exactly the forgery plan §4 invariant 5 and §11
+        Gate 3 exist to prevent. It was then hard-wired ``False``, which was
+        honest but terminal: an eternally-false flag means no Gate-3 evidence
+        can ever exist (recorded as `G3-BASE-01` §F4).
 
-        A real seal requires a one-use, authenticated ``OwnerApproval`` bound to
-        this manifest digest, verified by the kernel (see plan §7.1 and
-        `daedalus/kernel`). That path is NOT wired into this Gate-3 prework
-        packet, so the only honest answer available here is "not sealed".
+        `G3-SEAL-02` supplies the mechanism. ``verified_seal`` is a
+        :class:`~daedalus.kernel.seals.VerifiedBaselineSeal`, produced only by
+        ``verify_baseline_seal`` after an HMAC check against an owner keyring,
+        a TTL check and a field-by-field binding check, and consumed one-use
+        through ``SealLedger``. It authorizes nothing: a seal cannot promote,
+        merge, widen a write root or mint a lease.
 
-        Fail-closed on purpose: an unsealed harness is the correct description
-        of reality today. When the kernel binding is built, this becomes a real
-        verification against a real approval -- not a looser string check.
+        The comparison below is deliberately NOT ``verified_seal is not None``.
+        Every freeze obligation is re-compared against the live manifest, so a
+        genuinely verified seal issued for a different harness -- or for THIS
+        harness before one of its obligations was swapped -- still reports
+        ``False``. Fail-closed stays the default: anything unrecognised is
+        unsealed.
         """
-        return False
+        seal = self.verified_seal
+        if seal is None:
+            return False
+        return (
+            seal.manifest_sha256 == self.digest
+            and seal.task_set_sha256 == self.task_set.digest
+            and seal.evaluator_sha256 == self.evaluator.digest
+            and seal.budget_sha256 == self._budget_digest
+            and seal.environment_sha256 == self.environment.digest
+            and seal.seed_policy_sha256 == self.seed_policy.digest
+            and seal.base_revision == self.base_revision
+            and seal.plan_digest == self.plan_digest
+        )
+
+    @property
+    def _budget_digest(self) -> str:
+        """One digest over the whole equal-budget mapping.
+
+        The seal binds budgets as a single digest because ``require_equal_budgets``
+        already forces them equal; binding them per-arm would let an arm be
+        added after sealing without changing any bound value.
+        """
+        return canonical_digest(
+            {arm: budget.digest for arm, budget in sorted(self.budgets.items())}
+        )
+
+    def seal_expectation_digests(self) -> dict[str, str]:
+        """The eight digests an owner must sign to seal THIS manifest.
+
+        Exposed so the sealing caller derives them from the live manifest
+        rather than copying them out of a seal it is about to trust.
+        """
+        return {
+            "manifest_sha256": self.digest,
+            "task_set_sha256": self.task_set.digest,
+            "evaluator_sha256": self.evaluator.digest,
+            "budget_sha256": self._budget_digest,
+            "environment_sha256": self.environment.digest,
+            "seed_policy_sha256": self.seed_policy.digest,
+            "base_revision": self.base_revision,
+            "plan_digest": self.plan_digest,
+        }
 
     @property
     def seal_claim(self) -> str | None:
@@ -465,6 +538,16 @@ class RunManifest:
         is Gate-3 evidence, because no code path in this package can seal one
         (see ``sealed``). A recorded seal reference is reported as an
         UNVERIFIED CLAIM, which is what it is."""
+        if self.sealed:
+            seal = self.verified_seal
+            assert seal is not None  # implied by self.sealed
+            return (f"SEALED run {self.digest[:12]} @ {self.base_revision[:12]} "
+                    f"-- owner {seal.owner_id} key {seal.key_id} seal "
+                    f"{seal.seal_sha256[:12]}; all six freeze obligations bound")
+        if self.verified_seal is not None:
+            return (f"UNSEALED run {self.digest[:12]} @ {self.base_revision[:12]} "
+                    f"-- carries a verified seal ({self.verified_seal.seal_sha256[:12]}) "
+                    "bound to a DIFFERENT harness; NOT Gate-3 baseline evidence")
         claim = self.seal_claim
         if claim is not None:
             return (f"UNSEALED run {self.digest[:12]} @ {self.base_revision[:12]} "

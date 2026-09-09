@@ -139,6 +139,120 @@ class OwnerApproval(CanonicalContract):
         return cls(**body)
 
 
+SEAL_OPERATION = "seal-baseline-harness"
+
+
+@dataclass(frozen=True)
+class BaselineHarnessSeal(CanonicalContract):
+    """An owner attestation that one frozen Gate-3 harness is the real one.
+
+    This is deliberately NOT an :class:`OwnerApproval` with a second operation
+    tag.  It authorizes nothing: it cannot promote a candidate, merge a branch,
+    widen a write root, admit egress or mint a lease.  Its entire content is
+    "the owner attests that this exact frozen harness is the one that counts"
+    (plan §11 Gate 3: "Only after that baseline harness is sealed").
+
+    Keeping it a separate contract type keeps the promotion trust root
+    monomorphic.  ``docs/GATE0_PROMOTION_TRUST_ROOT_FINDING.md`` records two
+    constructed attacks against that root; making the artifact that guards
+    Invariant 5 polymorphic is the wrong direction, so a much
+    cheaper-to-obtain attestation gets its own type, its own signing domain
+    (see ``daedalus.kernel.seals``) and its own replay table.
+
+    Every freeze obligation is bound SEPARATELY as well as through
+    ``manifest_sha256``.  Swapping one obligation after sealing therefore
+    invalidates the seal instead of silently riding along on a manifest digest
+    the caller could have recomputed.
+    """
+
+    CONTRACT_TYPE: ClassVar[str] = "daedalus.baseline-harness-seal"
+
+    seal_id: str
+    owner_id: str
+    key_id: str
+    operation: str
+    manifest_sha256: str
+    task_set_sha256: str
+    evaluator_sha256: str
+    budget_sha256: str
+    environment_sha256: str
+    seed_policy_sha256: str
+    base_revision: str
+    plan_digest: str
+    nonce: str
+    issued_at: str
+    expires_at: str
+    signature_sha256: str
+    provenance: ContractProvenance
+
+    def __post_init__(self) -> None:
+        for name in ("seal_id", "owner_id", "key_id", "nonce"):
+            object.__setattr__(self, name, _identifier(getattr(self, name), name))
+        if self.operation != SEAL_OPERATION:
+            raise ValueError(
+                f"baseline harness seal operation must be {SEAL_OPERATION}"
+            )
+        for name in (
+            "manifest_sha256",
+            "task_set_sha256",
+            "evaluator_sha256",
+            "budget_sha256",
+            "environment_sha256",
+            "seed_policy_sha256",
+            "plan_digest",
+            "signature_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        object.__setattr__(
+            self, "base_revision", _revision(self.base_revision, "base_revision")
+        )
+        object.__setattr__(self, "issued_at", _utc_timestamp(self.issued_at, "issued_at"))
+        object.__setattr__(
+            self, "expires_at", _utc_timestamp(self.expires_at, "expires_at")
+        )
+        if self.expires_at <= self.issued_at:
+            raise ValueError("baseline harness seal expires_at must be after issued_at")
+        if self.provenance.source_revision != self.base_revision:
+            raise ValueError(
+                "baseline harness seal base_revision must match "
+                "provenance.source_revision"
+            )
+        _require_provenance_inputs(
+            self.provenance,
+            self.bound_digests,
+            "baseline harness seal",
+        )
+
+    @property
+    def bound_digests(self) -> tuple[str, ...]:
+        """The eight digests a caller's expectation must reproduce exactly."""
+
+        return (
+            self.manifest_sha256,
+            self.task_set_sha256,
+            self.evaluator_sha256,
+            self.budget_sha256,
+            self.environment_sha256,
+            self.seed_policy_sha256,
+            self.plan_digest,
+        )
+
+    def signing_dict(self) -> dict[str, Any]:
+        body = self.to_dict()
+        body.pop("signature_sha256")
+        return body
+
+    @property
+    def signing_digest(self) -> str:
+        return canonical_sha(self.signing_dict())
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "BaselineHarnessSeal":
+        body = cls._contract_payload(payload)
+        body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        return cls(**body)
+
+
 @dataclass(frozen=True)
 class EffectLeaseRequest(CanonicalContract):
     """The exact effect scope submitted to the policy authority.
