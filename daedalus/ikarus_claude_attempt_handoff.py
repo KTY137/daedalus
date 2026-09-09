@@ -1,24 +1,26 @@
-"""Bind a persisted Attempt start to the mission-bound Claude handoff.
+"""Bind a persisted, prepared Attempt to the mission-bound Claude handoff.
 
 This module is deliberately a narrow producer-side guard.  The existing
 ``execute_mission_bound_claude_invocation`` function remains the authority and
 provider composition seam; this wrapper adds the missing lifecycle invariant
 that a fresh Attempt start must already have been committed by the canonical
-Attempt ledger before a provider effect is reachable.
+Attempt ledger and that Claude must receive the exact isolated workspace the
+Attempt coordinator prepared before a provider effect is reachable.
 
 No authority is issued here and no state is reconstructed from chat, queue, or
-status JSON.  A replayed/completed/pending Attempt therefore cannot trigger a
-new Claude provider run through this entrypoint.
+status JSON.  A replayed/completed/pending Attempt, or a recombined workspace,
+therefore cannot trigger a new Claude provider run through this entrypoint.
 """
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from .ikarus_claude_composition import execute_mission_bound_claude_invocation
 from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
 from .ikarus_tool_scope import IkarusToolScopeProjection
-from .kernel.attempts import AttemptBeginResult, AttemptStartRecord
+from .kernel.attempts import AttemptBeginResult, AttemptStartRecord, PreparedAttempt
 from .kernel.contracts import EffectLeaseRequest
 from .kernel.effects import EffectExecutionRequest
 from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
@@ -37,7 +39,7 @@ from .schemas import AttemptContract, MissionContract
 
 
 class IkarusClaudeAttemptHandoffRefused(RuntimeError):
-    """A durable Attempt start does not authorize one fresh Claude dispatch."""
+    """A durable, prepared Attempt does not authorize one fresh Claude dispatch."""
 
 
 def require_fresh_persisted_attempt_start(
@@ -87,8 +89,58 @@ def require_fresh_persisted_attempt_start(
     return start
 
 
+def require_fresh_prepared_attempt_workspace(
+    prepared: PreparedAttempt,
+    attempt: AttemptContract,
+    workspace_grant: ClaudeWorkspaceGrant,
+) -> AttemptStartRecord:
+    """Bind the durable start to the exact coordinator-prepared Claude workspace.
+
+    ``PreparedAttempt`` is the kernel handoff produced only after the start was
+    persisted and the source tree materialized.  Claude's structural workspace
+    grant must name that same resolved directory; a separately supplied path is
+    not allowed to ride on an otherwise valid Attempt start.
+    """
+
+    if type(prepared) is not PreparedAttempt:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "Claude handoff requires an exact PreparedAttempt"
+        )
+    if type(workspace_grant) is not ClaudeWorkspaceGrant:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "Claude handoff requires an exact ClaudeWorkspaceGrant"
+        )
+
+    start = require_fresh_persisted_attempt_start(prepared.begin, attempt)
+    if prepared.workspace is None:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "fresh Claude handoff requires the prepared Attempt workspace"
+        )
+    if workspace_grant.attempt_id != attempt.attempt_id:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "Claude workspace grant belongs to a different Attempt"
+        )
+    if workspace_grant.source_revision != attempt.base_revision:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "Claude workspace grant belongs to a different source revision"
+        )
+
+    try:
+        prepared_workspace = Path(prepared.workspace).expanduser().resolve(strict=True)
+        granted_workspace = Path(workspace_grant.worktree).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "prepared Claude workspace could not be resolved"
+        ) from exc
+    if not prepared_workspace.is_dir() or prepared_workspace != granted_workspace:
+        raise IkarusClaudeAttemptHandoffRefused(
+            "Claude workspace grant does not bind the prepared Attempt workspace"
+        )
+    return start
+
+
 def execute_started_mission_bound_claude_invocation(
-    begin: AttemptBeginResult,
+    prepared: PreparedAttempt,
     mission: MissionContract,
     attempt: AttemptContract,
     request: OneShotRequest,
@@ -107,15 +159,16 @@ def execute_started_mission_bound_claude_invocation(
     pre_admission: ProviderExecutablePreAdmissionReceipt,
     at: datetime,
 ) -> dict[str, Any]:
-    """Dispatch Claude only after the canonical Attempt start is durable.
+    """Dispatch Claude only from a fresh, durable, prepared canonical Attempt.
 
-    The check happens before the existing atomic authority composition seam is
-    entered.  The downstream function still re-authenticates Mission, WorkItem,
-    Attempt, runtime, Effect, workspace, ABI, executable and observation
-    authority; this wrapper contributes only the durable lifecycle fact.
+    The lifecycle/workspace check happens before the existing atomic authority
+    composition seam is entered.  The downstream function still
+    re-authenticates Mission, WorkItem, Attempt, runtime, Effect, workspace, ABI,
+    executable and observation authority; this wrapper contributes only the
+    durable lifecycle fact and exact prepared-workspace identity.
     """
 
-    require_fresh_persisted_attempt_start(begin, attempt)
+    require_fresh_prepared_attempt_workspace(prepared, attempt, workspace_grant)
     return execute_mission_bound_claude_invocation(
         mission,
         attempt,
@@ -140,4 +193,5 @@ __all__ = [
     "IkarusClaudeAttemptHandoffRefused",
     "execute_started_mission_bound_claude_invocation",
     "require_fresh_persisted_attempt_start",
+    "require_fresh_prepared_attempt_workspace",
 ]
