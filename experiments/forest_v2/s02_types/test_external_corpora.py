@@ -62,23 +62,27 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured on frozen G1-IGNITION-04 source with CPython 3.12.13; both
-    # complete raw runs and source hashes are retained under
-    # runs/g1-ignition-04-20260908. Prior measured rows remain in the README;
-    # this moving corpus census is not a resolver superiority claim.
+    # Re-measured 2026-09-09 on integration/gates-1-to-4-20260909: G3-SEAL-02
+    # added daedalus/kernel/seals.py, so this MOVING census moved -- 514 -> 515
+    # files, 7016 -> 7052 functions. Probe run twice, outputs identical except
+    # wall_seconds (2.51 / 2.52); both retained under runs/gate2-20260909/.
+    # Prior measured rows remain in the README; this moving corpus census is
+    # not a resolver superiority claim, and the marginal effect did NOT move:
+    # 8 marginal functions before and after, i.e. adding a kernel module did
+    # not change what the full resolver buys over annotations alone.
     assert entry["corpus_pin"] == {
-        "files": 514,
-        "sha256": "6cdc73dd46d3b429f7f92a8014d52cdf73167026197f091c3766a1ab475215f2",
+        "files": 515,
+        "sha256": "d8389f7453760e5d12e9617296561661914425ce57c09628600c5b6a71239a23",
     }
-    assert entry["functions"] == 7016
-    assert entry["annotation_only_pct"] == 94.43  # the control
-    assert entry["full_resolver_pct"] == 94.31
+    assert entry["functions"] == 7052
+    assert entry["annotation_only_pct"] == 94.44  # the control
+    assert entry["full_resolver_pct"] == 94.33
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.114
+    assert entry["marginal_pp"] == 0.1134
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["type_name_sites"] == 46680
-    assert entry["internal_named_only"] == 425
-    assert entry["verified_share_of_internal_pct"] == 90.91
+    assert entry["type_name_sites"] == 46882
+    assert entry["internal_named_only"] == 426
+    assert entry["verified_share_of_internal_pct"] == 90.94
 
 
 
