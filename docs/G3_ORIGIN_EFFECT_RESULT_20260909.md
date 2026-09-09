@@ -1,5 +1,18 @@
 # Result — bm25 and embeddings never look at the non-code planes
 
+> ## REPAIR COMPLETED [MEASURED 2026-09-10]
+>
+> The defect described in §2 and §4 (bm25 and embeddings scoring 0.00 on
+> non-code tasks because they retrieve only the code-only default universe) was
+> repaired on 2026-09-10 by packet G3-ARM-PLANE-01. Both arms now pass
+> `planes=_RETRIEVABLE_PLANES` to `harness._repo_chunks`. Non-code plane scores
+> rose to 1.000 at budgets 4000 and 16000. The measurement in §4 describing the
+> 0.00 scores was correct; the behavior described is no longer in effect.
+>
+> This document records evidence about what was measured on 2026-09-09 and
+> remains a valid diagnostic of the defect and its root cause. The repair result
+> is in `docs/G3_ARM_PLANE_REPAIR_RESULT_20260910.md`.
+
 > ## RETRACTION, 2026-09-09, same day
 >
 > **This document was first published under the title "8 of the Gate-3 primary

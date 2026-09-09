@@ -1,6 +1,28 @@
 # The Gate-3 baseline arms score 0.00 on non-code tasks because they never look
 
-Status: MEASURED 2026-09-09
+> ## REPAIR COMPLETED [MEASURED 2026-09-10]
+>
+> The defect described in this diagnostic was repaired on 2026-09-10 by packet
+> G3-ARM-PLANE-01. **Six arms** (best_of_n, bm25, embeddings, local_mutation,
+> random_search, single_llm_loop) now pass `planes=_RETRIEVABLE_PLANES` to
+> `harness._repo_chunks`. Measured result, **for the two deterministic arms
+> only** — `bm25` and `embeddings`: data 0.000 → 1.000 and knowledge
+> 0.000 → 1.000, at budgets 4000 and 16000. Two `bm25` code-plane cells
+> regressed by −0.333; seven code-plane cells rose.
+>
+> The other four repaired arms were **not scored**. Three are stochastic and one
+> (`single_llm_loop`) needs a live provider, so they are verified structurally —
+> the check establishes that they retrieve non-code documents, not how much it
+> helps them. Saying "0.000 → 1.000 on affected arms" would claim a measurement
+> that was never taken on four of the six.
+>
+> **This document records the evidence that motivated the repair.** The diagnosis
+> in §1–§2 describes behavior that *existed on 2026-09-09 and was confirmed*. The
+> repair result is in `docs/G3_ARM_PLANE_REPAIR_RESULT_20260910.md`. What was
+> measured in this file remains true; what it describes in present tense no longer
+> is. Cross-link to the repair result when reading this.
+
+Status: MEASURED 2026-09-09 (DEFECT REPAIRED 2026-09-10)
 Classification: EXPERIMENT (Gate-3 prework; active delivery gate is 1)
 Follows from: `docs/G3_ORIGIN_EFFECT_RESULT_20260909.md` §4, which named this as
 the leading unverified explanation and the obvious next measurement. It is now
