@@ -145,6 +145,30 @@ function withReport(prev: LiveState, brief: ReportBrief, seen: boolean): LiveSta
 }
 
 /**
+ * Whether a report may be shown in a project-filtered view.
+ *
+ * The previous form was `project && brief.project && brief.project !== project`,
+ * which reads as "reject a foreign project" but also silently admits a report
+ * carrying *no* project at all: the `brief.project &&` term short-circuits and
+ * the comparison never runs. That is not a hypothetical shape. `report_brief()`
+ * in `daedalus/interfaces/bridge/projection.py` emits
+ * `"project": request.get("project") or ""`, and `text()` maps `""` to
+ * `undefined`, so an unattributed report is the *normal* bridge output.
+ *
+ * The effect was that a report with no project was attributed to whichever
+ * project owned the open EventSource — a report shown as evidence for work it
+ * has no stated connection to. Plan Invariant 7 requires a claim to carry its
+ * origin; inheriting one from the reader's current filter is the opposite.
+ *
+ * With no filter active (`project` undefined) every report is admitted, exactly
+ * as before: an unfiltered view is not making an attribution claim.
+ */
+function belongsToProject(brief: ReportBrief, project?: string): boolean {
+  if (!project) return true;
+  return brief.project === project;
+}
+
+/**
  * Fold one frame into the state.
  *
  * `seen` is true when the reader is currently looking at the surface that
@@ -174,7 +198,7 @@ export function reduceLiveEvent(
       // The snapshot's report is the state of the world on connect, not news:
       // it must not raise an unseen count for something that happened before
       // the reader arrived.
-      if (!brief || (project && brief.project && brief.project !== project)) return next;
+      if (!brief || !belongsToProject(brief, project)) return next;
       return { ...next, recent: place(next.recent, brief) };
     }
     case 'heartbeat':
@@ -190,7 +214,7 @@ export function reduceLiveEvent(
       return { ...prev, queued: num(d.queue_depth) ?? prev.queued };
     case 'report': {
       const brief = briefFrom(d);
-      return brief && !(project && brief.project && brief.project !== project)
+      return brief && belongsToProject(brief, project)
         ? withReport(prev, brief, seen) : prev;
     }
     default:

@@ -125,5 +125,24 @@ export function runMissionSpec(): MissionSpecResult[] {
   const foreign = reduceLiveEvent(dated, 'report', { name: 'foreign', project: 'other', status: 'done' }, false, 'atlas');
   check('foreign terminal reports do not enter this project view', foreign === dated);
 
+  /* ---- attribution: a report without a project is not this project's ---- */
+  // report_brief() emits "project": request.get("project") or "", and text()
+  // maps "" to undefined, so an unattributed report is the NORMAL bridge shape,
+  // not an edge case. The old guard short-circuited on brief.project and
+  // admitted it, attributing the report to whichever project the reader was
+  // filtered to. Executed against the pre-fix reducer this asserted true.
+  const unattributed = reduceLiveEvent(dated, 'report', { name: 'no-project', status: 'done' }, false, 'atlas');
+  check('a report carrying no project is not attributed to the filtered project', unattributed === dated);
+
+  const emptyProject = reduceLiveEvent(dated, 'report', { name: 'empty-project', status: 'done', project: '' }, false, 'atlas');
+  check('the bridge empty-string project is not attributed either', emptyProject === dated);
+
+  const helloUnattributed = reduceLiveEvent(EMPTY_LIVE, 'hello', { latest_report: { name: 'snap', status: 'done', lane: 'l' } }, false, 'atlas');
+  check('the hello snapshot report is filtered the same way', helloUnattributed.recent.length === 0);
+
+  // and the unfiltered view is unchanged: no filter is not an attribution claim
+  const unfiltered = reduceLiveEvent(EMPTY_LIVE, 'report', { name: 'no-project', status: 'done' }, false);
+  check('with no project filter every report is still admitted', unfiltered.recent.length === 1);
+
   return results;
 }
