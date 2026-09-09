@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from daedalus.ikarus_runtime_role import (  # noqa: E402
+    AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     FIXTURE_EXECUTION_MODE,
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
@@ -127,6 +128,20 @@ def _source_only_binding(runtime_id: str = "hermes_agent") -> RuntimeRoleBinding
             "design provenance only; broker, containment and live conformance "
             "have not been admitted"
         ),
+    )
+
+
+def _authenticated_handoff_binding(
+    runtime_id: str = "claude_code_cli",
+) -> RuntimeRoleBinding:
+    return RuntimeRoleBinding(
+        role="coder",
+        runtime_id=runtime_id,
+        adapter_id="daedalus.claude-code-cli",
+        adapter_version="1",
+        source_revision="claude-code-cli-admitted-source",
+        origin="provider://anthropic/claude-code-cli",
+        execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     )
 
 
@@ -334,6 +349,98 @@ def test_source_only_upstream_is_provenance_not_execution(
     assert "live conformance" in row["detail"]
 
 
+def test_authenticated_handoff_runtime_rejects_legacy_runner_before_attempt(
+    target_repo, tmp_path, monkeypatch
+):
+    repo, head = target_repo
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "worktrees"))
+    binding = _authenticated_handoff_binding()
+    registry = RuntimeRoleRegistry((binding,))
+    item = _item(binding.runtime_id)
+    session, mission = _plan(repo, head, item, registry)
+    run_dir = tmp_path / "run"
+    called: list[str] = []
+
+    def legacy_runner(planned_item):
+        called.append(planned_item.objective)
+        return _runner_factory("must-not-run")(planned_item)
+
+    harness = RoleHarness(
+        role=binding.role,
+        runner_factory=legacy_runner,
+        gate_factory=_gate_factory,
+    )
+
+    with pytest.raises(SupervisorRefused, match="exclusive handoff_runner_factory"):
+        MissionSupervisor(
+            repo_root=repo,
+            run_dir=run_dir,
+            roles={binding.harness_key: harness},
+            runtime_roles=registry,
+        ).run(session, mission, (item,))
+
+    assert called == []
+    assert not (run_dir / "spine.sqlite3").exists()
+    row = verify_state_ledger(run_dir / "ledger")[-1]["items"][0]
+    assert row["status"] == "refused"
+    assert row["runtime_binding_sha256"] == binding.digest
+    assert "authenticated-handoff" in row["detail"]
+
+
+def test_authenticated_handoff_runtime_executes_only_after_taskattempt_handoff(
+    target_repo, tmp_path, monkeypatch
+):
+    repo, head = target_repo
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "worktrees"))
+    binding = _authenticated_handoff_binding()
+    registry = RuntimeRoleRegistry((binding,))
+    item = _item(binding.runtime_id)
+    session, mission = _plan(repo, head, item, registry)
+    seen_handoffs: list[object] = []
+    seen_metadata: list[dict] = []
+
+    def handoff_factory(planned_item, handoff):
+        seen_handoffs.append(handoff)
+
+        def runner(ctx):
+            metadata = dict(ctx.task.metadata)
+            seen_metadata.append(metadata)
+            for relative in planned_item.paths:
+                target = Path(ctx.worktree) / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("authenticated-handoff\n", encoding="utf-8")
+            return {"runtime_marker": "authenticated-handoff"}
+
+        return runner
+
+    harness = RoleHarness(
+        role=binding.role,
+        runner_factory=None,
+        gate_factory=_gate_factory,
+        handoff_runner_factory=handoff_factory,
+    )
+    supervisor = MissionSupervisor(
+        repo_root=repo,
+        run_dir=tmp_path / "run",
+        roles={binding.harness_key: harness},
+        runtime_roles=registry,
+    )
+
+    final = supervisor.run(session, mission, (item,))
+
+    assert final["outcome"] == "landed"
+    assert len(seen_handoffs) == 1
+    handoff = seen_handoffs[0]
+    assert handoff.mission_id == mission.mission_id
+    assert handoff.work_item_id == mission.work_item_ids[0]
+    assert handoff.source_revision == head
+    assert seen_metadata[0]["runtime_execution_mode"] == (
+        AUTHENTICATED_HANDOFF_EXECUTION_MODE
+    )
+    assert final["items"][0]["runtime_binding_sha256"] == binding.digest
+    assert supervisor.results[0].contract_set().attempt is not None
+
+
 def test_duplicate_unversioned_and_live_claims_are_rejected():
     row = _fixture_binding("fixture.runtime-a")
     with pytest.raises(RuntimeRoleRegistryError, match="duplicate"):
@@ -350,7 +457,30 @@ def test_duplicate_unversioned_and_live_claims_are_rejected():
             execution_mode=FIXTURE_EXECUTION_MODE,
         )
 
-    # This packet cannot turn a declaration into production authority.
+    with pytest.raises(RuntimeRoleRegistryError, match="fixture namespace"):
+        RuntimeRoleBinding(
+            role="coder",
+            runtime_id="fixture.claude-code-cli",
+            adapter_id="daedalus.claude-code-cli",
+            adapter_version="1",
+            source_revision="fixture-source",
+            origin="provider://anthropic/claude-code-cli",
+            execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+        )
+
+    with pytest.raises(RuntimeRoleRegistryError, match="empty string"):
+        RuntimeRoleBinding(
+            role="coder",
+            runtime_id="claude_code_cli",
+            adapter_id="daedalus.claude-code-cli",
+            adapter_version="1",
+            source_revision="admitted-source",
+            origin="provider://anthropic/claude-code-cli",
+            execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+            refusal_reason="declaration is not admitted",
+        )
+
+    # Unknown execution modes still cannot turn declaration into authority.
     with pytest.raises(RuntimeRoleRegistryError, match="execution_mode"):
         RuntimeRoleBinding(
             role="coder",

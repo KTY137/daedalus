@@ -838,7 +838,7 @@ class MissionSupervisor:
                         None,
                         None,
                         binding,
-                        "executable fixture has no exact injected RoleHarness: "
+                        "executable runtime has no exact injected RoleHarness: "
                         f"key={binding.harness_key!r}",
                     )
                 )
@@ -849,7 +849,7 @@ class MissionSupervisor:
                         None,
                         None,
                         binding,
-                        "runtime-role fixture has a malformed or role-mismatched "
+                        "runtime-role binding has a malformed or role-mismatched "
                         "RoleHarness",
                     )
                 )
@@ -860,7 +860,21 @@ class MissionSupervisor:
                         None,
                         None,
                         binding,
-                        "runtime-role fixture has a non-callable gate_factory",
+                        "runtime-role binding has a non-callable gate_factory",
+                    )
+                )
+                continue
+            if binding.requires_authenticated_handoff and (
+                harness.runner_factory is not None
+                or harness.handoff_runner_factory is None
+            ):
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "authenticated-handoff runtime requires an exclusive "
+                        "handoff_runner_factory",
                     )
                 )
                 continue
@@ -871,7 +885,7 @@ class MissionSupervisor:
                         None,
                         None,
                         binding,
-                        f"runtime-role fixture {runner_error}",
+                        f"runtime-role binding {runner_error}",
                     )
                 )
                 continue
