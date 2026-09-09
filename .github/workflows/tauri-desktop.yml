@@ -97,6 +97,14 @@ jobs:
 
       - name: Install Linux desktop dependencies
         run: |
+          # The hosted image preinstalls Google's Chrome apt source. Nothing this step
+          # needs comes from it, and a Hash Sum mismatch there kills the whole
+          # `set -euo pipefail` step: measured 2026-09-09, Google republished the index
+          # at 17:16:59Z and every Linux job after it died on `apt-get update` before a
+          # single line of repository code was compiled. Dropping the list narrows the
+          # flake surface and the trust surface at once; `rm -f` so an image without it
+          # is not an error.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
@@ -211,6 +219,14 @@ jobs:
       - name: Install Linux desktop dependencies
         if: startsWith(matrix.platform, 'ubuntu')
         run: |
+          # The hosted image preinstalls Google's Chrome apt source. Nothing this step
+          # needs comes from it, and a Hash Sum mismatch there kills the whole
+          # `set -euo pipefail` step: measured 2026-09-09, Google republished the index
+          # at 17:16:59Z and every Linux job after it died on `apt-get update` before a
+          # single line of repository code was compiled. Dropping the list narrows the
+          # flake surface and the trust surface at once; `rm -f` so an image without it
+          # is not an error.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
@@ -389,6 +405,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The hosted image preinstalls Google's Chrome apt source. Nothing this step
+          # needs comes from it, and a Hash Sum mismatch there kills the whole
+          # `set -euo pipefail` step: measured 2026-09-09, Google republished the index
+          # at 17:16:59Z and every Linux job after it died on `apt-get update` before a
+          # single line of repository code was compiled. Dropping the list narrows the
+          # flake surface and the trust surface at once; `rm -f` so an image without it
+          # is not an error.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
           sudo apt-get update
           sudo apt-get install -y podman uidmap crun fuse-overlayfs slirp4netns
           # The hosted runner image makes /usr/share recursively writable.
