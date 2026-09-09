@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 516,
+    "assigned_artifacts": 517,
     "legacy_artifacts": 204,
-    "packet_artifacts": 518,
-    "packet_ids": 453,
-    "post_index_artifacts": 314,
+    "packet_artifacts": 519,
+    "packet_ids": 454,
+    "post_index_artifacts": 315,
     "registry_artifacts": 1,
-    "tracked_files": 519,
+    "tracked_files": 520,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2803,6 +2803,22 @@
       "origin": "post_index",
       "packet_id": "G1-EXP-TENSOR-GPU-117",
       "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-117.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-118.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e05c09e2f81e30776758b282dd5b440a022ef04c",
+        "classification": "ALIGNED",
+        "dependencies": "G1-EXP-TENSOR-GPU-117",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-118",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-118.json"
     },
     {
       "artifacts": [
@@ -8248,6 +8264,20 @@
       "format": "json",
       "packet_id": "G1-EXP-TENSOR-GPU-117",
       "path": "docs/work-packets/G1-EXP-TENSOR-GPU-117.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-118",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-118.json",
       "sections": [
         "primary_acceptance_claim",
         "scope",
