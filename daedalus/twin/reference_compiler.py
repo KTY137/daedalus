@@ -166,20 +166,34 @@ def compile_reference_project(
         # mechanically checkable without changing legacy snapshot identities
         # when no source-tree reference is supplied.
         forest_provenance["source_tree_sha256"] = source_tree_digest
+
+    # The canonical edge digest already has to be computed to break ties in the
+    # Forest ordering. Keep that exact revision-local association only for this
+    # compile call and reuse it when materializing same-plane Fourfold relation
+    # membership instead of hashing the same edge payload a second time.
+    edge_rows = tuple(sorted(
+        ((edge, canonical_sha(edge.to_dict())) for edge in inv.edges),
+        key=lambda item: (
+            item[0].source,
+            item[0].target,
+            item[0].relation,
+            item[1],
+        ),
+    ))
     forest = KnowledgeForest(
         root=".",
         nodes=tuple(sorted(inv.nodes, key=lambda n: n.id)),
-        edges=tuple(sorted(inv.edges, key=lambda e: (e.source, e.target, e.relation, canonical_sha(e.to_dict())))),
+        edges=tuple(edge for edge, _digest in edge_rows),
         hyperedges=(),
         provenance=forest_provenance,
     )
     forest_digest = forest.content_sha256
     node_plane = {node: plane for plane, nodes in inv.plane_nodes.items() for node in nodes}
     relation_digests = {plane: [] for plane in FOURFOLD_PLANES}
-    for edge in forest.edges:
+    for edge, digest in edge_rows:
         source_plane, target_plane = node_plane[edge.source], node_plane[edge.target]
         if source_plane == target_plane:
-            relation_digests[source_plane].append(canonical_sha(edge.to_dict()))
+            relation_digests[source_plane].append(digest)
     plane_files = {
         "code": code_files,
         "type": tuple(path for path in code_files if path.endswith(".py")),
