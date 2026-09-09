@@ -1,4 +1,4 @@
-"""Regressions for the durable Attempt-start -> Claude producer boundary."""
+"""Regressions for the durable prepared-Attempt -> Claude producer boundary."""
 from __future__ import annotations
 
 import importlib.util
@@ -8,7 +8,11 @@ from pathlib import Path
 import pytest
 
 import daedalus.ikarus_claude_attempt_handoff as handoff
-from daedalus.kernel.attempts import AttemptBeginResult, AttemptStartRecord
+from daedalus.kernel.attempts import (
+    AttemptBeginResult,
+    AttemptStartRecord,
+    PreparedAttempt,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,7 +68,18 @@ def _dispatch_args(tmp_path: Path):
     )
 
 
-def _execute(begin, subjects):
+def _prepared_for(subjects, *, execute: bool = True, workspace: Path | None = None):
+    attempt = subjects[1]
+    grant = subjects[7]["workspace_grant"]
+    begin = _begin_for(attempt, execute=execute)
+    if execute:
+        selected_workspace = Path(grant.worktree) if workspace is None else workspace
+    else:
+        selected_workspace = None
+    return PreparedAttempt(begin=begin, workspace=selected_workspace)
+
+
+def _execute(prepared, subjects):
     (
         mission,
         attempt,
@@ -76,7 +91,7 @@ def _execute(begin, subjects):
         members,
     ) = subjects
     return handoff.execute_started_mission_bound_claude_invocation(
-        begin,
+        prepared,
         mission,
         attempt,
         request,
@@ -96,10 +111,10 @@ def _execute(begin, subjects):
     )
 
 
-def test_fresh_durable_start_reaches_existing_atomic_handoff(tmp_path, monkeypatch):
+def test_fresh_prepared_attempt_reaches_existing_atomic_handoff(tmp_path, monkeypatch):
     subjects = _dispatch_args(tmp_path)
     attempt = subjects[1]
-    begin = _begin_for(attempt)
+    prepared = _prepared_for(subjects)
     calls = []
 
     def fake_execute(*args, **kwargs):
@@ -112,7 +127,7 @@ def test_fresh_durable_start_reaches_existing_atomic_handoff(tmp_path, monkeypat
         fake_execute,
     )
 
-    result = _execute(begin, subjects)
+    result = _execute(prepared, subjects)
 
     assert result["provider"] == "claude_cli"
     assert result["attempt_id"] == attempt.attempt_id
@@ -123,7 +138,7 @@ def test_fresh_durable_start_reaches_existing_atomic_handoff(tmp_path, monkeypat
 
 def test_existing_or_pending_attempt_cannot_start_new_provider_run(tmp_path, monkeypatch):
     subjects = _dispatch_args(tmp_path)
-    begin = _begin_for(subjects[1], execute=False)
+    prepared = _prepared_for(subjects, execute=False)
     calls = []
     monkeypatch.setattr(
         handoff,
@@ -135,7 +150,7 @@ def test_existing_or_pending_attempt_cannot_start_new_provider_run(tmp_path, mon
         handoff.IkarusClaudeAttemptHandoffRefused,
         match="fresh durable Attempt-start winner",
     ):
-        _execute(begin, subjects)
+        _execute(prepared, subjects)
 
     assert calls == []
 
@@ -143,6 +158,10 @@ def test_existing_or_pending_attempt_cannot_start_new_provider_run(tmp_path, mon
 def test_persisted_start_for_other_attempt_digest_fails_before_provider(tmp_path, monkeypatch):
     subjects = _dispatch_args(tmp_path)
     begin = _begin_for(subjects[1], attempt_sha256="f" * 64)
+    prepared = PreparedAttempt(
+        begin=begin,
+        workspace=Path(subjects[7]["workspace_grant"].worktree),
+    )
     calls = []
     monkeypatch.setattr(
         handoff,
@@ -153,6 +172,46 @@ def test_persisted_start_for_other_attempt_digest_fails_before_provider(tmp_path
     with pytest.raises(
         handoff.IkarusClaudeAttemptHandoffRefused,
         match="attempt digest",
+    ):
+        _execute(prepared, subjects)
+
+    assert calls == []
+
+
+def test_recombined_workspace_fails_before_provider(tmp_path, monkeypatch):
+    subjects = _dispatch_args(tmp_path)
+    other_workspace = tmp_path / "other-workspace"
+    other_workspace.mkdir()
+    prepared = _prepared_for(subjects, workspace=other_workspace)
+    calls = []
+    monkeypatch.setattr(
+        handoff,
+        "execute_mission_bound_claude_invocation",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="does not bind the prepared Attempt workspace",
+    ):
+        _execute(prepared, subjects)
+
+    assert calls == []
+
+
+def test_bare_attempt_begin_is_no_longer_a_dispatch_boundary(tmp_path, monkeypatch):
+    subjects = _dispatch_args(tmp_path)
+    begin = _begin_for(subjects[1])
+    calls = []
+    monkeypatch.setattr(
+        handoff,
+        "execute_mission_bound_claude_invocation",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="exact PreparedAttempt",
     ):
         _execute(begin, subjects)
 
