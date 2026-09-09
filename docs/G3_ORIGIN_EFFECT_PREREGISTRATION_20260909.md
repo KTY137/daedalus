@@ -184,5 +184,38 @@ unrelated corpora of very different sizes — and it is not evidence.
 primary tier is barred by complete separation, which is established by counting
 and needs no run at all.
 
+---
+
+## AMENDMENT 2 — the frozen design never named a token budget
+
+Appended 2026-09-09, still **before** any measurement.
+
+§3 and §4 specify the statistic, the arms, the resampling and the margin, and
+say nothing about `ArmBudget.max_tokens`. That is a live degree of freedom, and
+a particularly bad one to leave open here: §7's stated mechanism is *precision
+at a fixed retrieval budget on a small versus a large corpus*, so the budget is
+not an incidental knob, it is the quantity the prior is about. Choosing it after
+seeing scores would let me select the rung that best matched my own prediction.
+
+There is no existing constant to inherit. `daedalus.eval.harness` sets its BM25
+arm's budget per task, to the token count the semantic slice actually used
+(`budget_c = max(tokens_a, 1)`), which is not expressible as the single
+per-arm `ArmBudget` that `run_arm_over_tasks` takes.
+
+So, declared now:
+
+- **Budget ladder: 1000, 4000, 16000 `max_tokens`.** Every arm receives the
+  same value at each rung (`require_equal_budgets` enforces this).
+- **The primary reading is the 4000 rung.** The other two are sensitivity.
+- **All three rungs are reported**, whatever they show, in one table. A rung is
+  not dropped for being inconvenient or uninteresting.
+- The reading tables of §5/§6 are applied to the 4000 rung. If the three rungs
+  disagree in verdict, that disagreement is itself reported as the finding, and
+  the 4000 verdict is not presented as though the others agreed with it.
+
+The round values are frankly arbitrary — they are a decade-ish span, chosen to
+bracket plausible context sizes, not derived from anything. Their arbitrariness
+is the reason all three are reported rather than one.
+
 Iron Plan: EXPERIMENT
 Iron Gate: 1
