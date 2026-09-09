@@ -196,19 +196,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
     # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
     # +3 for the tensor lane's second wave (GPU-109/110/111).
-    assert "509 tracked files" in message  # measured 2026-09-09, +GPU-112
+    assert "510 tracked files" in message  # measured 2026-09-09, +CONFIRM-02
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 506,
+        "assigned_artifacts": 507,
         "legacy_artifacts": 204,
-        "packet_artifacts": 508,
-        "packet_ids": 443,
-        "post_index_artifacts": 304,
+        "packet_artifacts": 509,
+        "packet_ids": 444,
+        "post_index_artifacts": 305,
         "registry_artifacts": 1,
-        "tracked_files": 509,
+        "tracked_files": 510,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -576,6 +576,9 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         # G2-XPLANE-CONFIRM-01: the pre-registration of the confirmatory
         # cross-plane run, committed before any second repository is cloned.
         "G2-XPLANE-CONFIRM-01",
+        # CONFIRM-02: re-tests CONFIRM-01's two KEEPs on a repository chosen
+        # to be structurally unlike fastapi (md:py ratio below 0.40).
+        "G2-XPLANE-CONFIRM-02",
     }
     post_index_packets = {
         packet_id: packet
