@@ -19,9 +19,21 @@ a quiet edit to this one.
 
 Minted tasks land with ``"tier": "quarantine"`` and
 ``"label_provenance": "independent_diff"`` and are barred from any go/no-go
-recall number until ``confirm_task`` has been called on them
-``MINT_CONFIRM_THRESHOLD`` times -- see that constant's docstring for the
-rationale. Aggregation/enforcement of the tier gate is the eval harness's job
+recall number until a PROMOTION WITNESS exists for them. There are two, and
+``promotion_witness`` returns which one applies rather than a bare boolean:
+
+  ``recurrence``  -- ``confirmations >= MINT_CONFIRM_THRESHOLD``, the original
+                     rule, unchanged in meaning.
+  ``noise_audit`` -- every threat that constant's comment NAMES, checked and
+                     found absent (``audit_noise_threats``).
+
+The second exists because the first never fires. That comment predicts the
+threshold stays "low enough to actually accumulate ... instead of never
+firing"; measured 2026-09-10, zero confirmations across 400 first-parent
+commits and all 48 stored tasks. Recurrence was only ever a proxy for "the
+named threats are absent", so the threats are now checked directly -- as a
+SEPARATE witness, never by incrementing ``confirmations``, because a count
+whose entries mean two different things is a count of nothing. Aggregation/enforcement of the tier gate is the eval harness's job
 (a sibling module owns harness.py/report.py); this module only stamps the
 fields honestly.
 
@@ -240,9 +252,14 @@ def _git(repo_root, *args: str) -> str | None:
 def _is_linked_worktree(repo_root) -> bool:
     """True if ``repo_root`` is a git LINKED WORKTREE, not a primary checkout.
 
-    A minted task stores ``repo`` as an ABSOLUTE PATH (see ``_mint_from_diffs``)
-    and the mint store is append-only, so that path has to stay resolvable for
-    the whole life of the corpus. A linked worktree is by construction
+    A minted task USED TO store ``repo`` as an absolute path, and the mint
+    store is append-only, so that path had to stay resolvable for the whole
+    life of the corpus -- which it did not: 17 stored tasks ended up pinned to
+    a checkout on another machine. Since 2026-09-09 the stored value is a
+    portable label (``_portable_repo_label``), so the failure this guard
+    describes is now caught at the store boundary too. The guard stays: minting
+    from a worktree that is about to be deleted is still worth refusing at the
+    source. A linked worktree is by construction
     temporary: ``daedalus.spine.attempt`` creates one per candidate and deletes
     it in a ``finally:``. Minting from one therefore writes a task that can
     NEVER be evaluated again -- ``daedalus.eval.tasks.resolve_task_repo`` takes
@@ -1007,6 +1024,199 @@ def load_minted_tasks(path: str | None = None) -> list[dict]:
     with open(p, "r", encoding="utf-8") as fh:
         data = json.load(fh)
     return sorted(data.get("tasks", []), key=lambda t: t["id"])
+
+
+#: Bumped when a threat check changes meaning, so a stored audit can never be
+#: read as if it had been produced by today's rules. An audit without a version
+#: is not trusted.
+NOISE_AUDIT_VERSION = 1
+
+#: Path fragments that mark a generated artifact (threat T3). Deliberately
+#: literal and small, mirroring the discipline of ``separate_indices``'s
+#: extension sets: auditable from one place, no globbing, no content sniffing.
+_GENERATED_PATH_MARKERS = ("dist/", "build/", "node_modules/", ".min.",
+                           "generated", "_pb2", "runs/", "lock")
+
+
+def _structural_dump(src: str) -> str | None:
+    """Python source reduced to structure: AST with docstrings dropped.
+
+    Two sources with the same dump differ only in formatting, comments and
+    docstrings -- exactly threat T1's "reformat-only touch that happens to
+    shift a docstring". Returns ``None`` when the source does not parse, which
+    is reported as undecided rather than guessed at.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError, RecursionError):
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef, ast.Module)):
+            body = getattr(node, "body", None)
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                node.body = body[1:] or [ast.Pass()]
+    try:
+        return ast.dump(tree, annotate_fields=False)
+    except RecursionError:
+        return None
+
+
+def audit_noise_threats(task: dict, repo_root) -> dict:
+    """Check the three threats ``MINT_CONFIRM_THRESHOLD``'s comment names.
+
+    WHY THIS EXISTS. That comment justifies the threshold by naming exactly
+    three ways a single mint could be noise -- T1 a reformat-only touch that
+    shifts a docstring, T2 a rename that round-trips to byte-identical source
+    under a new name, T3 a generated-file regen -- and then predicts the
+    threshold stays "low enough to actually accumulate ... instead of never
+    firing". Measured 2026-09-10: ZERO confirmations across 400 first-parent
+    commits and all 48 stored tasks. The prediction is false; the gate never
+    opens, so it never admits a task and never validates one either.
+
+    Recurrence was only ever a PROXY for "these three are absent". This checks
+    them directly. See docs/G3_THE_QUARANTINE_GATE_CANNOT_OPEN_20260910.md.
+
+    WHAT IT DOES NOT COVER, stated because it is the whole limit of the
+    argument: the three NAMED threats, and nothing else. Recurrence in
+    principle also guards against threats nobody wrote down; in practice it
+    fires never, so it guards nothing. But "the named threats are absent" is a
+    strictly smaller claim than "this label is safe", and a caller must not
+    round one to the other. That is why the result is recorded as its own
+    witness kind rather than incrementing ``confirmations``: a stored
+    confirmation count whose entries mean two different things is a count of
+    nothing.
+
+    Verdict vocabulary, per threat:
+      ``impossible`` -- ruled out by construction, not by inspection
+      ``clean``      -- checked and absent
+      ``fired``      -- the threat is present; the task is noise
+      ``undecided``  -- cannot be checked here; never silently treated as clean
+    """
+    sha = task.get("minted_at_sha")
+    rel = (task.get("target") or "").split("::", 1)[0]
+    out = {"version": NOISE_AUDIT_VERSION, "minted_at_sha": sha}
+
+    # T3 is decidable from the path alone, always, and independently of git.
+    low = rel.lower()
+    out["t3_generated"] = "fired" if any(m in low for m in _GENERATED_PATH_MARKERS) else "clean"
+
+    if not sha or not rel:
+        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
+        # A fired T3 decides the verdict even here: a generated artifact is
+        # noise whatever its provenance turns out to be, and letting an
+        # undecidable T1 outrank it would quietly downgrade a KNOWN threat to
+        # an unknown one.
+        out["verdict"] = "fired" if out["t3_generated"] == "fired" else "undecided"
+        return out
+
+    after = _show(repo_root, sha, rel)
+    if after is None:
+        # The target did not exist at the revision the task claims to come
+        # from. Measured on two stored tasks whose paths are post-relocation
+        # while their SHAs predate the commits that created them. The labels
+        # may be fine; the PROVENANCE cannot be checked, and an entry whose
+        # provenance cannot be checked must not sit indistinguishable from one
+        # whose can.
+        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
+        out["verdict"] = ("fired" if out["t3_generated"] == "fired"
+                          else "unverifiable_provenance")
+        return out
+
+    parent = _resolve_sha(repo_root, f"{sha}^")
+    before = _show(repo_root, parent, rel) if parent else None
+
+    if before is None:
+        # The anchor was ADDED by this commit. T1 and T2 both presuppose a
+        # prior version of the file: you cannot reformat, or rename within,
+        # something that did not exist. Ruled out by construction.
+        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "impossible"
+    elif not rel.endswith(".py"):
+        # Markdown and JSON need their own normalizer. Not built here, and
+        # reported as undecided rather than assumed clean.
+        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
+    else:
+        da, db = _structural_dump(after), _structural_dump(before)
+        if da is None or db is None:
+            out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
+        else:
+            # T1: the bytes changed but the structure did not -> cosmetic.
+            out["t1_cosmetic"] = "fired" if (da == db and after != before) else "clean"
+            # T2: a label names a symbol whose structure already existed under
+            # a different name in the parent -- the "rename that round-trips to
+            # byte-identical source" case.
+            out["t2_rename_roundtrip"] = _audit_rename_roundtrip(
+                task, before, after)
+
+    decided = [out["t1_cosmetic"], out["t2_rename_roundtrip"], out["t3_generated"]]
+    if "fired" in decided:
+        out["verdict"] = "fired"
+    elif "undecided" in decided:
+        out["verdict"] = "undecided"
+    else:
+        out["verdict"] = "clean"
+    return out
+
+
+def _audit_rename_roundtrip(task: dict, before: str, after: str) -> str:
+    """T2: is a minted label just an old symbol wearing a new name?"""
+    import ast
+
+    def bodies(src):
+        try:
+            tree = ast.parse(src)
+        except (SyntaxError, ValueError, RecursionError):
+            return None
+        found = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                stripped = ast.parse("pass")
+                stripped.body = list(node.body)
+                dumped = _structural_dump(ast.unparse(stripped))
+                if dumped is not None:
+                    found[node.name] = dumped
+        return found
+
+    old, new = bodies(before), bodies(after)
+    if old is None or new is None:
+        return "undecided"
+    old_shapes = {v: k for k, v in old.items()}
+    for label in task.get("must_include") or ():
+        shape = new.get(label)
+        if shape is None:
+            continue
+        twin = old_shapes.get(shape)
+        if twin is not None and twin != label:
+            return "fired"
+    return "clean"
+
+
+def promotion_witness(task: dict) -> str | None:
+    """Which evidence, if any, entitles ``task`` to leave quarantine.
+
+    Two witnesses, deliberately NOT merged into one counter:
+
+    ``recurrence``   -- ``confirmations >= MINT_CONFIRM_THRESHOLD``, the
+                        original rule, unchanged in meaning.
+    ``noise_audit``  -- every named threat checked and absent, at the current
+                        ``NOISE_AUDIT_VERSION``.
+
+    The kind is returned rather than a bare boolean so a consumer can filter to
+    one. A comparison that wants only the older, broader witness can still
+    have it; what it cannot do is read a mixed population as homogeneous.
+    """
+    if int(task.get("confirmations") or 0) >= MINT_CONFIRM_THRESHOLD:
+        return "recurrence"
+    audit = task.get("noise_audit")
+    if (isinstance(audit, dict)
+            and audit.get("version") == NOISE_AUDIT_VERSION
+            and audit.get("verdict") == "clean"):
+        return "noise_audit"
+    return None
 
 
 def _refuse_nonportable_repos(tasks: list[dict]) -> None:
