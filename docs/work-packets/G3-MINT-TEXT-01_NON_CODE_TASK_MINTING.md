@@ -2,7 +2,7 @@
 
 Packet ID: `G3-MINT-TEXT-01`
 Artifact role: `primary`
-Status: `planned; feasibility measured; not built`
+Status: `built; A6 FAILED at 31 of a required 60; primary claim holds; not promoted`
 Active gate: `1`
 Classification: `ALIGNED`
 Owner: `repository owner`
@@ -70,7 +70,7 @@ with `confirmations: 0` and are barred from any go/no-go number until
 | A3 | a label from the target file is never emitted | new test, both planes |
 | A4 | out-of-scope files are recorded in `skipped_out_of_scope`, never silently dropped | new test with a `dist/` and a `fixtures/` path |
 | A5 | `classify_task_plane` assigns the minted tasks to `data`/`knowledge` | new test through the real classifier |
-| A6 | yield on this repository is **≥ 60** tasks over 400 first-parent commits | measured build |
+| A6 | yield on this repository is **≥ 60** tasks over 400 first-parent commits | **FAILED — 31 measured (16 knowledge, 15 data).** The threshold is not moved. |
 | A7 | every minted target exists in the repository root, none under `fixtures/`/`examples/` | assertion over the built set |
 | A8 | the secret floor and junk-label filters apply to text labels too | new tests |
 
@@ -113,6 +113,41 @@ today — all from the repository the 27 code tasks come from.
 3. `docs/` in this repository is unusually large and unusually
    machine-written. Yield here is **not** evidence of yield elsewhere, and this
    packet claims nothing about other repositories.
+
+**OUTCOME [MEASURED 2026-09-09, after the build].**
+
+| # | result |
+| --- | --- |
+| A1 existing `independent_diff` untouched | **pass** — appended only; its tests green |
+| A2 provenance and quarantine tier | **pass** |
+| A3 no label from the target file | **pass** |
+| A4 out-of-scope recorded, not dropped | **pass** |
+| A5 `classify_task_plane` agrees | **pass** — both planes, through the real classifier |
+| **A6 yield ≥ 60** | **FAIL — 31** |
+| A7 targets exist, none from fixtures | **pass**, after the fix A7 itself forced |
+| A8 secret floor applies to text | **pass** |
+
+**A6 failed and the threshold stays where it was frozen.** The 60 came from a
+feasibility probe that counted commits changing ≥2 in-scope files of a type
+(85). The implementation requires more than that: two files each carrying a
+*new* label, and a non-empty cross-file set after subtracting the anchor's own
+labels. Those conditions cost roughly half. **My estimate measured a looser
+condition than the code enforces**, which is exactly the error a pre-registered
+threshold exists to expose.
+
+**A7 earned its place.** It caught a target that no longer exists — a
+content-addressed store locator under `runs/`, machine-written run output that
+should never have been in scope. The symptom was a deleted file; the cause was
+a scope boundary that excluded `dist/` but not execution output.
+`_GENERATED_TEXT_ROOTS` now excludes `runs/`, which cost 4 further tasks
+(35 → 31) and was worth it.
+
+**Does the primary claim survive a failed A6?** Yes, and the distinction
+matters. The claim is that Gate 3's non-code tasks stop coming from a
+different corpus than its code tasks. That is about **source**, not count: 31
+tasks from the repository replace a dependence on 4 from a six-file fixture.
+The confound is removed. What 31 does not settle is **power** — that was
+always a separate obligation and it remains open.
 
 **Review questions.**
 
