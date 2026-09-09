@@ -48,8 +48,8 @@
     ],
     "implementation_commit": "5a864d0b30b37bd67a9b5cfda234a4d051bf9b82",
     "production_blob": "cceabbf55afb49ed30ab159b2f744d81478fb87b",
-    "test_commit": "6486c7edc1b75af7c6bd4129fe217cd5ee3b8578",
-    "test_blob": "8503d1e17470c9d94876c896eae5bb88bc15e3a9"
+    "test_blob": "8503d1e17470c9d94876c896eae5bb88bc15e3a9",
+    "test_commit": "6486c7edc1b75af7c6bd4129fe217cd5ee3b8578"
   },
   "focused_contract": {
     "behavior": "Boolean and Natural cross-plane compilation inspect the existing binding_records staging owner at the _record_fact boundary and require that no staged scalar record retain a CrossPlaneBinding object; the provenance slot is None and evidence_atoms is None while the compiled fact and verified_binding_count remain unchanged.",
@@ -80,7 +80,45 @@
     "classification": "ALIGNED",
     "dependencies": "GPU-120 implementation already merged to main through PR #342; no GPU-120 packet artifact is assumed",
     "owner": "repository owner",
-    "packet_id": "G1-EXP-TENSOR-GPU-121"
+    "packet_id": "G1-EXP-TENSOR-GPU-121",
+    "sections": {
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "implementation"
+        ]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "implementation"
+        ]
+      },
+      "migration_and_rollback": {
+        "projection_note": "Rollback is a revert of the commits this packet records. The change is confined to relation construction in daedalus/twin/relation_compiler.py and adds no public API, cache, index, receipt family or persisted state, so a revert restores prior behaviour with nothing to migrate.",
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ]
+      },
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      }
+    }
   },
   "scope": {
     "new_caches": 0,

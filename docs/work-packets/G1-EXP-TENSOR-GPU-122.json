@@ -5,8 +5,8 @@
     "archive_legacy_touched": false,
     "branch_deleted": false,
     "force_update": false,
-    "main_at_packet_start": "1fd5e13d63eefa58abeace259845cf8a796f4491",
     "main_advanced_during_packet": "460d1d118db55daf4e483546d6a8f22b3638445f",
+    "main_at_packet_start": "1fd5e13d63eefa58abeace259845cf8a796f4491",
     "main_reintegration": "not performed mid-packet after main advanced concurrently; preserve the already-green exact code/test head and begin the next bounded packet with a non-force integration check",
     "new_remote_branch": false,
     "unique_evidence_deleted": false
@@ -51,8 +51,8 @@
     ],
     "implementation_commit": "c9e3c3cab29f5815896060fac6389a0887bc5f40",
     "production_blob": "5d094d020f5c4a8e65124323176645a364cab309",
-    "test_commit": "66eae40a6e09ad691bab6a200f72803062236c63",
-    "test_blob": "ae634ee0224401d71f2f41c0d4df5dc3975285b0"
+    "test_blob": "ae634ee0224401d71f2f41c0d4df5dc3975285b0",
+    "test_commit": "66eae40a6e09ad691bab6a200f72803062236c63"
   },
   "focused_contract": {
     "behavior": "Discover-all compilation over two retained same-plane Forest edges with the same code:imports:code relation may construct exactly one RelationSignature during compile_relation_blocks; both canonical Boolean facts must remain present in the single compiled block. The existing explicit-plan contract still requires zero constructor calls after the caller supplies its validated RelationSignature.",
@@ -83,7 +83,45 @@
     "classification": "ALIGNED",
     "dependencies": "GPU-111 explicit selected-signature reuse and GPU-121 canonical Tensor branch head",
     "owner": "repository owner",
-    "packet_id": "G1-EXP-TENSOR-GPU-122"
+    "packet_id": "G1-EXP-TENSOR-GPU-122",
+    "sections": {
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "implementation"
+        ]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "implementation"
+        ]
+      },
+      "migration_and_rollback": {
+        "projection_note": "Rollback is a revert of the commits this packet records. The change is confined to relation construction in daedalus/twin/relation_compiler.py and adds no public API, cache, index, receipt family or persisted state, so a revert restores prior behaviour with nothing to migrate.",
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ]
+      },
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      }
+    }
   },
   "scope": {
     "new_caches": 0,
