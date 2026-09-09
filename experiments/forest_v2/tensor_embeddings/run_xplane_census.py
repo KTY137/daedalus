@@ -88,17 +88,27 @@ def build_cases(
         if not eligible:
             continue
         blobs = gitio.read_blobs(repo, [blob for _p, blob, _s in eligible])
-        universe = tuple(
-            Candidate(
-                path=path,
-                blob=blob,
-                size=size,
-                raw=blobs[blob][: legal_budget(blobs[blob])],
-                content_budget=legal_budget(blobs[blob]),
+        # legal_budget decodes up to 64 KiB and may loop, so it is computed once
+        # per candidate rather than inside a comprehension that would call it
+        # three times -- in the filter and twice in the constructor.
+        rows_out = []
+        for path, blob, size in eligible:
+            payload = blobs.get(blob)
+            if not payload:
+                continue
+            budget = legal_budget(payload)
+            if budget <= 0:
+                continue
+            rows_out.append(
+                Candidate(
+                    path=path,
+                    blob=blob,
+                    size=size,
+                    raw=payload[:budget],
+                    content_budget=budget,
+                )
             )
-            for path, blob, size in eligible
-            if blob in blobs and blobs[blob] and legal_budget(blobs[blob]) > 0
-        )
+        universe = tuple(rows_out)
         if not universe:
             continue
         text = row["query_scrubbed"] if variant == "scrubbed" else row["query_raw"]
