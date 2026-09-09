@@ -1,0 +1,196 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-99",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "39bd10f73a23075a101e94b745ed0ad47e77fb67",
+    "dependencies": "G1-EXP-TENSOR-GPU-98 and retained exact-head typed-block validation artifact",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "measurement"]},
+      "contracts_and_behavior": {"source_fields": ["measurement", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only this measured research record. Production, tests, probes, public API, wire schemas, authority and promotion state are unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-99",
+  "work_packet": "G1-EXP-TENSOR-GPU-99",
+  "title": "Attribute canonical constructor cost and end speculative constructor micro-optimization",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "39bd10f73a23075a101e94b745ed0ad47e77fb67",
+  "scope": "Use the retained GPU-98 TypedRelationBlock validation artifact plus the current constructor and existing identity-reuse tests to separate the measured canonical constructor cost into persisted-scalar admission, inline constructor self-time, and immutable tuple materialization. Do not add another profiler path or production bypass if the existing evidence already resolves the bounded question.",
+  "measurement": {
+    "authority": "diagnostic only; KnowledgeForest/Fourfold remain semantic authority and TypedRelationBlock.matmul remains the Boolean CSR oracle",
+    "source_head": "2c5ccc2e6fc6301cc28b2fdfcc65337313d5cf72",
+    "source_workflow": {
+      "id": 34248822049,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "source_artifact": {
+      "artifact_id": 10065143109,
+      "file": "typed_block_validation_profile_ci.json",
+      "sha256": "1da0ba6734ecbf0a00a3dd21a745392afdf65722aeeca9be69742aff8d6f2252"
+    },
+    "frozen_case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "actual_density": 0.05078125,
+      "row_width": 13,
+      "left_entries": 3328,
+      "right_entries": 3328,
+      "output_entries": 43264,
+      "profile_repeats": 3,
+      "timing_repeats": 5,
+      "warmup": 2
+    },
+    "constructor_profile_ms": {
+      "unprofiled_construct_median": 1.847537,
+      "profiled_construct_wall_median": 4.406864,
+      "typed_block_post_init_cumulative_median": 4.251245,
+      "typed_block_post_init_self_median": 3.954457,
+      "stored_sequence_cumulative_median": 0.265935,
+      "bounded_sequence_cumulative_median": 0.015377,
+      "identifier_cumulative_median": 0.006461,
+      "semiring_resolution_cumulative_median": 0.000575,
+      "profiler_slowdown_ratio": 2.385264273462453
+    },
+    "derived_attribution": {
+      "post_init_self_share_of_post_init_cumulative": 0.9301879802269689,
+      "stored_sequence_share_of_post_init_cumulative": 0.06255461635356231,
+      "interpretation": "cProfile shares are attribution evidence only and are not additive wall-time components. The 93.0% self-time bucket contains the inline constructor checks and CSR row-span validation. Persisted Boolean scalar admission is a separate measured minority bucket at about 6.3% of post-init cumulative time."
+    },
+    "tuple_materialization_audit": {
+      "packed_factory_row_offsets_input": "exact tuple returned by _csr_support_from_masks",
+      "packed_factory_column_indices_input": "exact tuple returned by _csr_support_from_masks",
+      "packed_factory_values_input": "exact tuple created as (True,) * len(column_indices)",
+      "constructor_behavior": "row_offsets and column_indices are only tuple-copied when their admitted sequence type is not exactly tuple; Boolean _stored_values returns an exact tuple input unchanged",
+      "existing_contract_evidence": [
+        "tests/twin/test_relation_axis_lookup.py::test_typed_relation_block_reuses_exact_canonical_index_tuples",
+        "tests/twin/test_relation_scalar_sequence_admission.py::test_constructor_owns_one_sequence_admission_and_old_scalar_helper_is_gone",
+        "tests/twin/test_relation_scalar_sequence_admission.py::test_all_persisted_semiring_families_keep_canonical_values"
+      ],
+      "finding": "Immutable tuple materialization is not on the frozen packed-result constructor path for row offsets, column indices or Boolean values. Adding a tuple-copy profiler arm would measure a fallback path that the frozen canonical factory does not execute."
+    },
+    "cross_case_signal": {
+      "cases_output_entries": [64, 576, 128, 4608, 2304, 43264],
+      "typed_block_post_init_self_ms": [0.023232, 0.07174, 0.039829, 0.465672, 0.26035, 3.954457],
+      "linear_fit_r_squared": 0.9999165426551038,
+      "interpretation": "The retained six-case artifact shows the constructor self-time bucket scaling almost linearly with output entry count. This is corroborating diagnostic evidence that the inline per-entry structural admission walk, rather than O(1) identifier/semiring checks or tuple copies, is the dominant profile bucket. It is not a product benchmark or a causal performance proof."
+    },
+    "finding": "The frozen high-output case is no longer ambiguous enough to justify another instrumentation abstraction: canonical tuple inputs are reused, persisted-scalar admission is a minority profile bucket, and the dominant remaining bucket is inline TypedRelationBlock structural admission. Previous packets already fused the canonical column validation path and retained the independent row-offset type/error-precedence scan, so no safe Delete/Consolidate production edit is identified here.",
+    "scope_limit": "The measurements are synthetic, CPU-only, cProfile-perturbed attribution plus independent constructor wall timing. They do not establish a general speedup, memory win, production workload crossover, GPU/Tensor-Core superiority, or Tensor-over-Forest advantage."
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; relation blocks and packed bitsets are regenerable computational views.",
+    "constructor_admission": "Direct TypedRelationBlock construction continues to validate exact-int row offsets and column indices, CSR termination, row-local strict column ordering and persisted semiring scalar contracts.",
+    "error_precedence": "The independent row-offset type scan remains retained because GPU-93 showed that fusing it into later boundary/row-span validation would alter observable refusal precedence.",
+    "canonical_output": "No trusted constructor, validation bypass, cache, second block type or alternate serializer is introduced.",
+    "bounded_memory": "No persistent duplicate representation is added.",
+    "public_api": "No public API, wire schema, authority, promotion contract or benchmark schema changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "work_packet_record_added": true,
+    "dominant_existing_bucket": "TypedRelationBlock.__post_init__ inline structural admission/self-time",
+    "tuple_materialization_on_frozen_path": false,
+    "persisted_scalar_admission_is_minority_bucket": true,
+    "new_profiler_abstraction_rejected": true,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-99 closes the constructor attribution question without reviving retired A/B profiler paths. The frozen packed-result factory already supplies exact tuples, so immutable tuple copying is absent; retained cProfile evidence places about 93.0% of post-init cumulative time in the constructor self-time bucket and about 6.3% in Boolean scalar admission. No further safe constructor micro-refactor is justified under the existing refusal and canonicalization contracts."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "39bd10f73a23075a101e94b745ed0ad47e77fb67",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "typed_block_validation_probe": "experiments/tensor_gpu/typed_block_validation_profile.py@1f63bf20e29eefcc5e3815b636e84d46d4d500d3",
+    "tuple_reuse_test": "tests/twin/test_relation_axis_lookup.py@74bf3438988aec37dfaa9a9c3fc5a8033a4b9b45",
+    "scalar_reuse_test": "tests/twin/test_relation_scalar_sequence_admission.py@7fd6e0d6a6f60a6f32c344bd74c764f39c9c628c",
+    "gpu98_exact_head_fourfold_tensor_run": "34255294883:completed/success",
+    "gpu98_exact_head_tauri_run": "34255294801:completed/success",
+    "typed_block_validation_artifact": "10065143109/typed_block_validation_profile_ci.json sha256:1da0ba6734ecbf0a00a3dd21a745392afdf65722aeeca9be69742aff8d6f2252",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "source_artifact_reused_without_new_probe": true,
+    "artifact_integrity_sha256_recorded": true,
+    "source_exact_head_ci": "GPU-98 exact head 39bd10f73a23075a101e94b745ed0ad47e77fb67 has Fourfold/Tensor run 34255294883 completed/success and Tauri run 34255294801 completed/success.",
+    "constructor_tuple_reuse_contracts_present": true,
+    "closure_head_ci_requirement": "This documentation-only closure commit requires its own hosted run evidence before any exact-head green statement is made.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "speculative_instrumentation_rejected": true,
+    "speculative_optimization_rejected": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 28,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-100: stop constructor micro-optimization and measure the full-rebuild tax for a small, deterministic relation delta using existing Fourfold/Forest and compile_relation_blocks owners. Freeze one revision-bound base block plus a tiny semantic delta, compare canonical full rebuild cost and changed-coordinate scope, and first define exact unsupported/partial behavior. Do not introduce a second graph authority, persistent cache, backend registry, trusted constructor or production delta path until the measurement demonstrates a bounded architectural win and preserves canonical digest/error semantics."
+}

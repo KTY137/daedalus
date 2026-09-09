@@ -1,0 +1,147 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-91",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "470faa2393e3aad4b1efdf04e9ce2256d89b0e93",
+    "dependencies": "G1-EXP-TENSOR-GPU-90 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["change", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback restores the previous per-row sorted(row_result.items()) emission loop. No public API, wire schema, benchmark schema, authority or promotion state is involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-91",
+  "work_packet": "G1-EXP-TENSOR-GPU-91",
+  "title": "Prune matmul row-result item-pair sort transient",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "470faa2393e3aad4b1efdf04e9ce2256d89b0e93",
+  "implementation_head": "6e70259a96e6724e95660056c059d2ebf87bc6e7",
+  "scope": "Audit the canonical TypedRelationBlock sparse operator surface for one deletion-oriented duplicate materialization inside an existing owner. Keep deterministic CSR ordering, semiring semantics, operation budgets, entry bounds and direct-constructor validation unchanged; do not add a backend, cache, alternate block type, ordering flag or second execution path.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_blocks.py::TypedRelationBlock.matmul",
+    "finding": "Each output row already requires row_result as the bounded sparse accumulator. Before GPU-91 the canonical emission loop called sorted(row_result.items()), creating a transient list of key/value pair tuples even though values were already retained in row_result and only sorted column keys are needed to produce deterministic CSR order.",
+    "boundedness": "The accumulator remains row-local and the existing MAX_BLOCK_ENTRIES check still executes before appending the row. GPU-91 does not claim a new asymptotic memory bound; it removes only the item-pair materialization from the required per-row ordering step.",
+    "ordering_requirement": "A deterministic sort is still required because row_result insertion order follows contraction encounter order through the middle axis and is not a contractual column-order guarantee. GPU-91 therefore retains one sorted-key transient instead of inventing an ordered accumulator or alternate constructor.",
+    "gardener_conclusion": "Delete the unnecessary pair materialization while retaining the existing accumulator, ordering boundary and direct TypedRelationBlock constructor path."
+  },
+  "change": {
+    "implementation_commit": "6e70259a96e6724e95660056c059d2ebf87bc6e7",
+    "production_blob": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "files_changed": 1,
+    "production_additions": 2,
+    "production_deletions": 2,
+    "before": "for column, value in sorted(row_result.items()): append column and value",
+    "after": "for column in sorted(row_result): append column and row_result[column]",
+    "new_helper": false,
+    "new_cache": false,
+    "new_backend": false,
+    "new_public_api": false,
+    "new_execution_path": false
+  },
+  "semantic_invariants": {
+    "csr_order": "Output columns remain strictly increasing inside each emitted row because the same integer column keys are sorted before append.",
+    "semiring": "Boolean, natural, tropical and evidence-dag accumulation still occurs entirely in the unchanged row_result contraction loop; only final row emission reads the already-computed scalar by key.",
+    "operation_budget": "The exact multiply/add operation counter and refusal point are unchanged and remain ahead of row emission.",
+    "entry_bound": "The existing len(values) + len(row_result) > MAX_BLOCK_ENTRIES refusal remains unchanged and executes before sorting/emitting the row.",
+    "axes_and_subject": "Typed middle-axis compatibility, exact Fourfold subject identity and output signature/axes are unchanged.",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; TypedRelationBlock remains a regenerable internal computational view.",
+    "public_api": "No public API, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": true,
+    "test_change": false,
+    "probe_change": false,
+    "duplicate_item_pair_materialization_removed": true,
+    "sorted_key_boundary_retained": true,
+    "new_helper_added": false,
+    "parallel_abstraction_added": false,
+    "summary": "matmul now sorts only the row accumulator keys and looks up values from the existing row_result mapping, deleting the redundant sorted item-pair list while preserving deterministic CSR emission and all contraction semantics."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "470faa2393e3aad4b1efdf04e9ce2256d89b0e93",
+    "implementation_head": "6e70259a96e6724e95660056c059d2ebf87bc6e7",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "existing_semiring_contraction_tests": "tests/twin/test_relation_contractions.py@288cfcfcce52fecbdff9577f6081c347c95cb55e",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "diff_audit": "470faa2393e3aad4b1efdf04e9ce2256d89b0e93...6e70259a96e6724e95660056c059d2ebf87bc6e7 is one commit and one production file with +2/-2; no unrelated file changed.",
+    "focused_contract_surface": "The existing relation contraction contracts exercise Boolean multi-hop composition, natural path counting, tropical minimum cost, evidence-dag alternative provenance, exact middle-axis compatibility and cross-revision/semiring refusal through TypedRelationBlock.matmul. No new structural test owner was added for a two-line emission-only refactor.",
+    "ci_requirement": "Exact closure-head Fourfold/Tensor workflow evidence is required before any green-PR statement. A pre-closure implementation-head run may support diagnosis but is not inherited as closure evidence.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "executable_lines_net": 0,
+    "duplicate_pair_materialization_removed": true,
+    "existing_sparse_owner_retained": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 18,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No extra remote ref was moved, archived or deleted in this Tensor packet. The repository currently exposes 18 remote branches, so the owner-declared canonical 11-branch topology has drift; evidence-aware classification belongs on the operations/gardener line and branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-92 only: audit whether the remaining sorted(row_result) key list in TypedRelationBlock.matmul is a necessary deterministic boundary across all semirings and contraction encounter orders. Remove it only if an existing owner already provides canonical column order without a second accumulator, ordering flag or execution path; otherwise retain it as negative Gardener evidence and move to another sparse/incremental hotspot."
+}

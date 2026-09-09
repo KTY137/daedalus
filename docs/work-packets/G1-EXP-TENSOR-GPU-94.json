@@ -1,0 +1,151 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-94",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "a63ca923a1210697aafcc0751fe41a8143b6182e",
+    "dependencies": "G1-EXP-TENSOR-GPU-93 and its exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["existing_contract_evidence", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only this research record. Production, tests, probes, public API, wire schemas, benchmark schemas, authority and promotion state are unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-94",
+  "work_packet": "G1-EXP-TENSOR-GPU-94",
+  "title": "Retain single-list TypedAxis canonicalization after transient audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "a63ca923a1210697aafcc0751fe41a8143b6182e",
+  "scope": "Audit TypedAxis.__post_init__ for one removable temporary container or repeated traversal while preserving bounded cardinality, exact label validation, duplicate refusal, deterministic lexical canonicalization, direct-constructor error precedence and exact tuple reuse for already canonical axes. Do not add a second axis family, trusted constructor, cache, ordering flag or parameterized cross-contract helper merely to delete bounded validation work.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_blocks.py::TypedAxis.__post_init__",
+    "finding": "The current owner already uses the minimum retained container shape for its two input classes. Exact tuple input starts with no list allocation and is returned by identity when labels validate in canonical order. Mutable or non-exact-tuple Sequence input uses exactly one list because the frozen dataclass must take an immutable snapshot. Exact tuple input allocates that same single list only after the first observed inversion, when lexical reordering is actually required.",
+    "duplicate_refusal": "Adjacent duplicates on an already ordered exact tuple are refused during the first validation pass. Once an inversion requires sorting, duplicate detection must occur after lexical order is established because duplicates may have been non-adjacent in caller order. Replacing the adjacent post-sort scan with a set would add a full hash container, lose the existing no-hash property and provide no bounded-memory improvement.",
+    "traversal_analysis": "The first pass is required to validate every label before canonical storage. The post-sort adjacent scan occurs only on the fallback path and is required to detect non-adjacent duplicates after canonicalization. Keeping a prefix list from construction start would allocate for the overwhelmingly canonical tuple path; sorting the whole tuple unconditionally would also allocate and add a second full traversal to the canonical path. The current lazy fallback therefore dominates the obvious alternatives under the existing contract.",
+    "parallel_abstraction_audit": "TensorAxis in daedalus/twin/tensor.py has a similar bounded canonical-label pattern, but it is a different contract owner with a different label-length bound and NUL/refusal surface. Introducing a shared parameterized helper only for these short validation loops would create cross-contract coupling and a new abstraction without removing a semantic owner. GPU-94 therefore does not consolidate the two classes.",
+    "gardener_conclusion": "Retain the current TypedAxis canonicalization owner unchanged. No production or test edit is justified: the existing relation-axis test owner already pins exact tuple identity reuse, fallback lexical sorting, duplicate refusal and the absence of a full hash-set duplicate detector. Preserve this negative result instead of manufacturing another helper or cache."
+  },
+  "existing_contract_evidence": {
+    "test_owner": "tests/twin/test_relation_axis_lookup.py",
+    "test": "test_typed_axis_reuses_canonical_tuple_and_sorts_only_fallback",
+    "coverage": [
+      "canonical exact tuples are retained by identity",
+      "unordered labels are lexically canonicalized",
+      "duplicate labels are refused",
+      "a hash-probe label proves duplicate detection does not materialize a full hash set"
+    ],
+    "new_test_required": false,
+    "reason": "The bounded counterexamples needed by this audit are already pinned in the existing owner; another test would duplicate contract evidence rather than strengthen it."
+  },
+  "semantic_invariants": {
+    "boundedness": "axis.labels remains a bounded Sequence with MAX_BLOCK_AXIS_LABELS admission before copying or sorting.",
+    "label_validation": "Every stored label must pass _label, including non-empty bounded string and NUL refusal.",
+    "canonical_order": "Accepted labels remain deterministic lexicographic order.",
+    "duplicate_refusal": "Duplicate labels remain fail-closed for both already ordered and initially unordered inputs.",
+    "tuple_reuse": "Already canonical exact tuple input remains reusable by identity without an eager list or tuple copy.",
+    "mutable_snapshot": "Non-exact-tuple Sequence input is still materialized into an immutable tuple before retention.",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; TypedAxis and TypedRelationBlock remain regenerable internal computational views.",
+    "public_api": "No public API, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "transient_removed": false,
+    "single_list_fallback_retained": true,
+    "negative_gardener_evidence_retained": true,
+    "new_helper_added": false,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-94 finds no removable TypedAxis transient that improves the canonical path without adding a container, traversal or abstraction. The existing owner allocates nothing beyond scalars for canonical exact tuples and only one list when snapshotting or reordering is required, so it is retained unchanged."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "a63ca923a1210697aafcc0751fe41a8143b6182e",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "tensor_view": "daedalus/twin/tensor.py@6873a92aa401a4f50619b4c4cace536a149882fa",
+    "axis_tests": "tests/twin/test_relation_axis_lookup.py@74bf3438988aec37dfaa9a9c3fc5a8033a4b9b45",
+    "prior_exact_head_fourfold_tensor_run": "34224232120:completed/success",
+    "prior_exact_head_tauri_run": "34224232044:completed/success",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "static_audit": "TypedAxis canonical exact-tuple path performs one bounded validation pass with scalar previous-state only. Its fallback uses one list for snapshot/reordering, one in-place sort and one adjacent duplicate scan; the existing hash-probe contract excludes a full duplicate set.",
+    "existing_focused_contract": "test_typed_axis_reuses_canonical_tuple_and_sorts_only_fallback already pins the behavior relevant to this packet, so no duplicate test was added.",
+    "prior_head_ci": "GPU-93 exact head a63ca923a1210697aafcc0751fe41a8143b6182e has Fourfold/Tensor run 34224232120 completed/success and Tauri run 34224232044 completed/success.",
+    "closure_head_ci_requirement": "This documentation-only closure commit must obtain its own workflow evidence before any exact-head green statement is made; prior-head success is baseline evidence only.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "necessary_canonicalization_boundary_retained": true,
+    "existing_test_owner_reused": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 19,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No extra remote ref was moved, archived or deleted in this Tensor packet. The owner-declared 11-branch topology remains drifted in the live repository; evidence-aware classification belongs on the operations/gardener line, and branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-95 only: audit TypedRelationBlock.from_coordinates/_from_indexed admission for one concrete avoidable materialization that is not already covered by GPU-81/82. Preserve caller-order independence, semiring aggregation, exact axis lookup/refusal, operation and entry bounds, canonical (row,column) ordering and direct-constructor identity; if the candidate requires a second builder, trusted path or extra persistent index, retain the current owner and move on."
+}

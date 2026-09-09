@@ -1,0 +1,197 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-98",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "2c5ccc2e6fc6301cc28b2fdfcc65337313d5cf72",
+    "dependencies": "G1-EXP-TENSOR-GPU-97 and exact-head retained CI diagnostics",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "measurement"]},
+      "contracts_and_behavior": {"source_fields": ["measurement", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only this measured research record. Production, tests, probes, public API, wire schemas, authority and promotion state are unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-98",
+  "work_packet": "G1-EXP-TENSOR-GPU-98",
+  "title": "Isolate canonical reconstruction as the bounded packed-bitset hotspot",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "2c5ccc2e6fc6301cc28b2fdfcc65337313d5cf72",
+  "scope": "Use retained exact-head CI artifacts from the existing bounded CPU packed-bitset and TypedRelationBlock validation diagnostics to identify one measured sparse computational hotspot. Do not add a backend, cache, block type, delta abstraction or production optimization in this packet; first establish reproducible evidence about where canonical output materialization costs reside.",
+  "measurement": {
+    "authority": "diagnostic only; KnowledgeForest/Fourfold remain semantic authority and TypedRelationBlock.matmul remains the Boolean CSR oracle",
+    "source_head": "2c5ccc2e6fc6301cc28b2fdfcc65337313d5cf72",
+    "workflow": {
+      "id": 34248822049,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "artifacts": {
+      "cpu_bitset": {
+        "artifact_id": 10065142337,
+        "file": "cpu_bitset_ci.json",
+        "sha256": "c0a60d7f1a8a2f0e72faa43ff5f13aebeb3c5935cff96473de01937a48ac4f74"
+      },
+      "typed_block_validation": {
+        "artifact_id": 10065143109,
+        "file": "typed_block_validation_profile_ci.json",
+        "sha256": "1da0ba6734ecbf0a00a3dd21a745392afdf65722aeeca9be69742aff8d6f2252"
+      }
+    },
+    "frozen_case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "actual_density": 0.05078125,
+      "row_width": 13,
+      "left_entries": 3328,
+      "right_entries": 3328,
+      "output_entries": 43264,
+      "warmup": 2,
+      "timing_repeats": 5,
+      "profile_repeats": 3
+    },
+    "packed_bitset_ms": {
+      "pack": 0.540672,
+      "resident_kernel_median": 0.450607,
+      "support_decode": 0.923087,
+      "block_construct": 1.762632,
+      "canonicalize": 2.685719,
+      "one_shot_end_to_end": 3.703764,
+      "cpu_reference_median": 18.457425
+    },
+    "derived_ratios": {
+      "canonicalize_over_resident_kernel": 5.960224763485699,
+      "block_construct_over_resident_kernel": 3.911683573490869,
+      "support_decode_over_resident_kernel": 2.0485411899948294,
+      "block_construct_share_of_canonicalize": 0.6562979969237287,
+      "support_decode_share_of_canonicalize": 0.3437020030762712
+    },
+    "validation_profile": {
+      "unprofiled_construct_ms_median": 1.847537,
+      "support_decode_unprofiled_ms_median": 0.942977,
+      "typed_block_post_init_cprofile_cumulative_ms_median": 4.251245,
+      "typed_block_post_init_cprofile_self_ms_median": 3.954457,
+      "stored_sequence_cprofile_cumulative_ms_median": 0.265935,
+      "profiler_slowdown_ratio": 2.385264273462453,
+      "interpretation": "cProfile values are attribution evidence only and are not compared as absolute wall time against the unprofiled constructor. The independent unprofiled measurements establish the reconstruction hotspot; the profile indicates that TypedRelationBlock.__post_init__ dominates the profiled constructor path while persisted-scalar sequence admission is a minority component."
+    },
+    "correctness": {
+      "boolean_support_equal": true,
+      "cpu_oracle_executed": true,
+      "canonical_digest": "6db1c26e097bcb2f9c5b7f35fa69d5051d1de4502e196c858272d480627c21fa"
+    },
+    "finding": "For the frozen 256x256, row-width-13 case with 43,264 output entries, canonical reconstruction costs 2.686 ms versus 0.451 ms for the resident packed-bitset kernel. Reconstruction is about 5.96x the kernel phase; direct block construction is about 65.6% of reconstruction and support decoding about 34.4%. This isolates canonical output materialization, not Boolean relation composition, as the dominant measured post-kernel cost in this bounded case.",
+    "scope_limit": "The diagnostic is synthetic, CPU-only and bounded. It does not establish a general speedup, memory win, production workload crossover, GPU/Tensor-Core superiority, or Tensor-over-Forest advantage."
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; packed bitsets and relation blocks are regenerable computational views.",
+    "oracle": "TypedRelationBlock.matmul remains the Boolean semantic oracle for the diagnostic.",
+    "canonical_output": "Any later optimization must preserve exact TypedAxis identity, CSR row-major ordering, exact-int index admission, semiring value admission, Fourfold subject binding and canonical digest.",
+    "error_precedence": "Any later constructor-path change must retain direct-constructor validation and observable refusal precedence unless an explicit contract amendment proves otherwise.",
+    "bounded_memory": "No persistent cache or duplicate block-sized representation is added by this packet.",
+    "public_api": "No public API, wire schema, authority, promotion contract or benchmark schema changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "measurement_artifact_added": false,
+    "work_packet_record_added": true,
+    "hotspot_isolated": "canonical output reconstruction after packed-bitset composition",
+    "dominant_subphase": "TypedRelationBlock construction within canonical reconstruction",
+    "parallel_abstraction_added": false,
+    "summary": "GPU-98 converts existing retained CI diagnostics into a bounded optimization decision: in the frozen high-output case, canonical reconstruction is materially larger than the resident packed-bitset kernel, and block construction is the largest measured reconstruction component. No production optimization is made until that existing constructor owner is measured more finely without changing semantic admission."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "2c5ccc2e6fc6301cc28b2fdfcc65337313d5cf72",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "cpu_bitset_probe": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+    "typed_block_validation_probe": "experiments/tensor_gpu/typed_block_validation_profile.py",
+    "exact_head_fourfold_tensor_run": "34248822049:completed/success",
+    "exact_head_tauri_run": "34248822191:completed/success",
+    "cpu_bitset_artifact": "10065142337/cpu_bitset_ci.json sha256:c0a60d7f1a8a2f0e72faa43ff5f13aebeb3c5935cff96473de01937a48ac4f74",
+    "typed_block_validation_artifact": "10065143109/typed_block_validation_profile_ci.json sha256:1da0ba6734ecbf0a00a3dd21a745392afdf65722aeeca9be69742aff8d6f2252",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "measurement_reproduced_from_retained_artifacts": true,
+    "artifact_integrity_sha256_recorded": true,
+    "semantic_correctness": "The packed-bitset result matched the TypedRelationBlock.matmul Boolean support oracle and canonical digest in the frozen case.",
+    "exact_source_head_ci": "GPU-97 exact head 2c5ccc2e6fc6301cc28b2fdfcc65337313d5cf72 has Fourfold/Tensor run 34248822049 completed/success and Tauri run 34248822191 completed/success.",
+    "closure_head_ci_requirement": "This documentation-only closure commit requires its own hosted run evidence before any exact-head green statement is made.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "speculative_optimization_rejected": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 28,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-99: instrument the existing TypedRelationBlock canonical construction owner under the same frozen 256x256/43,264-output case to separate structural CSR admission from scalar-sequence admission and immutable tuple materialization using the existing validation profile surface. Only modify production if one existing subphase is measurably dominant and can be simplified without a trusted constructor, validation bypass, cache, second block type or changed error precedence. In parallel, keep campaign issue #239's true delta/incremental path as the larger architectural target rather than treating this synthetic diagnostic as a product benchmark."
+}

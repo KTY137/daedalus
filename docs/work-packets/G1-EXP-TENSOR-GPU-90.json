@@ -1,0 +1,153 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-90",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "93011a321c08e65e622f59642ae1a22c196b9a1c",
+    "dependencies": "G1-EXP-TENSOR-GPU-89 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["decision", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Closed-research packet only. Rollback removes this evidence record; no executable, public API, wire, benchmark, authority or promotion state changes are involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-90",
+  "work_packet": "G1-EXP-TENSOR-GPU-90",
+  "title": "Retain pre-fact staging boundary after record-container streaming audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "93011a321c08e65e622f59642ae1a22c196b9a1c",
+  "scope": "Audit binding_records and edge_records in the canonical compile_relation_blocks owner for a deletion- or streaming-oriented bounded-memory improvement. Preserve exact cross-plane binding admission, retained relation checks, hyperedge/undirected refusal, endpoint-completeness precedence, Evidence-DAG alternatives, scalar observer semantics, discover-all completeness-before-materialization and receipt counts. Do not create an explicit-mode compiler, second classifier, cache, index, fact store or public API.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "current_phase_boundary": "The compiler validates the Forest/Fourfold partition and selected signatures, refuses conflicting retained hyperedges, stages included verified bindings and admissible same-plane edges, validates every Forest edge including exact cross-plane binding admission and directionality, derives discover-all selected signatures, and requires complete endpoints before any _record_fact call. Only after those refusal/admission phases finish are edge_records and then binding_records reduced into bounded per-signature fact maps.",
+    "direct_streaming_finding": "Calling _record_fact while iterating bindings or Forest edges would move MAX_BLOCK_ENTRIES refusal and evidence materialization ahead of later edge admission/refusal and, for discover-all, ahead of endpoint-completeness validation. That changes observable refusal/error precedence and can perform provenance work for a compilation that the current owner rejects before fact materialization.",
+    "binding_container_finding": "binding_records could be removed only by scanning snapshot.bindings again after edge validation/completeness and reconstructing RelationSignature plus endpoint indices. The immutable snapshot makes that technically possible, but it duplicates the selected-binding classifier/filter or requires extracting a new shared binding-classification helper. The first option adds a second classification path that can drift from included_binding_keys/discovery; the second adds an abstraction solely to delete one bounded list.",
+    "edge_container_finding": "edge_records could likewise be removed only by a second Forest-edge traversal that replays same-plane requested-signature pruning, retained-digest admission, directionality handling and endpoint-index derivation, or by introducing a shared edge-classification abstraction. Replaying the logic creates parallel admission code; extracting it expands the owner surface and would need to encode cross-plane refusal behavior that the current staging loop already owns.",
+    "record_order_semantics": "The current reduction order is same-plane edge facts first and verified-binding facts second. Those sources occupy disjoint same-plane versus cross-plane signatures, but preserving the order keeps existing fact-limit/error behavior stable and avoids creating a new merged fact-record union with origin tags.",
+    "boundedness_context": "The expensive semantic payload remains bounded per selected relation by MAX_BLOCK_ENTRIES and compiled relation count by MAX_COMPILED_RELATIONS. The staging lists retain references plus already-derived signatures/indices; they are transient and disappear before the immutable CompiledRelationBlocks receipt is returned. This packet does not claim the source Forest or Fourfold collections are globally size-bounded by these constants.",
+    "gardener_conclusion": "Do not trade one visible staging boundary for duplicated admission logic or a new classifier/helper subsystem. Retain both record containers until a future change can delete them together with an already-required single classification pass or supplies measured evidence that their transient reference overhead is a real bottleneck."
+  },
+  "decision": {
+    "kind": "retain-phase-boundary",
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "record_containers_removed": false,
+    "streaming_enabled": false,
+    "second_pass_classifier_added": false,
+    "new_helper_added": false,
+    "summary": "Keep binding_records and edge_records as the single explicit admission-to-materialization phase boundary. Direct streaming changes refusal/materialization precedence; rescan-based deletion duplicates classification; helper-based deletion adds an abstraction without measured justification."
+  },
+  "semantic_invariants": {
+    "cross_plane_admission": "A cross-plane ForestEdge still requires the exact included verified Fourfold binding key before any relation fact is materialized.",
+    "same_plane_retention": "Same-plane Forest edges remain eligible only when their exact canonical digest is retained by the declared Fourfold plane.",
+    "lossy_relation_refusal": "Retained hyperedges and conflicting undirected Forest edges remain refused before fact materialization.",
+    "endpoint_completeness": "Explicit selected endpoints remain checked before staging; discover-all selected endpoints remain checked after discovery and before _record_fact.",
+    "observer_semantics": "Boolean remains True per deduplicated semantic coordinate, natural remains unit 1, and evidence-dag retains canonical alternative witness bundles.",
+    "receipt_counts": "forest_edge_count, forest_hyperedge_count and verified_binding_count remain source counts; semantic_fact_count remains the sum of compiled block entry counts.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; relation blocks remain a regenerable internal computational view.",
+    "public_api": "No public API, compatibility facade, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "closed_research": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "record_containers_retained": true,
+    "error_precedence_preserved": true,
+    "duplicate_classifier_avoided": true,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_compiler_added": false,
+    "summary": "The audit rejected direct streaming because it would move fact-limit/provenance work ahead of later refusal and discover-all completeness checks. Removing either transient list via a second immutable-source traversal is possible but would duplicate binding/edge classification or require a new abstraction, so the existing single staging boundary is retained as the smaller design."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "93011a321c08e65e622f59642ae1a22c196b9a1c",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "fourfold_contracts": "daedalus/twin/contracts.py@5523dfe53834874942a7c37120ee2f464ed15fda",
+    "selected_pruning_tests": "tests/twin/test_relation_compiler_selected_pruning.py@8376d84c84a786894645fd889a66f60cef4ee845",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "executable_tree_changed": false,
+    "focused_static_audit": "Reviewed the exact base-head compiler phase order, canonical immutable Fourfold binding contract and selected-pruning contracts. The current tests explicitly pin signature validation and endpoint completeness before evidence materialization, exact-binding refusal before facts when binding inclusion is disabled, selected pruning, discover-all relation discovery and retained-hyperedge refusal.",
+    "ci_requirement": "This documentation-only closure commit still requires exact-head workflow evidence before any green-PR statement. No pre-closure workflow is inherited as closure evidence.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "existing_compiler_owner_retained": true,
+    "duplicate_classification_path_added": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 16,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No branch was moved, archived or deleted in this Tensor packet because the extra refs require evidence-aware classification on the operations/gardener line; branch-count reduction alone is not a valid reason to destroy or relocate unique history."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-91 only: leave the admission-to-materialization staging boundary unchanged and return to the canonical TypedRelationBlock sparse operator surface. Audit one existing slicing/reduction/delta path for a deletion-oriented duplicate materialization or repeated traversal that can be removed inside the current owner while preserving deterministic CSR ordering, semiring semantics, operation budgets and direct-constructor validation. Do not add a backend, cache, alternate block type or second execution path."
+}

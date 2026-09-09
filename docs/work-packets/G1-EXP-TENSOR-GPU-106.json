@@ -1,0 +1,134 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-106",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "a81d63791752c55dfe1ad62a7b087ae2d03f2bd8",
+    "dependencies": "G1-EXP-TENSOR-GPU-105, canonical Fourfold relation digests, KnowledgeForest, compile_relation_blocks"
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-106",
+  "title": "Measure the relation-digest delta mapping tax at the existing before/after authority seam",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "a81d63791752c55dfe1ad62a7b087ae2d03f2bd8",
+  "scope": "Reuse the existing GPU-100 relation-delta fixture to test the GPU-105 before/after authority seam. Compute per-plane retained relation-digest set differences, map changed digests back to concrete Forest edges/signatures without a persistent index or cache, and compare affected-signature compilation to the ordinary full compile_relation_blocks oracle. Keep production code unchanged.",
+  "implementation": {
+    "production_change": false,
+    "diagnostic_probe": "experiments/tensor_gpu/relation_delta_authority_probe.py",
+    "focused_contract": "tests/twin/test_tensor_relation_delta_authority_probe.py",
+    "fixture_reused": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "new_incremental_backend": false,
+    "new_digest_index": false,
+    "new_compiler_cache": false,
+    "new_graph_authority": false,
+    "new_trusted_constructor": false,
+    "parallel_projection": false
+  },
+  "bounded_contract_result": {
+    "case": {
+      "nodes": 12,
+      "row_width": 2,
+      "base_forest_edges": 24,
+      "candidate_forest_edges": 25,
+      "changed_relation_digests": 1,
+      "added_relation_digests": 1,
+      "removed_relation_digests": 0,
+      "affected_signatures": [
+        ["code", "imports", "code"]
+      ]
+    },
+    "mapping_scope": {
+      "candidate_forest_edges_examined": 25,
+      "candidate_same_plane_edges_hashed": 25,
+      "hashes_per_added_digest": 25.0,
+      "base_forest_edges_examined_for_removals": 0,
+      "base_same_plane_edges_hashed_for_removals": 0
+    },
+    "oracle": "affected-signature compile digest equals the ordinary full Boolean compile_relation_blocks digest",
+    "fail_closed": [
+      "a requested changed digest absent from the supplied authoritative Forest raises instead of being silently dropped",
+      "an empty digest delta scans and hashes zero Forest edges",
+      "scan repeat bounds reject bool aliases and out-of-range values"
+    ],
+    "interpretation": "The existing before/after Fourfold snapshots cheaply identify which canonical retained relation digests changed, but the current authority surface does not map those digests to ForestEdge payloads. In the frozen worst-position one-add case, locating one changed digest therefore requires rehashing every candidate same-plane Forest edge. Digest-set delta alone narrows semantic authority scope but does not provide O(delta) changed-edge work."
+  },
+  "decision": {
+    "closed": true,
+    "production_change": false,
+    "finding": "Do not build a production incremental Tensor compiler from relation_sha256s alone. The state-owner question is solved by GPU-105, but the payload-selection question remains scan/rehash-bound without an authority-safe digest-to-edge seam.",
+    "unsafe_shortcuts_rejected": [
+      "process-global digest-to-edge cache",
+      "persistent duplicate Forest edge index owned by Tensor",
+      "positional pairing of sorted relation_sha256s with Forest edges",
+      "silent skip when a changed digest cannot be located",
+      "second incremental relation compiler"
+    ]
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "probe_initial_commit": "100cd5199ae26bc7ad0611928e45edb234b4faed",
+    "probe_fix_commit": "0c515382040697a9c48ca62eb66f608e102aa6a1",
+    "probe_blob": "experiments/tensor_gpu/relation_delta_authority_probe.py@81f4b764c2a797e9c939bd97cdead7ce32037107",
+    "focused_test_commit": "68f1dbd0c9e288de553f2b2ab38b9efa17ef155d",
+    "focused_test_blob": "tests/twin/test_tensor_relation_delta_authority_probe.py@91f0fefaebcb68a6d4b7c403eea20a3eff5cb0cf",
+    "exact_test_head_fourfold_tensor": "34297628883:completed/success on 68f1dbd0c9e288de553f2b2ab38b9efa17ef155d",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "kind": "focused diagnostic contract plus existing Fourfold/Tensor integration workflow",
+    "masterplan_checked_first": true,
+    "exact_test_head_fourfold_tensor_green": true,
+    "isolated_wheel_imports_green": true,
+    "integrated_contract_matrix_green": true,
+    "repository_collection_green": true,
+    "manual_full_suite_green": false,
+    "tauri_required_for_packet_claim": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 1,
+    "documentation_files_changed": 1,
+    "existing_fixture_reused": true,
+    "duplicated_runtime_abstraction_added": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "claim_boundaries": [
+    "No production incremental Tensor path exists as a result of GPU-106.",
+    "No claim that relation-digest deltas can currently locate changed ForestEdge payloads in O(delta).",
+    "No latency or memory superiority claim; the contract's wall timing fields are diagnostic only and deterministic scan/hash counts are the primary evidence.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-107 should audit the existing Fourfold/Forest production path that already computes relation digests and determine whether a transient revision-bound digest-to-edge or digest-to-signature receipt can be reused at run_gate1_ignition without persisting a second graph authority. Prefer deleting duplicate hash work or threading an already-owned ephemeral value. If the current producer discards the association and recovering it requires a new persistent index or public contract, close that as negative evidence before proposing a schema change."
+}

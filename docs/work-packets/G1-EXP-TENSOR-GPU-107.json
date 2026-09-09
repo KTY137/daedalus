@@ -1,0 +1,113 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-107",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "ec7e6603a428258522ae4f933dde4fef3114138e",
+    "dependencies": "G1-EXP-TENSOR-GPU-106, reference compiler, Fourfold relation digests, KnowledgeForest"
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-107",
+  "title": "Reuse the producer-local relation digest without creating a second authority",
+  "classification": "implementation-research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "ec7e6603a428258522ae4f933dde4fef3114138e",
+  "scope": "Audit where canonical Forest relation digests are already computed, then delete duplicate producer-local hashing where the exact digest-to-edge association is naturally live. Do not persist or publish a new digest index, receipt family, cache, or graph authority.",
+  "audit": {
+    "legacy_forest": "fourfold_from_knowledge_forest already computes one edge digest inside the projection loop and immediately reuses it for same-plane relation membership or cross-plane binding evidence; no duplicate producer-local edge hash was found there.",
+    "reference_compiler_before": "compile_reference_project hashed each ForestEdge payload once as the deterministic Forest ordering tie-breaker, then hashed each retained same-plane edge payload again while building PlaneSnapshot.relation_sha256s.",
+    "gate1_boundary": "ReferenceCompileResult still intentionally returns the authoritative Forest and Fourfold snapshot without a persistent digest-to-edge index. The compile-local association is discarded at the result boundary, so GPU-106's later changed-digest-to-edge lookup limitation is not claimed solved."
+  },
+  "implementation": {
+    "production_change": true,
+    "production_file": "daedalus/twin/reference_compiler.py",
+    "change": "Materialize compile-local (ForestEdge, canonical_digest) rows once, sort the Forest with the same digest tie-breaker, and reuse the exact digest for same-plane Fourfold relation membership.",
+    "focused_contract": "tests/twin/test_reference_relation_digest_reuse.py",
+    "new_public_api": false,
+    "reference_compile_result_schema_changed": false,
+    "new_digest_index": false,
+    "new_compiler_cache": false,
+    "new_graph_authority": false,
+    "new_receipt_family": false,
+    "parallel_projection": false
+  },
+  "deterministic_contract_result": {
+    "edge_payload_hash_rule": "Within compile_reference_project, the focused fixture observes exactly one reference_compiler.canonical_sha call for each ForestEdge payload; retained same-plane relation membership reuses that digest instead of hashing the payload again.",
+    "semantic_guard": "The resulting Fourfold snapshot remains bound to the exact KnowledgeForest content digest.",
+    "scope_limit": "KnowledgeForest.content_sha256 still serializes/hashes the complete Forest identity, and later independent authority consumers may still need their own verification hash. GPU-107 only removes the duplicate producer-local canonical edge digest calculation."
+  },
+  "decision": {
+    "closed": true,
+    "finding": "There is a safe Gardener win before any new incremental schema: retain the digest-to-edge association only inside the existing reference compile call long enough to reuse it. Do not export it as a new persistent authority merely to accelerate later Tensor work.",
+    "incremental_tensor_unblocked": false,
+    "unsafe_shortcuts_rejected": [
+      "persistent digest-to-edge cache",
+      "Tensor-owned duplicate Forest index",
+      "new public digest receipt solely for performance",
+      "trusting sorted relation_sha256s as positional edge identity"
+    ]
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "implementation_commit": "a3eaa7bfb0c60e11f3b0a2f3a4196c66a5c288bc",
+    "production_blob": "daedalus/twin/reference_compiler.py@a131e5001a609565892ffcfd64ec835bfa02debe",
+    "focused_test_commit": "5fc657ff632af12d4764bf2604639fda5967b42e",
+    "focused_test_blob": "tests/twin/test_reference_relation_digest_reuse.py@b8e8192b65d54099c11fede4fd990336c076d6db",
+    "fourfold_tensor_run": "34301574121 on 5fc657ff632af12d4764bf2604639fda5967b42e",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "kind": "focused deterministic hash-count contract plus existing Fourfold/Tensor integration workflow",
+    "masterplan_checked_first": true,
+    "all_four_python_hashseed_contract_arms_green_on_test_head": true,
+    "isolated_wheel_imports_green_on_test_head": true,
+    "repository_collection_complete_at_packet_write": false,
+    "manual_full_suite_green": false,
+    "tauri_required_for_packet_claim": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "documentation_files_changed": 1,
+    "duplicate_same_plane_edge_hash_removed": true,
+    "persistent_state_added": false,
+    "duplicated_runtime_abstraction_added": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "claim_boundaries": [
+    "No claim that GPU-107 provides O(delta) changed-edge lookup after compile_reference_project returns.",
+    "No latency or memory superiority claim; the retained evidence is a deterministic duplicate-hash elimination contract, not a benchmark win.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-108 should measure the remaining end-to-end duplicate relation hashing across the existing reference compile -> Gate-1 before/after -> compile_relation_blocks path after this producer-local deletion. Only if a revision-bound association would eliminate a material measured cost should an existing result contract be considered for extension; otherwise retain stateless re-verification and avoid a new receipt/index abstraction."
+}

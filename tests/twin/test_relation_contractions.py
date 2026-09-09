@@ -142,6 +142,35 @@ def test_boolean_composition_matches_direct_reference_paths() -> None:
     assert result.get("api", "Config", semiring) is False
 
 
+def test_matmul_canonicalizes_columns_after_reverse_encounter_order() -> None:
+    semiring = BooleanSemiring()
+    source = TypedAxis("source", "code", ("api",))
+    middle = TypedAxis("middle", "code", ("m1", "m2"))
+    target = TypedAxis("target", "type", ("A", "B"))
+    left = block(
+        "imports",
+        source,
+        middle,
+        (("api", "m1", True), ("api", "m2", True)),
+        semiring,
+    )
+    right = block(
+        "declares",
+        middle,
+        target,
+        (("m1", "B", True), ("m2", "A", True)),
+        semiring,
+    )
+
+    result = left.matmul(right, semiring, relation="canonical-order")
+
+    assert result.column_indices == (0, 1)
+    assert tuple(result.iter_entries()) == (
+        ("api", "A", True),
+        ("api", "B", True),
+    )
+
+
 def test_natural_semiring_counts_independent_paths() -> None:
     semiring = NaturalSemiring()
     source = TypedAxis("source", "code", ("api",))
