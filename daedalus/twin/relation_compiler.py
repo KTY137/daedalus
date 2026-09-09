@@ -288,8 +288,9 @@ def compile_relation_blocks(
 
     Same-plane Forest edges and verified bindings are deduplicated by semantic
     endpoint/relation identity. The compiler admits only an exact constitutional
-    Forest/Fourfold node partition, then binds retained endpoints to their
-    canonical Fourfold plane indices once and reuses the indexed block owner;
+    Forest/Fourfold node partition, then enriches that validated partition map
+    in place with canonical Fourfold indices instead of allocating a second
+    node-id mapping. The indexed owner is reused by every later endpoint path;
     explicit plans key their already-validated requested signatures once and
     reuse those same records during binding/edge admission instead of rebuilding
     an equivalent ``RelationSignature`` for every inspected record. Discover-all
@@ -322,12 +323,11 @@ def compile_relation_blocks(
             "Forest provenance revision differs from the snapshot"
         )
 
-    _forest_node_partition(forest, snapshot)
+    node_location: dict[str, Any] = _forest_node_partition(forest, snapshot)
     planes = snapshot.planes
-    node_location: dict[str, tuple[str, int]] = {}
     for plane in planes:
         for position, node_id in enumerate(plane.node_ids):
-            node_location[node_id] = (plane.plane, position)
+            node_location[node_id] = (node_location[node_id], position)
 
     requested_signatures = (
         None
