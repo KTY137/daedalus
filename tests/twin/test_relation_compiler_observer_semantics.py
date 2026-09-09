@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import weakref
 
 import pytest
 
@@ -104,22 +105,26 @@ def _single_value(compiled: object) -> object:
     return entries[0][2]
 
 
-def _forbid_forest_evidence_materialization(
+def _require_scalar_fact_boundary_without_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def forbidden_atoms(edge: ForestEdge) -> tuple[str, ...]:
-        raise AssertionError(
-            f"scalar observer materialized Forest evidence for {edge.relation}"
-        )
+    original_record_fact = relation_compiler._record_fact
 
-    monkeypatch.setattr(relation_compiler, "_forest_edge_atoms", forbidden_atoms)
+    def guarded_record_fact(
+        facts: dict[object, dict[tuple[int, int], object]],
+        **kwargs: object,
+    ) -> None:
+        assert kwargs["evidence_atoms"] is None
+        original_record_fact(facts, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(relation_compiler, "_record_fact", guarded_record_fact)
 
 
 def test_boolean_observer_collapses_duplicate_witnesses_to_existence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
-    _forbid_forest_evidence_materialization(monkeypatch)
+    _require_scalar_fact_boundary_without_evidence(monkeypatch)
 
     compiled = compile_relation_blocks(
         forest,
@@ -137,7 +142,7 @@ def test_natural_observer_counts_semantic_paths_not_ingest_witnesses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
-    _forbid_forest_evidence_materialization(monkeypatch)
+    _require_scalar_fact_boundary_without_evidence(monkeypatch)
 
     compiled = compile_relation_blocks(
         forest,
@@ -209,7 +214,7 @@ def test_evidence_observer_reuses_retained_edge_digest(
     assert set(value.alternatives) == expected
 
 
-def test_forest_edge_evidence_normalizes_once_at_fact_boundary() -> None:
+def test_forest_edge_evidence_normalizes_at_fact_boundary() -> None:
     witness_a = _digest("boundary-a")
     witness_b = _digest("boundary-b")
     edge = ForestEdge(
@@ -221,9 +226,6 @@ def test_forest_edge_evidence_normalizes_once_at_fact_boundary() -> None:
     )
     edge_digest = canonical_sha(edge.to_dict())
 
-    atoms = relation_compiler._forest_edge_atoms(edge)
-    assert atoms == (witness_b, witness_a, witness_b)
-
     facts: dict[RelationSignature, dict[tuple[int, int], object]] = {}
     relation_compiler._record_fact(
         facts,
@@ -231,12 +233,60 @@ def test_forest_edge_evidence_normalizes_once_at_fact_boundary() -> None:
         source_index=0,
         target_index=1,
         scalar_value=None,
-        evidence_atoms=(edge_digest, *atoms),
+        evidence_atoms=(edge_digest, *edge.evidence),
     )
 
     assert facts[SIGNATURE][(0, 1)] == {
         tuple(sorted({edge_digest, witness_a, witness_b}))
     }
+
+
+class _TrackedDigest(str):
+    __slots__ = ("__weakref__",)
+
+
+@pytest.mark.parametrize("semiring", (BooleanSemiring(), NaturalSemiring()))
+def test_scalar_staging_releases_prior_admission_digests_before_fact_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+    semiring: object,
+) -> None:
+    forest, snapshot = _fixture()
+    edge_payloads = tuple(edge.to_dict() for edge in forest.edges)
+    original_canonical_sha = relation_compiler.canonical_sha
+    original_record_fact = relation_compiler._record_fact
+    digest_refs: list[weakref.ReferenceType[_TrackedDigest]] = []
+    live_digest_counts: list[int] = []
+
+    def tracking_canonical_sha(value: object) -> str:
+        digest = original_canonical_sha(value)
+        if any(value == payload for payload in edge_payloads):
+            tracked = _TrackedDigest(digest)
+            digest_refs.append(weakref.ref(tracked))
+            return tracked
+        return digest
+
+    def observing_record_fact(
+        facts: dict[object, dict[tuple[int, int], object]],
+        **kwargs: object,
+    ) -> None:
+        if not live_digest_counts:
+            live_digest_counts.append(sum(ref() is not None for ref in digest_refs))
+        original_record_fact(facts, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(relation_compiler, "canonical_sha", tracking_canonical_sha)
+    monkeypatch.setattr(relation_compiler, "_record_fact", observing_record_fact)
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        semiring,  # type: ignore[arg-type]
+        signatures=(SIGNATURE,),
+    )
+
+    assert len(digest_refs) == len(forest.edges)
+    assert live_digest_counts
+    assert live_digest_counts[0] < len(forest.edges)
+    assert _single_value(compiled) in (True, 1)
 
 
 @pytest.mark.parametrize(
@@ -345,7 +395,7 @@ def test_compiler_preserves_protocol_backend_substitution_by_semantic_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
-    _forbid_forest_evidence_materialization(monkeypatch)
+    _require_scalar_fact_boundary_without_evidence(monkeypatch)
 
     compiled = compile_relation_blocks(
         forest,
