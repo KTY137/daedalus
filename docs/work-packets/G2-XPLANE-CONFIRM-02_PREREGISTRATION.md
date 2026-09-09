@@ -74,10 +74,27 @@ property measured at the anchor, not an effect:
 3. At least 1,200 commits reachable from the anchor.
 4. Documentation and structured data tracked in-repo - without it there are no
    cross-plane commits at all and the run is impossible.
-5. **`.md`-to-`.py` file-count ratio at the anchor below 0.40**, i.e. less than
-   half `fastapi`'s 0.79. This is the "structurally unlike" requirement, and it
-   is deliberately a ratio of tracked files rather than anything derived from a
-   retrieval score.
+5. **knowledge-plane-to-code-plane file-count ratio at the anchor below
+   0.40**, i.e. less than half `fastapi`'s 0.79, counting planes with
+   `PLANE_BY_SUFFIX` - the same rule the instrument uses. This is the
+   "structurally unlike" requirement, and it is deliberately a ratio of tracked
+   files rather than anything derived from a retrieval score.
+
+   > **AMENDMENT, 2026-09-09, before any effect was measured.** This criterion
+   > originally read "`.md`-to-`.py` file-count ratio". That wording is
+   > defective and candidate 1 exposed it immediately: `pytest` documents in
+   > **`.rst`**, so it has essentially no `.md` files and would have PASSED a
+   > literal reading - while carrying 288 knowledge-plane files against 263
+   > code-plane files, a ratio of **1.10**, which is *more* documentation-heavy
+   > than `fastapi`, not less. `PLANE_BY_SUFFIX` maps `.md`, `.rst` and `.txt`
+   > alike to `knowledge`, so the criterion must count what the instrument
+   > counts.
+   >
+   > Amended here rather than reinterpreted silently, and legitimately, because
+   > **no retrieval has been run and no effect has been seen** - only tracked
+   > file counts, which are a precondition. The amendment makes the criterion
+   > STRICTER against the candidate under test: `pytest` passes the original
+   > wording and FAILS the amended one.
 6. `cross_plane_admissible >= 68`, the same floor as `CONFIRM-01`.
 7. Not Daedalus, not `fastapi`.
 

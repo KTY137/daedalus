@@ -1,0 +1,39 @@
+{
+ "anchor": "c3cc5a95d4f72e6ccc27ebae23344fce8cc70786",
+ "cases": 730,
+ "cross_plane_admissible": 700,
+ "hypotheses": {
+  "H4": "HOLDS",
+  "H5": "HOLDS",
+  "H6": "HOLDS"
+ },
+ "kill_fired": "14.1 -- fusion INFERIOR to bm25 (-0.0806, CI excludes zero). A PROPOSAL under plan 15, not an action; one subject is not replication.",
+ "knowledge_to_code_file_ratio": 0.14,
+ "license": "MIT",
+ "measured": "2026-09-09",
+ "mrr_gate": {
+  "fusion_rrf_raw": 0.5732,
+  "threshold": 0.2,
+  "verdict": "PASS"
+ },
+ "packet": "G2-XPLANE-CONFIRM-02",
+ "s10_verdicts": {
+  "INCONCLUSIVE": 0,
+  "KEEP": 2,
+  "KILL": 1,
+  "NOT_EVALUABLE": 12,
+  "UNDECIDABLE": 1
+ },
+ "sha256": {
+  "candidate_log.json": "b709e73832d3e0208773bfe6e8cf680b669409e4f8bd4199616973df1687b80a",
+  "kill_input_black.json.gz": "e63e2fc9e6783b46c2962ceea80de84635ae556a414a367e8a85fa22ad44b022",
+  "raw_black.json.gz": "10313252eddb8f957ce565267d3b8b474b3d4d474937bf3a97c0c4ae045fde84",
+  "s10_report_black.txt": "abbbdf90ea664946b6b675bf70eed9383495d944140acf05e6f44f567edd0625",
+  "stratified_run1.json": "72b1529d77235fdf064acd229d15baae921c87c260dcd2c822b9089182bc2569",
+  "stratified_run2.json": "72b1529d77235fdf064acd229d15baae921c87c260dcd2c822b9089182bc2569",
+  "taskset_black.json.gz": "55ded0f9ecd31c273dfcd943d5485c0daec09aea77816dc4144152662ef9cd52"
+ },
+ "stratified_runs_identical": true,
+ "subject": "black",
+ "taskset_digest": "sha256:876f41368a81756e99c5439c84c44679c4d6b809cc14557dbb4fefefb56013f8"
+}
