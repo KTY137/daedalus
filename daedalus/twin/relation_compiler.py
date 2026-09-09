@@ -296,8 +296,8 @@ def compile_relation_blocks(
     does not readmit already-authoritative labels through a second coordinate
     validation pass. The evidence observer retains canonical provenance
     alternatives; scalar observers keep their final semiring scalars in the
-    same bounded per-signature coordinate map and do not allocate provenance
-    bundle sets or a second coordinate-value materialization they cannot use.
+    same bounded per-signature coordinate map and do not retain per-edge
+    provenance in the admission-to-materialization staging records.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -307,6 +307,7 @@ def compile_relation_blocks(
     if type(include_verified_bindings) is not bool:
         raise ValueError("include_verified_bindings must be boolean")
     observer_name = _observer_name(semiring)
+    retain_evidence = observer_name == "evidence-dag"
     forest_digest = forest.content_sha256
     if snapshot.source_forest_sha256 != forest_digest:
         raise ValueError("snapshot does not bind the supplied Forest digest")
@@ -426,7 +427,9 @@ def compile_relation_blocks(
             if requested_by_key is None:
                 discovered.add(signature)
 
-    edge_records: list[tuple[ForestEdge, str, RelationSignature, int, int]] = []
+    edge_records: list[
+        tuple[RelationSignature, int, int, str | None, ForestEdge | None]
+    ] = []
     for edge in forest.edges:
         source_location = node_location.get(edge.source)
         target_location = node_location.get(edge.target)
@@ -485,7 +488,15 @@ def compile_relation_blocks(
             continue
         if edge_digest is None:
             raise AssertionError("same-plane edge admission lost its retained digest")
-        edge_records.append((edge, edge_digest, signature, source_index, target_index))
+        edge_records.append(
+            (
+                signature,
+                source_index,
+                target_index,
+                edge_digest if retain_evidence else None,
+                edge if retain_evidence else None,
+            )
+        )
         if requested_by_key is None:
             discovered.add(signature)
 
@@ -496,7 +507,6 @@ def compile_relation_blocks(
     )
     if requested_signatures is None:
         _require_complete_endpoint_planes(snapshot, selected)
-    retain_evidence = observer_name == "evidence-dag"
     scalar_value: bool | int | None
     if observer_name == "boolean":
         scalar_value = True
@@ -509,12 +519,19 @@ def compile_relation_blocks(
         RelationSignature,
         dict[tuple[int, int], Any],
     ] = {}
-    for edge, edge_digest, signature, source_index, target_index in edge_records:
-        atoms = (
-            (edge_digest, *_forest_edge_atoms(edge))
-            if retain_evidence
-            else None
-        )
+    for (
+        signature,
+        source_index,
+        target_index,
+        edge_digest,
+        edge,
+    ) in edge_records:
+        if retain_evidence:
+            if edge_digest is None or edge is None:
+                raise AssertionError("evidence observer lost retained edge provenance")
+            atoms: tuple[str, ...] | None = (edge_digest, *_forest_edge_atoms(edge))
+        else:
+            atoms = None
         _record_fact(
             facts,
             signature=signature,
