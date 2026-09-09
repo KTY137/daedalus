@@ -575,6 +575,11 @@ def compile_relation_blocks(
         source_revision=snapshot.source_revision,
         source_fourfold_sha256=snapshot.digest,
     )
+    selected_planes = {
+        plane
+        for signature in selected
+        for plane in (signature.source_plane, signature.target_plane)
+    }
     axes = {
         plane: TypedAxis(
             name=f"{plane}-nodes",
@@ -582,6 +587,7 @@ def compile_relation_blocks(
             labels=planes[index].node_ids,
         )
         for index, plane in enumerate(FOURFOLD_PLANES)
+        if plane in selected_planes
     }
 
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []

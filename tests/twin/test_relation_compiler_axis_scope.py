@@ -1,0 +1,151 @@
+from __future__ import annotations
+
+import hashlib
+
+import pytest
+
+from daedalus.schemas import ContractProvenance
+from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
+from daedalus.twin import relation_compiler
+from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
+from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
+from daedalus.twin.relation_blocks import RelationSignature, TypedAxis
+from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
+from daedalus.twin.semiring import BooleanSemiring
+
+REVISION = "8" * 40
+CREATED_AT = "2026-09-09T20:57:28+02:00"
+
+
+def _digest(label: str) -> str:
+    return hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _edge(source: str, target: str, relation: str) -> ForestEdge:
+    return ForestEdge(
+        source=source,
+        target=target,
+        relation=relation,
+        directed=True,
+        evidence=(_digest(f"{relation}:{source}:{target}"),),
+    )
+
+
+def _fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/api.py", "source_file"),
+            ForestNode("src/worker.py", "source_file"),
+            ForestNode("type:Event", "type"),
+            ForestNode("docs/architecture.md", "document"),
+        ),
+        edges=(
+            _edge("src/api.py", "src/worker.py", "imports"),
+            _edge("src/worker.py", "type:Event", "declares"),
+        ),
+        hyperedges=(),
+        provenance={
+            "origin": "test.relation-compiler-axis-scope",
+            "source_revision": REVISION,
+        },
+    )
+    legacy = fourfold_from_knowledge_forest(
+        forest,
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        trace_id="relation-compiler-axis-scope",
+    )
+    planes = tuple(
+        (
+            PlaneSnapshot(
+                plane=plane.plane,
+                source_revision=plane.source_revision,
+                status="complete",
+                node_ids=plane.node_ids,
+                relation_sha256s=plane.relation_sha256s,
+                evidence_sha256s=plane.evidence_sha256s,
+                reason=None,
+            )
+            if plane.plane in {"code", "type"}
+            else plane
+        )
+        for plane in legacy.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-axis-scope.complete-endpoints",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in legacy.bindings),
+        ),
+        trace_id="relation-compiler-axis-scope-complete",
+    )
+    snapshot = FourfoldSnapshot(
+        repository_id=legacy.repository_id,
+        source_revision=REVISION,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=legacy.bindings,
+        provenance=provenance,
+    )
+    return forest, snapshot
+
+
+def _track_axes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    observed: list[str] = []
+
+    def tracking_axis(*args: object, **kwargs: object) -> TypedAxis:
+        plane = kwargs.get("plane")
+        if not isinstance(plane, str):
+            raise AssertionError("compiler stopped constructing TypedAxis with named plane")
+        observed.append(plane)
+        return TypedAxis(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(relation_compiler, "TypedAxis", tracking_axis)
+    return observed
+
+
+def test_explicit_same_plane_compile_constructs_only_its_endpoint_axis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    observed = _track_axes(monkeypatch)
+    signature = RelationSignature("code", "imports", "code")
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(signature,),
+    )
+
+    assert observed == ["code"]
+    assert tuple(compiled.block_map) == (relation_block_name(signature),)
+    assert tuple(compiled.block_map[relation_block_name(signature)].iter_entries()) == (
+        ("src/api.py", "src/worker.py", True),
+    )
+
+
+def test_explicit_cross_plane_compile_constructs_only_selected_endpoint_axes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    observed = _track_axes(monkeypatch)
+    signature = RelationSignature("code", "declares", "type")
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(signature,),
+    )
+
+    assert observed == ["code", "type"]
+    assert tuple(compiled.block_map) == (relation_block_name(signature),)
+    assert tuple(compiled.block_map[relation_block_name(signature)].iter_entries()) == (
+        ("src/worker.py", "type:Event", True),
+    )
