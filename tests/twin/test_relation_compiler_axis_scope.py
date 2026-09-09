@@ -109,12 +109,29 @@ def _track_axes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return observed
 
 
+def _track_retained_digest_sets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[str, ...]]:
+    observed: list[tuple[str, ...]] = []
+    builtin_frozenset = frozenset
+
+    def tracking_frozenset(values: object = ()) -> frozenset[object]:
+        materialized = tuple(values)  # type: ignore[arg-type]
+        observed.append(materialized)  # type: ignore[arg-type]
+        return builtin_frozenset(materialized)
+
+    monkeypatch.setattr(relation_compiler, "frozenset", tracking_frozenset, raising=False)
+    return observed
+
+
 def test_explicit_same_plane_compile_constructs_only_its_endpoint_axis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
-    observed = _track_axes(monkeypatch)
+    observed_axes = _track_axes(monkeypatch)
+    observed_digest_sets = _track_retained_digest_sets(monkeypatch)
     signature = RelationSignature("code", "imports", "code")
+    code_plane = next(plane for plane in snapshot.planes if plane.plane == "code")
 
     compiled = compile_relation_blocks(
         forest,
@@ -123,7 +140,8 @@ def test_explicit_same_plane_compile_constructs_only_its_endpoint_axis(
         signatures=(signature,),
     )
 
-    assert observed == ["code"]
+    assert observed_axes == ["code"]
+    assert observed_digest_sets == [tuple(code_plane.relation_sha256s)]
     assert tuple(compiled.block_map) == (relation_block_name(signature),)
     assert tuple(compiled.block_map[relation_block_name(signature)].iter_entries()) == (
         ("src/api.py", "src/worker.py", True),
@@ -134,7 +152,8 @@ def test_explicit_cross_plane_compile_constructs_only_selected_endpoint_axes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forest, snapshot = _fixture()
-    observed = _track_axes(monkeypatch)
+    observed_axes = _track_axes(monkeypatch)
+    observed_digest_sets = _track_retained_digest_sets(monkeypatch)
     signature = RelationSignature("code", "declares", "type")
 
     compiled = compile_relation_blocks(
@@ -144,7 +163,8 @@ def test_explicit_cross_plane_compile_constructs_only_selected_endpoint_axes(
         signatures=(signature,),
     )
 
-    assert observed == ["code", "type"]
+    assert observed_axes == ["code", "type"]
+    assert observed_digest_sets == []
     assert tuple(compiled.block_map) == (relation_block_name(signature),)
     assert tuple(compiled.block_map[relation_block_name(signature)].iter_entries()) == (
         ("src/worker.py", "type:Event", True),
