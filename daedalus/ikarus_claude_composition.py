@@ -379,6 +379,10 @@ def _authenticated_payload_body(
         raise IkarusClaudeCompositionRefused(
             "authenticated Claude payload timeout is malformed"
         )
+    if not _is_lower_sha256(body.get("invocation_sha256")):
+        raise IkarusClaudeCompositionRefused(
+            "authenticated Claude payload invocation identity is malformed"
+        )
     return body
 
 
@@ -423,6 +427,16 @@ def _require_provider_result_binding(
     if type(runtime_receipt.get("executed")) is not bool:
         raise IkarusClaudeCompositionRefused(
             "sealed Claude runtime receipt has no exact execution state"
+        )
+    replay = result.get("replay")
+    if replay is not None and type(replay) is not bool:
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude result has a malformed replay state"
+        )
+    executed = runtime_receipt["executed"]
+    if (executed and replay is True) or (not executed and replay is not True):
+        raise IkarusClaudeCompositionRefused(
+            "sealed Claude replay evidence contradicts the runtime receipt"
         )
     if not _is_lower_sha256(runtime_receipt.get("start_receipt_sha256")):
         raise IkarusClaudeCompositionRefused(
@@ -489,10 +503,59 @@ def dispatch_mission_bound_claude_invocation(
     }
 
 
+def execute_mission_bound_claude_invocation(
+    mission: MissionContract,
+    attempt: AttemptContract,
+    request: OneShotRequest,
+    runtime_evidence: OneShotRuntimeEvidenceBinding,
+    tool_scope: IkarusToolScopeProjection,
+    effect_request: EffectLeaseRequest,
+    execution: EffectExecutionRequest,
+    *,
+    runtime_authorization: RuntimeBoundEffectAuthorization,
+    workspace_grant: ClaudeWorkspaceGrant,
+    invocation_authority: ProviderInvocationObservationAuthority,
+    invocation_payload: ProviderInvocationPayload,
+    invocation_abi: ProviderInvocationABIContract,
+    observation_binding_ledger: ProviderObservationBindingLedger,
+    executable_registry: ProviderExecutableObjectRegistry,
+    pre_admission: ProviderExecutablePreAdmissionReceipt,
+    at: datetime,
+) -> dict[str, Any]:
+    """Consume one complete authority set and dispatch it as one atomic handoff.
+
+    This is the productive Ikarus-facing seam for a Mission/Attempt authority
+    producer. It intentionally issues nothing: every authority must already be
+    canonical and in-process. Composition completes before dispatch is reachable,
+    so a partial or substituted authority set can never fall through to Claude.
+    """
+
+    invocation = compose_mission_bound_claude_invocation(
+        mission,
+        attempt,
+        request,
+        runtime_evidence,
+        tool_scope,
+        effect_request,
+        execution,
+        runtime_authorization=runtime_authorization,
+        workspace_grant=workspace_grant,
+        invocation_authority=invocation_authority,
+        invocation_payload=invocation_payload,
+        invocation_abi=invocation_abi,
+        observation_binding_ledger=observation_binding_ledger,
+        executable_registry=executable_registry,
+        pre_admission=pre_admission,
+        at=at,
+    )
+    return dispatch_mission_bound_claude_invocation(invocation)
+
+
 __all__ = [
     "IkarusClaudeCompositionRefused",
     "MissionBoundClaudeInvocation",
     "compose_mission_bound_claude_invocation",
     "compose_oneshot_claude_sealed_invocation",
     "dispatch_mission_bound_claude_invocation",
+    "execute_mission_bound_claude_invocation",
 ]

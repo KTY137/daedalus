@@ -300,6 +300,22 @@ def _compose_bound(subjects, **overrides):
     )
 
 
+def _execute(subjects, **overrides):
+    mission, attempt, request, evidence, tools, effect_request, execution, members = subjects
+    kwargs = {**members, "at": fixture.fixture.NOW}
+    kwargs.update(overrides)
+    return composition.execute_mission_bound_claude_invocation(
+        mission,
+        attempt,
+        request,
+        evidence,
+        tools,
+        effect_request,
+        execution,
+        **kwargs,
+    )
+
+
 def test_composition_reauthenticates_existing_provider_seam_before_bundle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -746,3 +762,157 @@ def test_dispatch_refuses_terminal_evidence_that_disagrees_with_runtime_receipt(
         match="terminal evidence does not match the runtime receipt",
     ):
         composition.dispatch_mission_bound_claude_invocation(invocation)
+
+def test_execute_is_one_atomic_compose_then_dispatch_handoff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    monkeypatch.setattr(
+        composition,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: object(),
+    )
+    body = _provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    calls = []
+
+    def fake_ask_claude(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {
+            "provider": "claude_cli",
+            "runtime_id": CLAUDE_RUNTIME_ID,
+            "attempt_id": subjects[1].attempt_id,
+            "phase": "terminal",
+            "terminal_receipt_sha256": "f" * 64,
+            "runtime_receipt": {
+                "executed": True,
+                "invocation_sha256": body["invocation_sha256"],
+                "start_receipt_sha256": "a" * 64,
+                "terminal_receipt_sha256": "f" * 64,
+            },
+            "report": {"status": "done", "summary": "atomic handoff"},
+        }
+
+    monkeypatch.setattr(composition, "ask_claude", fake_ask_claude)
+
+    result = _execute(subjects)
+
+    assert len(calls) == 1
+    assert result["mission_id"] == subjects[0].mission_id
+    assert result["work_item_id"] == subjects[1].task_id
+    assert result["attempt_id"] == subjects[1].attempt_id
+    assert result["runtime_receipt"]["executed"] is True
+
+
+def test_execute_refuses_substituted_authority_before_provider_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    workspace = subjects[7]["workspace_grant"]
+    foreign = ClaudeWorkspaceGrant(
+        attempt_id="attempt-foreign",
+        source_revision=workspace.source_revision,
+        request_sha256=workspace.request_sha256,
+        execution_sha256=workspace.execution_sha256,
+        worktree=workspace.worktree,
+    )
+    called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("invalid authority must not reach Claude")
+
+    monkeypatch.setattr(composition, "ask_claude", fail_if_called)
+
+    with pytest.raises(
+        composition.IkarusClaudeCompositionRefused,
+        match="workspace attempt",
+    ):
+        _execute(subjects, workspace_grant=foreign)
+    assert called is False
+
+
+def test_dispatch_refuses_malformed_authenticated_invocation_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    monkeypatch.setattr(
+        composition,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: object(),
+    )
+    invocation = _compose_bound(subjects)
+    body = _provider_body(subjects, tmp_path)
+    body["invocation_sha256"] = "not-a-sha256"
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("malformed invocation identity must not reach Claude")
+
+    monkeypatch.setattr(composition, "ask_claude", fail_if_called)
+
+    with pytest.raises(
+        composition.IkarusClaudeCompositionRefused,
+        match="payload invocation identity is malformed",
+    ):
+        composition.dispatch_mission_bound_claude_invocation(invocation)
+    assert called is False
+
+
+def test_dispatch_refuses_replay_execution_contradiction_before_work_item_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    monkeypatch.setattr(
+        composition,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: object(),
+    )
+    invocation = _compose_bound(subjects)
+    body = _provider_body(subjects, tmp_path)
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+    monkeypatch.setattr(
+        composition,
+        "ask_claude",
+        lambda *args, **kwargs: {
+            "provider": "claude_cli",
+            "runtime_id": CLAUDE_RUNTIME_ID,
+            "attempt_id": subjects[1].attempt_id,
+            "replay": True,
+            "phase": "terminal",
+            "terminal_receipt_sha256": "f" * 64,
+            "runtime_receipt": {
+                "executed": True,
+                "invocation_sha256": body["invocation_sha256"],
+                "start_receipt_sha256": "a" * 64,
+                "terminal_receipt_sha256": "f" * 64,
+            },
+        },
+    )
+
+    with pytest.raises(
+        composition.IkarusClaudeCompositionRefused,
+        match="replay evidence contradicts the runtime receipt",
+    ):
+        composition.dispatch_mission_bound_claude_invocation(invocation)
+
