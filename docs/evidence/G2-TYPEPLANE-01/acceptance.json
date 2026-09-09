@@ -1,0 +1,38 @@
+{
+ "four_plane_digest": "sha256:c70c4eb9760e36049d29fa5cd1caf99246bf73ad09581b77c4c7106181f9bbad",
+ "frozen_digest_unmoved": {
+  "committed": "sha256:0148e7f0e3744c40420cc90e31ee0f306930f7ac9e341289d8e5ac247e6c6386",
+  "match": true,
+  "rederived": "sha256:0148e7f0e3744c40420cc90e31ee0f306930f7ac9e341289d8e5ac247e6c6386"
+ },
+ "hypotheses": {
+  "H13": "NOT ANSWERABLE -- instrument differs by 1 case of 88",
+  "H14": "UNANSWERED -- supply gate",
+  "H15": "antecedent not cleanly met"
+ },
+ "measured": "2026-09-09",
+ "packet": "G2-TYPEPLANE-01",
+ "probes_run_twice_identical": true,
+ "root_cause": {
+  "note": "creations are absent from the pre-image and unretrievable by construction",
+  "schema_changes_added": 41,
+  "schema_changes_modified": 11
+ },
+ "schema_files_by_subject": {
+  "black": 1,
+  "daedalus": 89,
+  "fastapi": 0
+ },
+ "sha256": {
+  "cmp_run1.json": "e418c95239874aedac0ee2e1a510a161373840f222b0156af7c43c9cd64246dc",
+  "cmp_run2.json": "e418c95239874aedac0ee2e1a510a161373840f222b0156af7c43c9cd64246dc",
+  "raw_daedalus4.json.gz": "4be0f023ea9bea73ce9efb57c6b3c8014e715e2d97f2f58806d772f37ee24df3",
+  "taskset_xplane4.json.gz": "eb1eaa967a789e05ccd881a39b4a03e25cef9c6886014a1a4b11159f726f0c8a"
+ },
+ "subject": "daedalus",
+ "supply_gate": {
+  "threshold": 30,
+  "type_gold_cases": 1,
+  "verdict": "FIRES -- H14 unanswered"
+ }
+}

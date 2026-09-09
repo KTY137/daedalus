@@ -1,0 +1,38 @@
+{
+ "arm_committed_before_measurement": "fdfeb987",
+ "hypotheses": {
+  "H7": "FAILS on both",
+  "H8": "FAILS on both",
+  "H9": "FIRES -- CONFIRM-02 diagnosis withdrawn"
+ },
+ "measured": "2026-09-09",
+ "mrr_gate": {
+  "black": 0.5768,
+  "fastapi": 0.3446,
+  "threshold": 0.2,
+  "verdict": "PASS"
+ },
+ "packet": "G2-XPLANE-CONFIRM-03",
+ "probes_run_twice_identical": true,
+ "rederivation_guard": {
+  "plane_calibrated_equals_bm25_to_3dp": false
+ },
+ "sha256": {
+  "cmp_black_run1.json": "7fedf96c20e09135b980168b730cd9292324c45f25afd8db187b402a76083ad3",
+  "cmp_black_run2.json": "7fedf96c20e09135b980168b730cd9292324c45f25afd8db187b402a76083ad3",
+  "cmp_fastapi_run1.json": "02eea1200ba4d568e1935b8e7ca03ea094a0f1346a1bb5cadc410ba9c1df0815",
+  "cmp_fastapi_run2.json": "02eea1200ba4d568e1935b8e7ca03ea094a0f1346a1bb5cadc410ba9c1df0815",
+  "raw_black.json.gz": "061a03bf2306c20fc4d6fc8bcb333fec2902ab38c951b606ab1124c80f37f372",
+  "raw_fastapi.json.gz": "f4f1ab6d10dd330d2bb2ae9b05811e6c96c57c2d23b57e3a70d982e161a9e50f"
+ },
+ "subjects": {
+  "black": {
+   "cross_plane": 700,
+   "n": 730
+  },
+  "fastapi": {
+   "cross_plane": 531,
+   "n": 561
+  }
+ }
+}

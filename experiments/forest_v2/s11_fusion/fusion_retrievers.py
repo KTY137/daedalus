@@ -337,3 +337,212 @@ class SeparateIndicesRetriever:
             plane = plane_of(path)
             if plane in counts:
                 counts[plane] += 1
+
+
+def _standardise_within_plane(
+    scored: Sequence[Tuple[str, float]]
+) -> List[Tuple[str, float]]:
+    """Zero-mean unit-variance within ONE plane's own score distribution.
+
+    Parameter-free on purpose: the transform is fully determined by the
+    plane's own scores, so there is no weight, no ``k`` and no plane prior
+    that could be tuned toward the metric.  ``G2-XPLANE-CONFIRM-03`` makes
+    that a design constraint rather than an implementation detail, because
+    the task sets this runs against were already measured with other arms.
+
+    Degenerate planes (fewer than two scored documents, or zero variance)
+    contribute 0.0, which is the mean of any standardised distribution --
+    not a penalty and not a bonus.
+    """
+    if len(scored) < 2:
+        return [(path, 0.0) for path, _ in scored]
+    values = [score for _, score in scored]
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
+    if variance <= 0.0:
+        return [(path, 0.0) for path, _ in scored]
+    deviation = math.sqrt(variance)
+    return [(path, (score - mean) / deviation) for path, score in scored]
+
+
+class PlaneCalibratedRetriever:
+    """Role ``fusion``: per-plane scoring combined by CALIBRATION, not by rank.
+
+    Built for ``G2-XPLANE-CONFIRM-03`` to test one diagnosis of the 14.1 KILL
+    that ``G2-XPLANE-CONFIRM-02`` measured on ``black``: ``fusion_rrf`` is
+    significantly inferior to plain BM25, and the deficit is UNIFORM across
+    the cross-plane and single-plane strata (-0.0810 vs -0.0710), which points
+    at the combination step rather than at the planes.
+
+    The mechanism it suspects, read out of this module rather than inferred:
+    ``_partition`` puts every candidate in EXACTLY ONE plane bucket, so the
+    per-plane rankings are DISJOINT document sets, not competing opinions
+    about the same documents.  ``_rrf_combine`` then adds ``1/(k + rank)``
+    using rank position only.  Reciprocal Rank Fusion reconciles several
+    rankings *of the same corpus*; over disjoint partitions it degenerates
+    into round-robin interleaving, so the best of four weak matches in a small
+    plane outranks the second-best of two hundred strong matches in a large
+    one.
+
+    This arm changes THAT and nothing else.  ``_partition`` and
+    ``_score_plane`` are reused unchanged -- identical buckets, identical
+    per-plane IDF and length normalisation -- so a difference against
+    ``fusion_rrf`` is attributable to the combination step alone.  If it were
+    also to change the scoring it would test two things at once, which plan
+    §14 forbids.
+
+    It is NOT a pooled index.  Per-plane IDF is retained deliberately, because
+    that is the part ``separate_indices_bm25`` and ``fusion_rrf`` share and
+    the part 14.3 is about.  An arm that pooled the index as well would be
+    testing "is BM25 over everything better", which ``bm25`` already answers.
+    """
+
+    name = "plane_calibrated"
+
+    def __init__(
+        self,
+        cache: Optional[TokenCache] = None,
+        return_k: int = RETURN_K,
+    ) -> None:
+        # Own TokenCache, for the same reason FusionRetriever documents: the
+        # --retriever CLI path zero-arg-constructs the class, so there is no
+        # seam for the harness's pre-warmed cache.
+        self.cache = cache if cache is not None else TokenCache()
+        self.return_k = return_k
+        self.returned_plane_counts: Dict[str, Dict[str, int]] = {}
+
+    def rank(self, query: QueryView, universe: Sequence[Candidate]) -> List[str]:
+        terms = word_tokens(query.text)
+        buckets = _partition(universe)
+        calibrated: List[Tuple[str, float]] = []
+        for plane in FUSION_PLANES:
+            scored = _score_plane(terms, buckets.get(plane, []), self.cache)
+            calibrated.extend(_standardise_within_plane(scored))
+        # Path is the tie-break, exactly as _rrf_combine does, so two documents
+        # with equal calibrated score order deterministically.
+        calibrated.sort(key=lambda item: (-item[1], item[0]))
+        out = [path for path, _score in calibrated[: self.return_k]]
+        self._tally(query.variant, out)
+        return out
+
+    def _tally(self, variant: str, ranking: Sequence[str]) -> None:
+        counts = self.returned_plane_counts.setdefault(variant, _new_counts())
+        for path in ranking[:RETURN_K]:
+            plane = plane_of(path)
+            if plane in counts:
+                counts[plane] += 1
+
+
+class PooledPlaneLengthRetriever:
+    """Role: none. Plane as a FEATURE, not as a partition.
+
+    Built for ``G2-XPLANE-CONFIRM-04``. ``CONFIRM-03`` showed two structurally
+    different combination strategies losing to pooled BM25 by almost exactly
+    the same margin, which points at the partition rather than at how the
+    partitions are recombined -- and left the obvious hypothesis untested,
+    because every arm so far partitions the index.
+
+    ``_score_plane`` computes BOTH ``df``/``idf`` AND ``avgdl`` over one
+    plane's candidates, so partitioning changes two things at once. This arm
+    separates them:
+
+    * ``idf`` is computed over the WHOLE universe, exactly as pooled ``bm25``
+      does. That is the half partitioning destroys -- a term's corpus-wide
+      rarity is the signal BM25 is built on, and computing it inside a small
+      plane makes a locally-common term look rare.
+    * ``avgdl`` is computed PER PLANE. That is the half plane genuinely
+      predicts: prose files are long and code files are short, so a single
+      global average systematically penalises the longer plane.
+
+    The result differs from pooled BM25 in exactly one term of the denominator
+    and introduces no new parameter: ``BM25_K1`` and ``BM25_B`` keep their
+    module constants, and each plane's average length is measured from the
+    universe rather than chosen.
+
+    This arm does NOT reuse ``_score_plane``: that function is per-plane by
+    construction, and reusing it would reintroduce the per-plane ``idf`` this
+    arm exists to remove. The BM25 formula below is the same one, with the two
+    normalisers sourced differently -- which is the single variable under test.
+    """
+
+    name = "pooled_plane_length"
+
+    def __init__(
+        self,
+        cache: Optional[TokenCache] = None,
+        return_k: int = RETURN_K,
+    ) -> None:
+        self.cache = cache if cache is not None else TokenCache()
+        self.return_k = return_k
+        self.returned_plane_counts: Dict[str, Dict[str, int]] = {}
+
+    def rank(self, query: QueryView, universe: Sequence[Candidate]) -> List[str]:
+        q_terms = set(word_tokens(query.text))
+        if not q_terms or not universe:
+            return []
+
+        docs: List[Tuple[str, Counter, int, str]] = []
+        df: Counter = Counter()
+        plane_len: Dict[str, int] = defaultdict(int)
+        plane_n: Dict[str, int] = defaultdict(int)
+        total_len = 0
+        for cand in universe:
+            counts = _document(cand, self.cache)
+            length = sum(counts.values())
+            if not length:
+                continue
+            plane = plane_of(cand.path)
+            docs.append((cand.path, counts, length, plane))
+            total_len += length
+            plane_len[plane] += length
+            plane_n[plane] += 1
+            # GLOBAL document frequency: every plane's documents count.
+            for term in q_terms:
+                if term in counts:
+                    df[term] += 1
+        if not docs:
+            return []
+
+        n = len(docs)
+        global_avgdl = total_len / n
+        # PER-PLANE average length. A plane the universe does not contain, or
+        # a document whose plane is unknown, falls back to the global average
+        # rather than to an invented constant.
+        avgdl = {
+            plane: plane_len[plane] / plane_n[plane]
+            for plane in plane_n
+            if plane_n[plane]
+        }
+        idf = {
+            term: math.log(1 + (n - df[term] + 0.5) / (df[term] + 0.5))
+            for term in q_terms
+            if df[term]
+        }
+        if not idf:
+            return []
+
+        scored: List[Tuple[float, str]] = []
+        for path, counts, length, plane in docs:
+            reference = avgdl.get(plane, global_avgdl)
+            score = 0.0
+            for term, weight in idf.items():
+                tf = counts.get(term, 0)
+                if not tf:
+                    continue
+                denom = tf + BM25_K1 * (
+                    1 - BM25_B + BM25_B * length / reference
+                )
+                score += weight * (tf * (BM25_K1 + 1)) / denom
+            if score > 0:
+                scored.append((score, path))
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        out = [path for _score, path in scored[: self.return_k]]
+        self._tally(query.variant, out)
+        return out
+
+    def _tally(self, variant: str, ranking: Sequence[str]) -> None:
+        counts = self.returned_plane_counts.setdefault(variant, _new_counts())
+        for path in ranking[:RETURN_K]:
+            plane = plane_of(path)
+            if plane in counts:
+                counts[plane] += 1

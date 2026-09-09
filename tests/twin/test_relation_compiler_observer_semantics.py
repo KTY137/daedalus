@@ -172,6 +172,36 @@ def test_evidence_observer_retains_alternative_witness_bundles() -> None:
     assert compiled.forest_edge_count == 2
 
 
+def test_forest_edge_evidence_normalizes_once_at_fact_boundary() -> None:
+    witness_a = _digest("boundary-a")
+    witness_b = _digest("boundary-b")
+    edge = ForestEdge(
+        source="src/a.py",
+        target="src/b.py",
+        relation="imports",
+        directed=True,
+        evidence=(witness_b, witness_a, witness_b),
+    )
+    edge_digest = canonical_sha(edge.to_dict())
+
+    atoms = relation_compiler._forest_edge_atoms(edge)
+    assert atoms == (edge_digest, witness_b, witness_a, witness_b)
+
+    facts: dict[RelationSignature, dict[tuple[int, int], object]] = {}
+    relation_compiler._record_fact(
+        facts,
+        signature=SIGNATURE,
+        source_index=0,
+        target_index=1,
+        scalar_value=None,
+        evidence_atoms=atoms,
+    )
+
+    assert facts[SIGNATURE][(0, 1)] == {
+        tuple(sorted({edge_digest, witness_a, witness_b}))
+    }
+
+
 @pytest.mark.parametrize(
     ("semiring", "expected_value"),
     ((BooleanSemiring(), True), (NaturalSemiring(), 1)),

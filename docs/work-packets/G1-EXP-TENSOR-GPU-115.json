@@ -1,0 +1,162 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-115",
+  "status": "closed-implementation",
+  "title": "Delete remaining discarded fact default allocations",
+  "date_berlin": "2026-09-09",
+  "branch": "exp/tensor-kernel-contract-01",
+  "objective": "Finish the existing relation-compiler fact-owner gardening pass by deleting the two remaining discarded default-container allocations while preserving evidence-DAG alternative witnesses, explicit selected empty-block semantics, Fourfold authority admission, and the existing single fact-map owner.",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "gate": 1,
+    "alignment": "ALIGNED"
+  },
+  "issue": 239,
+  "pr": 331,
+  "scope": {
+    "production": [
+      "daedalus/twin/relation_compiler.py"
+    ],
+    "focused_contract": [
+      "tests/twin/test_relation_compiler_fact_bucket_reuse.py::test_record_fact_reuses_evidence_coordinate_without_inner_setdefault"
+    ],
+    "existing_semantic_oracles": [
+      "tests/twin/test_relation_compiler_observer_semantics.py::test_evidence_observer_retains_alternative_witness_bundles",
+      "tests/twin/test_relation_compiler_observer_semantics.py::test_scalar_observer_reuses_final_fact_bucket_for_indexed_block",
+      "tests/twin/test_relation_compiler_relation_retention.py"
+    ],
+    "new_remote_branches": 0,
+    "new_public_apis": 0,
+    "new_caches": 0,
+    "new_indexes": 0,
+    "new_compilers": 0,
+    "new_fact_stores": 0,
+    "production_files_changed": 1,
+    "test_files_modified": 1
+  },
+  "change": {
+    "evidence_coordinate_before": "evidence_bundles = bucket.setdefault(coordinate, set())",
+    "evidence_coordinate_after": "look up the existing coordinate bundle set and create/insert one set only when the coordinate is absent",
+    "selected_block_before": "entries = facts.get(signature, {})",
+    "selected_block_after": "look up the selected fact bucket and create an empty entries dict only when that selected signature has no fact bucket",
+    "reason": "Python evaluates default arguments before setdefault/get returns. The previous code therefore constructed a set for every evidence witness on an already-populated coordinate and an empty dict for every selected signature with an existing fact bucket. Both defaults were discarded. Explicit get/create keeps the same owner and only allocates on genuine absence.",
+    "explicit_empty_block_semantics_preserved": true,
+    "evidence_alternative_semantics_preserved": true,
+    "authority_semantics_changed": false,
+    "observer_semantics_changed": false
+  },
+  "focused_contract_finding": {
+    "mechanism": "An inner coordinate-map subclass raises if setdefault is called. Two evidence facts for the same signature and coordinate must reuse the same set object and retain both witness alternatives.",
+    "inner_setdefault_calls_allowed": 0,
+    "coordinate_bundle_identity_reused": true,
+    "retained_alternatives": [
+      [
+        "witness-a"
+      ],
+      [
+        "witness-b"
+      ]
+    ]
+  },
+  "evidence": {
+    "implementation_commit": "58553db542ac2338383d046b6d10fa0b85b239a8",
+    "production_blob": "daedalus/twin/relation_compiler.py@f67be3ba739cb0c6aa6234774582d7741c65d21b",
+    "focused_contract_commit": "8f5610416cf4b68bc3e26e139e4c4ec0671fc708",
+    "focused_contract_blob": "tests/twin/test_relation_compiler_fact_bucket_reuse.py@0cf12570c267ab73c5bb00be97ac430a25781a9d",
+    "fourfold_tensor_run": {
+      "id": 34338079084,
+      "head_sha": "8f5610416cf4b68bc3e26e139e4c4ec0671fc708",
+      "status": "completed",
+      "conclusion": "success",
+      "contract_matrix": "completed/success",
+      "isolated_wheel_imports": "completed/success",
+      "complete_repository_collection": "completed/success",
+      "manual_full_suite": "skipped"
+    },
+    "tauri_run": {
+      "id": 34338079108,
+      "head_sha": "8f5610416cf4b68bc3e26e139e4c4ec0671fc708",
+      "status_at_packet_close": "in_progress",
+      "conclusion_at_packet_close": null
+    }
+  },
+  "gardener_outcome": {
+    "decision": "delete-discarded-default-container-allocations",
+    "parallel_abstractions_added": 0,
+    "persistent_state_added": 0,
+    "authority_layers_added": 0,
+    "bloat_added": 0
+  },
+  "claims": {
+    "performance_win": false,
+    "memory_win": false,
+    "exact_documentation_closure_head_green": false,
+    "focused_implementation_head_green": true,
+    "full_suite_green": false,
+    "gpu_tensor_core_win": false,
+    "tensor_vs_forest_win": false,
+    "crewai_win": false,
+    "alphaevolve_win": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_step": "GPU-116 should stop treating setdefault itself as a target and inspect evidence-atom normalization in the same owner: determine whether tuple(sorted(set(evidence_atoms))) is repeating canonicalization already guaranteed by _forest_edge_atoms or CrossPlaneBinding evidence construction. Change it only if the existing input contracts prove canonical, duplicate-free evidence at this seam; otherwise retain the normalization as the authority-safe boundary. No helper cache, second provenance store, or new evidence abstraction.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-115",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "8f5610416cf4b68bc3e26e139e4c4ec0671fc708",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "change",
+          "focused_contract_finding"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,155 @@
+{
+ "comparisons": [
+  {
+   "reference": "bm25",
+   "strata": {
+    "control_single_plane": {
+     "ci95_high": 0.146777,
+     "ci95_low": -0.136337,
+     "excludes_zero": false,
+     "losses": 10,
+     "n": 30,
+     "point": -5.7e-05,
+     "ties": 13,
+     "wins": 7
+    },
+    "cross_plane": {
+     "ci95_high": -0.05719,
+     "ci95_low": -0.124352,
+     "excludes_zero": true,
+     "losses": 231,
+     "n": 531,
+     "point": -0.091124,
+     "ties": 151,
+     "wins": 149
+    },
+    "pooled": {
+     "ci95_high": -0.053531,
+     "ci95_low": -0.119081,
+     "excludes_zero": true,
+     "losses": 241,
+     "n": 561,
+     "point": -0.086254,
+     "ties": 164,
+     "wins": 156
+    }
+   },
+   "subject": "plane_calibrated",
+   "variant": "raw"
+  },
+  {
+   "reference": "fusion_rrf",
+   "strata": {
+    "control_single_plane": {
+     "ci95_high": 0.166547,
+     "ci95_low": -0.021547,
+     "excludes_zero": false,
+     "losses": 7,
+     "n": 30,
+     "point": 0.06855,
+     "ties": 12,
+     "wins": 11
+    },
+    "cross_plane": {
+     "ci95_high": -0.03701,
+     "ci95_low": -0.10224,
+     "excludes_zero": true,
+     "losses": 237,
+     "n": 531,
+     "point": -0.069992,
+     "ties": 101,
+     "wins": 193
+    },
+    "pooled": {
+     "ci95_high": -0.03119,
+     "ci95_low": -0.094437,
+     "excludes_zero": true,
+     "losses": 244,
+     "n": 561,
+     "point": -0.062583,
+     "ties": 113,
+     "wins": 204
+    }
+   },
+   "subject": "plane_calibrated",
+   "variant": "raw"
+  },
+  {
+   "reference": "separate_indices_bm25",
+   "strata": {
+    "control_single_plane": {
+     "ci95_high": 0.05972,
+     "ci95_low": -0.052223,
+     "excludes_zero": false,
+     "losses": 5,
+     "n": 30,
+     "point": 0.003923,
+     "ties": 18,
+     "wins": 7
+    },
+    "cross_plane": {
+     "ci95_high": 0.109963,
+     "ci95_low": 0.068066,
+     "excludes_zero": true,
+     "losses": 75,
+     "n": 531,
+     "point": 0.088785,
+     "ties": 254,
+     "wins": 202
+    },
+    "pooled": {
+     "ci95_high": 0.104645,
+     "ci95_low": 0.064689,
+     "excludes_zero": true,
+     "losses": 80,
+     "n": 561,
+     "point": 0.084247,
+     "ties": 272,
+     "wins": 209
+    }
+   },
+   "subject": "plane_calibrated",
+   "variant": "raw"
+  },
+  {
+   "reference": "bm25",
+   "strata": {
+    "control_single_plane": {
+     "ci95_high": 0.038553,
+     "ci95_low": -0.182047,
+     "excludes_zero": false,
+     "losses": 11,
+     "n": 30,
+     "point": -0.068607,
+     "ties": 13,
+     "wins": 6
+    },
+    "cross_plane": {
+     "ci95_high": 0.007636,
+     "ci95_low": -0.05,
+     "excludes_zero": false,
+     "losses": 185,
+     "n": 531,
+     "point": -0.021132,
+     "ties": 154,
+     "wins": 192
+    },
+    "pooled": {
+     "ci95_high": 0.00449,
+     "ci95_low": -0.051703,
+     "excludes_zero": false,
+     "losses": 196,
+     "n": 561,
+     "point": -0.023671,
+     "ties": 167,
+     "wins": 198
+    }
+   },
+   "subject": "fusion_rrf",
+   "variant": "raw"
+  }
+ ],
+ "cross_plane_cases": 531,
+ "taskset_digest": "sha256:84f6f76158544fe6b943910892fb4702f2f2ea58fcd5408ceb17eeed7befa501",
+ "variant": "raw"
+}

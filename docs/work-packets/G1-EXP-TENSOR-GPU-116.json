@@ -1,0 +1,142 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-116",
+  "status": "closed-research",
+  "title": "Retain the fact-boundary evidence normalization after producer-contract audit",
+  "date_berlin": "2026-09-09",
+  "branch": "exp/tensor-kernel-contract-01",
+  "objective": "Audit whether tuple(sorted(set(evidence_atoms))) in the relation compiler can be deleted after GPU-114/115 without weakening deterministic evidence aggregation, bounded refusal semantics, or the Forest/Fourfold authority boundary.",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "gate": 1,
+    "alignment": "ALIGNED"
+  },
+  "issue": 239,
+  "pr": 331,
+  "scope": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "new_remote_branches": 0,
+    "new_public_apis": 0,
+    "new_caches": 0,
+    "new_indexes": 0,
+    "new_compilers": 0,
+    "new_receipt_families": 0,
+    "audit_sources": [
+      "daedalus/twin/relation_compiler.py",
+      "daedalus/structcore/forest.py",
+      "daedalus/twin/contracts.py",
+      "daedalus/kernel/contracts/canonical.py",
+      "daedalus/twin/semiring.py"
+    ]
+  },
+  "findings": {
+    "forest_edge_contract": "ForestEdge is a frozen dataclass but does not canonicalize, sort, validate, or reject duplicate evidence entries. Therefore the ForestEdge contract itself cannot prove that an arbitrary evidence tuple is already canonical at the relation-compiler boundary.",
+    "forest_edge_producer": "_forest_edge_atoms currently performs its own sorted-set normalization over the canonical edge digest plus edge.evidence, so that specific producer currently sends a canonical tuple. This is an implementation detail, not a ForestEdge contract guarantee.",
+    "binding_contract": "CrossPlaneBinding.evidence_sha256s is normalized through _sorted_strings(..., digests=True), which validates sha256 values, rejects duplicates, and sorts them. However relation compilation prepends binding.digest before passing the tuple to _record_fact, so the complete evidence term is not structurally guaranteed to remain sorted at that call site and no contract proves binding.digest is absent from evidence_sha256s.",
+    "fact_boundary": "_record_fact normalizes each evidence term before inserting it into the coordinate-level set. This makes semantically identical permutations/duplicates one set member before later EvidenceValue construction.",
+    "later_semiring_boundary": "EvidenceValue canonicalizes again, but only after coordinate-level alternatives have already accumulated. Removing the _record_fact normalization would allow equivalent non-canonical terms to occupy distinct set members and could inflate the raw alternative count before EvidenceValue applies MAX_EVIDENCE_ALTERNATIVES and absorption.",
+    "decision": "retain _record_fact evidence normalization as the single safe bounded aggregation boundary; do not delete it based on producer-local assumptions"
+  },
+  "gardener_outcome": {
+    "decision": "retain-semantic-boundary-delete-nothing",
+    "reason": "The apparent normalization duplication crosses different responsibilities: producer-local formatting versus bounded semantic deduplication before alternative accumulation. Deleting the latter would trade a tiny local operation for weaker deterministic/bounded behavior. No parallel abstraction is justified.",
+    "parallel_abstractions_added": 0,
+    "persistent_state_added": 0,
+    "authority_layers_added": 0,
+    "bloat_added": 0
+  },
+  "evidence": {
+    "audited_head": "9c1808012805242d8eef9fcdbd6a9b76fdeb3b5f",
+    "relation_compiler_blob": "f67be3ba739cb0c6aa6234774582d7741c65d21b",
+    "forest_blob": "ebd0c964bd955a386b392ee58aaa1c6f1786a936",
+    "fourfold_contracts_blob": "5523dfe53834874942a7c37120ee2f464ed15fda",
+    "canonical_contract_helpers_blob": "50f88c2aa58342e53f73343743de3f2216d69240",
+    "semiring_blob": "21d46382d84562f97feac2b2b4301d1f00450e70",
+    "exact_audited_head_workflows": [
+      {
+        "id": 34338326634,
+        "name": "Fourfold, Tensor and integration contracts",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 34338326632,
+        "name": "Tauri Desktop",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "claims": {
+    "performance_win": false,
+    "memory_win": false,
+    "production_behavior_changed": false,
+    "audited_code_head_green": true,
+    "documentation_closure_head_green": false,
+    "manual_full_suite_green": false,
+    "tensor_vs_forest_win": false,
+    "crewai_win": false,
+    "alphaevolve_win": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_step": "GPU-117 may separately test whether producer-local normalization inside _forest_edge_atoms is redundant now that _record_fact is confirmed as the required canonical aggregation boundary. Any deletion must preserve unsorted/duplicate ForestEdge evidence behavior and must be verified by a focused evidence-DAG contract; do not move normalization into a new helper or cache.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-116",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "9c1808012805242d8eef9fcdbd6a9b76fdeb3b5f",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "findings"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
+}

@@ -237,7 +237,10 @@ def _record_fact(
     scalar_value: bool | int | None,
     evidence_atoms: Sequence[str] | None,
 ) -> None:
-    bucket = facts.setdefault(signature, {})
+    bucket = facts.get(signature)
+    if bucket is None:
+        bucket = {}
+        facts[signature] = bucket
     coordinate = (source_index, target_index)
     if coordinate not in bucket and len(bucket) >= MAX_BLOCK_ENTRIES:
         raise ValueError(
@@ -247,20 +250,16 @@ def _record_fact(
     if evidence_atoms is None:
         bucket.setdefault(coordinate, scalar_value)
         return
-    evidence_bundles = bucket.setdefault(coordinate, set())
+    evidence_bundles = bucket.get(coordinate)
+    if evidence_bundles is None:
+        evidence_bundles = set()
+        bucket[coordinate] = evidence_bundles
     atoms = tuple(sorted(set(evidence_atoms)))
     evidence_bundles.add(atoms)
 
 
 def _forest_edge_atoms(edge: ForestEdge) -> tuple[str, ...]:
-    return tuple(
-        sorted(
-            {
-                canonical_sha(edge.to_dict()),
-                *edge.evidence,
-            }
-        )
-    )
+    return (canonical_sha(edge.to_dict()), *edge.evidence)
 
 
 def compile_relation_blocks(
@@ -549,7 +548,9 @@ def compile_relation_blocks(
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
     semantic_fact_count = 0
     for signature in selected:
-        entries = facts.get(signature, {})
+        entries = facts.get(signature)
+        if entries is None:
+            entries = {}
         if retain_evidence:
             for coordinate in entries:
                 evidence_bundles = entries[coordinate]
