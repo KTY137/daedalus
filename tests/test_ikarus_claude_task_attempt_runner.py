@@ -1,6 +1,7 @@
 """RoleHarness -> live TaskAttempt -> sealed Claude runner regressions."""
 from __future__ import annotations
 
+from dataclasses import replace
 import importlib.util
 import sys
 from pathlib import Path
@@ -10,6 +11,12 @@ import pytest
 import daedalus.ikarus_claude_task_attempt_authority as authority
 import daedalus.ikarus_claude_task_attempt_runner as runner_adapter
 from daedalus.ikarus_claude_attempt_handoff import ClaudeTaskAttemptRunnerHandoff
+from daedalus.ikarus_runtime_role import (
+    SOURCE_ONLY_EXECUTION_MODE,
+    RuntimeRoleBinding,
+    RuntimeRoleRegistry,
+)
+from daedalus.ikarus_supervisor import PlannedItem
 from daedalus.providers.claude_cli import (
     RUNTIME_ID as CLAUDE_RUNTIME_ID,
     ClaudeWorkspaceGrant,
@@ -35,6 +42,33 @@ def _load_composition_fixture():
 
 
 fixture = _load_composition_fixture()
+
+
+def _runtime_binding():
+    binding = RuntimeRoleBinding(
+        role="assistant",
+        runtime_id=CLAUDE_RUNTIME_ID,
+        adapter_id="claude.oneshot-adapter",
+        adapter_version="test-1",
+        source_revision=fixture.CLAUDE_SOURCE_REVISION,
+        origin="tests://ikarus-claude-composition",
+        execution_mode=SOURCE_ONLY_EXECUTION_MODE,
+        refusal_reason="source-only until the sealed mission runtime admits execution",
+    )
+    snapshot = RuntimeRoleRegistry((binding,)).snapshot("assistant", CLAUDE_RUNTIME_ID)
+    assert snapshot is not None
+    return snapshot
+
+
+def _item(subjects, **overrides):
+    values = {
+        "objective": "dispatch the exact planned Claude runtime",
+        "role": "assistant",
+        "paths": tuple(subjects[1].writable_paths),
+        "runtime_id": CLAUDE_RUNTIME_ID,
+    }
+    values.update(overrides)
+    return PlannedItem(**values)
 
 
 def _handoff(subjects, tmp_path: Path, **overrides) -> ClaudeTaskAttemptRunnerHandoff:
@@ -91,6 +125,7 @@ def test_handoff_runner_factory_seals_before_returning_provider_runner(
 ) -> None:
     subjects = fixture._subjects(tmp_path)
     handoff = _handoff(subjects, tmp_path)
+    planned_item = _item(subjects)
     expected = object.__new__(ProviderRuntimeExecutableBindingReceipt)
     events = []
 
@@ -114,14 +149,15 @@ def test_handoff_runner_factory_seals_before_returning_provider_runner(
 
     def resolve_inputs(item, authenticated_handoff):
         events.append("resolve")
-        assert item == {"id": subjects[1].task_id}
+        assert item is planned_item
         assert authenticated_handoff is handoff
         return _inputs(subjects)
 
     factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
-        resolve_inputs
+        _runtime_binding(),
+        resolve_inputs,
     )
-    provider_runner = factory({"id": subjects[1].task_id}, handoff)
+    provider_runner = factory(planned_item, handoff)
 
     # Canonical authority composition happens in the RoleHarness factory seam,
     # before provider-controlled runner execution can start.
@@ -149,14 +185,15 @@ def test_handoff_runner_factory_refuses_nonexact_input_set_before_dispatch(
 
     monkeypatch.setattr(authority, "ask_claude", fail_if_called)
     factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
-        lambda item, handoff: {"not": "canonical"}
+        _runtime_binding(),
+        lambda item, handoff: {"not": "canonical"},
     )
 
     with pytest.raises(
         authority.IkarusClaudeTaskAttemptAuthorityRefused,
         match="exact ClaudeTaskAttemptInvocationInputs",
     ):
-        factory(object(), _handoff(subjects, tmp_path))
+        factory(_item(subjects), _handoff(subjects, tmp_path))
 
     assert called is False
 
@@ -187,14 +224,15 @@ def test_handoff_runner_factory_refuses_foreign_workspace_before_runner_exists(
     monkeypatch.setattr(authority, "bind_provider_runtime_invocation", fake_bind)
     monkeypatch.setattr(authority, "ask_claude", fail_if_called)
     factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
-        lambda item, handoff: _inputs(subjects, workspace_grant=foreign)
+        _runtime_binding(),
+        lambda item, handoff: _inputs(subjects, workspace_grant=foreign),
     )
 
     with pytest.raises(
         authority.IkarusClaudeTaskAttemptAuthorityRefused,
         match="workspace attempt",
     ):
-        factory(object(), _handoff(subjects, tmp_path))
+        factory(_item(subjects), _handoff(subjects, tmp_path))
 
     assert provider_called is False
 
@@ -211,13 +249,86 @@ def test_handoff_runner_factory_requires_exact_authenticated_handoff(
         return _inputs(subjects)
 
     factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
-        resolve_inputs
+        _runtime_binding(),
+        resolve_inputs,
     )
 
     with pytest.raises(
         authority.IkarusClaudeTaskAttemptAuthorityRefused,
         match="exact authenticated",
     ):
-        factory(object(), object())
+        factory(_item(subjects), object())
 
     assert resolved is False
+
+
+def test_handoff_runner_factory_refuses_plan_runtime_substitution_before_resolver(
+    tmp_path: Path,
+) -> None:
+    subjects = fixture._subjects(tmp_path)
+    resolved = False
+
+    def resolve_inputs(item, handoff):
+        nonlocal resolved
+        resolved = True
+        return _inputs(subjects)
+
+    factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
+        _runtime_binding(),
+        resolve_inputs,
+    )
+
+    with pytest.raises(
+        authority.IkarusClaudeTaskAttemptAuthorityRefused,
+        match="planned runtime-role binding",
+    ):
+        factory(
+            _item(subjects, runtime_id="claude-substituted"),
+            _handoff(subjects, tmp_path),
+        )
+
+    assert resolved is False
+
+
+def test_handoff_runner_factory_refuses_resolved_runtime_binding_substitution(
+    tmp_path: Path,
+) -> None:
+    subjects = fixture._subjects(tmp_path)
+    foreign_request = replace(subjects[2], runtime_binding_sha256="f" * 64)
+    factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
+        _runtime_binding(),
+        lambda item, handoff: _inputs(subjects, request=foreign_request),
+    )
+
+    with pytest.raises(
+        authority.IkarusClaudeTaskAttemptAuthorityRefused,
+        match="request runtime binding",
+    ):
+        factory(_item(subjects), _handoff(subjects, tmp_path))
+
+
+def test_handoff_runner_factory_snapshots_planned_runtime_binding(
+    tmp_path: Path,
+) -> None:
+    subjects = fixture._subjects(tmp_path)
+    runtime_binding = _runtime_binding()
+    resolved = False
+
+    def resolve_inputs(item, handoff):
+        nonlocal resolved
+        resolved = True
+        return {"not": "canonical"}
+
+    factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
+        runtime_binding,
+        resolve_inputs,
+    )
+    object.__setattr__(runtime_binding, "runtime_id", "mutated-after-factory")
+
+    with pytest.raises(
+        authority.IkarusClaudeTaskAttemptAuthorityRefused,
+        match="exact ClaudeTaskAttemptInvocationInputs",
+    ):
+        factory(_item(subjects), _handoff(subjects, tmp_path))
+
+    assert resolved is True
