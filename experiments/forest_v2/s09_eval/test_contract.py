@@ -95,3 +95,36 @@ def test_load_retriever_accepts_a_conforming_object():
     retriever = load_retriever(f"{__name__}:_Conforming")
     assert retriever.name == "conforming"
     assert retriever.rank(QueryView("c00", "q", "raw"), _universe("a.py")) == ["a.py"]
+
+
+# --------------------------------------------------------------------------
+# candidate identity: one class, two units
+# --------------------------------------------------------------------------
+def test_a_file_candidate_keys_on_its_path_exactly() -> None:
+    cand = Candidate(path="pkg/mod.py", blob="b", size=1, raw=b"x")
+    assert cand.qualname == ""
+    assert cand.key == "pkg/mod.py"
+
+
+def test_a_symbol_candidate_keys_on_path_and_qualname() -> None:
+    cand = Candidate(path="pkg/mod.py", blob="b", size=1, raw=b"x", qualname="Cls.meth")
+    assert cand.key == "pkg/mod.py#Cls.meth"
+
+
+def test_validate_ranking_accepts_symbol_keys() -> None:
+    universe = [
+        Candidate(path="a.py", blob="b1", size=1, raw=b"x", qualname="f"),
+        Candidate(path="a.py", blob="b1", size=1, raw=b"x", qualname="g"),
+    ]
+    out = validate_ranking("r", ["a.py#g", "a.py#f"], universe, max_k=10)
+    assert out == ["a.py#g", "a.py#f"]
+
+
+def test_validate_ranking_refuses_a_symbol_outside_the_universe() -> None:
+    universe = [Candidate(path="a.py", blob="b1", size=1, raw=b"x", qualname="f")]
+    # The bare path is NOT a member when the universe is symbol-level: a
+    # retriever cannot fall back to naming the file and score for the symbol.
+    with pytest.raises(ContractViolation):
+        validate_ranking("r", ["a.py"], universe, max_k=10)
+    with pytest.raises(ContractViolation):
+        validate_ranking("r", ["a.py#invented"], universe, max_k=10)

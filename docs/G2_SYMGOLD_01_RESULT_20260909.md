@@ -101,6 +101,35 @@ This does not retire the caveat — a symbol moved between files is still missed
 by both definitions, and neither tracks renames. It retires only the half of it
 that could have moved the verdict.
 
+## Correction: 435 was an upper bound; the usable count is 402
+
+`[MEASURED 2026-09-09, added after the verdict was published]`
+
+The census counted a commit as a case if it changed **any** symbol. The
+file-level instrument this would extend applies two further exclusions, named
+in `taskset_xplane.py:171`. Applying the same rules to `black`:
+
+| stage | cases |
+| --- | ---: |
+| cross-plane commits with any changed symbol | 438 |
+| − no gold survives into the pre-image (`no_retrievable_gold_in_pre_image`) | −16 |
+| − gold > 20, the Recall@20 bound (`gold_exceeds_largest_cutoff`) | −20 |
+| **usable cases** | **402** |
+
+Mean gold per case falls from 11.3 to **3.7** once only symbols that existed in
+the pre-image are kept — the honest figure, and a healthier one, since 3.7 sits
+well inside the k=20 cutoff rather than against it.
+
+**The verdict is unchanged**: 402 remains far above the pre-registered threshold
+of 200, so `FEASIBLE` stands. But the headline number above is a ceiling, not the
+count a task set would carry, and a later reader should build against **402**.
+
+The attrition is informative in itself: only 16 of 438 commits lose all gold to
+symbol *creation*, against the file-level corpus's report that
+`no_retrievable_gold_in_pre_image` is "the largest bucket" there. Symbols are
+edited far more often than files are created, so the pre-image bias that
+dominates the file-level corpus is materially weaker at symbol granularity.
+
 ## Reproduction
 
 Per subject at the pinned anchor: `git rev-list --first-parent -n 1500`, then
