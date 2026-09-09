@@ -262,22 +262,45 @@ def test_real_corpus_census_is_pinned_and_reported():
         by the product harness as plane-unindexed rather than scored, so
         admitting the set is a corpus fact, not a claim that any arm can
         score them.
+
+    MEASURED 2026-09-09, after G3-MINT-TEXT-01 minted the repository's own
+    text (packet: docs/work-packets/G3-MINT-TEXT-01_NON_CODE_TASK_MINTING.md):
+      - all_tasks() total: 62 (14 hand-authored + 48 persisted mint tasks:
+        17 independent_diff and 31 independent_text_diff, all quarantine)
+      - full census: {'code': 27, 'type': 0, 'data': 17, 'knowledge': 18}
+      - primary-tier subset: UNCHANGED at 14, census UNCHANGED at
+        {'code': 10, 'type': 0, 'data': 2, 'knowledge': 2}
+      - the frozen digest is BYTE-IDENTICAL, because every one of the 31 new
+        tasks is quarantined. That is the tier gate doing its job, and it is
+        the reason this update is safe: 31 tasks entered the corpus and not
+        one entered a number.
+
+      WHAT THIS DOES NOT FIX, stated here so the next reader does not infer
+      it: the primary tier's data and knowledge tasks are still the four
+      artifact_parsed ones from the six-file fixture. The confound measured in
+      docs/G3_CORPUS_IS_TWO_POPULATIONS_20260909.md -- code tasks from the
+      real repository against non-code tasks from a toy -- is unchanged AT THE
+      TIER THAT FEEDS A HEADLINE NUMBER. The repository-derived replacements
+      exist now, but none can be promoted: minting produced ZERO
+      confirmations, because no two of 400 commits yielded the same
+      must_include set. MINT_CONFIRM_THRESHOLD assumes label sets recur; for
+      Markdown headings and JSON keys they essentially do not.
     """
     tasks = all_tasks()
-    assert len(tasks) == 31, (
+    assert len(tasks) == 62, (
         "the real task corpus size changed since this test was pinned -- "
         "update this test deliberately, do not just bump the number")
 
     # Full corpus (including quarantine), for transparency about what exists
     # even though it is not in the frozen set.
     full_census = census(tasks)
-    assert full_census == {"code": 27, "type": 0, "data": 2, "knowledge": 2}
+    assert full_census == {"code": 27, "type": 0, "data": 17, "knowledge": 18}
 
     primary, n_excluded = filter_primary_tasks(tasks)
     assert len(primary) == 14
-    assert n_excluded == 17
+    assert n_excluded == 48
 
-    with pytest.warns(UserWarning, match=r"excluded 17 of 31"):
+    with pytest.warns(UserWarning, match=r"excluded 48 of 62"):
         fts = build_frozen_taskset(
             "gate3-real-corpus-20260906", tasks, REAL_CORPUS_COUNTING_RULE)
 
@@ -289,6 +312,10 @@ def test_real_corpus_census_is_pinned_and_reported():
     # Pinned digest: deterministic given the frozen name/counting-rule/corpus
     # triple above. Changes only if the corpus, the counting rule text, or
     # this test's chosen name changes.
+    # UNCHANGED after 31 tasks entered the corpus (2026-09-09). The digest is
+    # computed over the FROZEN set, and every minted task is quarantined, so
+    # the frozen triple is byte-identical. A digest that had moved here would
+    # mean a quarantined task had leaked into a scored set.
     assert fts.digest == (
         "210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838")
 
