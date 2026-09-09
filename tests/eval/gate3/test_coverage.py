@@ -109,25 +109,50 @@ def test_planes_needed_is_ordered_canonically():
 # declarations checked against behaviour, not trusted                          #
 # --------------------------------------------------------------------------- #
 
-def _returned_planes(candidate: str) -> set[str]:
-    """Classify the documents an arm actually returned.
+def _returned_planes(root: str, candidate: str) -> set[str]:
+    """Classify the documents an arm actually returned, by CONTENT.
 
-    Arms emit ``# ===== <repo-relative path> =====`` headers before each chunk
-    (``harness._bm25_context`` and the separate-indices concatenation both do).
-    Classifying those paths is what makes this a behavioural check rather than
-    an attribute read.
+    The first version parsed ``# ===== <path> =====`` headers. That works for
+    the arms that concatenate ranked chunks and silently fails for the ones
+    that return a single document's raw text -- ``best_of_n`` came back with
+    ``# Architecture`` (a knowledge document, i.e. it WAS looking) and scored
+    an empty plane set, a false negative in the check itself.
+
+    Matching content against the fixture's own files works for every candidate
+    shape, because the arm has to return the bytes either way.
     """
-    import re
+    import os
+    import pathlib
 
     from daedalus.eval.gate3.arms.separate_indices import classify_plane
 
     planes = set()
-    for rel in re.findall(r"^# =====\s*(.+?)\s*=====\s*$", candidate or "",
-                          flags=re.MULTILINE):
-        plane = classify_plane(rel.split("::", 1)[0])
-        if plane:
-            planes.add(plane)
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        for fn in filenames:
+            full = os.path.join(dirpath, fn)
+            rel = os.path.relpath(full, root).replace("\\", "/")
+            plane = classify_plane(rel)
+            if not plane or plane in planes:
+                continue
+            try:
+                text = pathlib.Path(full).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            # a distinctive run of the file's own body, long enough not to
+            # collide across files and short enough to survive truncation
+            body = [ln for ln in text.splitlines() if len(ln.strip()) > 25]
+            if body and any(ln.strip() in candidate for ln in body[:5]):
+                planes.add(plane)
     return planes
+
+
+#: ``single_llm_loop`` calls a model. With no provider reachable it returns an
+#: error rather than a candidate, so its declaration cannot be checked offline.
+#: Named here rather than skipped silently: an arm whose declaration nothing
+#: verifies is exactly the state this test exists to prevent, and pinning the
+#: list means adding a second such arm has to be a deliberate act.
+PROVIDER_DEPENDENT_ARMS = {"single_llm_loop"}
 
 
 def test_real_arm_declarations_match_what_they_retrieve():
@@ -147,7 +172,9 @@ def test_real_arm_declarations_match_what_they_retrieve():
     perform, and ``coverage.py`` cited it as the reason its trust model was
     acceptable.
     """
-    from daedalus.eval.gate3.arms import bm25, embeddings, separate_indices
+    from daedalus.eval.gate3.arms import (best_of_n, bm25, embeddings,
+                                         local_mutation, random_search,
+                                         separate_indices, single_llm_loop)
     from daedalus.eval.gate3.contracts import ArmBudget
     from daedalus.eval.gate3.evaluator import make_recall_evaluator
     from daedalus.eval.gate3.protocols import Task
@@ -163,36 +190,75 @@ def test_real_arm_declarations_match_what_they_retrieve():
         f"fixture cannot evidence the planes under test: {available}")
 
     budget = ArmBudget(max_tokens=16000)
-    for mod in (bm25, embeddings, separate_indices):
+    unverified = set()
+
+    # One plane-targeted probe per plane. Each carries a question and a gold
+    # label that genuinely live in that plane of the fixture, so an arm whose
+    # universe includes the plane has a real reason to return a document from
+    # it.
+    PROBES = {
+        "code": ("how does search_articles filter articles", ["search_articles"]),
+        "data": ("article schema required fields and patterns", ["$schema"]),
+        "knowledge": ("why was CSV storage accepted", ["Accepted"]),
+    }
+
+    for mod in (best_of_n, bm25, embeddings, local_mutation, random_search,
+                separate_indices, single_llm_loop):
         arm = next(getattr(mod, n) for n in dir(mod)
                    if isinstance(getattr(mod, n), type)
                    and hasattr(getattr(mod, n), "run")
                    and hasattr(getattr(mod, n), "name"))()
         declared = retrieved_planes(arm)
+        seen: set[str] = set()
+        errored = False
         for plane in declared:
             assert available.get(plane, 0) > 0, (
                 f"{arm.name} declares plane {plane!r}, which the fixture holds "
                 "no documents for -- the declaration cannot be checked against "
                 "behaviour, so it must not be asserted"
             )
+            question, labels = PROBES[plane]
             task = Task(task_id=f"coverage-{arm.name}-{plane}", repo_root=root,
-                        question="article schema fields and storage decisions",
-                        target="", label_plane=plane)
-            # make_recall_evaluator returns a FACTORY; arm.run wants a live
-            # SealedEvaluator. Calling it is not a detail -- passing the factory
-            # makes the arm fail with an AttributeError it reports as an
-            # ordinary error, which this test would then read as "retrieved
-            # nothing" rather than "was never run".
-            ev = make_recall_evaluator({task.task_id: ["schema"]})()
+                        question=question, target="", label_plane=plane)
+            ev = make_recall_evaluator({task.task_id: labels})()
             outcome = arm.run(task, budget, ev, 0)
-            assert getattr(outcome, "error", None) is None, (
-                f"{arm.name} errored on plane {plane!r}: {outcome.error}"
+            if getattr(outcome, "error", None):
+                assert arm.name in PROVIDER_DEPENDENT_ARMS, (
+                    f"{arm.name} errored on plane {plane!r}: {outcome.error}"
+                )
+                unverified.add(arm.name)
+                errored = True
+                continue
+            seen |= _returned_planes(root, getattr(outcome, "candidate", "") or "")
+        if errored:
+            continue
+        # WHAT IS ACTUALLY OBSERVABLE FROM OUTSIDE, and the limit of this check.
+        #
+        # The defect being guarded against is a code-ONLY retrieval universe.
+        # That is falsifiable black-box: an arm whose universe is code-only can
+        # NEVER return a non-code document, whatever the query.
+        #
+        # Which SPECIFIC non-code plane comes back is not, because selection is
+        # not universe. ``best_of_n`` returns exactly one document per run -- it
+        # answered the data probe with a knowledge document that scored better,
+        # which is the arm working correctly. Demanding plane X from probe X
+        # failed a healthy arm for doing its job, and two earlier versions of
+        # this assertion did exactly that.
+        #
+        # So: an arm declaring any non-code plane must demonstrably return a
+        # non-code document. That still kills the mutation this test exists for
+        # -- a code-only bm25 declaring ("code","data","knowledge") cannot
+        # produce one -- while not asserting more than the evidence supports.
+        if set(declared) - {"code"}:
+            assert seen - {"code"}, (
+                f"{arm.name} declares {list(declared)} but across plane-targeted "
+                f"probes returned only {sorted(seen) or 'nothing classifiable'}. "
+                "A code-only universe can never return a non-code document, so "
+                "this declaration is not supported by the arm's own behaviour: "
+                "gate3.coverage would admit a comparison on the strength of it."
             )
-            got = _returned_planes(getattr(outcome, "candidate", "") or "")
-            assert plane in got, (
-                f"{arm.name} declares it retrieves {plane!r}, but running it "
-                f"with label_plane={plane!r} returned documents from {sorted(got)} "
-                "only. A declaration the arm's own behaviour does not support is "
-                "worse than no declaration: gate3.coverage would admit a "
-                "comparison on the strength of it."
-            )
+
+    assert unverified <= PROVIDER_DEPENDENT_ARMS, (
+        f"these arms could not be verified and are not declared as "
+        f"provider-dependent: {sorted(unverified - PROVIDER_DEPENDENT_ARMS)}"
+    )

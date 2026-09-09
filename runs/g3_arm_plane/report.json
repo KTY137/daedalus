@@ -1,0 +1,2540 @@
+{
+  "all_planes": [
+    "code",
+    "data",
+    "knowledge"
+  ],
+  "cells": [
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.6666666666666666,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.6666666666666666,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.6666666666666666,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "before",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.6666666666666666,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.3333333333333333,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.6666666666666666,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.3333333333333333,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.6666666666666666,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "A",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.6666666666666666,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 1000,
+      "score": 0.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.6666666666666666,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 4000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 4000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "bm25",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "web_api_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_care_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_cli_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_plants_file"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "slice_semantic_slice"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "index_build_index"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.6666666666666666,
+      "task": "report_structure_summary"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.3333333333333333,
+      "task": "ikarus_distill"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "agent_env",
+      "rung": 16000,
+      "score": 0.0,
+      "task": "projects_resolve_repo_root"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "code",
+      "repo": "sunny_garden",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "garden_watering_plan"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_articles_csv"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "data",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_article_schema"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_adr_consequences_section"
+    },
+    {
+      "arm": "embeddings",
+      "error": null,
+      "mode": "B",
+      "plane": "knowledge",
+      "repo": "fourfold_wiki_app",
+      "rung": 16000,
+      "score": 1.0,
+      "task": "fourfold_security_operations_link"
+    }
+  ],
+  "errors": [],
+  "ladder": [
+    1000,
+    4000,
+    16000
+  ],
+  "schema": "g3-arm-plane/1",
+  "verdict": {
+    "bm25": "REPAIRED_WITH_REGRESSION",
+    "embeddings": "REPAIRED_CLEAN"
+  }
+}

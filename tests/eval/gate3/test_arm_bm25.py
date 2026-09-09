@@ -169,7 +169,11 @@ def test_arm_bm25_ordinary_failure_yields_error_outcome(
 ) -> None:
     repo = _write_repo(tmp_path)
 
-    def boom(root):
+    def boom(root, **kwargs):
+        # **kwargs rather than mirroring today's exact call: the arm passes
+        # planes= since G3-ARM-PLANE-01, and a stub pinned to one signature
+        # turns the next signature change into a TypeError wearing the costume
+        # of the corpus failure this test is actually about.
         raise OSError("simulated corpus read failure")
 
     monkeypatch.setattr(harness, "_repo_chunks", boom)
