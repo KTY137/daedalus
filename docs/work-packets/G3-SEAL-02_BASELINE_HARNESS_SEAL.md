@@ -2,7 +2,7 @@
 
 Packet ID: `G3-SEAL-02`
 Artifact role: `primary`
-Status: `built; acceptance matrix green; NOT reviewed by an independent reviewer; nothing sealed`
+Status: `built; independently reviewed; primary claim REFUTED at revision 1 and repaired; 47-row matrix green; nothing sealed`
 Active gate: `1`
 Classification: `ALIGNED`
 Owner: `repository owner`
@@ -16,11 +16,18 @@ Supersedes: the empty `packet/g3-seal-01` branch (no commits).
 
 ## Primary acceptance claim
 
-> A `RunManifest` reports `sealed=True` **if and only if** an owner-signed,
-> one-use, unexpired `BaselineHarnessSeal` has been authenticated by the kernel
-> and bound to exactly that manifest's digest and each of its six freeze
-> obligations. No builder-supplied string, no unverified record and no
-> promotion approval can produce that answer.
+> A `RunManifest` reports `sealed=True` **if and only if** a `SealAuthority`
+> has re-read a persisted one-use consumption from the `SealLedger`, re-run the
+> owner HMAC over the signed `BaselineHarnessSeal` it stores, and that seal
+> binds exactly this manifest's digest and each of its six freeze obligations.
+>
+> No builder-supplied string, no hand-built value of any seal class, no
+> serialization route (`from_dict`, subclass, pickle, deepcopy), no unpersisted
+> receipt and no promotion approval can produce that answer.
+>
+> Revision 1 of this packet claimed the first paragraph while implementing only
+> the digest comparison, and an independent reviewer forged a seal in one
+> script. The second paragraph exists because of that.
 
 ## Why this packet exists
 
@@ -104,10 +111,31 @@ silently carrying it:
 
 ### `VerifiedBaselineSeal`
 
-The authenticated result. Constructible in practice only by
-`verify_baseline_seal`, because `__post_init__` recomputes
-`seal_sha256` from the bound fields and refuses a mismatch — a hand-built
-instance has to already know the digest of a body it does not possess.
+The authenticated result of one verification. **It is a value, not a
+capability, and nothing may treat holding one as proof of anything.**
+
+A first revision of this packet claimed here that it was "constructible in
+practice only by `verify_baseline_seal`". That was false, and an adversarial
+reviewer refuted it in one script: the class is a frozen dataclass, every field
+it carries is publicly computable from the manifest via
+`seal_expectation_digests()`, and `__post_init__` validates only *formats*. The
+reviewer built one with `owner_id="attacker"` and `signature_sha256="0"*64` and
+sealed a run with it — plus four more routes (`from_dict`, subclass, pickle,
+deepcopy). See "Evidence, expected failures and review".
+
+### `SealAuthority`
+
+The thing that actually answers "is this sealed?". It holds a `SealLedger` and
+the owner keyring, and `reauthenticate(receipt)` re-reads the persisted row,
+re-parses the **signed** seal, re-runs the HMAC, and cross-checks every
+denormalized column against it. It returns a `VerifiedBaselineSeal` or raises;
+it never returns a bool.
+
+It also refuses a receipt consumed through a ledger **clock seam** unless the
+caller passes `allow_clock_seam=True`, mirroring
+`promotion.authorize_persisted_promotion`'s refusal of a decision whose
+`seams_used` is non-empty. A rewound clock can consume an expired seal, so a
+seam-built receipt must not seal anything by default.
 
 ### `ConsumedBaselineSeal`
 
@@ -125,33 +153,43 @@ issued for one harness cannot be pointed at another.
 ## The `RunManifest` change
 
 `owner_seal_ref: str | None` stays (it remains an unverified *claim*, and
-`seal_claim` / `evidence_status` keep reporting it as such). One field is
-added:
+`seal_claim` / `evidence_status` keep reporting it as such). Two public fields
+are added, and they are **all-or-nothing** — a receipt without an authority
+cannot be authenticated, and an authority without a receipt has nothing to
+authenticate:
 
 ```python
-verified_seal: VerifiedBaselineSeal | None = None
+consumed_seal:  ConsumedBaselineSeal | None = None
+seal_authority: SealAuthority        | None = None
+_authenticated_seal: VerifiedBaselineSeal | None = field(init=False, ...)
 ```
 
-`__post_init__` gains a real `isinstance` check against `VerifiedBaselineSeal`
-(via a deferred import, so this package keeps a stdlib-only module-level import
-graph). Structural checking was rejected: all eight bound digests are publicly
-computable from the manifest, so duck typing would have reproduced the
-`G3-BASE-01` string forgery one layer down. Presenting a non-seal is a
-`FreezeError`, not a quiet `sealed=False`, because a silent `False` would let a
-forgery attempt sit in a report looking like ordinary prework.
+`__post_init__` type-checks both (deferred import, so this package keeps a
+stdlib-only module-level import graph) and then calls
+`seal_authority.reauthenticate(consumed_seal)`, which **re-reads the ledger row
+and re-runs the owner HMAC**. Its result is stored in `_authenticated_seal`,
+which is `init=False` so no caller can supply it and `dataclasses.replace`
+forces a fresh ledger round trip.
+
+Authentication happens once, at construction, so `sealed` stays a cheap
+property reporting an answer an authority already gave — and a forged receipt
+fails **loudly** there instead of quietly reporting `False` inside a report.
 
 `sealed` then becomes:
 
 ```python
-seal = self.verified_seal
+seal = self._authenticated_seal        # half 1: did an owner sign this?
 if seal is None:
     return False
-return (
+return (                               # half 2: sign WHAT?
     seal.manifest_sha256 == self.digest
     and seal.task_set_sha256 == self.task_set.digest
     ... one comparison per obligation, plus base_revision and plan_digest ...
 )
 ```
+
+Neither half is sufficient alone. Half 1 without half 2 seals any manifest with
+any genuine seal; half 2 without half 1 is the forgery the reviewer executed.
 
 Budgets are bound as ONE digest over the whole equal-budget mapping
 (`_budget_digest`), not per arm: `require_equal_budgets` already forces them
@@ -198,20 +236,48 @@ existing unsealed branches verbatim.
     approval consumed, and `ApprovalLedger.consumed()` is unaffected. Asserted
     against one SQLite file holding both tables.
 
+### 5b. Refusal path, continued — the review's findings as rows
+20. A receipt consumed through a ledger **clock seam** does not seal unless the
+    caller passes `allow_clock_seam=True` → `SealStateError`.
+21. A clock that advances past `expires_at` between the preflight sample and
+    the persistence sample → `SealExpired`, and **nothing is persisted**.
+22. A ledger clock that moves backwards mid-consume → `SealStateError`.
+
+### 5c. Forgery, continued
+16. A hand-built `VerifiedBaselineSeal` **of the real class**, unsigned, no
+    ledger → refused. *This is the row the first revision was missing, and the
+    forgery that worked.*
+16b. A hand-built `ConsumedBaselineSeal` with a self-consistent digest →
+    `SealStateError` ("not persisted"): the receipt validates itself, the
+    ledger is what refuses it.
+16c. `from_dict` / subclass / pickle / deepcopy of a forged seal → all refused
+    (parameterised).
+17. A receipt without an authority, or an authority without a receipt →
+    `FreezeError`.
+18. A genuine receipt re-authenticated against the **wrong keyring** →
+    `SealSignatureError`.
+19. A ledger row edited in place (`UPDATE ... SET owner_id='attacker'`) no
+    longer authenticates → `SealStateError`.
+
 ### 5d. Fault injection
-15. Ledger file unwritable → refusal before the seal is treated as consumed.
 16. Concurrent double-consume from two connections → exactly one succeeds.
 17. Malformed / truncated JSON seal payload → `ValueError`, never a pass.
+
+*Row 15 of the first revision ("ledger file unwritable") is WITHDRAWN: it was
+listed and never tested. See the review section.*
 
 ## Scope
 
 **In scope**
-- `daedalus/kernel/contracts/security.py` (add the three seal contracts)
-- `daedalus/kernel/seals.py` (new: issue / verify / `SealLedger`)
-- `daedalus/eval/gate3/contracts.py` (`RunManifest.verified_seal`, `sealed`,
-  `evidence_status`)
+- `daedalus/kernel/contracts/security.py` (add `BaselineHarnessSeal`)
+- `daedalus/kernel/seals.py` (new: issue / verify / `SealLedger` /
+  `SealAuthority`)
+- `daedalus/eval/gate3/contracts.py` (`RunManifest.consumed_seal`,
+  `seal_authority`, `sealed`, `evidence_status`, plus the pre-existing
+  `FrozenTaskSet.task_ids` / `SeedPolicy.seeds` freeze gap the review found)
 - `tests/kernel/test_baseline_harness_seal.py` (new)
-- `tests/eval/gate3/test_contracts.py` (extend, do not rewrite)
+- `tests/contracts/test_import_scc_hierarchy.py`,
+  `tests/contracts/test_work_packet_index.py` (moving census pins only)
 - this document
 
 **Forbidden paths** — a diff touching these fails the packet
@@ -257,11 +323,53 @@ seal-consumption history, never approval history.
 
 ## Evidence, expected failures and review
 
+### Independent adversarial review (2026-09-09) — the first revision FAILED
+
+A reviewer with no sight of this document attacked commit `8f2cd807` and
+**refuted its primary acceptance claim in one script**. Retained in full,
+because the plan requires negative evidence to survive, and because the shape
+of the mistake is more instructive than the fix.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| CRITICAL-1 | `sealed` returned `True` for a hand-built, unsigned `VerifiedBaselineSeal` (`owner_id="attacker"`, `signature_sha256="0"*64`, no ledger). Also via `from_dict`, subclass, pickle, deepcopy, and `object.__setattr__`. | **FIXED.** `RunManifest` now takes a `ConsumedBaselineSeal` + `SealAuthority` and re-authenticates against the ledger. Rows 5c16, 5c16b, 5c16c. |
+| HIGH-2 | "one-use" and "unexpired" never reached `sealed`: one genuine consumed seal sealed unlimited manifests forever. | **FIXED** by the same change — the authority re-reads the persisted consumption. |
+| HIGH-3 | `consume` sampled the clock once *before* `BEGIN IMMEDIATE`; under real lock contention (`busy_timeout` 30 s) an **expired** seal was persisted with a pre-expiry `consumed_at`. `ApprovalLedger` has always re-checked. | **FIXED.** Three clock samples, monotonicity guards, in-transaction re-verify, expiry-at-persistence check, `except Exception: ROLLBACK`. Rows 5b21, 5b22. |
+| MEDIUM-4 | `verify_consumption` compared a self-consistent digest to itself — a hand-edited row verified. | **FIXED, and beyond the approval path**: it now re-parses the signed seal, re-runs the HMAC, and cross-checks *every* denormalized column (the approval version checks four), refusing loudly if a future column is added unchecked. Row 5c19. |
+| MEDIUM-5 | The injectable clock seam is identical to `ApprovalLedger`'s (accepted), but nothing downstream refused a seam-built receipt the way `authorize_persisted_promotion` refuses `seams_used`. | **FIXED.** `SealAuthority.allow_clock_seam` defaults to `False`. Row 5b20. |
+| LOW-6 | `seals._as_utc` checked `tzinfo is None` but not `utcoffset() is None`; approvals checks both. Measured a 1 h silent shift. | **FIXED.** |
+| MEDIUM-7 | Pre-existing: `FrozenTaskSet.task_ids` and `SeedPolicy.seeds` were not defensively copied, so an object could hold a state its own validator refuses and its digest could move. Direction was fail-closed for `sealed`. | **FIXED** (`tuple()` before validation), though it predates this packet. |
+| INFO-8 | The sealed branch of `evidence_status()` dropped `owner_seal_ref` from the rendered line. | **FIXED** — the sealed line now names any unverified claim as well. |
+
+The reviewer also **refuted six of my own worries**: seal and approval
+signatures cannot cross-verify, consuming one cannot retire the other's nonce,
+a `ConsumedBaselineSeal` is refused by `authorize_persisted_promotion`, the
+`UNIQUE` constraints hold, an injected `MemoryError` mid-`INSERT` rolls back
+cleanly, and `approvals.py` is untouched. **The type/domain/ledger separation
+was never the weak part.** Trusting a value type was.
+
+Mutation testing killed 7/7 (including all three the packet asked for), so the
+suite was strong on every guard that existed — the gap was a *missing* guard.
+§5c tested three forgeries: the historical string, a promotion approval, and a
+structural impostor of a **different class**. It never tried the real class,
+hand-built. That is exactly the one that worked, and it is now row 5c16.
+
+**Corrections to the first revision's own claims**, since it made three the
+reviewer had to check by hand: the acceptance matrix contained **35** tests,
+not the 36 the commit message reported; `bound_digests` returns **seven**
+digests, not "eight"; acceptance row 15 (unwritable ledger file) had **no
+test** and still does not — it is withdrawn rather than left as an unearned
+row, because a portable unwritable-SQLite fixture on Windows is its own piece
+of work and inventing a passing test for it would be worse than admitting the
+gap.
+
+### Expected failures, recorded before the build
+
 - The 24-hour TTL will be too short for a human owner sealing a harness on a
   different day than the run. Recorded, not fixed: matching the Gate-0 cap is
   the conservative choice, and lengthening it is an owner decision with its own
   evidence, not a convenience edit inside this packet.
-- `RunManifest` gains a non-`None`-able field with a default, so every existing
-  positional construction keeps working. If any caller constructs it by
-  `dataclasses.replace` with a stale field set, that surfaces as a `TypeError`
-  at import of the test suite, not as a silent unsealed run.
+- Sealing now needs a live `SealLedger` and the owner keyring at manifest
+  construction. That is deliberate — it is the whole finding — but it means a
+  report renderer that only has JSON cannot construct a sealed manifest. It
+  must carry the receipt and be given an authority, or render UNSEALED.

@@ -36,6 +36,7 @@ from daedalus.kernel.contracts.security import SEAL_OPERATION
 from daedalus.kernel.seals import (
     SEAL_SIGNING_DOMAIN,
     ConsumedBaselineSeal,
+    SealAuthority,
     SealBindingMismatch,
     SealExpectation,
     SealExpired,
@@ -146,6 +147,15 @@ def _ledger(tmp_path, *, now: datetime = NOW) -> SealLedger:
     return SealLedger(tmp_path / "seals.sqlite3", clock=lambda: now)
 
 
+def _authority(ledger: SealLedger, **overrides) -> SealAuthority:
+    """Every ledger in this file uses the clock seam, so tests that seal a
+    manifest must opt into it explicitly. The DEFAULT refusal is asserted
+    separately in test_5b20."""
+    kwargs = dict(ledger=ledger, keyring=KEYRING, allow_clock_seam=True)
+    kwargs.update(overrides)
+    return SealAuthority(**kwargs)
+
+
 # --------------------------------------------------------------------------- #
 # 5a -- the positive path                                                     #
 # --------------------------------------------------------------------------- #
@@ -160,19 +170,20 @@ def test_5a1_issue_verify_consume_round_trip(tmp_path):
 
     assert isinstance(receipt, ConsumedBaselineSeal)
     assert ledger.consumed(receipt.verified.seal_sha256) is True
-    assert ledger.verify_consumption(receipt).digest == receipt.digest
+    assert ledger.verify_consumption(receipt, keyring=KEYRING).digest == receipt.digest
 
 
 def test_5a2_sealed_manifest_reports_sealed_and_names_the_seal(tmp_path):
     manifest = _manifest()
-    receipt = _ledger(tmp_path).consume(
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
         _seal(manifest),
         keyring=KEYRING,
         expectation=_expectation(manifest),
         seal_use_id="use-1",
     )
 
-    sealed = _manifest(verified_seal=receipt.verified)
+    sealed = _manifest(consumed_seal=receipt, seal_authority=_authority(ledger))
 
     assert sealed.sealed is True
     status = sealed.evidence_status()
@@ -340,7 +351,8 @@ def test_5b9b_expectation_disagreeing_on_base_revision_is_refused():
 def test_5b10_swapping_an_obligation_after_sealing_unseals_the_run(tmp_path):
     """A genuinely verified seal, pointed at a manifest whose budgets moved."""
     manifest = _manifest()
-    receipt = _ledger(tmp_path).consume(
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
         _seal(manifest),
         keyring=KEYRING,
         expectation=_expectation(manifest),
@@ -352,7 +364,8 @@ def test_5b10_swapping_an_obligation_after_sealing_unseals_the_run(tmp_path):
             "arm_a": ArmBudget(max_tokens=9999),
             "arm_b": ArmBudget(max_tokens=9999),
         },
-        verified_seal=receipt.verified,
+        consumed_seal=receipt,
+        seal_authority=_authority(ledger),
     )
 
     assert moved.sealed is False
@@ -362,7 +375,8 @@ def test_5b10_swapping_an_obligation_after_sealing_unseals_the_run(tmp_path):
 def test_5b10b_adding_an_arm_after_sealing_unseals_the_run(tmp_path):
     """The reason budgets are bound as ONE digest, not per-arm."""
     manifest = _manifest()
-    receipt = _ledger(tmp_path).consume(
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
         _seal(manifest),
         keyring=KEYRING,
         expectation=_expectation(manifest),
@@ -375,15 +389,268 @@ def test_5b10b_adding_an_arm_after_sealing_unseals_the_run(tmp_path):
             "arm_b": ArmBudget(max_tokens=1000),
             "arm_c": ArmBudget(max_tokens=1000),
         },
-        verified_seal=receipt.verified,
+        consumed_seal=receipt,
+        seal_authority=_authority(ledger),
     )
 
     assert widened.sealed is False
 
 
+def test_5b20_a_clock_seam_ledger_is_not_a_sealing_authority_by_default(tmp_path):
+    """The seam is accepted; the missing piece was the downstream refusal.
+
+    A rewound clock consumes an expired seal, so a receipt produced through an
+    injected clock must not seal anything unless a test says so out loud. This
+    mirrors ``promotion.authorize_persisted_promotion`` refusing a decision
+    whose ``seams_used`` is non-empty.
+    """
+    manifest = _manifest()
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
+        _seal(manifest),
+        keyring=KEYRING,
+        expectation=_expectation(manifest),
+        seal_use_id="use-1",
+    )
+    assert ledger.clock_seam_used is True
+
+    with pytest.raises(SealStateError, match="clock seam"):
+        _manifest(
+            consumed_seal=receipt,
+            seal_authority=SealAuthority(ledger=ledger, keyring=KEYRING),
+        )
+    # and the explicit opt-in works, which is what every other test here uses
+    assert _manifest(
+        consumed_seal=receipt, seal_authority=_authority(ledger)
+    ).sealed is True
+
+
+def test_5b21_an_expired_seal_is_not_persisted_when_the_lock_delays_us(tmp_path):
+    """HIGH-3: consume() must re-check expiry at PERSISTENCE, not only before
+    acquiring the write lock, because BEGIN IMMEDIATE can block for up to
+    busy_timeout. Simulated by a clock that advances past expiry between the
+    preflight sample and the persistence sample."""
+    manifest = _manifest()
+    ticks = iter([NOW, NOW, EXPIRES + timedelta(seconds=1)])
+    ledger = SealLedger(tmp_path / "slow.sqlite3", clock=lambda: next(ticks))
+
+    with pytest.raises(SealExpired, match="expired before consumption persistence"):
+        ledger.consume(
+            _seal(manifest),
+            keyring=KEYRING,
+            expectation=_expectation(manifest),
+            seal_use_id="use-1",
+        )
+    # nothing was persisted, and the seal is still consumable by a sane clock
+    assert _ledger(tmp_path).consumed(
+        verify_baseline_seal(
+            _seal(manifest),
+            keyring=KEYRING,
+            expectation=_expectation(manifest),
+            now=NOW,
+        ).seal_sha256
+    ) is False
+
+
+def test_5b22_a_ledger_clock_that_moves_backwards_is_refused(tmp_path):
+    manifest = _manifest()
+    ticks = iter([NOW, NOW - timedelta(hours=1), NOW])
+    ledger = SealLedger(tmp_path / "back.sqlite3", clock=lambda: next(ticks))
+    with pytest.raises(SealStateError, match="moved backwards"):
+        ledger.consume(
+            _seal(manifest),
+            keyring=KEYRING,
+            expectation=_expectation(manifest),
+            seal_use_id="use-1",
+        )
+
+
 # --------------------------------------------------------------------------- #
 # 5c -- forgery                                                               #
 # --------------------------------------------------------------------------- #
+def _forged_verified_seal(manifest: RunManifest) -> VerifiedBaselineSeal:
+    """A VerifiedBaselineSeal built with no secret, no signature and no ledger.
+
+    Every field it needs is public: ``seal_expectation_digests()`` publishes
+    all eight. This is the object an adversarial reviewer used to seal a run
+    against the first revision of this packet.
+    """
+    digests = manifest.seal_expectation_digests()
+    return VerifiedBaselineSeal(
+        seal_sha256="0" * 64,
+        seal_id="i-am-definitely-the-owner-trust-me",
+        owner_id="attacker",
+        key_id="no-key-at-all",
+        operation=SEAL_OPERATION,
+        manifest_sha256=digests["manifest_sha256"],
+        task_set_sha256=digests["task_set_sha256"],
+        evaluator_sha256=digests["evaluator_sha256"],
+        budget_sha256=digests["budget_sha256"],
+        environment_sha256=digests["environment_sha256"],
+        seed_policy_sha256=digests["seed_policy_sha256"],
+        base_revision=digests["base_revision"],
+        plan_digest=digests["plan_digest"],
+        nonce="forged",
+        issued_at=_ts(ISSUED),
+        expires_at=_ts(EXPIRES),
+        signature_sha256="0" * 64,
+    )
+
+
+def test_5c16_a_handbuilt_unsigned_seal_of_the_REAL_class_is_refused(tmp_path):
+    """THE row this matrix was missing, and the one that worked.
+
+    §5c covered three forgeries -- the historical string, a promotion approval,
+    and a structural impostor of a DIFFERENT class. It never tried the real
+    class, hand-built. That is precisely the one an adversarial reviewer used:
+    `owner_id="attacker"`, `signature_sha256="0"*64`, no ledger, sealed=True.
+    """
+    manifest = _manifest()
+    forged = _forged_verified_seal(manifest)
+
+    # it cannot even reach the manifest: the field takes a CONSUMPTION receipt
+    with pytest.raises(FreezeError, match="ConsumedBaselineSeal"):
+        _manifest(
+            consumed_seal=forged,  # type: ignore[arg-type]
+            seal_authority=_authority(_ledger(tmp_path)),
+        )
+
+
+def test_5c16b_a_handbuilt_consumption_receipt_is_refused(tmp_path):
+    """One level up: forge the RECEIPT too, with a self-consistent digest.
+
+    ConsumedBaselineSeal validates its own digest, so a forger can satisfy it.
+    The authority is what stops this -- the ledger has no such row.
+    """
+    import json as _json
+
+    from daedalus.spine.envelope import canonical_sha
+
+    manifest = _manifest()
+    forged = _forged_verified_seal(manifest)
+    expectation = _expectation(manifest)
+    # the canonical normalized form, because __post_init__ runs consumed_at
+    # through _utc_timestamp before recomputing the digest
+    consumed_at = NOW.isoformat(timespec="microseconds")
+    payload = {
+        "verified": forged.to_dict(),
+        "expectation_sha256": expectation.digest,
+        "seal_use_id": "forged-use",
+        "consumed_at": consumed_at,
+    }
+    receipt = ConsumedBaselineSeal(
+        verified=forged,
+        expectation_sha256=expectation.digest,
+        seal_use_id="forged-use",
+        consumed_at=consumed_at,
+        consumption_sha256=canonical_sha(payload),
+    )
+    # the forged receipt is internally valid -- that is the point
+    assert _json.loads(_json.dumps(receipt.to_dict()))["seal_use_id"] == "forged-use"
+
+    with pytest.raises(SealStateError, match="not persisted"):
+        _manifest(
+            consumed_seal=receipt, seal_authority=_authority(_ledger(tmp_path))
+        )
+
+
+@pytest.mark.parametrize("route", ["from_dict", "subclass", "pickle", "deepcopy"])
+def test_5c16c_no_serialization_route_smuggles_a_forged_seal_in(tmp_path, route):
+    """from_dict / subclass / pickle / deepcopy all preserved the forgery when
+    the manifest trusted a VALUE. None of them can produce a ledger row."""
+    import copy
+    # SAFE: this pickles and immediately unpickles an object CONSTRUCTED THREE
+    # LINES BELOW, in this process, from literals in this file. No untrusted
+    # bytes are involved. Round-tripping it is the point of the test -- pickle
+    # is one of the four routes that preserved a forged seal when the manifest
+    # trusted a value type, so the route has to be exercised to prove it is
+    # now closed. Do not "fix" this to JSON: JSON is already the `from_dict`
+    # route, and it would stop testing the pickle route.
+    import pickle  # nosec B403 - see comment above
+
+    manifest = _manifest()
+    forged = _forged_verified_seal(manifest)
+    if route == "from_dict":
+        smuggled = VerifiedBaselineSeal.from_dict(forged.to_dict())
+    elif route == "subclass":
+        class _Sub(VerifiedBaselineSeal):
+            pass
+
+        smuggled = _Sub(**forged.to_dict())
+    elif route == "pickle":
+        smuggled = pickle.loads(pickle.dumps(forged))
+    else:
+        smuggled = copy.deepcopy(forged)
+
+    assert isinstance(smuggled, VerifiedBaselineSeal)
+    with pytest.raises(FreezeError, match="ConsumedBaselineSeal"):
+        _manifest(
+            consumed_seal=smuggled,  # type: ignore[arg-type]
+            seal_authority=_authority(_ledger(tmp_path)),
+        )
+
+
+def test_5c17_a_receipt_without_an_authority_is_refused(tmp_path):
+    """Both fields or neither. A receipt alone cannot be authenticated."""
+    manifest = _manifest()
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
+        _seal(manifest),
+        keyring=KEYRING,
+        expectation=_expectation(manifest),
+        seal_use_id="use-1",
+    )
+    with pytest.raises(FreezeError, match="together"):
+        _manifest(consumed_seal=receipt)
+    with pytest.raises(FreezeError, match="together"):
+        _manifest(seal_authority=_authority(ledger))
+
+
+def test_5c18_a_wrong_keyring_cannot_reauthenticate_a_genuine_receipt(tmp_path):
+    """The authority re-runs the HMAC; holding the receipt is not enough."""
+    manifest = _manifest()
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
+        _seal(manifest),
+        keyring=KEYRING,
+        expectation=_expectation(manifest),
+        seal_use_id="use-1",
+    )
+    wrong = SealAuthority(
+        ledger=ledger,
+        keyring={(OWNER, KEY): b"a-different-secret-also-32-bytes-long"},
+        allow_clock_seam=True,
+    )
+    with pytest.raises(SealSignatureError):
+        _manifest(consumed_seal=receipt, seal_authority=wrong)
+
+
+def test_5c19_a_ledger_row_edited_in_place_no_longer_authenticates(tmp_path):
+    """MEDIUM-4: verify_consumption used to compare a self-consistent digest
+    to itself, so a hand-edited row passed. It now re-runs the HMAC."""
+    manifest = _manifest()
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
+        _seal(manifest),
+        keyring=KEYRING,
+        expectation=_expectation(manifest),
+        seal_use_id="use-1",
+    )
+    connection = sqlite3.connect(str(ledger.path))
+    try:
+        connection.execute(
+            "UPDATE baseline_harness_seal_consumptions_v1 SET owner_id='attacker'"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    # the signed seal_json still names the real owner, so the row now
+    # disagrees with its own authority
+    with pytest.raises(SealStateError):
+        ledger.verify_consumption(receipt, keyring=KEYRING)
+
+
 def test_5c11_the_historical_string_forgery_still_fails():
     """Kept verbatim in spirit from G3-BASE-01. An independent reviewer sealed
     a manifest with this literal text; it must never work again."""
@@ -393,7 +660,7 @@ def test_5c11_the_historical_string_forgery_still_fails():
 
 
 def test_5c12_no_verified_seal_means_unsealed_whatever_the_ref_says():
-    assert _manifest(verified_seal=None, owner_seal_ref="approval-42").sealed is False
+    assert _manifest(consumed_seal=None, owner_seal_ref="approval-42").sealed is False
 
 
 def test_5c13_a_promotion_approval_cannot_be_used_as_a_seal(tmp_path):
@@ -456,25 +723,11 @@ def test_5c13_a_promotion_approval_cannot_be_used_as_a_seal(tmp_path):
     # It raises rather than reporting False: presenting a promotion authority
     # as a seal is a forgery attempt, not a legitimate unsealed state, and a
     # silent False would let it sit in a report looking like ordinary prework.
-    with pytest.raises(FreezeError, match="VerifiedBaselineSeal"):
-        _manifest(verified_seal=verified_approval)  # type: ignore[arg-type]
-
-    # (b2) and so does any structurally-correct impostor: the eight bound
-    # digests are all publicly computable from the manifest, so duck typing
-    # here would reproduce the G3-BASE-01 forgery one layer down.
-    real = _manifest()
-    digests = real.seal_expectation_digests()
-
-    class _Impostor:
-        def __init__(self) -> None:
-            for name, value in digests.items():
-                setattr(self, name, value)
-            self.seal_sha256 = "9" * 64
-            self.owner_id = OWNER
-            self.key_id = KEY
-
-    with pytest.raises(FreezeError, match="VerifiedBaselineSeal"):
-        _manifest(verified_seal=_Impostor())  # type: ignore[arg-type]
+    with pytest.raises(FreezeError, match="ConsumedBaselineSeal"):
+        _manifest(
+            consumed_seal=verified_approval,  # type: ignore[arg-type]
+            seal_authority=_authority(_ledger(tmp_path)),
+        )
 
     # (c) the approval's signature is not a valid seal signature
     import hashlib
@@ -580,7 +833,7 @@ def test_5d17b_unrecorded_consumption_is_refused(tmp_path):
     )
     other = SealLedger(tmp_path / "empty.sqlite3", clock=lambda: NOW)
     with pytest.raises(SealStateError):
-        other.verify_consumption(written)
+        other.verify_consumption(written, keyring=KEYRING)
 
 
 def test_5d18_a_tampered_consumption_digest_is_refused(tmp_path):
@@ -646,10 +899,13 @@ def test_seal_provenance_must_bind_every_referenced_digest():
 def test_sealing_does_not_change_the_run_digest(tmp_path):
     """Carried forward from G3-BASE-01: the seal is outside the identity."""
     manifest = _manifest()
-    receipt = _ledger(tmp_path).consume(
+    ledger = _ledger(tmp_path)
+    receipt = ledger.consume(
         _seal(manifest),
         keyring=KEYRING,
         expectation=_expectation(manifest),
         seal_use_id="use-1",
     )
-    assert _manifest(verified_seal=receipt.verified).digest == manifest.digest
+    assert _manifest(
+        consumed_seal=receipt, seal_authority=_authority(ledger)
+    ).digest == manifest.digest

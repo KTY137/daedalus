@@ -225,7 +225,13 @@ class BaselineHarnessSeal(CanonicalContract):
 
     @property
     def bound_digests(self) -> tuple[str, ...]:
-        """The eight digests a caller's expectation must reproduce exactly."""
+        """The seven digests the provenance must bind.
+
+        ``base_revision`` is not here because it is not a digest; it is bound
+        separately by the ``provenance.source_revision`` equality check above.
+        Verification compares nine fields in total (these seven, plus
+        ``base_revision`` and ``operation``).
+        """
 
         return (
             self.manifest_sha256,

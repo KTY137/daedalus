@@ -290,7 +290,11 @@ def _utc_now() -> datetime:
 def _as_utc(value: datetime, label: str) -> datetime:
     if not isinstance(value, datetime):
         raise ValueError(f"{label} must be a datetime")
-    if value.tzinfo is None:
+    # Both halves, matching ``approvals._as_utc``. Checking only ``tzinfo is
+    # None`` lets a tzinfo whose ``utcoffset()`` returns None through, and
+    # ``astimezone`` then silently reinterprets the value in LOCAL time -- an
+    # hours-wide shift that looks like a correct timestamp.
+    if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{label} must be timezone aware")
     return value.astimezone(timezone.utc)
 
@@ -484,6 +488,12 @@ class SealLedger:
     ):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        #: True when a caller injected a clock. The seam itself is identical to
+        #: ``ApprovalLedger``'s and is accepted; what was missing is the
+        #: downstream refusal, because a rewound clock consumes an expired seal
+        #: and the persisted row then attests a consumption that never happened
+        #: at that instant. ``SealAuthority`` refuses such a receipt by default.
+        self.clock_seam_used = clock is not None
         self._clock = clock or _utc_now
         self._initialize()
 
@@ -549,30 +559,57 @@ class SealLedger:
         if not isinstance(seal, BaselineHarnessSeal):
             raise TypeError("consumption requires the signed BaselineHarnessSeal")
         normalized_use_id = _identifier(seal_use_id, "seal_use_id")
-        now = self._now()
-        verified = verify_baseline_seal(
-            seal, keyring=keyring, expectation=expectation, now=now
+
+        # Three clock samples, not one. ``BEGIN IMMEDIATE`` can block for up to
+        # ``busy_timeout`` (30 s) behind another writer, so a single pre-lock
+        # sample let an ALREADY EXPIRED seal be persisted with a pre-expiry
+        # ``consumed_at`` -- which the receipt's own
+        # ``consumed_at >= expires_at`` guard then could not see. Measured on a
+        # real lock-contention repro. ``ApprovalLedger.consume`` has carried
+        # this discipline all along; this module claimed to reuse the approval
+        # primitives and had reused only the connection pragmas.
+        preflight_at = self._now()
+        preflight = verify_baseline_seal(
+            seal, keyring=keyring, expectation=expectation, now=preflight_at
         )
-        consumed_at = _timestamp(now)
-        payload = {
-            "verified": verified.to_dict(),
-            "expectation_sha256": expectation.digest,
-            "seal_use_id": normalized_use_id,
-            "consumed_at": consumed_at,
-        }
-        receipt = ConsumedBaselineSeal(
-            verified=verified,
-            expectation_sha256=expectation.digest,
-            seal_use_id=normalized_use_id,
-            consumed_at=consumed_at,
-            consumption_sha256=canonical_sha(payload),
-        )
+        seal_json = canonical_json(seal.to_dict())
+        expectation_json = canonical_json(expectation.to_dict())
 
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
-            try:
-                connection.execute(
+            transaction_at = self._now()
+            if transaction_at < preflight_at:
+                raise SealStateError("seal ledger clock moved backwards before consumption")
+            verified = verify_baseline_seal(
+                seal, keyring=keyring, expectation=expectation, now=transaction_at
+            )
+            if verified != preflight:
+                raise SealStateError("seal verification changed before consumption")
+            persistence_at = self._now()
+            if persistence_at < transaction_at:
+                raise SealStateError("seal ledger clock moved backwards during consumption")
+            consumed_at = _timestamp(persistence_at)
+            if consumed_at < verified.issued_at:
+                raise SealExpired("baseline harness seal is not valid yet at consumption")
+            if consumed_at >= verified.expires_at:
+                raise SealExpired(
+                    "baseline harness seal expired before consumption persistence"
+                )
+            payload = {
+                "verified": verified.to_dict(),
+                "expectation_sha256": expectation.digest,
+                "seal_use_id": normalized_use_id,
+                "consumed_at": consumed_at,
+            }
+            receipt = ConsumedBaselineSeal(
+                verified=verified,
+                expectation_sha256=expectation.digest,
+                seal_use_id=normalized_use_id,
+                consumed_at=consumed_at,
+                consumption_sha256=canonical_sha(payload),
+            )
+            connection.execute(
                     f"""
                     INSERT INTO {_SEAL_TABLE} (
                         seal_sha256, seal_id, owner_id, key_id, nonce, operation,
@@ -609,20 +646,33 @@ class SealLedger:
                         receipt.seal_use_id,
                         receipt.consumed_at,
                         receipt.consumption_sha256,
-                        canonical_json(seal.to_dict()),
-                        canonical_json(expectation.to_dict()),
+                        seal_json,
+                        expectation_json,
                         canonical_json(receipt.to_dict()),
                     ),
                 )
-            except sqlite3.IntegrityError as error:
-                connection.execute("ROLLBACK")
-                raise SealReplay(
-                    "baseline harness seal was already consumed"
-                ) from error
             connection.execute("COMMIT")
+            return receipt
+        except sqlite3.IntegrityError as error:
+            try:
+                connection.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise SealReplay(
+                "baseline harness seal, nonce, or use identity was already consumed"
+            ) from error
+        except Exception:
+            # Any other fault must also release the write lock. Without this
+            # branch a raised SealExpired/SealStateError left the transaction
+            # open until close(); the row was never committed, but the failure
+            # mode deserves an explicit rollback rather than a happy accident.
+            try:
+                connection.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
         finally:
             connection.close()
-        return receipt
 
     def consumed(self, seal_sha256: str) -> bool:
         """True when this exact seal digest has already been consumed."""
@@ -637,32 +687,171 @@ class SealLedger:
             connection.close()
         return row is not None
 
-    def verify_consumption(self, receipt: ConsumedBaselineSeal) -> ConsumedBaselineSeal:
-        """Re-read one persisted consumption and refuse any drift."""
+    def verify_consumption(
+        self,
+        receipt: ConsumedBaselineSeal,
+        *,
+        keyring: Mapping[tuple[str, str], bytes | str],
+    ) -> ConsumedBaselineSeal:
+        """Re-authenticate against the persisted seal and refuse any drift.
+
+        The earlier version read one column and compared a self-consistent
+        digest to itself, which authenticates nothing: a hand-edited row whose
+        ``consumption_sha256`` matches its own payload passed. This re-reads
+        the SIGNED seal, re-runs the HMAC against the caller's keyring, and
+        cross-checks every persisted column, exactly as
+        ``ApprovalLedger.verify_consumption`` does.
+
+        The signature is re-checked at the RECORDED consumption instant, not
+        at ``now``: a legitimately consumed seal is expected to be expired by
+        the time anyone reads its receipt back, and treating that as a failure
+        would make every historical receipt unverifiable.
+        """
 
         if not isinstance(receipt, ConsumedBaselineSeal):
             raise TypeError("verification requires a ConsumedBaselineSeal")
         connection = self._connect()
         try:
             row = connection.execute(
-                f"SELECT consumption_json FROM {_SEAL_TABLE} "
-                "WHERE consumption_sha256 = ?",
+                f"SELECT * FROM {_SEAL_TABLE} WHERE consumption_sha256 = ?",
                 (receipt.consumption_sha256,),
             ).fetchone()
         finally:
             connection.close()
         if row is None:
-            raise SealStateError("baseline harness seal consumption is not recorded")
-        stored = ConsumedBaselineSeal.from_dict(json.loads(row["consumption_json"]))
-        if stored.consumption_sha256 != receipt.consumption_sha256:
-            raise SealStateError("baseline harness seal consumption digest drifted")
-        return stored
+            raise SealStateError("baseline harness seal consumption is not persisted")
+        try:
+            consumption_payload = json.loads(row["consumption_json"])
+            seal_payload = json.loads(row["seal_json"])
+            expectation_payload = json.loads(row["expectation_json"])
+            if not isinstance(consumption_payload, dict):
+                raise ValueError("consumption JSON must be an object")
+            if not isinstance(seal_payload, dict):
+                raise ValueError("seal JSON must be an object")
+            if not isinstance(expectation_payload, dict):
+                raise ValueError("expectation JSON must be an object")
+            persisted = ConsumedBaselineSeal.from_dict(consumption_payload)
+            stored_seal = BaselineHarnessSeal.from_dict(seal_payload)
+            stored_expectation = SealExpectation(**expectation_payload)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise SealStateError("persisted baseline harness seal is corrupt") from exc
+
+        secret = keyring.get((stored_seal.owner_id, stored_seal.key_id))
+        if secret is None:
+            raise SealSignatureError("persisted baseline harness seal key is unknown")
+        if not hmac.compare_digest(
+            stored_seal.signature_sha256,
+            _seal_signature(stored_seal.signing_digest, secret),
+        ):
+            raise SealSignatureError("persisted baseline harness seal signature mismatch")
+
+        stored_verified = verify_baseline_seal(
+            stored_seal,
+            keyring=keyring,
+            expectation=stored_expectation,
+            now=_parse_utc(persisted.consumed_at, "persisted.consumed_at"),
+        )
+        # Every denormalized column is cross-checked against the SIGNED seal,
+        # not just the four an index needs. The narrower version passed an
+        # in-place `UPDATE ... SET owner_id='attacker'`: the columns are a
+        # queryable projection of `seal_json`, so any column that disagrees
+        # with it means the row was edited outside this API. Enumerated rather
+        # than looped so a future column addition fails this comparison loudly
+        # instead of being silently unchecked.
+        column_expectations = {
+            "seal_sha256": stored_verified.seal_sha256,
+            "seal_id": stored_seal.seal_id,
+            "owner_id": stored_seal.owner_id,
+            "key_id": stored_seal.key_id,
+            "nonce": stored_seal.nonce,
+            "operation": stored_seal.operation,
+            "manifest_sha256": stored_seal.manifest_sha256,
+            "task_set_sha256": stored_seal.task_set_sha256,
+            "evaluator_sha256": stored_seal.evaluator_sha256,
+            "budget_sha256": stored_seal.budget_sha256,
+            "environment_sha256": stored_seal.environment_sha256,
+            "seed_policy_sha256": stored_seal.seed_policy_sha256,
+            "base_revision": stored_seal.base_revision,
+            "plan_digest": stored_seal.plan_digest,
+            "issued_at": stored_seal.issued_at,
+            "expires_at": stored_seal.expires_at,
+            "signature_sha256": stored_seal.signature_sha256,
+            "expectation_sha256": receipt.expectation_sha256,
+            "seal_use_id": receipt.seal_use_id,
+            "consumed_at": receipt.consumed_at,
+            "consumption_sha256": receipt.consumption_sha256,
+            "seal_json": canonical_json(stored_seal.to_dict()),
+            "expectation_json": canonical_json(stored_expectation.to_dict()),
+            "consumption_json": canonical_json(receipt.to_dict()),
+        }
+        unchecked = sorted(set(row.keys()) - set(column_expectations))
+        if unchecked:
+            raise SealStateError(
+                f"seal ledger columns are not cross-checked: {unchecked}"
+            )
+        drifted = sorted(
+            name for name, expected in column_expectations.items() if row[name] != expected
+        )
+        if (
+            drifted
+            or persisted != receipt
+            or stored_verified != receipt.verified
+            or stored_expectation.digest != receipt.expectation_sha256
+        ):
+            raise SealStateError(
+                "baseline harness seal consumption does not match its persisted "
+                f"authority (drifted columns: {drifted})"
+            )
+        return persisted
+
+
+@dataclass(frozen=True)
+class SealAuthority:
+    """The only thing that can answer "is this harness sealed?".
+
+    A :class:`VerifiedBaselineSeal` is a VALUE, not a capability -- it is a
+    frozen dataclass anyone can construct, deserialize from JSON, subclass,
+    pickle or deepcopy, and every digest it carries is publicly computable from
+    the manifest it describes.  An adversarial reviewer built one with
+    ``owner_id="attacker"`` and ``signature_sha256="0"*64`` and sealed a run
+    with it.  Holding the value therefore proves nothing; only re-reading the
+    ledger and re-running the HMAC does.
+
+    This object is that re-check, and it is what ``RunManifest`` requires.  It
+    also refuses a ledger built on a test clock seam, mirroring
+    ``promotion.authorize_persisted_promotion``'s refusal of a decision whose
+    ``seams_used`` is non-empty: a rewound clock can consume an expired seal,
+    so a seam-built receipt must not be able to seal anything by default.
+    """
+
+    ledger: SealLedger
+    keyring: Mapping[tuple[str, str], bytes | str]
+    allow_clock_seam: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.ledger, SealLedger):
+            raise TypeError("seal authority requires a SealLedger")
+        if not isinstance(self.keyring, Mapping) or not self.keyring:
+            raise ValueError("seal authority requires a non-empty keyring")
+
+    def reauthenticate(self, receipt: ConsumedBaselineSeal) -> VerifiedBaselineSeal:
+        """Return the persisted verified seal, or raise. Never returns a bool."""
+
+        if not isinstance(receipt, ConsumedBaselineSeal):
+            raise TypeError("seal authority requires a ConsumedBaselineSeal")
+        if self.ledger.clock_seam_used and not self.allow_clock_seam:
+            raise SealStateError(
+                "a seal consumed through a ledger clock seam is not a sealing "
+                "authority; pass allow_clock_seam=True to accept it in a test"
+            )
+        return self.ledger.verify_consumption(receipt, keyring=self.keyring).verified
 
 
 __all__ = [
     "SEAL_SIGNING_DOMAIN",
     "BaselineHarnessSeal",
     "ConsumedBaselineSeal",
+    "SealAuthority",
     "SealBindingMismatch",
     "SealError",
     "SealExpectation",

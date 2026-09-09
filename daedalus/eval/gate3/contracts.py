@@ -38,7 +38,11 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from daedalus.kernel.seals import VerifiedBaselineSeal
+    from daedalus.kernel.seals import (
+        ConsumedBaselineSeal,
+        SealAuthority,
+        VerifiedBaselineSeal,
+    )
 
 # The four planes of the Project Twin (plan §5). Used by the label-plane census
 # so a task set cannot silently be single-plane while claiming to test a
@@ -90,6 +94,13 @@ class FrozenTaskSet:
     label_plane_census: Mapping[str, int]
 
     def __post_init__(self) -> None:
+        # Freeze the sequence FIRST, before anything validates it. The
+        # annotation says tuple; a caller passing a list kept a live reference,
+        # so an object could later hold a state its own validator refuses (a
+        # census that no longer sums to the task count) and its .digest could
+        # move underneath a seal. The same reviewer finding as the
+        # label_plane_census copy below, in the field the fix missed.
+        object.__setattr__(self, "task_ids", tuple(self.task_ids))
         if not self.name.strip():
             raise FreezeError("frozen task set needs a name")
         if not self.task_ids:
@@ -346,6 +357,8 @@ class SeedPolicy:
     deterministic: bool = False
 
     def __post_init__(self) -> None:
+        # Freeze before validating, for the same reason as FrozenTaskSet.
+        object.__setattr__(self, "seeds", tuple(self.seeds))
         if not self.seeds:
             raise FreezeError("SeedPolicy needs at least one seed")
         if len(set(self.seeds)) != len(self.seeds):
@@ -398,12 +411,28 @@ class RunManifest:
     base_revision: str
     plan_digest: str
     owner_seal_ref: str | None = None
-    #: A kernel-authenticated seal, or ``None``.  Supplied only by a caller
-    #: that ran ``daedalus.kernel.seals.SealLedger.consume`` -- this package
-    #: never constructs one.  Deliberately OUTSIDE ``digest`` for the same
-    #: recorded reason as ``owner_seal_ref``: sealing an existing run must not
-    #: change the identity of what was measured.
-    verified_seal: "VerifiedBaselineSeal | None" = None
+    #: The persisted receipt of one consumed seal, and the authority that can
+    #: re-authenticate it.  BOTH are required, or neither.
+    #:
+    #: An earlier revision took a ``VerifiedBaselineSeal`` value and trusted
+    #: its type.  That was wrong and an adversarial reviewer demonstrated it:
+    #: the class is a frozen dataclass anyone can construct, deserialize,
+    #: subclass, pickle or deepcopy, and every digest it carries is publicly
+    #: computable from this manifest via ``seal_expectation_digests()``.  A
+    #: seal with ``owner_id="attacker"`` and an all-zero signature sealed a
+    #: run -- the G3-BASE-01 string forgery, one layer down.  Holding a value
+    #: proves nothing; only re-reading the ledger and re-running the HMAC does.
+    #:
+    #: Both stay OUTSIDE ``digest`` for the recorded reason: sealing an
+    #: existing run must not change the identity of what was measured.
+    consumed_seal: "ConsumedBaselineSeal | None" = None
+    seal_authority: "SealAuthority | None" = None
+    #: Set ONLY by ``__post_init__``, from the authority's re-authentication.
+    #: ``init=False`` so no caller can pass it, and so ``dataclasses.replace``
+    #: drops it and forces a fresh ledger round trip on the new instance.
+    _authenticated_seal: "VerifiedBaselineSeal | None" = field(
+        default=None, init=False, compare=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if not self.base_revision.strip():
@@ -417,22 +446,42 @@ class RunManifest:
         # run time to defend itself; now the mapping simply cannot change.
         object.__setattr__(self, "budgets",
                            MappingProxyType(dict(self.budgets)))
-        if self.verified_seal is not None:
-            # A real type check, not duck typing. Structural checking would let
-            # any object carrying eight correctly-named string attributes seal a
-            # run, and every one of those eight digests is publicly computable
-            # from the manifest -- i.e. duck typing would reproduce exactly the
-            # forgery G3-BASE-01 recorded, one layer down. The import is
-            # deferred so this package keeps a stdlib-only import graph until a
-            # caller actually presents a seal.
-            from daedalus.kernel.seals import VerifiedBaselineSeal
+        object.__setattr__(self, "_authenticated_seal", None)
+        if (self.consumed_seal is None) != (self.seal_authority is None):
+            raise FreezeError(
+                "RunManifest requires consumed_seal and seal_authority together: "
+                "a receipt without an authority cannot be authenticated, and an "
+                "authority without a receipt has nothing to authenticate"
+            )
+        if self.consumed_seal is not None:
+            # Deferred so this package keeps a stdlib-only module-level import
+            # graph until a caller actually presents a seal.
+            from daedalus.kernel.seals import (
+                ConsumedBaselineSeal,
+                SealAuthority,
+            )
 
-            if not isinstance(self.verified_seal, VerifiedBaselineSeal):
+            if not isinstance(self.consumed_seal, ConsumedBaselineSeal):
                 raise FreezeError(
-                    "RunManifest.verified_seal must be a kernel-verified "
-                    "VerifiedBaselineSeal, not "
-                    f"{type(self.verified_seal).__name__}"
+                    "RunManifest.consumed_seal must be a ConsumedBaselineSeal, not "
+                    f"{type(self.consumed_seal).__name__}"
                 )
+            if not isinstance(self.seal_authority, SealAuthority):
+                raise FreezeError(
+                    "RunManifest.seal_authority must be a SealAuthority, not "
+                    f"{type(self.seal_authority).__name__}"
+                )
+            # THE load-bearing line. Re-reads the ledger row and re-runs the
+            # HMAC against the owner keyring; raises on anything short of that.
+            # It happens once, at construction, so `sealed` stays a cheap
+            # property that reports an answer an authority already gave -- and
+            # so a forged receipt fails LOUDLY at construction instead of
+            # quietly reporting False somewhere in a report.
+            object.__setattr__(
+                self,
+                "_authenticated_seal",
+                self.seal_authority.reauthenticate(self.consumed_seal),
+            )
 
     @property
     def sealed(self) -> bool:
@@ -447,21 +496,29 @@ class RunManifest:
         honest but terminal: an eternally-false flag means no Gate-3 evidence
         can ever exist (recorded as `G3-BASE-01` §F4).
 
-        `G3-SEAL-02` supplies the mechanism. ``verified_seal`` is a
-        :class:`~daedalus.kernel.seals.VerifiedBaselineSeal`, produced only by
-        ``verify_baseline_seal`` after an HMAC check against an owner keyring,
-        a TTL check and a field-by-field binding check, and consumed one-use
-        through ``SealLedger``. It authorizes nothing: a seal cannot promote,
-        merge, widen a write root or mint a lease.
+        `G3-SEAL-02` supplies the mechanism, in TWO independent halves, and
+        both are needed:
 
-        The comparison below is deliberately NOT ``verified_seal is not None``.
-        Every freeze obligation is re-compared against the live manifest, so a
-        genuinely verified seal issued for a different harness -- or for THIS
-        harness before one of its obligations was swapped -- still reports
-        ``False``. Fail-closed stays the default: anything unrecognised is
-        unsealed.
+        1. ``_authenticated_seal`` is set only by ``__post_init__`` calling
+           ``SealAuthority.reauthenticate``, which re-reads the ledger row for
+           this receipt and re-runs the owner HMAC over the persisted signed
+           seal. A first revision of this packet skipped that and trusted a
+           ``VerifiedBaselineSeal`` VALUE; a reviewer sealed a run with
+           ``owner_id="attacker"`` and an all-zero signature, because the class
+           is freely constructible and every digest it carries is published by
+           ``seal_expectation_digests()``.
+        2. The comparison below re-checks every freeze obligation against the
+           LIVE manifest, so a genuinely authenticated seal issued for a
+           different harness -- or for this one before an obligation was
+           swapped -- still reports ``False``.
+
+        Half 1 answers "did an owner sign this?"; half 2 answers "sign what?".
+        Neither is sufficient alone. Fail-closed stays the default.
+
+        The seal still authorizes nothing: it cannot promote, merge, widen a
+        write root or mint a lease.
         """
-        seal = self.verified_seal
+        seal = self._authenticated_seal
         if seal is None:
             return False
         return (
@@ -534,20 +591,29 @@ class RunManifest:
         })
 
     def evidence_status(self) -> str:
-        """One line for any report rendering this run. It can never say a run
-        is Gate-3 evidence, because no code path in this package can seal one
-        (see ``sealed``). A recorded seal reference is reported as an
-        UNVERIFIED CLAIM, which is what it is."""
+        """One line for any report rendering this run.
+
+        It says SEALED only when an authority re-authenticated a persisted
+        consumption AND every obligation still matches; every other state --
+        including a genuine seal bound to a different harness, and an
+        unverified string claim -- renders as UNSEALED and says why. The
+        sealed line still names the unverified ``owner_seal_ref`` if one is
+        present, so the claim is never silently dropped from a rendered run.
+        """
         if self.sealed:
-            seal = self.verified_seal
+            seal = self._authenticated_seal
             assert seal is not None  # implied by self.sealed
+            claim = self.seal_claim
+            trailer = f"; unverified seal_claim {claim!r} also present" if claim else ""
             return (f"SEALED run {self.digest[:12]} @ {self.base_revision[:12]} "
                     f"-- owner {seal.owner_id} key {seal.key_id} seal "
-                    f"{seal.seal_sha256[:12]}; all six freeze obligations bound")
-        if self.verified_seal is not None:
+                    f"{seal.seal_sha256[:12]}; all six freeze obligations bound"
+                    f"{trailer}")
+        if self._authenticated_seal is not None:
             return (f"UNSEALED run {self.digest[:12]} @ {self.base_revision[:12]} "
-                    f"-- carries a verified seal ({self.verified_seal.seal_sha256[:12]}) "
-                    "bound to a DIFFERENT harness; NOT Gate-3 baseline evidence")
+                    "-- carries an authenticated seal "
+                    f"({self._authenticated_seal.seal_sha256[:12]}) bound to a "
+                    "DIFFERENT harness; NOT Gate-3 baseline evidence")
         claim = self.seal_claim
         if claim is not None:
             return (f"UNSEALED run {self.digest[:12]} @ {self.base_revision[:12]} "
