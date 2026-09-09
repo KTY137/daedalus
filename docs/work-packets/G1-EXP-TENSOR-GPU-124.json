@@ -1,0 +1,110 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-124",
+    "artifact_role": "primary",
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "branch": "exp/tensor-kernel-contract-01",
+    "status": "closed-implementation"
+  },
+  "title": "Construct only selected endpoint axes",
+  "date_europe_berlin": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "campaign_issue": 239,
+  "baseline": {
+    "main_at_packet_start": "22628bdf6f1634b2e32e6762255edddf12ee9351",
+    "canonical_branch_pre_work": "22628bdf6f1634b2e32e6762255edddf12ee9351",
+    "advance_method": "non-force fast-forward",
+    "archive_legacy_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "objective": "Delete unconditional construction and validation of TypedAxis values for Fourfold planes that are not endpoints of any selected relation block, while retaining full canonical snapshot membership for every endpoint axis that is selected.",
+  "decision": {
+    "kind": "existing-owner reuse",
+    "summary": "Reuse the already-final selected RelationSignature tuple to derive the endpoint-plane set, then construct TypedAxis only for those endpoint planes.",
+    "why_gardening": "The compiler already knows the exact selected signatures before axis materialization. Constructing all four axes regardless of selection duplicated validation and tuple/label work for unselected planes. No new selector, cache, index, backend, compiler, store, API or authority was needed."
+  },
+  "implementation": {
+    "commit": "c76fb90f0829ae6b651eff97b8f1699a915dd91c",
+    "path": "daedalus/twin/relation_compiler.py",
+    "blob": "508f8612403bbb94a9bef8cbe3d9487ad937044a",
+    "diff": "+6/-0",
+    "behavior": [
+      "derive selected_planes from selected RelationSignature endpoint planes",
+      "construct TypedAxis only when the Fourfold plane is in selected_planes",
+      "retain planes[index].node_ids unchanged as the canonical complete label set for each constructed axis"
+    ]
+  },
+  "focused_contract": {
+    "head": "b18bdea29c51afd1d95fc714d0dd2f839b02c853",
+    "commit": "b18bdea29c51afd1d95fc714d0dd2f839b02c853",
+    "path": "tests/twin/test_relation_compiler_axis_scope.py",
+    "blob": "a18b99d52b5fc29dc6a9be9ea66c5839891eafcc",
+    "assertions": [
+      "explicit code->code imports compilation constructs only the code TypedAxis",
+      "explicit code->type declares compilation constructs exactly code and type TypedAxis values",
+      "canonical compiled entries remain unchanged while unselected knowledge/data axes are not constructed"
+    ]
+  },
+  "invariants": [
+    "KnowledgeForest and FourfoldSnapshot remain the semantic authorities",
+    "Tensor relation blocks remain a regenerable computational projection, not a fifth plane",
+    "selected endpoint planes still require complete status before materialization",
+    "every selected TypedAxis still contains the full canonical PlaneSnapshot.node_ids membership",
+    "explicit-plan and discover-all RelationSignature semantics are unchanged",
+    "Forest relation digest admission and verified CrossPlaneBinding admission are unchanged",
+    "hyperedge and undirected-edge fail-closed behavior is unchanged",
+    "no public API, cache, digest index, alternate selector/compiler, fact store, receipt family or promotion path was introduced"
+  ],
+  "verification": {
+    "exact_code_test_head": "b18bdea29c51afd1d95fc714d0dd2f839b02c853",
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 34392767834,
+    "event": "pull_request",
+    "result": "completed/success",
+    "successful_jobs": [
+      "Isolated wheel imports",
+      "Complete repository collection",
+      "Contracts (Python 3.10, hash 0)",
+      "Contracts (Python 3.10, hash 123456)",
+      "Contracts (Python 3.12, hash 0)",
+      "Contracts (Python 3.12, hash 123456)"
+    ],
+    "manual_complete_suite": "skipped",
+    "tauri_run_id": 34392767852,
+    "tauri_status_when_packet_closed": "in_progress",
+    "claim_boundary": "Focused exact code/test head is green in the Fourfold/Tensor workflow. No manual full-suite, repository-wide all-checks, wall-time, RSS, Tensor-vs-Forest, CrewAI or AlphaEvolve superiority claim is made."
+  },
+  "concurrency_note": {
+    "main_advanced_during_packet_to": "9351b661a78b9a0b5b448d6f02de2145e514c651",
+    "main_change": "Merge pull request #351 from decide/type-plane-canonical",
+    "branch_state_at_packet_close": "diverged: ahead 2, behind 3 from main; merge-base remains 22628bdf6f1634b2e32e6762255edddf12ee9351",
+    "policy": "Do not rewrite the exact green code/test head mid-packet. Reconcile current main non-force at the start of the next bounded Tensor packet before new code."
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "owner_approval_minted": false,
+    "promotion_performed": false,
+    "ready_for_review_transition": false,
+    "auto_merge_enabled": false,
+    "merge_performed": false,
+    "gate_transition_performed": false
+  },
+  "pull_request": {
+    "number": 352,
+    "state_at_packet_close": "open",
+    "draft": true,
+    "merged": false,
+    "head_branch": "exp/tensor-kernel-contract-01"
+  },
+  "next_bounded_candidate": "First reconcile main@9351b661a78b9a0b5b448d6f02de2145e514c651 non-force into the canonical Tensor line and verify containment. Then select the next repeatedly executed or retained-memory construction bucket from existing diagnostics; do not continue micro-container edits unless measurement identifies one and the fix stays inside an existing owner."
+}
