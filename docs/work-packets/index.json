@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 511,
+    "assigned_artifacts": 512,
     "legacy_artifacts": 204,
-    "packet_artifacts": 513,
-    "packet_ids": 448,
-    "post_index_artifacts": 309,
+    "packet_artifacts": 514,
+    "packet_ids": 449,
+    "post_index_artifacts": 310,
     "registry_artifacts": 1,
-    "tracked_files": 514,
+    "tracked_files": 515,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -7367,6 +7367,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G2-TYPEPLANE-01_PREREGISTRATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "17b6475e2a3f8c9d1b4e6a0f5c7d2e8b3a9f1c04",
+        "classification": "EXPERIMENT",
+        "dependencies": "G2-XPLANE-CONFIRM-01, -02, -03, -04",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G2-TYPEPLANE-01",
+      "primary_artifact": "docs/work-packets/G2-TYPEPLANE-01_PREREGISTRATION.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G2-XPLANE-CONFIRM-01_PREREGISTRATION.md"
       ],
       "metadata": {
@@ -11689,6 +11705,20 @@
       "format": "markdown",
       "packet_id": "G1-WP-INDEX-01",
       "path": "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G2-TYPEPLANE-01",
+      "path": "docs/work-packets/G2-TYPEPLANE-01_PREREGISTRATION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
