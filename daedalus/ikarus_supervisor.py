@@ -211,6 +211,57 @@ def _canonical(body: Mapping[str, Any]) -> str:
     return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+def _canonical_attempt_identity(
+    result: Any,
+    contracts: Any,
+    *,
+    mission_id: str,
+    work_item_id: str,
+) -> tuple[str | None, str | None]:
+    """Project the one canonical AttemptContract identity, or name the refusal.
+
+    ``AttemptResult.branch`` and ``effect_key`` are transport/effect evidence;
+    they are not a second attempt-id authority.  The canonical contract is the
+    identity source, while the raw result must corroborate it exactly.  This is
+    the producer seam the provider-backed Ikarus path needs: a future runtime
+    receives an authenticated Attempt identity, never a branch string promoted
+    into one by the supervisor.
+    """
+
+    attempt = getattr(contracts, "attempt", None)
+    if attempt is None:
+        return (
+            None,
+            "canonical AttemptContract is unavailable; refusing to project "
+            "TaskAttempt branch/effect data as attempt identity",
+        )
+    if str(getattr(attempt, "mission_id", "")) != mission_id:
+        return None, "canonical AttemptContract mission_id contradicts the mission"
+    if str(getattr(attempt, "task_id", "")) != work_item_id:
+        return None, "canonical AttemptContract task_id contradicts the work item"
+    attempt_id = str(getattr(attempt, "attempt_id", ""))
+    if not attempt_id:
+        return None, "canonical AttemptContract has no attempt_id"
+    if (
+        attempt_id != str(getattr(result, "effect_key", ""))
+        or attempt_id != str(getattr(result, "branch", ""))
+    ):
+        return (
+            None,
+            "canonical AttemptContract attempt_id contradicts TaskAttempt "
+            "effect/branch identity",
+        )
+    result_base = getattr(result, "base_revision", None)
+    if result_base is None or str(getattr(attempt, "base_revision", "")) != str(
+        result_base
+    ):
+        return (
+            None,
+            "canonical AttemptContract base_revision contradicts TaskAttempt result",
+        )
+    return attempt_id, None
+
+
 def _runtime_binding(
     item: PlannedItem,
     runtime_roles: RuntimeRoleRegistry | None,
@@ -979,7 +1030,27 @@ class MissionSupervisor:
             )
             result = attempt.run()
             result_sink.append(result)
-            terminal_status = "landed" if result.ok else "bounced"
+
+            contract_error = None
+            try:
+                contracts = result.contract_set()
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
+                contracts = None
+                contract_error = (
+                    "canonical attempt contracts could not be reconstructed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+            attempt_id, identity_error = _canonical_attempt_identity(
+                result,
+                contracts,
+                mission_id=mission_id,
+                work_item_id=task_plan.work_item_id,
+            )
+            identity_error = contract_error or identity_error
+            terminal_status = (
+                "landed" if result.ok and identity_error is None else "bounced"
+            )
+
             # BuildTask is only the mutable BuildSession projection. A runner
             # may retain and mutate it, so bypass any instance-shadowed method
             # and never read its status back into the retained ledger.
@@ -991,17 +1062,21 @@ class MissionSupervisor:
             BuildTask.mark(task, terminal_status)
             task.last_result = task_result
             rows[index]["status"] = terminal_status
-            rows[index]["attempt_id"] = result.branch
+            # AttemptContract is the identity authority. Branch/effect_key are
+            # corroboration only and can never be promoted into an attempt id.
+            rows[index]["attempt_id"] = attempt_id
             # Digests, never copies: the ledger row points at the canonical
             # records by hash, exactly the posture the ignition receipt takes.
-            contracts = result.contract_set()
             rows[index]["attempt_receipt_sha256"] = getattr(
                 getattr(contracts, "receipt", None), "digest", None
             )
             rows[index]["evidence_packet_sha256"] = getattr(
                 getattr(contracts, "evidence", None), "digest", None
             )
-            if not result.ok:
+            if identity_error is not None:
+                rows[index]["detail"] = identity_error
+                outcome = "bounced"
+            elif not result.ok:
                 rows[index]["detail"] = f"state={result.state} error={result.error}"
                 outcome = "bounced"
             ledger.publish(base)
