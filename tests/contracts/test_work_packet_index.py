@@ -196,19 +196,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
     # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
     # +3 for the tensor lane's second wave (GPU-109/110/111).
-    assert "507 tracked files" in message  # measured 2026-09-09, tensor wave 2
+    assert "508 tracked files" in message  # measured 2026-09-09, +G2-XPLANE-CONFIRM-01
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 504,
+        "assigned_artifacts": 505,
         "legacy_artifacts": 204,
-        "packet_artifacts": 506,
-        "packet_ids": 441,
-        "post_index_artifacts": 302,
+        "packet_artifacts": 507,
+        "packet_ids": 442,
+        "post_index_artifacts": 303,
         "registry_artifacts": 1,
-        "tracked_files": 507,
+        "tracked_files": 508,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -569,6 +569,9 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-TENSOR-GPU-111",
         # G3-SEAL-02: the kernel binding that closes G3-BASE-01 blocker F4.
         "G3-SEAL-02",
+        # G2-XPLANE-CONFIRM-01: the pre-registration of the confirmatory
+        # cross-plane run, committed before any second repository is cloned.
+        "G2-XPLANE-CONFIRM-01",
     }
     post_index_packets = {
         packet_id: packet
