@@ -99,5 +99,53 @@
     "gate_transition": false
   },
   "claim_boundaries": "GPU-127 proves a structural duplicate-container deletion and exact-head contract success only. It does not establish a wall-time, RSS, memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, manual-full-suite, or repository-wide all-checks win.",
-  "bounded_next_step": "GPU-128 should inspect the next measured or full-container retention bucket in the existing relation compiler. Do not optimize arbitrary tuple slots; implement only a delete/reuse within an existing owner, otherwise close the candidate as negative gardener evidence."
+  "bounded_next_step": "GPU-128 should inspect the next measured or full-container retention bucket in the existing relation compiler. Do not optimize arbitrary tuple slots; implement only a delete/reuse within an existing owner, otherwise close the candidate as negative gardener evidence.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-127",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "aae675f463d8334d09fa0f1fbd74fb30979280fc",
+    "dependencies": "G1-EXP-TENSOR-GPU-126 and the exact base_head/implementation_head/contract_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "focused_contract"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "implementation"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "semantic_invariants"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "gardener_result"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence. The packet's own rollback is a revert of the staging-owner consolidation, which restores the duplicate included_binding_keys container without touching Forest/Fourfold authority."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "claim_boundaries",
+          "governance"
+        ]
+      }
+    }
+  }
 }

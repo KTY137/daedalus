@@ -196,19 +196,28 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
     # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
     # +3 for the tensor lane's second wave (GPU-109/110/111).
-    assert "527 tracked files" in message  # measured 2026-09-09, +G3-MINT-TEXT-01
+    # 527 -> 528: docs/work-packets/G1-EXP-TENSOR-GPU-127.json, the tensor
+    # lane's consolidate-binding-staging packet, integrated 2026-09-09. One
+    # added tracked file, no deletion.
+    assert "528 tracked files" in message  # measured 2026-09-09, +G1-EXP-TENSOR-GPU-127
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
+    # Re-measured 2026-09-09 for G1-EXP-TENSOR-GPU-127. Exactly one packet
+    # artifact was added and none retired, so the four counts that track packet
+    # artifacts each move by +1 and the three that do not are unchanged --
+    # legacy_artifacts, registry_artifacts and unassigned_artifacts. A change
+    # in any of those three would mean this integration touched something it
+    # had no business touching.
     assert payload["counts"] == {
-        "assigned_artifacts": 524,
+        "assigned_artifacts": 525,
         "legacy_artifacts": 204,
-        "packet_artifacts": 526,
-        "packet_ids": 461,
-        "post_index_artifacts": 322,
+        "packet_artifacts": 527,
+        "packet_ids": 462,
+        "post_index_artifacts": 323,
         "registry_artifacts": 1,
-        "tracked_files": 527,
+        "tracked_files": 528,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -589,6 +598,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-TENSOR-GPU-117",
         "G2-INGEST-02",
         "G1-EXP-TENSOR-GPU-118",
+        "G1-EXP-TENSOR-GPU-127",
         "G1-EXP-TENSOR-GPU-124",
         "G1-EXP-TENSOR-GPU-125",
         "G1-EXP-TENSOR-GPU-123",
