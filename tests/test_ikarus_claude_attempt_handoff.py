@@ -1,4 +1,4 @@
-"""Regressions for the durable prepared-Attempt -> Claude producer boundary."""
+"""Regressions for the durable Attempt -> Claude producer boundary."""
 from __future__ import annotations
 
 import importlib.util
@@ -14,6 +14,8 @@ from daedalus.kernel.attempts import (
     AttemptStartRecord,
     PreparedAttempt,
 )
+from daedalus.schemas import AttemptContract
+from daedalus.spine.attempt import RunnerContext, TaskAttempt, TaskSpec
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,6 +129,157 @@ def _execute(prepared, subjects, *, attempt_ledger=None):
         pre_admission=members["pre_admission"],
         at=fixture.fixture.fixture.NOW,
     )
+
+
+def _task_attempt_owner(subjects):
+    mission, terminal_attempt = subjects[:2]
+    task = TaskSpec(
+        task_id=terminal_attempt.task_id,
+        instruction=terminal_attempt.instruction,
+        base_revision=terminal_attempt.base_revision,
+        target_paths=("workspace/out.txt",),
+    )
+    owner = object.__new__(TaskAttempt)
+    object.__setattr__(owner, "task", task)
+    object.__setattr__(owner, "mission_id", mission.mission_id)
+    object.__setattr__(owner, "attempt_id", terminal_attempt.attempt_id)
+    object.__setattr__(owner, "branch", terminal_attempt.attempt_id)
+    object.__setattr__(owner, "effect_key", terminal_attempt.attempt_id)
+    return owner, task
+
+
+def _terminal_for_binding(binding, **overrides):
+    values = {
+        "mission_id": binding.mission_id,
+        "task_id": binding.work_item_id,
+        "attempt_id": binding.attempt_id,
+        "base_revision": binding.source_revision,
+        "task_sha256": binding.task_sha256,
+        "writable_paths": binding.target_paths,
+    }
+    values.update(overrides)
+    contract = object.__new__(AttemptContract)
+    for field, value in values.items():
+        object.__setattr__(contract, field, value)
+    return contract
+
+
+def test_task_attempt_owner_exposes_one_pre_effect_claude_identity(tmp_path):
+    subjects = _dispatch_args(tmp_path)
+    owner, task = _task_attempt_owner(subjects)
+
+    binding = handoff.bind_task_attempt_claude_identity(owner, subjects[0])
+
+    assert type(binding) is handoff.ClaudeTaskAttemptBinding
+    assert binding.mission_id == subjects[0].mission_id
+    assert binding.work_item_id == task.task_id
+    assert binding.attempt_id == owner.attempt_id
+    assert binding.source_revision == task.base_revision
+    assert binding.task_sha256 == task.digest
+    assert binding.target_paths == task.target_paths
+
+
+def test_task_attempt_runner_context_authenticates_exact_isolated_workspace(tmp_path):
+    subjects = _dispatch_args(tmp_path)
+    owner, task = _task_attempt_owner(subjects)
+    binding = handoff.bind_task_attempt_claude_identity(owner, subjects[0])
+    worktree = tmp_path / "task-attempt-worktree"
+    worktree.mkdir()
+    context = RunnerContext(
+        worktree=worktree,
+        branch=binding.attempt_id,
+        base_revision=binding.source_revision,
+        task=task,
+        is_cancelled=lambda: False,
+    )
+
+    assert handoff.require_task_attempt_runner_context(binding, context) == worktree.resolve()
+
+    substituted = RunnerContext(
+        worktree=worktree,
+        branch="attempt-foreign",
+        base_revision=binding.source_revision,
+        task=task,
+        is_cancelled=lambda: False,
+    )
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="attempt id",
+    ):
+        handoff.require_task_attempt_runner_context(binding, substituted)
+
+
+def test_task_attempt_runner_rejects_task_substitution_before_provider_use(tmp_path):
+    subjects = _dispatch_args(tmp_path)
+    owner, task = _task_attempt_owner(subjects)
+    binding = handoff.bind_task_attempt_claude_identity(owner, subjects[0])
+    worktree = tmp_path / "task-attempt-worktree"
+    worktree.mkdir()
+    foreign_task = TaskSpec(
+        task_id=task.task_id,
+        instruction=task.instruction + " substituted",
+        base_revision=task.base_revision,
+        target_paths=task.target_paths,
+    )
+    context = RunnerContext(
+        worktree=worktree,
+        branch=binding.attempt_id,
+        base_revision=binding.source_revision,
+        task=foreign_task,
+        is_cancelled=lambda: False,
+    )
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="task digest",
+    ):
+        handoff.require_task_attempt_runner_context(binding, context)
+
+
+def test_task_attempt_owner_must_have_one_attempt_branch_effect_identity(tmp_path):
+    subjects = _dispatch_args(tmp_path)
+    owner, _ = _task_attempt_owner(subjects)
+    object.__setattr__(owner, "effect_key", "attempt-foreign")
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="attempt/branch/effect identity",
+    ):
+        handoff.bind_task_attempt_claude_identity(owner, subjects[0])
+
+
+def test_terminal_attempt_contract_must_corroborate_pre_effect_owner(tmp_path):
+    subjects = _dispatch_args(tmp_path)
+    owner, _ = _task_attempt_owner(subjects)
+    binding = handoff.bind_task_attempt_claude_identity(owner, subjects[0])
+    terminal = _terminal_for_binding(binding)
+
+    assert handoff.require_task_attempt_terminal_contract(binding, terminal) is terminal
+
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="attempt id",
+    ):
+        handoff.require_task_attempt_terminal_contract(
+            binding,
+            _terminal_for_binding(binding, attempt_id="attempt-foreign"),
+        )
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="task digest",
+    ):
+        handoff.require_task_attempt_terminal_contract(
+            binding,
+            _terminal_for_binding(binding, task_sha256="f" * 64),
+        )
+    with pytest.raises(
+        handoff.IkarusClaudeAttemptHandoffRefused,
+        match="writable paths",
+    ):
+        handoff.require_task_attempt_terminal_contract(
+            binding,
+            _terminal_for_binding(binding, writable_paths=("foreign/path",)),
+        )
 
 
 def test_fresh_prepared_attempt_reaches_existing_atomic_handoff(tmp_path, monkeypatch):
