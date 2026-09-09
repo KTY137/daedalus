@@ -963,14 +963,60 @@ def save_minted_tasks(tasks: list[dict], path: str | None = None) -> str:
 
 
 def add_minted_task(task: dict, path: str | None = None) -> str:
-    """Persist ``task`` into the mint store, keyed by id. Idempotent: minting
-    the same diff twice (same target + same must_include, via the content
-    hash in ``_mint_from_diffs``) yields the same id and overwrites in place
-    rather than duplicating -- re-running a mint (e.g. after a rebase that
-    reproduces an identical patch) must not inflate the quarantine count.
-    Returns the path written."""
-    by_id = {t["id"]: t for t in load_minted_tasks(path)}
-    by_id[task["id"]] = task
+    """Persist ``task`` into the mint store, keyed by id.
+
+    Idempotent on RE-MINTING THE SAME COMMIT: same target + same must_include
+    yields the same id (the content hash in ``_mint_from_diffs``), and if the
+    incoming task carries the same ``minted_at_sha`` as the stored one it
+    overwrites in place. Re-running ``--mint-commit`` on one SHA, or a rebase
+    reproducing an identical patch, must not inflate anything.
+
+    CONFIRMS ON AN INDEPENDENT MINT. When the same id arrives from a
+    *different* ``minted_at_sha``, that is the thing
+    ``MINT_CONFIRM_THRESHOLD``'s rationale describes -- "three independent
+    mints landing on the same must_include set" -- so it records a
+    confirmation rather than silently overwriting.
+
+    Why this is here rather than left to ``--confirm-mint``: the threshold's
+    stated semantics and its mechanism had drifted apart.
+    ``confirm_minted_task`` increments a counter for a task id and verifies
+    nothing about independence, and ``__main__`` states plainly that it has no
+    automatic caller. A task therefore reached ``primary`` -- and influenced a
+    go/no-go number -- on three unverified operator assertions. A differing
+    ``minted_at_sha`` is checkable evidence that two mints were independent,
+    so the confirmation now rests on something the store can see.
+    ``--confirm-mint`` keeps working unchanged for the operator path.
+
+    Returns the path written.
+    """
+    stored = load_minted_tasks(path)
+    by_id = {t["id"]: t for t in stored}
+    existing = by_id.get(task["id"])
+
+    if existing is None:
+        by_id[task["id"]] = task
+        return save_minted_tasks(list(by_id.values()), path)
+
+    same_source = existing.get("minted_at_sha") == task.get("minted_at_sha")
+    if same_source:
+        # The same commit, re-minted. Refresh the record, count nothing.
+        task = dict(task)
+        task["confirmations"] = existing.get("confirmations", 0)
+        task["tier"] = existing.get("tier", task.get("tier", "quarantine"))
+        by_id[task["id"]] = task
+        return save_minted_tasks(list(by_id.values()), path)
+
+    # An independent mint of the same label set. Keep the FIRST record -- its
+    # minted_at_sha is the provenance of the original observation -- and
+    # record that a second source agreed, retaining the agreeing shas so the
+    # claim is inspectable rather than a bare integer.
+    agreeing = list(existing.get("confirmed_by_sha") or [])
+    incoming_sha = task.get("minted_at_sha")
+    if incoming_sha and incoming_sha not in agreeing:
+        agreeing.append(incoming_sha)
+        existing["confirmed_by_sha"] = agreeing
+        confirm_task(existing)
+    by_id[task["id"]] = existing
     return save_minted_tasks(list(by_id.values()), path)
 
 

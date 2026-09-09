@@ -169,3 +169,48 @@ def test_explicit_cross_plane_compile_constructs_only_selected_endpoint_axes(
     assert tuple(compiled.block_map[relation_block_name(signature)].iter_entries()) == (
         ("src/worker.py", "type:Event", True),
     )
+
+
+def test_compiler_reuses_validated_partition_map_for_canonical_indices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    real_partition = relation_compiler._forest_node_partition
+    observed: TrackingPartition | None = None
+
+    class TrackingPartition(dict[str, object]):
+        def __init__(self, initial: dict[str, str]) -> None:
+            super().__init__(initial)
+            self.writes: list[tuple[str, object]] = []
+
+        def __setitem__(self, key: str, value: object) -> None:
+            self.writes.append((key, value))
+            super().__setitem__(key, value)
+
+    def tracking_partition(
+        candidate_forest: KnowledgeForest,
+        candidate_snapshot: FourfoldSnapshot,
+    ) -> dict[str, object]:
+        nonlocal observed
+        observed = TrackingPartition(real_partition(candidate_forest, candidate_snapshot))
+        return observed
+
+    monkeypatch.setattr(relation_compiler, "_forest_node_partition", tracking_partition)
+    signature = RelationSignature("code", "imports", "code")
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(signature,),
+    )
+
+    assert observed is not None
+    assert observed.writes == [
+        (node_id, (plane.plane, position))
+        for plane in snapshot.planes
+        for position, node_id in enumerate(plane.node_ids)
+    ]
+    assert tuple(compiled.block_map[relation_block_name(signature)].iter_entries()) == (
+        ("src/api.py", "src/worker.py", True),
+    )

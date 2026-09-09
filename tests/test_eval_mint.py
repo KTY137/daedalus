@@ -449,6 +449,59 @@ class MintStorePersistenceTest(unittest.TestCase):
         add_minted_task(self._task(), path=self.store_path)
         self.assertEqual(len(load_minted_tasks(self.store_path)), 1)
 
+    def test_re_minting_the_same_commit_confirms_nothing(self):
+        # The idempotency contract, now explicit about WHY: same SHA is the
+        # same observation, not a second one.
+        add_minted_task(self._task(), path=self.store_path)
+        add_minted_task(self._task(), path=self.store_path)
+        loaded = load_minted_tasks(self.store_path)
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0]["confirmations"], 0)
+
+    def test_an_independent_mint_of_the_same_labels_confirms(self):
+        """MINT_CONFIRM_THRESHOLD's rationale, made mechanical.
+
+        "Three independent mints landing on the same must_include set" was the
+        stated meaning of a confirmation; a differing minted_at_sha is what
+        makes independence checkable rather than asserted.
+        """
+        first = self._task()
+        first["minted_at_sha"] = "aaa111"
+        add_minted_task(first, path=self.store_path)
+
+        second = self._task()
+        second["minted_at_sha"] = "bbb222"
+        add_minted_task(second, path=self.store_path)
+
+        loaded = load_minted_tasks(self.store_path)
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0]["confirmations"], 1)
+        # The ORIGINAL observation keeps the provenance slot; the agreeing
+        # source is retained beside it rather than replacing it.
+        self.assertEqual(loaded[0]["minted_at_sha"], "aaa111")
+        self.assertEqual(loaded[0]["confirmed_by_sha"], ["bbb222"])
+
+    def test_the_same_agreeing_sha_twice_counts_once(self):
+        first = self._task(); first["minted_at_sha"] = "aaa111"
+        add_minted_task(first, path=self.store_path)
+        for _ in range(2):
+            again = self._task(); again["minted_at_sha"] = "bbb222"
+            add_minted_task(again, path=self.store_path)
+        loaded = load_minted_tasks(self.store_path)
+        self.assertEqual(loaded[0]["confirmations"], 1)
+        self.assertEqual(loaded[0]["confirmed_by_sha"], ["bbb222"])
+
+    def test_threshold_independent_mints_promote_to_primary(self):
+        for sha in ("aaa111", "bbb222", "ccc333", "ddd444"):
+            task = self._task()
+            task["minted_at_sha"] = sha
+            add_minted_task(task, path=self.store_path)
+        loaded = load_minted_tasks(self.store_path)
+        self.assertEqual(loaded[0]["confirmations"], MINT_CONFIRM_THRESHOLD)
+        self.assertEqual(loaded[0]["tier"], "primary")
+        self.assertEqual(loaded[0]["confirmed_by_sha"],
+                         ["bbb222", "ccc333", "ddd444"])
+
     def test_add_minted_task_appends_distinct_ids(self):
         add_minted_task(self._task("mint-a"), path=self.store_path)
         add_minted_task(self._task("mint-b"), path=self.store_path)
