@@ -276,26 +276,21 @@ given. `[MEASURED]` means it was executed at this revision.
 
 ### F1 — The task corpus cannot support a cross-plane comparison today
 
-`[MEASURED]` via `daedalus.eval.gate3.taskset` over `harness.all_tasks()`:
+`[MEASURED 2026-09-06]` via `daedalus.eval.gate3.taskset` over `harness.all_tasks()`:
 
-| quantity | value |
-| --- | ---: |
-| tasks in corpus | 27 (10 hand-authored + 17 minted) |
-| primary tier (enter the frozen set) | 10 |
-| quarantine tier (excluded, reported) | 17 |
-| census, all 27 | code=27, type=0, data=0, knowledge=0 |
-| planes present | `("code",)` |
-| `require_cross_plane()` | **REFUSES** |
+| quantity | 2026-09-06 | 2026-09-09 later |
+| --- | ---: | ---: |
+| tasks in corpus | 27 (10 hand-authored + 17 minted) | **62 (14 primary + 48 quarantine)** |
+| primary tier (enter the frozen set) | 10 | **14 (unchanged)** |
+| quarantine tier (excluded, reported) | 17 | **48** |
+| census, all | code=27, type=0, data=0, knowledge=0 | **code=27, type=0, data=17, knowledge=18** |
+| primary census | code=10, type=0, data=0, knowledge=0 | **code=10, type=0, data=2, knowledge=2** |
+| planes present | `("code",)` | **`("code", "data", "knowledge")`** |
+| `require_cross_plane()` | **REFUSES** | **PASSES** |
 
-Every task targets a `.py` or `.tsx` file with identifier-shaped gold labels.
-This is exactly the shape that produced the s08 false verdict: a label set
-entirely in one plane, against which any cross-plane arm loses structurally
-rather than empirically. Rule R3 fires and no number is produced.
+The 2026-09-09 measurement shows the corpus gained 31 `independent_text_diff` text-derived minted tasks. However, **all 48 quarantine tasks have `confirmations: 0`** and cannot be promoted to primary tier — no two of 400 commits produced matching `must_include` label sets, so the confirmation threshold never fired. The primary tier remains stable at 14 tasks drawing non-code labels only from the fixture.
 
-**Consequence for Gate 3:** the cross-plane baselines cannot be honestly run
-until the corpus gains type-, data- and knowledge-plane tasks. That is corpus
-work, not harness work, and no amount of further harness code removes it. It
-confirms this packet's own §8 expected-failure #1, written before the run.
+**Consequence for Gate 3:** The structural cross-plane refusal (R3) now passes because the full corpus includes data and knowledge labels. However, a comparison at primary-tier level is still confined to the fixture's non-code tasks (4 of 14). The confound about corpus source is resolved for the full corpus, but the material confound persists for any primary-tier comparison. That is corpus work — specifically, making minted tasks promotable — not harness work.
 
 ### F2 — Every token count in this repository is currently a heuristic
 
@@ -384,27 +379,28 @@ rather than left standing.
 `[MEASURED 2026-09-09 on the integration of both packets, via
 daedalus.eval.gate3.taskset over daedalus.eval.harness.all_tasks()]`
 
-| quantity | F1 (2026-09-06) | now |
-| --- | ---: | ---: |
-| tasks in corpus | 27 | 31 |
-| primary tier (frozen) | 10 | 14 |
-| quarantine (excluded, reported) | 17 | 17 |
-| frozen census | code 10, type 0, data 0, knowledge 0 | code 10, type 0, data 2, knowledge 2 |
-| planes present | `("code",)` | `("code", "data", "knowledge")` |
-| `require_cross_plane()` | REFUSES | ADMITS |
-| frozen digest | `1404e1d2…` | `210e117e…` |
+| quantity | F1 (2026-09-06) | F1 (2026-09-09 initial) | F1 (2026-09-09 later) |
+| --- | ---: | ---: | ---: |
+| tasks in corpus | 27 | 31 | **62** |
+| primary tier (frozen) | 10 | 14 | **14 (unchanged)** |
+| quarantine (excluded, reported) | 17 | 17 | **48** |
+| full census | code 27, type 0, data 0, knowledge 0 | code 27, type 0, data 2, knowledge 2 | **code 27, type 0, data 17, knowledge 18** |
+| frozen census | code 10, type 0, data 0, knowledge 0 | code 10, type 0, data 2, knowledge 2 | **code 10, type 0, data 2, knowledge 2 (stable)** |
+| planes present | `("code",)` | `("code", "data", "knowledge")` | **`("code", "data", "knowledge")` (stable)** |
+| `require_cross_plane()` | REFUSES | ADMITS | **ADMITS** |
+| frozen digest | `1404e1d2…` | `210e117e…` | **`210e117e…` (stable)** |
 
 `tests/eval/gate3/test_taskset.py::test_real_corpus_census_is_pinned_and_reported`
 is re-pinned accordingly and its headline assertion is **inverted, not
 deleted**: it now requires the refusal to be gone and the three planes to be
 present, so a corpus that drifted back to one plane fails there.
 
+**FURTHER MEASUREMENT [MEASURED 2026-09-09, after both packets integrated]:**
+The corpus grew to 62 tasks (48 quarantine, 14 primary). However, all 48 quarantine tasks have `confirmations: 0` because no two of 400 commits produced matching `must_include` label sets, so the mint-confirmation threshold never fired. The primary tier remains stable at 14 tasks with frozen census unchanged. The structural cross-plane refusal is satisfied, but the material confound persists: non-code labels still come exclusively from the fixture in the primary tier. The blocker has shifted from "material does not exist" to "material exists but cannot cross the confirmation gate".
+
 What this does **not** change. The type plane is still 0 and no artifact under
 the frozen extension rule can move it; adding a stub to satisfy a census would
-be plane laundering. The four new tasks are reported by the product harness as
-plane-unindexed rather than scored, because the slicer structurally cannot
-emit neighbour prose or index CSV/JSON — so admitting the set is a corpus
-fact, not a claim that any arm can score it. F2 is addressed by
+be plane laundering. The full 62-task set includes 31 new text-derived tasks, correctly classified into data and knowledge planes, but none can enter primary tier without resolving the confirmation threshold issue. Admitting the full set is a corpus fact; scoring it or using quarantine tasks in a primary-tier comparison would require additional work. F2 is addressed by
 `G1-TOKENIZER-01`, F3 by `G1-EVAL-USAGE-01`; **F4 (sealing) is unchanged and
 still has no mechanism**, so nothing here is Gate-3 baseline evidence and this
 packet still cannot open, enter or satisfy Gate 3.

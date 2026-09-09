@@ -4,6 +4,8 @@
 Classification: `EXPERIMENT` (read-only measurement). **Decides nothing. Opens
 no gate. Builds nothing.**
 
+**Cross-reference:** This document's finding about corpus structure (two populations with complete separation) motivates and is superseded in detail by `docs/G3_ORIGIN_EFFECT_PREREGISTRATION_20260909.md`, which pre-registers a measurement of how large the origin effect is on the code plane (the only plane where origin varies). That pre-registration finds complete separation in the 14 primary-tier tasks; this document updates to reflect that sharpened finding.
+
 ## What I was going to do, and why I stopped
 
 `G3_CROSS_PLANE_UNBLOCKED_AND_A_HOLE_IN_MY_GUARD_20260909.md` measured that
@@ -85,6 +87,19 @@ R3 asks "are the gold labels in more than one plane". It does not ask "did they
 come from the same place". On this corpus those two questions have different
 answers, and only the first is guarded.
 
+## CRITICAL UPDATE: The separation is TOTAL, not just confounded [MEASURED 2026-09-09]
+
+A read-only probe of the 14 primary-tier tasks (`G3_ORIGIN_EFFECT_PREREGISTRATION_20260909.md`) reveals the separation is complete, not merely correlated:
+
+| origin | code | type | data | knowledge | n |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| fixture (six-file garden + wiki + schemas tree) | 4 | 0 | 2 | 2 | 8 |
+| real (this repository) | 6 | 0 | 0 | 0 | 6 |
+
+**Every non-code primary task is fixture-derived; every repository-derived primary task is code.** For the data and knowledge planes, origin is not merely correlated with plane — it is **constant**. Under complete separation, there is no residual variation left with which to separate a plane effect from an origin effect, and no analysis adjustment exists.
+
+The original framing ("confound") understated the problem. A confound can sometimes be adjusted for in analysis; this cannot. **The binding obligations about what would resolve it are unchanged, but the statement is now sharper**: the obstacle is not methodology but the corpus structure itself.
+
 ## What would actually resolve it
 
 Named, not built, and not costed here:
@@ -94,11 +109,31 @@ Named, not built, and not costed here:
    is a design decision about the boundary, not a coding task, which is why
    `mint.py` demands a new provenance rather than an edit.
 2. **Non-code tasks from the real repository**, so plane and corpus stop
-   co-varying. The raw material exists: 130 candidates from 400 commits.
+   co-varying completely. The raw material exists: 130 candidates from 400 commits.
 3. **Or an explicit declaration** in the frozen spec that the cross-plane
-   comparison is fixture-versus-repository, with that confound stated in every
-   number it produces. Honest, but it makes the comparison much weaker than
-   Gate 3 needs.
+   comparison at the primary tier is fixture-versus-repository, with that complete separation stated in every
+   number it produces. Honest, but it makes the comparison impossible to defend as testing a plane effect.
+
+## UPDATE [MEASURED 2026-09-09, later measurement]
+
+Minting proceeded and produced 48 tasks total (31 `independent_text_diff` + 17 `independent_diff`), all at `tier: quarantine` with `confirmations: 0`. **This surfaces a separate blocker:** the confirmation threshold assumes label recurrence across commits. No two of 400 commits produced matching `must_include` label sets, so every task remained at 0 confirmations and cannot be promoted to primary tier. This is independent of text-specific issues — even the 17 pre-existing code-based tasks show 0 confirmations.
+
+**The separation is NOT fixed.** (Corrected 2026-09-09. The first version of
+this paragraph opened "The confound about corpus source IS fixed" and then
+contradicted itself in its own next sentence.)
+
+Minting changed the *supply* of material and nothing else. The primary tier is
+still 14 tasks, its non-code labels still come from the fixture alone, and its
+frozen digest is byte-identical — because every one of the 48 minted tasks is
+quarantined and not one was promoted. Nothing "replaced" the 4 fixture tasks.
+A task that cannot reach the tier that feeds a reported number cannot repair
+that number.
+
+What did change is which obstacle is active: from *"repository-derived non-code
+material does not exist"* to *"it exists and cannot be promoted"*, because no
+two of 400 commits produced the same `must_include` set and
+`MINT_CONFIRM_THRESHOLD` never fired once. That is real progress, and it is not
+the thing the packet set out to do.
 
 ## What this does not claim
 
@@ -106,10 +141,7 @@ Named, not built, and not costed here:
   an honest provenance and they measure what they say. The problem is using
   them opposite repository-derived code tasks.
 - No baseline was run, and none should be until this is resolved or declared.
-- I did **not** mint anything. Adding 130 tasks that the scope rule rejects
-  would have produced a corpus the harness refuses, and adding them by
-  loosening the scope rule would have removed the independence guarantee that
-  makes minted labels worth having.
+- The later measurement did mint tasks. Adding 31 `independent_text_diff` tasks showed that the scope boundary works and tasks are correctly classified, but the confirmation mechanism's assumption about label recurrence does not hold.
 - Nothing here touches §F2 or §F3. Both remain as measured.
 
 ## Reproduction

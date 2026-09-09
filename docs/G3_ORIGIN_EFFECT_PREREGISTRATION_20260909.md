@@ -5,6 +5,8 @@ Classification: EXPERIMENT (Gate-3 prework; active delivery gate is 1)
 Packet: G3-ORIGIN-EFFECT-01
 Instrument: `daedalus.eval.gate3` arms + `runner.run_comparison` (first end-to-end drive)
 
+**Cross-reference:** This pre-registration's measurement of corpus origin is motivated by `docs/G3_CORPUS_IS_TWO_POPULATIONS_20260909.md`, which identifies two populations and documents their mismatch. The structural fact in section 1 below (complete separation) is the updated finding that supersedes the softer "confound" framing in that earlier document. This run is designed to bound the magnitude of the origin effect but not to license any cross-plane claim, which is impossible under complete separation.
+
 This document is written and committed **before** the run. Nothing below is
 adjusted afterwards. The result goes in a separate file that cites this one.
 
@@ -122,6 +124,65 @@ substantive null.
 - Not evidence about plane-conditioned retrieval. Six independent negatives on
   that question already exist and are unaffected either way.
 - Not a promotion of anything out of quarantine.
+
+---
+
+## AMENDMENT 1 — the design above does not measure what §2 claims it does
+
+Appended 2026-09-09, **after** freezing and **before** any measurement. Nothing
+above is edited; commit `9a8e6a24` is what was frozen. This section exists
+because the flaw was found in the gap between the two, which is the only point
+at which recording it costs nothing.
+
+### What I missed
+
+Sections 1–2 speak of two origins, "fixture" and "real". That came from a probe
+that classified origin by *whether the target path resolves in this checkout* —
+my own heuristic. But tasks carry an authoritative `repo` label, and reading it
+gives **three** repositories, not two:
+
+| repo | code | type | data | knowledge | n |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `agent_env` (this repository) | 6 | 0 | 0 | 0 | 6 |
+| `sunny_garden` (packaged code-plane fixture) | 4 | 0 | 0 | 0 | 4 |
+| `fourfold_wiki_app` (packaged four-plane fixture) | 0 | 0 | 2 | 2 | 4 |
+
+Complete separation (§1) survives this correction intact — it is if anything
+sharper, since each repository contributes to exactly one plane group. But the
+contrast §3 specifies is `agent_env` vs `sunny_garden`, and **every non-code
+task lives in `fourfold_wiki_app`, which appears in neither arm of it.**
+
+So the planned run cannot bound the origin effect that the cross-plane
+comparison actually suffers from. It bounds a different repo-to-repo effect
+between two repositories that both contribute only code tasks.
+
+### Is the effect identifiable another way? No.
+
+`fourfold_wiki_app` holds no code task at any tier, so there is no within-repo
+contrast available there. It is a packaged fixture directory, not a git
+repository, so nothing can be minted from its history. With the present corpus
+the quantity is **not identifiable at all**.
+
+### What the run is re-scoped to measure
+
+Not "the origin effect", but the strictly weaker:
+
+> Does repository identity, with plane held constant, move these arms' scores
+> past the ±0.02 equivalence margin *at all*?
+
+The reading tables in §5 and §6 are unchanged as arithmetic. Their *names* are
+re-scoped: read `ORIGIN_EFFECT_LARGE` as `REPO_IDENTITY_MATTERS`, and the
+aggregate `CROSS_PLANE_UNSUPPORTED_STRONG` as `REPO_IDENTITY_MATTERS_AT_ALL`.
+
+The step from "repo identity moves scores between `agent_env` and
+`sunny_garden`" to "therefore `fourfold_wiki_app` is not exchangeable with
+`agent_env` either" is an **inference, not a measurement**, and must be labelled
+as one wherever the result is reported. It is a plausible inference — three
+unrelated corpora of very different sizes — and it is not evidence.
+
+§1's conclusion is untouched by all of this: the cross-plane claim at the
+primary tier is barred by complete separation, which is established by counting
+and needs no run at all.
 
 Iron Plan: EXPERIMENT
 Iron Gate: 1

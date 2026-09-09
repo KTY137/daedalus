@@ -70,7 +70,7 @@ with `confirmations: 0` and are barred from any go/no-go number until
 | A3 | a label from the target file is never emitted | new test, both planes |
 | A4 | out-of-scope files are recorded in `skipped_out_of_scope`, never silently dropped | new test with a `dist/` and a `fixtures/` path |
 | A5 | `classify_task_plane` assigns the minted tasks to `data`/`knowledge` | new test through the real classifier |
-| A6 | yield on this repository is **≥ 60** tasks over 400 first-parent commits | **FAILED — 31 measured (16 knowledge, 15 data).** The threshold is not moved. |
+| A6 | yield on this repository is **≥ 60** tasks over 400 first-parent commits | **FAILED — 31 measured (16 knowledge, 15 data) [MEASURED 2026-09-09 after initial build]. LATER MEASUREMENT [MEASURED 2026-09-09, additional run]: 48 total minted tasks across both `independent_diff` (17) and `independent_text_diff` (31), census data=17 knowledge=18. All 48 at tier=quarantine with 0 confirmations. Threshold not moved.** |
 | A7 | every minted target exists in the repository root, none under `fixtures/`/`examples/` | assertion over the built set |
 | A8 | the secret floor and junk-label filters apply to text labels too | new tests |
 
@@ -123,9 +123,19 @@ today — all from the repository the 27 code tasks come from.
 | A3 no label from the target file | **pass** |
 | A4 out-of-scope recorded, not dropped | **pass** |
 | A5 `classify_task_plane` agrees | **pass** — both planes, through the real classifier |
-| **A6 yield ≥ 60** | **FAIL — 31** |
+| **A6 yield ≥ 60** | **FAIL — 31 initially [2026-09-09 initial build]; LATER: 48 total minted [2026-09-09, second run]** |
 | A7 targets exist, none from fixtures | **pass**, after the fix A7 itself forced |
 | A8 secret floor applies to text | **pass** |
+
+**UPDATED MEASUREMENT [MEASURED 2026-09-09, later run]:**
+
+After initial build showed 31 tasks, a subsequent run produced 48 total minted tasks:
+- `independent_diff`: 17 (pre-existing code-based mint)
+- `independent_text_diff`: 31 (new text-based mint)
+- Census: `data=17, knowledge=18`
+- Confirmations: **ALL 48 at `confirmations: 0`**
+
+The critical finding: **Minting produced ZERO confirmations.** No two of the 400 first-parent commits yielded the same `must_include` label set, so `MINT_CONFIRM_THRESHOLD` (=3) never fired once. All 48 tasks remain in quarantine tier and cannot be promoted to primary tier by `confirm_task()`. This is independent of text-specific issues — the 17 pre-existing `independent_diff` code tasks also remain at 0 confirmations.
 
 **A6 failed and the threshold stays where it was frozen.** The 60 came from a
 feasibility probe that counted commits changing ≥2 in-scope files of a type
@@ -142,12 +152,26 @@ a scope boundary that excluded `dist/` but not execution output.
 `_GENERATED_TEXT_ROOTS` now excludes `runs/`, which cost 4 further tasks
 (35 → 31) and was worth it.
 
-**Does the primary claim survive a failed A6?** Yes, and the distinction
-matters. The claim is that Gate 3's non-code tasks stop coming from a
-different corpus than its code tasks. That is about **source**, not count: 31
-tasks from the repository replace a dependence on 4 from a six-file fixture.
-The confound is removed. What 31 does not settle is **power** — that was
-always a separate obligation and it remains open.
+**Does the primary claim survive a failed A6?** Only in a narrower form than
+first written here. (Corrected 2026-09-09: this paragraph originally claimed
+"the source-level confound is fixed … the two-populations confound is gone",
+and then said in its own next clause that the primary tier still draws non-code
+tasks only from the fixture. Both cannot be true.)
+
+**Nothing replaced the six-file fixture.** All 48 minted tasks sit at
+`tier: quarantine` with `confirmations: 0`; the primary tier is still 14 tasks,
+its non-code labels still come from the fixture, and its frozen digest is
+byte-identical. No minted task can cross the confirmation threshold, because no
+two of 400 commits produced matching `must_include` sets —
+`MINT_CONFIRM_THRESHOLD` assumes label recurrence across commits, which does not
+hold for Markdown headings and JSON keys even in a real repository, and the 17
+pre-existing code tasks are at 0 confirmations too.
+
+So the source-level separation is **unfixed**. What A6 and the confirmation
+measurement together settle is that **yield is not the active constraint;
+confirmation is** — the blocker moved from *"the material does not exist"* to
+*"the material exists and cannot be promoted"*. That is a real result and it
+leaves this packet's primary claim open, not satisfied.
 
 **Review questions.**
 
