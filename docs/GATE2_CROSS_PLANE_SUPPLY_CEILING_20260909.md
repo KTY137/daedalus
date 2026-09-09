@@ -113,6 +113,95 @@ What must NOT be concluded from this document:
   say what a *decisive* run would cost; they do not say the prior deserves that
   spend before cheaper falsifications are tried.
 
+## CORRECTION (same day): the pooled number was the wrong instrument
+
+Everything above is arithmetically right and **materially misleading**, because
+it projects from a POOLED mean over two strata whose effects have opposite
+signs and similar magnitude. Running the stratified analysis the task set was
+designed for changes the conclusion by two orders of magnitude.
+
+`taskset_xplane.json::census.not_sampled` states the design intent:
+
+> The control is a placebo, not a second measurement: it exists to check
+> whether a cross-plane method's gain concentrates where cross-plane gold is.
+
+**That check had never been run.** s10 evaluates one pooled number over all 88
+cases and `case_groups` in the kill input is empty, so the strata are invisible
+to every criterion. The strata are recoverable: the kill input carries
+`gold_planes` only for cases whose gold sits in exactly one plane (30), and the
+other 58 are the cross-plane stratum — the same 58/30 split the census reports.
+
+`experiments/forest_v2/s09_eval/probe_stratified_fusion_effect.py`,
+`[MEASURED 2026-09-09, run twice, byte-identical, retained under
+docs/evidence/gate2-stratified-20260909/]`:
+
+| comparison | stratum | n | point | CI95 | w/l/t |
+| --- | --- | ---: | ---: | --- | --- |
+| 14.1 vs `code_only` | pooled | 88 | +0.0118 | [-0.0807, +0.1069] | 29/38/21 |
+| | **cross-plane** | 58 | **+0.1147** | [-0.0073, +0.2405] | 27/20/11 |
+| | **control** | 30 | **-0.1871** | **[-0.2863, -0.0917]** | 2/18/10 |
+| 14.3 vs `separate_indices` | cross-plane | 58 | +0.1147 | [-0.0073, +0.2405] | 27/20/11 |
+| | control | 30 | -0.1891 | **[-0.2875, -0.0961]** | 2/18/10 |
+| 14.1 vs `bm25` | cross-plane | 58 | **-0.0178** | [-0.1241, +0.0951] | 14/25/19 |
+| | control | 30 | +0.0640 | [-0.0503, +0.1755] | 13/8/9 |
+
+The pooled +0.0118 is the average of **+0.1147 and -0.1871**. It is not a small
+effect; it is two large effects cancelling.
+
+### Decisive n, recomputed per stratum
+
+| comparison | stratum | decisive n | vs available |
+| --- | --- | ---: | --- |
+| 14.1 vs `code_only` | pooled | 5,539 | 63x |
+| | **cross-plane** | **68** | **1.2x — 58 available, short by 10** |
+| | control | 8 | **already decisive** |
+| 14.3 vs `separate_indices` | cross-plane | 68 | short by 10 |
+| 14.1 vs `bm25` | cross-plane | 2,198 | 38x |
+
+### What this actually establishes, stated carefully
+
+1. **The supply ceiling above is not the binding constraint it appeared to be.**
+   For the comparison the mechanism is about, this repository is short by
+   **ten** cross-plane cases, not by thousands. One additional repository would
+   cover it. The "two orders of magnitude" framing was an artifact of pooling.
+2. **The control result is already decisive, and it is a cost.** Fusion is
+   significantly WORSE than code-only and than separate indices on single-plane
+   queries (-0.187, CI excludes zero, losing 18 of 30 cases). Whatever RRF buys
+   when there is something to fuse, it pays for when there is not. No criterion
+   currently asks this question, and it is the clearest measured fact in the run.
+3. **14.1 would probably still not be met.** It requires beating `code_only`
+   **and** `bm25`. On cross-plane cases fusion is *behind* plain BM25 (-0.0178).
+   The concentration signature holds against the structured baselines and not
+   against the simplest one — which is the comparison plan §14 cares most about.
+
+### What this does NOT establish
+
+- Not a KEEP. The cross-plane CI [-0.0073, +0.2405] **includes zero**. It is
+  close, and close is not decided.
+- Not a licence to read the stratum I highlighted as the result. I chose which
+  comparison to foreground **after** seeing the numbers. The stratification
+  itself was pre-registered in the task set's design, which is what makes this
+  a legitimate re-analysis rather than fishing — but the honest status is
+  **hypothesis-generating**, not confirmatory. A confirmatory run needs its own
+  pre-registration naming the cross-plane stratum as primary before it is cut.
+- The n=68 projection carries the same 1/sqrt(n) assumption, and it is weaker
+  here than above: the ten additional cases would come from a DIFFERENT
+  repository, which is exactly the regime where the per-case variance is
+  expected to rise. Ten is a floor, not an estimate.
+
+### The concrete consequence for Gate 2
+
+The corpus obligation stands, but its required SIZE collapses from "roughly 63
+Daedalus-sized repositories" to "one, chosen for cross-plane density". That is
+squarely the "small license-audited, temporally pinned repository corpus" plan
+§11 already authorizes, and it is now a measured requirement rather than an
+aspiration.
+
+The first thing that corpus should measure is **not** 14.1. It is the control
+result: if fusion reliably loses on single-plane queries across repositories,
+that is a finding about the method that no amount of cross-plane evidence
+offsets, and it is available at n=30.
+
 ## The cheaper thing to try first -- measured, and it is cheaper than it looks but does less than hoped
 
 14.4 (`plane_has_no_marginal_contribution`) is `NOT_EVALUABLE` because the type
