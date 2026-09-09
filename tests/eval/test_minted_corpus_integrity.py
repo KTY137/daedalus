@@ -128,11 +128,12 @@ def test_default_store_write_refuses_an_absolute_repo(monkeypatch, tmp_path):
     while still taking the ``p == DEFAULT_MINT_STORE_PATH`` branch.
     """
     fake_default = str(tmp_path / "minted_tasks.json")
-    monkeypatch.setattr(mint, "_COMMITTED_STORE_PATH", os.path.abspath(fake_default))
+    monkeypatch.setattr(mint, "_COMMITTED_STORE_PATH",
+                        os.path.normcase(os.path.realpath(fake_default)))
 
     task = {"id": "x", "repo": str(tmp_path / "somewhere"), "target": "a.py",
             "must_include": ["z"]}
-    with pytest.raises(ValueError, match="absolute host path"):
+    with pytest.raises(ValueError, match="not a portable label"):
         mint.save_minted_tasks([task], fake_default)
 
     assert not os.path.exists(fake_default), (
@@ -150,7 +151,7 @@ def test_a_custom_store_path_is_not_policed(monkeypatch, tmp_path):
     ``_refuse_nonportable_repos`` is the thing to change first.
     """
     monkeypatch.setattr(mint, "_COMMITTED_STORE_PATH",
-                        os.path.abspath(str(tmp_path / "real.json")))
+                        os.path.normcase(os.path.realpath(str(tmp_path / "real.json"))))
     scratch = str(tmp_path / "scratch.json")
     task = {"id": "x", "repo": str(tmp_path / "fixture"), "target": "a.py",
             "must_include": ["z"]}
@@ -202,3 +203,35 @@ def test_portable_label_leaves_an_unknown_root_alone():
     wrong corpus entirely."""
     unknown = os.path.abspath(os.sep + os.path.join("nowhere", "in", "particular"))
     assert mint._portable_repo_label(unknown) == unknown.replace("\\", "/")
+
+
+def test_a_differently_cased_path_cannot_slip_past_the_write_guard(monkeypatch, tmp_path):
+    """The gate used to be a case-SENSITIVE string compare on a
+    case-INSENSITIVE filesystem.
+
+    Found by an adversarial pass: lowercasing the drive and directories gave a
+    path that opens the very same file and compared unequal, so the refusal was
+    skipped and a ``C:/Users/nukei/...`` repo landed in the real corpus. The
+    store-side tests still caught the result -- defence in depth held -- but
+    the writer-side guard itself was porous, and a guard that only works when
+    the caller spells the path the way you did is not a guard.
+    """
+    real = tmp_path / "minted_tasks.json"
+    monkeypatch.setattr(mint, "_COMMITTED_STORE_PATH",
+                        os.path.normcase(os.path.realpath(str(real))))
+    task = {"id": "x", "repo": "C:/Users/nukei/Desktop/agent_env",
+            "target": "a.py", "must_include": ["z"]}
+    for spelling in (str(real), str(real).lower(), str(real).replace("\\", "/").lower()):
+        with pytest.raises(ValueError, match="not a portable label"):
+            mint.save_minted_tasks([task], spelling)
+        assert not os.path.exists(real), f"{spelling!r} wrote the corpus anyway"
+
+
+def test_a_relative_nonportable_repo_is_also_refused():
+    """``os.path.isabs`` alone let ``../../nukei/Desktop/agent_env`` through --
+    just as unportable, and not absolute. The guard asks whether the value is a
+    declared label instead of guessing from the path's shape."""
+    task = {"id": "x", "repo": "../../nukei/Desktop/agent_env",
+            "target": "a.py", "must_include": ["z"]}
+    with pytest.raises(ValueError, match="not a portable label"):
+        mint._refuse_nonportable_repos([task])

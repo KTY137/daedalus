@@ -216,7 +216,7 @@ DEFAULT_MINT_STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)
 # default_path``, which mints from a temp repo that HAS no portable label).
 # This constant tracks the real committed file, which is the only artifact the
 # refusal is protecting.
-_COMMITTED_STORE_PATH = os.path.abspath(DEFAULT_MINT_STORE_PATH)
+_COMMITTED_STORE_PATH = os.path.normcase(os.path.realpath(DEFAULT_MINT_STORE_PATH))
 
 
 def _git(repo_root, *args: str) -> str | None:
@@ -1027,14 +1027,30 @@ def _refuse_nonportable_repos(tasks: list[dict]) -> None:
     this does not have. It covers the whole of the surface where the defect
     actually occurred, which is one file.
     """
-    bad = sorted({
-        t["repo"] for t in tasks
-        if isinstance(t.get("repo"), str) and os.path.isabs(t["repo"])
-    })
+    from .tasks import resolve_task_repo
+
+    bad = []
+    for task in tasks:
+        repo = task.get("repo")
+        if not isinstance(repo, str):
+            continue
+        # An ALLOWLIST, not a path-shape test. The first version rejected
+        # ``os.path.isabs`` only, which let ``../../nukei/Desktop/agent_env``
+        # through untouched -- just as unportable, and not absolute. Asking
+        # "does this resolve as a declared label" refuses both, and refuses
+        # anything else unportable nobody has thought of yet.
+        if os.path.isabs(repo) or os.sep in repo or "/" in repo:
+            bad.append(repo)
+            continue
+        try:
+            resolve_task_repo(repo)
+        except Exception:
+            bad.append(repo)
+    bad = sorted(set(bad))
     if bad:
         raise ValueError(
-            "refusing to persist %d task repo reference(s) that name an "
-            "absolute host path: %s. Use a label resolve_task_repo understands "
+            "refusing to persist %d task repo reference(s) that are not a "
+            "portable label: %s. Use a label resolve_task_repo understands "
             "(agent_env / sunny_garden / fourfold_wiki_app / a registered "
             "project) -- see _portable_repo_label. A corpus that names one "
             "machine's filesystem is not reproducible on any other."
@@ -1047,7 +1063,7 @@ def save_minted_tasks(tasks: list[dict], path: str | None = None) -> str:
     review -- same contract as ``harness.write_baseline``. Returns the path
     written."""
     p = path or DEFAULT_MINT_STORE_PATH
-    if os.path.abspath(p) == _COMMITTED_STORE_PATH:
+    if os.path.normcase(os.path.realpath(p)) == _COMMITTED_STORE_PATH:
         _refuse_nonportable_repos(tasks)
     ordered = sorted(tasks, key=lambda t: t["id"])
     with open(p, "w", encoding="utf-8") as fh:

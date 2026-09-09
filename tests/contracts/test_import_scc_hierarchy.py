@@ -211,7 +211,9 @@ CURRENT_COMPONENTS_SHA256 = (
 # The component count (14), the maximum component size (19) and the component
 # digest asserted below are all unchanged, which is the claim that matters:
 # the four are a layered chain hanging off the supervisor, not a new cycle.
-CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain staged
+# 519 -> 520: daedalus/eval/gate3/coverage.py, the plane-coverage admission
+# check (R3's other half). One added module, no deletion, joins no component.
+CENSUS_MODULES = 520  # re-measured 2026-09-09, +gate3.coverage
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -534,7 +536,17 @@ CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain stag
 # the assertion that failed. Had this file pinned counts alone, mint would have
 # joined a strongly-connected component silently. ``from .tasks import ...``
 # takes the submodule edge without the package edge and joins no component.
-CENSUS_EDGES = 2082  # re-measured 2026-09-09, mint -> tasks for portable repo labels
+# 2082 -> 2084: gate3.coverage -> gate3.contracts (the new module's only
+# import) and gate3.runner -> gate3.coverage (run_comparison calls
+# require_plane_coverage before any trial). Component count (14), max size
+# (19) and the component digest are unchanged.
+#
+# HOW THIS WAS MISSED ONCE, recorded because the trap is silent: this graph
+# is built from `git ls-files -- daedalus`, so a NEW module is invisible to
+# it until staged. Running the suite after creating coverage.py but before
+# `git add` gave a clean 498-passed green; the same suite went red the
+# moment the file was committed. Stage first, then measure.
+CENSUS_EDGES = 2084  # re-measured 2026-09-09, +gate3.coverage and its caller
 
 
 def _module_name(path: str) -> str:

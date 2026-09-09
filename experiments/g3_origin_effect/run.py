@@ -73,10 +73,20 @@ def _split():
     return groups
 
 
-def _as_task(t: dict) -> Task:
+def _as_task(t: dict, label_plane: str | None = None) -> Task:
+    """``label_plane`` defaults to the task's OWN classified plane.
+
+    It used to be hardcoded to "code". That was true for this experiment --
+    every task in the frozen contrast is code-plane -- and it was false the
+    moment the helper was reused for a non-code probe, which is exactly what
+    happened on 2026-09-09: ``separate_indices`` was handed data/knowledge
+    tasks labelled "code", dutifully searched its code index, scored 0.00, and
+    was written up as broken. It was not broken; the probe was. Deriving the
+    default from the task removes the chance to be wrong by reuse.
+    """
     return Task(task_id=t["id"], repo_root=resolve_task_repo(t["repo"]),
                 question=t.get("question", ""), target=t.get("target", ""),
-                label_plane="code")
+                label_plane=label_plane or classify_task_plane(t))
 
 
 def _bootstrap_ci(left: list[float], right: list[float]):

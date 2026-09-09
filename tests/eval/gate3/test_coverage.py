@@ -109,38 +109,90 @@ def test_planes_needed_is_ordered_canonically():
 # declarations checked against behaviour, not trusted                          #
 # --------------------------------------------------------------------------- #
 
-def test_real_arm_declarations_match_what_they_retrieve():
-    """``Arm.stochastic``'s docstring says the acceptance matrix tests the
-    behaviour rather than trusting the flag. Same here: an arm that declares a
-    plane it cannot actually reach would re-open the exact hole this module
-    closes, and would do it while LOOKING covered.
+def _returned_planes(candidate: str) -> set[str]:
+    """Classify the documents an arm actually returned.
 
-    Runs each arm over the four-plane fixture and checks that a declared plane
-    yields at least one retrieved document from it.
+    Arms emit ``# ===== <repo-relative path> =====`` headers before each chunk
+    (``harness._bm25_context`` and the separate-indices concatenation both do).
+    Classifying those paths is what makes this a behavioural check rather than
+    an attribute read.
+    """
+    import re
+
+    from daedalus.eval.gate3.arms.separate_indices import classify_plane
+
+    planes = set()
+    for rel in re.findall(r"^# =====\s*(.+?)\s*=====\s*$", candidate or "",
+                          flags=re.MULTILINE):
+        plane = classify_plane(rel.split("::", 1)[0])
+        if plane:
+            planes.add(plane)
+    return planes
+
+
+def test_real_arm_declarations_match_what_they_retrieve():
+    """An arm that declares a plane it cannot reach re-opens the exact hole
+    this module closes, and does it while LOOKING covered.
+
+    ``Arm.stochastic``'s docstring says the acceptance matrix tests the
+    behaviour rather than trusting the flag. This does the same: it RUNS each
+    arm, once per declared plane, and checks that the documents it actually
+    returned include one from that plane.
+
+    The previous version of this test read the attribute and asserted things
+    about the FIXTURE instead. An adversarial pass showed it survived the one
+    mutation it existed to catch -- giving ``bm25`` a declaration of
+    ``("code", "data", "knowledge")``, which the measurements refute, left all
+    ten tests green. Its docstring described a behavioural check it did not
+    perform, and ``coverage.py`` cited it as the reason its trust model was
+    acceptable.
     """
     from daedalus.eval.gate3.arms import bm25, embeddings, separate_indices
+    from daedalus.eval.gate3.contracts import ArmBudget
+    from daedalus.eval.gate3.evaluator import make_recall_evaluator
+    from daedalus.eval.gate3.protocols import Task
     from daedalus.eval.harness import _repo_chunks
     from daedalus.eval.tasks import resolve_task_repo
 
     root = resolve_task_repo("fourfold_wiki_app")
     available = {p: len(_repo_chunks(root, planes=(p,)))
                  for p in ("code", "data", "knowledge")}
-    # Precondition: the fixture must actually hold non-code documents, or this
-    # test would pass vacuously and prove nothing.
-    assert available["knowledge"] > 0 and available["data"] > 0, available
+    # Precondition, asserted rather than assumed: a fixture without non-code
+    # documents would make every check below unfalsifiable.
+    assert available["code"] and available["data"] and available["knowledge"], (
+        f"fixture cannot evidence the planes under test: {available}")
 
+    budget = ArmBudget(max_tokens=16000)
     for mod in (bm25, embeddings, separate_indices):
         arm = next(getattr(mod, n) for n in dir(mod)
                    if isinstance(getattr(mod, n), type)
                    and hasattr(getattr(mod, n), "run")
                    and hasattr(getattr(mod, n), "name"))()
         declared = retrieved_planes(arm)
-        assert "code" in declared, (
-            f"{arm.name} does not declare code; every arm here retrieves it"
-        )
         for plane in declared:
             assert available.get(plane, 0) > 0, (
-                f"{arm.name} declares plane {plane!r}, which the fixture has no "
-                "documents for -- the declaration cannot be checked, so it must "
-                "not be asserted"
+                f"{arm.name} declares plane {plane!r}, which the fixture holds "
+                "no documents for -- the declaration cannot be checked against "
+                "behaviour, so it must not be asserted"
+            )
+            task = Task(task_id=f"coverage-{arm.name}-{plane}", repo_root=root,
+                        question="article schema fields and storage decisions",
+                        target="", label_plane=plane)
+            # make_recall_evaluator returns a FACTORY; arm.run wants a live
+            # SealedEvaluator. Calling it is not a detail -- passing the factory
+            # makes the arm fail with an AttributeError it reports as an
+            # ordinary error, which this test would then read as "retrieved
+            # nothing" rather than "was never run".
+            ev = make_recall_evaluator({task.task_id: ["schema"]})()
+            outcome = arm.run(task, budget, ev, 0)
+            assert getattr(outcome, "error", None) is None, (
+                f"{arm.name} errored on plane {plane!r}: {outcome.error}"
+            )
+            got = _returned_planes(getattr(outcome, "candidate", "") or "")
+            assert plane in got, (
+                f"{arm.name} declares it retrieves {plane!r}, but running it "
+                f"with label_plane={plane!r} returned documents from {sorted(got)} "
+                "only. A declaration the arm's own behaviour does not support is "
+                "worse than no declaration: gate3.coverage would admit a "
+                "comparison on the strength of it."
             )
