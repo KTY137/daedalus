@@ -1,14 +1,18 @@
 """RoleHarness adapter for sealed Claude execution inside one live TaskAttempt.
 
 The supervisor authenticates ``ClaudeTaskAttemptRunnerHandoff`` before this
-factory is reached.  This module deliberately issues no authority and owns no
-lifecycle.  It only asks a trusted in-process resolver for the already-issued
+factory is reached. This module deliberately issues no authority and owns no
+lifecycle. It only asks a trusted in-process resolver for the already-issued
 runtime/effect/provider subjects, composes them through the canonical
 TaskAttempt authority boundary immediately, and returns a runner that can only
 dispatch the resulting sealed invocation.
 
-Keeping composition in the factory (rather than the returned runner) matters:
-provider-controlled runner code never receives the loose authority set.
+The factory also snapshots the exact planned runtime-role descriptor. That
+closes a provenance gap between supervisor planning and provider admission: a
+resolver cannot substitute a different runtime binding while still presenting
+valid provider-side evidence. Keeping composition in the factory (rather than
+the returned runner) matters for the same reason: provider-controlled runner
+code never receives the loose authority set.
 """
 
 from __future__ import annotations
@@ -24,12 +28,20 @@ from .ikarus_claude_task_attempt_authority import (
     compose_task_attempt_bound_claude_invocation,
     dispatch_task_attempt_bound_claude_invocation,
 )
+from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
+from .ikarus_runtime_role import (
+    RuntimeRoleBinding,
+    RuntimeRoleRegistry,
+    RuntimeRoleSnapshot,
+)
+from .ikarus_tool_scope import IkarusToolScopeProjection
 from .kernel.contracts import EffectLeaseRequest
 from .kernel.effects import EffectExecutionRequest
 from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
-from .ikarus_tool_scope import IkarusToolScopeProjection
-from .providers.claude_cli import ClaudeWorkspaceGrant
+from .providers.claude_cli import (
+    RUNTIME_ID as CLAUDE_RUNTIME_ID,
+    ClaudeWorkspaceGrant,
+)
 from .runtimes.provider_executable_object_registry import ProviderExecutableObjectRegistry
 from .runtimes.provider_executable_pre_admission import ProviderExecutablePreAdmissionReceipt
 from .runtimes.provider_invocation_abi import ProviderInvocationABIContract
@@ -96,18 +108,120 @@ ClaudeTaskAttemptInputResolver = Callable[
 ]
 
 
+def _snapshot_runtime_binding(
+    runtime_binding: RuntimeRoleSnapshot,
+) -> RuntimeRoleSnapshot:
+    """Detach the factory from caller-owned frozen-but-mutable descriptor data."""
+
+    if type(runtime_binding) is not RuntimeRoleSnapshot:
+        raise IkarusClaudeTaskAttemptAuthorityRefused(
+            "Claude runner factory requires an exact RuntimeRoleSnapshot"
+        )
+    try:
+        validated = RuntimeRoleBinding(
+            role=runtime_binding.role,
+            runtime_id=runtime_binding.runtime_id,
+            adapter_id=runtime_binding.adapter_id,
+            adapter_version=runtime_binding.adapter_version,
+            source_revision=runtime_binding.source_revision,
+            origin=runtime_binding.origin,
+            execution_mode=runtime_binding.execution_mode,
+            refusal_reason=runtime_binding.refusal_reason,
+        )
+        snapshot = RuntimeRoleRegistry((validated,)).snapshot(
+            validated.role,
+            validated.runtime_id,
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise IkarusClaudeTaskAttemptAuthorityRefused(
+            "Claude runtime-role binding could not be snapshotted"
+        ) from exc
+    if snapshot is None or snapshot.digest != runtime_binding.digest:
+        raise IkarusClaudeTaskAttemptAuthorityRefused(
+            "Claude runtime-role binding changed while its snapshot was captured"
+        )
+    if snapshot.runtime_id != CLAUDE_RUNTIME_ID:
+        raise IkarusClaudeTaskAttemptAuthorityRefused(
+            "Claude runner factory requires the canonical claude_code_cli runtime"
+        )
+    return snapshot
+
+
+def _require_planned_runtime(
+    item: Any,
+    runtime_binding: RuntimeRoleSnapshot,
+) -> None:
+    """Corroborate the RoleHarness work item against its exact planned binding."""
+
+    if (
+        str(getattr(item, "role", "")) != runtime_binding.role
+        or str(getattr(item, "runtime_id", "")) != runtime_binding.runtime_id
+    ):
+        raise IkarusClaudeTaskAttemptAuthorityRefused(
+            "Claude RoleHarness item differs from the planned runtime-role binding"
+        )
+
+
+def _require_resolved_runtime(
+    inputs: ClaudeTaskAttemptInvocationInputs,
+    runtime_binding: RuntimeRoleSnapshot,
+) -> None:
+    """Refuse a resolver that swaps the runtime descriptor behind a valid handoff."""
+
+    mismatches = sorted(
+        label
+        for label, actual, expected in (
+            ("request role", inputs.request.role, runtime_binding.role),
+            ("request runtime", inputs.request.runtime_id, runtime_binding.runtime_id),
+            (
+                "request runtime binding",
+                inputs.request.runtime_binding_sha256,
+                runtime_binding.digest,
+            ),
+            ("runtime evidence role", inputs.runtime_evidence.role, runtime_binding.role),
+            (
+                "runtime evidence runtime",
+                inputs.runtime_evidence.runtime_id,
+                runtime_binding.runtime_id,
+            ),
+            (
+                "runtime evidence binding",
+                inputs.runtime_evidence.runtime_binding_sha256,
+                runtime_binding.digest,
+            ),
+            (
+                "runtime evidence source revision",
+                inputs.runtime_evidence.source_revision,
+                runtime_binding.source_revision,
+            ),
+        )
+        if actual != expected
+    )
+    if mismatches:
+        raise IkarusClaudeTaskAttemptAuthorityRefused(
+            "resolved Claude authority differs from the planned runtime-role binding: "
+            + ", ".join(mismatches)
+        )
+
+
 def make_task_attempt_claude_handoff_runner_factory(
+    runtime_binding: RuntimeRoleSnapshot,
     resolve_inputs: ClaudeTaskAttemptInputResolver,
 ) -> Callable[[Any, ClaudeTaskAttemptRunnerHandoff], Callable[[Any], Any]]:
     """Adapt a trusted input resolver to ``RoleHarness.handoff_runner_factory``.
 
-    The resolver is invoked only after ``MissionSupervisor`` has authenticated
-    the real ``RunnerContext`` and produced ``handoff``.  The returned loose
-    inputs are sealed *before* a runner is handed back to ``TaskAttempt``.
-    Consequently the runner closure retains only the canonical
+    ``runtime_binding`` is the exact immutable plan descriptor resolved by the
+    supervisor. It is snapshotted when the factory is built, then corroborated
+    against both the actual ``PlannedItem`` and the resolver's request/runtime
+    evidence. The resolver is invoked only after ``MissionSupervisor`` has
+    authenticated the real ``RunnerContext`` and produced ``handoff``.
+
+    The returned loose inputs are sealed *before* a runner is handed back to
+    ``TaskAttempt``. Consequently the runner closure retains only the canonical
     :class:`TaskAttemptBoundClaudeInvocation` and cannot widen authority.
     """
 
+    planned_runtime = _snapshot_runtime_binding(runtime_binding)
     if not callable(resolve_inputs):
         raise TypeError("resolve_inputs must be callable")
 
@@ -120,6 +234,7 @@ def make_task_attempt_claude_handoff_runner_factory(
                 "Claude runner factory requires an exact authenticated "
                 "ClaudeTaskAttemptRunnerHandoff"
             )
+        _require_planned_runtime(item, planned_runtime)
 
         inputs = resolve_inputs(item, handoff)
         if type(inputs) is not ClaudeTaskAttemptInvocationInputs:
@@ -127,6 +242,7 @@ def make_task_attempt_claude_handoff_runner_factory(
                 "Claude input resolver must return an exact "
                 "ClaudeTaskAttemptInvocationInputs"
             )
+        _require_resolved_runtime(inputs, planned_runtime)
 
         # Seal while still inside the authenticated RoleHarness factory seam.
         # The returned runner closes over the sealed invocation only.
