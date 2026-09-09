@@ -15,6 +15,7 @@ from daedalus.ikarus_effect_bridge import (
 )
 from daedalus.ikarus_oneshot import OneShotRequest
 from daedalus.ikarus_runtime_role import (
+    AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
     RuntimeRoleRegistry,
@@ -83,7 +84,11 @@ def _bare(exact_type):
     return object.__new__(exact_type)
 
 
-def _claude_runtime_subjects(tmp_path: Path):
+def _claude_runtime_subjects(
+    tmp_path: Path,
+    *,
+    execution_mode: str = SOURCE_ONLY_EXECUTION_MODE,
+):
     binding = RuntimeRoleBinding(
         role="assistant",
         runtime_id=CLAUDE_RUNTIME_ID,
@@ -91,8 +96,12 @@ def _claude_runtime_subjects(tmp_path: Path):
         adapter_version="test-1",
         source_revision=CLAUDE_SOURCE_REVISION,
         origin="tests://ikarus-claude-composition",
-        execution_mode=SOURCE_ONLY_EXECUTION_MODE,
-        refusal_reason="source-only until the sealed mission runtime admits execution",
+        execution_mode=execution_mode,
+        refusal_reason=(
+            "source-only until the sealed mission runtime admits execution"
+            if execution_mode == SOURCE_ONLY_EXECUTION_MODE
+            else ""
+        ),
     )
     snapshot = RuntimeRoleRegistry((binding,)).snapshot("assistant", CLAUDE_RUNTIME_ID)
     assert snapshot is not None
@@ -150,10 +159,17 @@ def _claude_runtime_subjects(tmp_path: Path):
     return request, evidence, tools
 
 
-def _subjects(tmp_path: Path):
+def _subjects(
+    tmp_path: Path,
+    *,
+    execution_mode: str = SOURCE_ONLY_EXECUTION_MODE,
+):
     work_item_id = "wi-000-ikarus-claude"
     attempt_id = "attempt-ikarus-claude-1"
-    request, evidence, tools = _claude_runtime_subjects(tmp_path)
+    request, evidence, tools = _claude_runtime_subjects(
+        tmp_path,
+        execution_mode=execution_mode,
+    )
     effect_request = build_oneshot_effect_lease_request(
         request,
         evidence,

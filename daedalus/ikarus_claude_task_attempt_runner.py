@@ -30,6 +30,7 @@ from .ikarus_claude_task_attempt_authority import (
 )
 from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
 from .ikarus_runtime_role import (
+    AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     RuntimeRoleBinding,
     RuntimeRoleRegistry,
     RuntimeRoleSnapshot,
@@ -143,6 +144,10 @@ def _snapshot_runtime_binding(
     if snapshot.runtime_id != CLAUDE_RUNTIME_ID:
         raise IkarusClaudeTaskAttemptAuthorityRefused(
             "Claude runner factory requires the canonical claude_code_cli runtime"
+        )
+    if snapshot.execution_mode != AUTHENTICATED_HANDOFF_EXECUTION_MODE:
+        raise IkarusClaudeTaskAttemptAuthorityRefused(
+            "Claude runner factory requires an authenticated-handoff runtime binding"
         )
     return snapshot
 

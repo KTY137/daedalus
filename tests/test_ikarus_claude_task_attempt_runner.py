@@ -12,6 +12,7 @@ import daedalus.ikarus_claude_task_attempt_authority as authority
 import daedalus.ikarus_claude_task_attempt_runner as runner_adapter
 from daedalus.ikarus_claude_attempt_handoff import ClaudeTaskAttemptRunnerHandoff
 from daedalus.ikarus_runtime_role import (
+    AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
     RuntimeRoleRegistry,
@@ -52,12 +53,54 @@ def _runtime_binding():
         adapter_version="test-1",
         source_revision=fixture.CLAUDE_SOURCE_REVISION,
         origin="tests://ikarus-claude-composition",
-        execution_mode=SOURCE_ONLY_EXECUTION_MODE,
-        refusal_reason="source-only until the sealed mission runtime admits execution",
+        execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     )
     snapshot = RuntimeRoleRegistry((binding,)).snapshot("assistant", CLAUDE_RUNTIME_ID)
     assert snapshot is not None
     return snapshot
+
+
+def _source_only_runtime_binding():
+    binding = RuntimeRoleBinding(
+        role="assistant",
+        runtime_id=CLAUDE_RUNTIME_ID,
+        adapter_id="claude.oneshot-adapter",
+        adapter_version="test-1",
+        source_revision=fixture.CLAUDE_SOURCE_REVISION,
+        origin="tests://ikarus-claude-composition",
+        execution_mode=SOURCE_ONLY_EXECUTION_MODE,
+        refusal_reason="declaration only; authenticated handoff is not admitted",
+    )
+    snapshot = RuntimeRoleRegistry((binding,)).snapshot("assistant", CLAUDE_RUNTIME_ID)
+    assert snapshot is not None
+    return snapshot
+
+
+def _live_subjects(tmp_path: Path):
+    return fixture._subjects(
+        tmp_path,
+        execution_mode=AUTHENTICATED_HANDOFF_EXECUTION_MODE,
+    )
+
+
+def test_handoff_runner_factory_refuses_source_only_runtime_before_resolver():
+    resolved = False
+
+    def resolve_inputs(item, handoff):
+        nonlocal resolved
+        resolved = True
+        raise AssertionError("source-only runtime must never resolve provider inputs")
+
+    with pytest.raises(
+        authority.IkarusClaudeTaskAttemptAuthorityRefused,
+        match="authenticated-handoff runtime binding",
+    ):
+        runner_adapter.make_task_attempt_claude_handoff_runner_factory(
+            _source_only_runtime_binding(),
+            resolve_inputs,
+        )
+
+    assert resolved is False
 
 
 def _item(subjects, **overrides):
@@ -123,7 +166,7 @@ def test_handoff_runner_factory_seals_before_returning_provider_runner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    subjects = fixture._subjects(tmp_path)
+    subjects = _live_subjects(tmp_path)
     handoff = _handoff(subjects, tmp_path)
     planned_item = _item(subjects)
     expected = object.__new__(ProviderRuntimeExecutableBindingReceipt)
@@ -175,7 +218,7 @@ def test_handoff_runner_factory_refuses_nonexact_input_set_before_dispatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    subjects = fixture._subjects(tmp_path)
+    subjects = _live_subjects(tmp_path)
     called = False
 
     def fail_if_called(*args, **kwargs):
@@ -202,7 +245,7 @@ def test_handoff_runner_factory_refuses_foreign_workspace_before_runner_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    subjects = fixture._subjects(tmp_path)
+    subjects = _live_subjects(tmp_path)
     workspace = subjects[7]["workspace_grant"]
     foreign = ClaudeWorkspaceGrant(
         attempt_id="attempt-foreign",
@@ -240,7 +283,7 @@ def test_handoff_runner_factory_refuses_foreign_workspace_before_runner_exists(
 def test_handoff_runner_factory_requires_exact_authenticated_handoff(
     tmp_path: Path,
 ) -> None:
-    subjects = fixture._subjects(tmp_path)
+    subjects = _live_subjects(tmp_path)
     resolved = False
 
     def resolve_inputs(item, handoff):
@@ -265,7 +308,7 @@ def test_handoff_runner_factory_requires_exact_authenticated_handoff(
 def test_handoff_runner_factory_refuses_plan_runtime_substitution_before_resolver(
     tmp_path: Path,
 ) -> None:
-    subjects = fixture._subjects(tmp_path)
+    subjects = _live_subjects(tmp_path)
     resolved = False
 
     def resolve_inputs(item, handoff):
@@ -293,7 +336,7 @@ def test_handoff_runner_factory_refuses_plan_runtime_substitution_before_resolve
 def test_handoff_runner_factory_refuses_resolved_runtime_binding_substitution(
     tmp_path: Path,
 ) -> None:
-    subjects = fixture._subjects(tmp_path)
+    subjects = _live_subjects(tmp_path)
     foreign_request = replace(subjects[2], runtime_binding_sha256="f" * 64)
     factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
         _runtime_binding(),
@@ -310,7 +353,7 @@ def test_handoff_runner_factory_refuses_resolved_runtime_binding_substitution(
 def test_handoff_runner_factory_snapshots_planned_runtime_binding(
     tmp_path: Path,
 ) -> None:
-    subjects = fixture._subjects(tmp_path)
+    subjects = _live_subjects(tmp_path)
     runtime_binding = _runtime_binding()
     resolved = False
 
