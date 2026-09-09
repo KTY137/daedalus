@@ -1,0 +1,90 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-112",
+  "status": "closed",
+  "title": "Remove the redundant selected-signature set from hyperedge admission",
+  "date_berlin": "2026-09-09",
+  "branch": "exp/tensor-kernel-contract-01",
+  "objective": "Delete duplicate explicit-selection state inside the existing relation compiler while preserving retained-hyperedge fail-closed semantics and deterministic selected output.",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "gate": 1,
+    "alignment": "ALIGNED"
+  },
+  "issue": 239,
+  "pr": 317,
+  "scope": {
+    "production": [
+      "daedalus/twin/relation_compiler.py"
+    ],
+    "reused_contracts": [
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_discover_all_refuses_retained_hyperedge_instead_of_lossy_omission",
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_explicit_matching_relation_refuses_retained_hyperedge",
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_explicit_unrelated_relation_can_skip_retained_hyperedge"
+    ],
+    "new_remote_branches": 0,
+    "new_public_apis": 0,
+    "new_caches": 0,
+    "new_indexes": 0,
+    "new_compilers": 0
+  },
+  "implementation": {
+    "requested_set_deleted": true,
+    "hyperedge_conflict_owner": "requested_signatures",
+    "requested_by_key_retained_for_exact_lookup": true,
+    "discover_all_semantics": "unchanged",
+    "retained_hyperedge_refusal": "unchanged",
+    "unrelated_explicit_selection_pruning": "unchanged"
+  },
+  "gardener_outcome": {
+    "explicit_selection_containers_before": [
+      "requested_signatures",
+      "requested_set",
+      "requested_by_key"
+    ],
+    "explicit_selection_containers_after": [
+      "requested_signatures",
+      "requested_by_key"
+    ],
+    "production_diff": {
+      "files": 1,
+      "additions": 4,
+      "deletions": 7
+    },
+    "parallel_abstractions_added": 0
+  },
+  "verification": {
+    "previous_exact_head": {
+      "sha": "72a67db29ace63b54abfa2b960b48b5597515313",
+      "fourfold_tensor_run": 34317786994,
+      "fourfold_tensor_conclusion": "success",
+      "tauri_run": 34317787001,
+      "tauri_conclusion": "success"
+    },
+    "implementation_head": "3cf281fc878e0cec0b69c7cf1c4a4ee536aba801",
+    "implementation_diff": "one production file; requested_set deleted and existing requested_signatures reused for hyperedge conflict iteration",
+    "exact_head_actions": "No workflow run was registered for the implementation head at packet closure; no exact-head-green claim is made.",
+    "semantic_evidence": "The pre-existing focused selected-pruning contracts cover discover-all retained-hyperedge refusal, matching explicit refusal, and unrelated explicit pruning; this packet changes only the container iterated by that same predicate."
+  },
+  "claims": {
+    "performance_win": false,
+    "memory_win": false,
+    "full_suite_green": false,
+    "exact_head_green": false,
+    "gpu_tensor_core_win": false,
+    "tensor_vs_forest_win": false,
+    "crewai_win": false,
+    "alphaevolve_win": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "exact_evidence": {
+    "base_head": "72a67db29ace63b54abfa2b960b48b5597515313",
+    "implementation_commit": "3cf281fc878e0cec0b69c7cf1c4a4ee536aba801",
+    "production_blob": "768c346920a622a1f6639b172a81352bde4ca3fa",
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_step": "GPU-113 should inspect whether the remaining requested_signatures tuple and requested_by_key lookup map can be simplified further without duplicating ordering, block construction, or fail-closed semantics. Delete another container only if deterministic output and exact selected lookup remain explicit; otherwise move to the next measured compiler bucket."
+}
