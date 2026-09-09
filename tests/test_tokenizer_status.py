@@ -65,7 +65,7 @@ def _cached_bpe(monkeypatch, tmp_path: Path, *, content: bytes = b"stub-bpe") ->
     """Point tiktoken's cache dir at tmp_path with a file whose digest is pinned."""
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path))
     monkeypatch.delenv("DATA_GYM_CACHE_DIR", raising=False)
-    path = tmp_path / tokens.BPE_CACHE_KEY
+    path = tmp_path / tokens.BPE_CACHE_FILENAME
     path.write_bytes(content)
     monkeypatch.setattr(tokens, "_sha256_of_file", lambda p: tokens.BPE_FILE_SHA256)
     return str(path)
@@ -103,7 +103,7 @@ def test_not_installed_is_heuristic_without_warning(monkeypatch):
 def test_installed_but_uncached_warns_names_path_and_never_fetches(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "tiktoken", _stub_tiktoken(_must_not_fetch))
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path))
-    expected_path = os.path.join(str(tmp_path), tokens.BPE_CACHE_KEY)
+    expected_path = os.path.join(str(tmp_path), tokens.BPE_CACHE_FILENAME)
     status, degraded = _status_with_warnings()
     assert status.exact is False
     assert status.name == "chars/4 (heuristic)"
@@ -122,16 +122,16 @@ def test_cache_dir_precedence_matches_tiktoken(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "tiktoken", _stub_tiktoken(_must_not_fetch))
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path / "primary"))
     monkeypatch.setenv("DATA_GYM_CACHE_DIR", str(tmp_path / "secondary"))
-    assert tokens._bpe_cache_path() == os.path.join(str(tmp_path / "primary"), tokens.BPE_CACHE_KEY)
+    assert tokens._bpe_cache_path() == os.path.join(str(tmp_path / "primary"), tokens.BPE_CACHE_FILENAME)
     monkeypatch.delenv("TIKTOKEN_CACHE_DIR")
-    assert tokens._bpe_cache_path() == os.path.join(str(tmp_path / "secondary"), tokens.BPE_CACHE_KEY)
+    assert tokens._bpe_cache_path() == os.path.join(str(tmp_path / "secondary"), tokens.BPE_CACHE_FILENAME)
     monkeypatch.delenv("DATA_GYM_CACHE_DIR")
     import tempfile
 
     assert tokens._bpe_cache_path() == os.path.join(
-        tempfile.gettempdir(), "data-gym-cache", tokens.BPE_CACHE_KEY
+        tempfile.gettempdir(), "data-gym-cache", tokens.BPE_CACHE_FILENAME
     )
-    assert tokens.BPE_CACHE_KEY == hashlib.sha1(tokens.BPE_URL.encode(), usedforsecurity=False).hexdigest()
+    assert tokens.BPE_CACHE_FILENAME == hashlib.sha1(tokens.BPE_URL.encode(), usedforsecurity=False).hexdigest()
 
 
 def test_empty_cache_dir_means_every_load_would_fetch_so_refuse(monkeypatch):
@@ -147,7 +147,7 @@ def test_empty_cache_dir_means_every_load_would_fetch_so_refuse(monkeypatch):
 def test_cached_file_with_wrong_hash_is_refused_without_fetch(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "tiktoken", _stub_tiktoken(_must_not_fetch))
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path))
-    path = tmp_path / tokens.BPE_CACHE_KEY
+    path = tmp_path / tokens.BPE_CACHE_FILENAME
     path.write_bytes(b"not the real bpe file")
     status, degraded = _status_with_warnings()
     assert status.exact is False

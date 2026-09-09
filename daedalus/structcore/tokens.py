@@ -54,7 +54,18 @@ HEURISTIC_NAME = "chars/4 (heuristic)"
 
 # Mirrors tiktoken_ext.openai_public.cl100k_base (tiktoken 0.14.0).
 BPE_URL = "https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken"
-BPE_CACHE_KEY = "9b5ad71b2ce5302211f9c61530b329a4922fc6a4"  # sha1(BPE_URL), tiktoken's cache key
+# sha1(BPE_URL) -- the FILENAME tiktoken caches the public encoding under. It
+# is derived from a public URL and is not a secret of any kind.
+#
+# Named ...FILENAME and not ...KEY deliberately. As `BPE_CACHE_KEY` this was a
+# `*_KEY` name assigned a 40-hex literal, which is exactly the shape the
+# production secret floor in `daedalus/sensitivity.py` exists to catch, and it
+# fired ("credential assigned a quoted literal value") on the 2026-09-09
+# integration. The alternative was to teach the secret floor an exception for
+# 40-hex literals bound to `*_KEY` names -- i.e. to widen the rule that keeps
+# real keys away from models and artifacts, to accommodate one misleading name.
+# Renaming is both safer and more accurate: this is a filename.
+BPE_CACHE_FILENAME = "9b5ad71b2ce5302211f9c61530b329a4922fc6a4"
 BPE_FILE_SHA256 = "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7"
 FETCH_COMMAND = "python -c \"import tiktoken; tiktoken.get_encoding('cl100k_base')\""
 
@@ -129,7 +140,7 @@ def _bpe_cache_path() -> str | None:
         cache_dir = os.path.join(tempfile.gettempdir(), "data-gym-cache")
     if cache_dir == "":
         return None  # tiktoken: "disable caching" -> every load would fetch
-    return os.path.join(cache_dir, BPE_CACHE_KEY)
+    return os.path.join(cache_dir, BPE_CACHE_FILENAME)
 
 
 def _sha256_of_file(path: str) -> str:
