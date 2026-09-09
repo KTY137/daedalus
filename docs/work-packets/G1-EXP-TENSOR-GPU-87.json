@@ -1,0 +1,180 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-87",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "d0ede21fa097869b311098e3f9591626f1a524bf",
+    "dependencies": "G1-EXP-TENSOR-GPU-86 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback restores unselected verified-binding tuple/index staging and the post-selection membership set/checks. No wire, public API, authority, benchmark or promotion state changes are involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-87",
+  "work_packet": "G1-EXP-TENSOR-GPU-87",
+  "title": "Prune unselected verified-binding record staging in the canonical compiler",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "d0ede21fa097869b311098e3f9591626f1a524bf",
+  "scope": "Reduce explicit selected-signature staging inside the existing compile_relation_blocks owner. Do not retain verified-binding source/target indices and binding-record tuples for signatures that cannot be compiled, while preserving the all-binding admission-key set, source-count receipt semantics, discover-all behavior, edge/hyperedge refusal precedence and evidence-dag provenance. Retain edge_records where it still protects the existing validate-before-evidence boundary. Do not add another compiler, binding index, cache, backend, registry or public API.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "binding_records_before": "When verified bindings were enabled, every Fourfold binding was converted to a RelationSignature, source/target integer indices and a retained binding_records tuple before explicit selected-signature filtering discarded unselected records later during fact materialization.",
+    "edge_records_finding": "Explicit same-plane Forest edges were already pruned before edge_records append, while discover-all necessarily retains discovered records. The edge staging also preserves full endpoint, undirected and cross-plane admission/refusal validation before evidence-dag atom hashing and fact materialization, so deleting it would change the current validate-before-evidence execution boundary and is not justified by this packet.",
+    "binding_admission_boundary": "included_binding_keys must continue to cover every included verified binding, including signatures outside the explicit selected set, because selected cross-plane ForestEdge admission checks use exact endpoint/relation identity rather than the fact-record staging set.",
+    "receipt_boundary": "verified_binding_count is a source count when verified bindings are included, not a selected-record count. Earlier GPU-40/GPU-41 evidence and current selected-pruning contracts require len(snapshot.bindings) under include_verified_bindings=True and zero under False.",
+    "safe_deletion": "Decouple verified_binding_count into one scalar source count, populate included_binding_keys for every included binding, then skip source/target index lookup and binding_records tuple retention when an explicit requested set excludes that signature. Because both retained record families are then selection-correct, remove the later selected_set allocation and duplicate membership branches."
+  },
+  "implementation": {
+    "production": {
+      "commit": "8c2cbce5efd2ecfa255c447ef666225fd915f4fb",
+      "path": "daedalus/twin/relation_compiler.py",
+      "blob": "5ce0281fcec843b14080191c4f53e87091aabfea",
+      "change": "Compute the verified-binding source count independently; retain all exact included_binding_keys; in explicit-signature mode skip unselected binding index/tuple staging before binding_records append; remove the now-redundant selected_set allocation and record-loop membership checks; emit the independent source count in the receipt. edge_records staging remains unchanged where it is semantically useful."
+    },
+    "focused_existing_contract": {
+      "path": "tests/twin/test_relation_compiler_selected_pruning.py",
+      "blob": "8376d84c84a786894645fd889a66f60cef4ee845",
+      "coverage": [
+        "An explicit selected relation does not materialize an unselected verified-binding fact.",
+        "verified_binding_count remains len(snapshot.bindings) under explicit selected-signature pruning.",
+        "An explicitly selected cross-plane relation still uses its exact included verified binding.",
+        "include_verified_bindings=False still refuses an observed selected cross-plane Forest relation before fact materialization.",
+        "Discover-all continues to materialize all observed relation families."
+      ],
+      "new_test_abstraction_added": false,
+      "reason_no_new_test_file": "The existing focused owner already pins the affected public semantics; hosted integrated contracts verify the implementation without creating duplicate test plumbing."
+    },
+    "diff_from_gpu_86": {
+      "commits_before_closure": 1,
+      "production_files": 1,
+      "test_files": 0,
+      "production_additions": 7,
+      "production_deletions": 10
+    }
+  },
+  "semantic_invariants": {
+    "discover_all": "When signatures is None, every included verified binding is still staged/discovered and every retained representable relation is compiled as before.",
+    "binding_admission": "included_binding_keys still covers every included verified binding before explicit relation filtering, preserving exact cross-plane ForestEdge admission and refusal semantics.",
+    "verified_binding_count": "The receipt remains a source count: len(snapshot.bindings) when include_verified_bindings is True and zero when False, independent of explicit signature selection.",
+    "refusal_precedence": "Hyperedge validation remains before binding/edge staging. edge_records remains staged so Forest endpoint, directionality and binding-admission checks complete before evidence-dag Forest atom/fact materialization.",
+    "evidence_dag": "Selected verified-binding digest/evidence bundles and selected Forest evidence alternatives are unchanged; only tuples for unselected verified-binding signatures are no longer retained.",
+    "scalar_observers": "Boolean remains True and natural remains unit 1 per deduplicated semantic coordinate.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; compiled tensor relation blocks remain regenerable computational views.",
+    "public_api": "No public API, compatibility facade, wire schema, benchmark schema, promotion or authority contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": true,
+    "test_change": false,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "unselected_binding_record_staging_removed": true,
+    "edge_record_staging_retained": true,
+    "redundant_selected_membership_set_removed": true,
+    "verified_binding_source_count_preserved": true,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_receipt_or_compiler_added": false,
+    "summary": "Explicit selected-signature compilation no longer retains index/tuple records for verified bindings that can never contribute a block. Exact binding admission still sees the full included binding set, receipt counting remains source-based, and the existing Forest edge staging is retained because it still enforces validate/refuse-before-evidence behavior."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "d0ede21fa097869b311098e3f9591626f1a524bf",
+    "implementation_commit": "8c2cbce5efd2ecfa255c447ef666225fd915f4fb",
+    "implementation_head": "8c2cbce5efd2ecfa255c447ef666225fd915f4fb",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@5ce0281fcec843b14080191c4f53e87091aabfea",
+    "selected_pruning_tests": "tests/twin/test_relation_compiler_selected_pruning.py@8376d84c84a786894645fd889a66f60cef4ee845",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "implementation_head": "8c2cbce5efd2ecfa255c447ef666225fd915f4fb",
+    "static_diff": "GPU-86 closure..implementation head is exactly one commit touching daedalus/twin/relation_compiler.py (+7/-10).",
+    "fourfold_tensor_run": {
+      "run_id": 34195082027,
+      "status": "completed",
+      "conclusion": "success",
+      "scope": "Hosted pull-request integration on the implementation head; Python contract arms, public-package checks and complete repository collection completed successfully.",
+      "claim": "This is focused/integration evidence, not a complete-suite or superiority claim."
+    },
+    "tauri_run": {
+      "run_id": 34195081945,
+      "status": "completed",
+      "conclusion": "failure",
+      "detail": "Linux x86-64 PR validation completed cockpit build, frozen backend build, smoke test, project/desktop contract tests and icon generation successfully, then failed at Rust formatting; Rust library tests and Linux bundle validation were skipped afterward.",
+      "claim": "No all-PR-checks-green claim."
+    },
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "unselected_binding_tuple_staging_removed": true,
+    "redundant_selected_set_and_membership_checks_removed": true,
+    "edge_staging_kept_for_semantic_reason": true,
+    "existing_test_owner_reused": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-88 only: audit included_binding_keys retention under explicit requested signatures. Determine whether exact admission keys for binding signatures outside the requested set can be skipped without weakening selected cross-plane ForestEdge admission/refusal, verified_binding_count source semantics, discover-all behavior, include_verified_bindings=False refusal or error precedence. Do not merge admission identity with fact storage and do not introduce another binding index/cache; if key pruning would make the admission proof less direct or create a second policy, retain the full key set and close the audit as research."
+}

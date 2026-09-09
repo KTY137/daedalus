@@ -291,7 +291,10 @@ def compile_relation_blocks(
     endpoint/relation identity. The compiler admits only an exact constitutional
     Forest/Fourfold node partition, then binds retained endpoints to their
     canonical Fourfold plane indices once and reuses the indexed block owner;
-    it does not readmit already-authoritative labels through a second coordinate
+    explicit plans key their already-validated requested signatures once and
+    reuse those same records during binding/edge admission instead of rebuilding
+    an equivalent ``RelationSignature`` for every inspected record. The compiler
+    does not readmit already-authoritative labels through a second coordinate
     validation pass. The evidence observer retains canonical provenance
     alternatives; scalar observers keep their final semiring scalars in the
     same bounded per-signature coordinate map and do not allocate provenance
@@ -334,8 +337,17 @@ def compile_relation_blocks(
         if signatures is None
         else _selected_signatures(signatures, set())
     )
-    requested_set = (
-        None if requested_signatures is None else frozenset(requested_signatures)
+    requested_by_key = (
+        None
+        if requested_signatures is None
+        else {
+            (
+                signature.source_plane,
+                signature.relation,
+                signature.target_plane,
+            ): signature
+            for signature in requested_signatures
+        }
     )
     if requested_signatures is not None:
         _require_complete_endpoint_planes(snapshot, requested_signatures)
@@ -354,8 +366,8 @@ def compile_relation_blocks(
             raise ValueError(
                 f"Forest hyperedge {hyperedge.id!r} must retain at least one member"
             )
-        conflicts = requested_set is None
-        if requested_set is not None:
+        conflicts = requested_signatures is None
+        if requested_signatures is not None:
             conflicts = any(
                 signature.relation == hyperedge.relation
                 and (
@@ -369,7 +381,7 @@ def compile_relation_blocks(
                         and signature.target_plane in member_planes
                     )
                 )
-                for signature in requested_set
+                for signature in requested_signatures
             )
         if not conflicts:
             continue
@@ -386,16 +398,20 @@ def compile_relation_blocks(
     discovered: set[RelationSignature] = set()
     binding_records: list[tuple[CrossPlaneBinding, RelationSignature, int, int]] = []
     included_binding_keys: set[tuple[str, str, str, str, str]] = set()
+    verified_binding_count = len(snapshot.bindings) if include_verified_bindings else 0
     if include_verified_bindings:
         for binding in snapshot.bindings:
-            signature = RelationSignature(
+            signature_key = (
                 binding.source_plane,
                 binding.relation,
                 binding.target_plane,
             )
-            source_index = node_location[binding.source_node_id][1]
-            target_index = node_location[binding.target_node_id][1]
-            binding_records.append((binding, signature, source_index, target_index))
+            if requested_by_key is None:
+                signature = RelationSignature(*signature_key)
+            else:
+                signature = requested_by_key.get(signature_key)
+                if signature is None:
+                    continue
             included_binding_keys.add(
                 (
                     binding.source_plane,
@@ -405,7 +421,11 @@ def compile_relation_blocks(
                     binding.relation,
                 )
             )
-            discovered.add(signature)
+            source_index = node_location[binding.source_node_id][1]
+            target_index = node_location[binding.target_node_id][1]
+            binding_records.append((binding, signature, source_index, target_index))
+            if requested_by_key is None:
+                discovered.add(signature)
 
     edge_records: list[tuple[ForestEdge, RelationSignature, int, int]] = []
     for edge in forest.edges:
@@ -418,13 +438,13 @@ def compile_relation_blocks(
             )
         source_plane, source_index = source_location
         target_plane, target_index = target_location
-        signature = RelationSignature(
-            source_plane,
-            edge.relation,
-            target_plane,
-        )
+        signature_key = (source_plane, edge.relation, target_plane)
+        if requested_by_key is None:
+            signature = RelationSignature(*signature_key)
+        else:
+            signature = requested_by_key.get(signature_key)
         if source_plane == target_plane:
-            if requested_set is not None and signature not in requested_set:
+            if signature is None:
                 continue
             retained_digests = retained_relation_digests[source_plane]
             if not retained_digests:
@@ -433,26 +453,23 @@ def compile_relation_blocks(
             if edge_digest not in retained_digests:
                 continue
         if not edge.directed:
-            reverse_signature = RelationSignature(
-                target_plane,
-                edge.relation,
-                source_plane,
-            )
-            conflicts = (
-                requested_set is None
-                or signature in requested_set
-                or reverse_signature in requested_set
-            )
+            conflicts = requested_by_key is None or signature is not None
+            if requested_by_key is not None and not conflicts:
+                reverse_signature_key = (
+                    target_plane,
+                    edge.relation,
+                    source_plane,
+                )
+                conflicts = reverse_signature_key in requested_by_key
             if conflicts:
                 raise ValueError(
                     f"cannot flatten undirected ForestEdge {edge.relation!r} "
                     "into directed relation blocks without losing semantics"
                 )
             continue
+        if signature is None:
+            continue
         if source_plane != target_plane:
-            conflicts = requested_set is None or signature in requested_set
-            if not conflicts:
-                continue
             binding_key = (
                 source_plane,
                 edge.source,
@@ -467,7 +484,8 @@ def compile_relation_blocks(
                 )
             continue
         edge_records.append((edge, signature, source_index, target_index))
-        discovered.add(signature)
+        if requested_by_key is None:
+            discovered.add(signature)
 
     selected = (
         requested_signatures
@@ -476,7 +494,6 @@ def compile_relation_blocks(
     )
     if requested_signatures is None:
         _require_complete_endpoint_planes(snapshot, selected)
-    selected_set = frozenset(selected)
     retain_evidence = observer_name == "evidence-dag"
     scalar_value: bool | int | None
     if observer_name == "boolean":
@@ -491,9 +508,6 @@ def compile_relation_blocks(
         dict[tuple[int, int], Any],
     ] = {}
     for edge, signature, source_index, target_index in edge_records:
-        if signature not in selected_set:
-            continue
-
         atoms = _forest_edge_atoms(edge) if retain_evidence else None
         _record_fact(
             facts,
@@ -505,8 +519,6 @@ def compile_relation_blocks(
         )
 
     for binding, signature, source_index, target_index in binding_records:
-        if signature not in selected_set:
-            continue
         _record_fact(
             facts,
             signature=signature,
@@ -561,7 +573,7 @@ def compile_relation_blocks(
         semantic_fact_count=semantic_fact_count,
         forest_edge_count=len(forest.edges),
         forest_hyperedge_count=len(forest.hyperedges),
-        verified_binding_count=len(binding_records),
+        verified_binding_count=verified_binding_count,
     )
 
 

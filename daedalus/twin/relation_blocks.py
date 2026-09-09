@@ -542,9 +542,9 @@ class TypedRelationBlock(Generic[T]):
                         row_result[column] = value
             if len(values) + len(row_result) > MAX_BLOCK_ENTRIES:
                 raise ValueError(f"block entries exceed bounded limit {MAX_BLOCK_ENTRIES}")
-            for column, value in sorted(row_result.items()):
+            for column in sorted(row_result):
                 indices.append(column)
-                values.append(value)
+                values.append(row_result[column])
             offsets.append(len(values))
         return type(self)(
             self.subject,

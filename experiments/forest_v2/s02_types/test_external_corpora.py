@@ -62,23 +62,36 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured on frozen G1-IGNITION-04 source with CPython 3.12.13; both
-    # complete raw runs and source hashes are retained under
-    # runs/g1-ignition-04-20260908. Prior measured rows remain in the README;
-    # this moving corpus census is not a resolver superiority claim.
+    # Re-measured 2026-09-09 on integration/gates-1-to-4-20260909: G3-SEAL-02
+    # added daedalus/kernel/seals.py, so this MOVING census moved -- 514 -> 515
+    # files, 7016 -> 7052 functions. Probe run twice, outputs identical except
+    # wall_seconds (2.51 / 2.52); both retained under runs/gate2-20260909/.
+    # Prior measured rows remain in the README; this moving corpus census is
+    # not a resolver superiority claim, and the marginal effect did NOT move:
+    # 8 marginal functions before and after, i.e. adding a kernel module did
+    # not change what the full resolver buys over annotations alone.
+    #
+    # sha re-pinned again the same day when the tensor lane's second wave
+    # edited daedalus/twin/. Only the sha moved: files, functions and every
+    # percentage above were byte-identical across both re-measurements. The
+    # pin is CONTENT-addressed, so any edit under daedalus/ moves it even
+    # when nothing this test measures has changed -- expect to re-pin on
+    # merges that touch no resolver behaviour at all. Third re-pin the same
+    # day (tensor wave 3 edited daedalus/twin/relation_compiler.py): files,
+    # functions and every percentage identical yet again, sha only.
     assert entry["corpus_pin"] == {
-        "files": 485,
-        "sha256": "d6b652d970c1a5a63a3b8d3960da54befd6eaa440b2ee3122e466a1ee6a8358e",
+        "files": 515,
+        "sha256": "8f993883264957450c2ff3122df9a049b51c77a630dcaece33ae285ca329b74e",
     }
-    assert entry["functions"] == 6778
-    assert entry["annotation_only_pct"] == 94.35  # the control
-    assert entry["full_resolver_pct"] == 94.23
+    assert entry["functions"] == 7052
+    assert entry["annotation_only_pct"] == 94.44  # the control
+    assert entry["full_resolver_pct"] == 94.33
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1180
+    assert entry["marginal_pp"] == 0.1134
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["type_name_sites"] == 45190
-    assert entry["internal_named_only"] == 425
-    assert entry["verified_share_of_internal_pct"] == 90.51
+    assert entry["type_name_sites"] == 46882
+    assert entry["internal_named_only"] == 426
+    assert entry["verified_share_of_internal_pct"] == 90.94
 
 
 

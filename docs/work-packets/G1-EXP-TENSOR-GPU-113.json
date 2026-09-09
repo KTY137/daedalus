@@ -1,0 +1,164 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-113",
+  "status": "closed-research",
+  "title": "Retain the dual explicit-signature views after a consolidation audit",
+  "date_berlin": "2026-09-09",
+  "branch": "exp/tensor-kernel-contract-01",
+  "objective": "Audit whether the remaining requested_signatures tuple and requested_by_key lookup map can be collapsed without reintroducing per-edge RelationSignature construction, linear selected-plan lookup, hidden ordering dependencies, or loss of explicit predeclared-block order.",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "gate": 1,
+    "alignment": "ALIGNED"
+  },
+  "issue": 239,
+  "pr": 317,
+  "scope": {
+    "production": [
+      "daedalus/twin/relation_compiler.py"
+    ],
+    "contracts_reviewed": [
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_selected_signature_admission_reuses_one_materialized_list",
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_selected_signature_duplicate_refusal_remains_explicit",
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_explicit_cross_plane_signature_uses_verified_binding_without_forest_evidence",
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_explicit_matching_relation_refuses_retained_hyperedge",
+      "tests/twin/test_relation_compiler_selected_pruning.py::test_explicit_unrelated_relation_can_skip_retained_hyperedge"
+    ],
+    "new_remote_branches": 0,
+    "new_public_apis": 0,
+    "new_caches": 0,
+    "new_indexes": 0,
+    "new_compilers": 0,
+    "production_changes": 0,
+    "test_changes": 0
+  },
+  "finding": {
+    "requested_signatures_role": "The canonical sorted tuple is the explicit plan/order owner. It preserves the caller-supplied RelationSignature objects after bounded validation and duplicate refusal, drives endpoint-completeness validation and hyperedge conflict checks, and remains the deterministic selected block list even for predeclared relations with no observed facts.",
+    "requested_by_key_role": "The tuple-key map is the exact admission lookup owner for Forest edges and verified bindings. It returns the already validated caller RelationSignature object without reconstructing one per inspected record; this is the GPU-111 constructor-elimination seam.",
+    "same_object_payload": true,
+    "same_responsibility": false,
+    "safe_container_deletion_found": false
+  },
+  "rejected_consolidations": [
+    {
+      "proposal": "Keep only requested_signatures and scan it for every edge/binding lookup.",
+      "reason": "This converts exact selected-plan admission from keyed lookup to O(selected-relations) scanning per inspected record and is a regression in the measured compiler front half."
+    },
+    {
+      "proposal": "Keep only a set/frozenset of RelationSignature records.",
+      "reason": "Exact lookup from an edge/binding tuple would require constructing a RelationSignature probe per inspected record, reviving the constructor work GPU-111 removed; a set also ceases to be the explicit canonical order owner."
+    },
+    {
+      "proposal": "Keep only requested_by_key and treat dict insertion order as the selected-plan contract.",
+      "reason": "The map can inherit sorted insertion order only by first consuming the canonical tuple, and a tuple/sequence still has to be materialized for the explicit selected output and current completeness contract. This mostly shortens one tuple lifetime while coupling semantic order to map construction; it does not delete the keyed lookup or the final ordered plan."
+    },
+    {
+      "proposal": "Add another key/index helper to hide both representations.",
+      "reason": "That is a parallel abstraction around two already local, bounded data structures and violates the Gardener preference for deletion/consolidation over indirection."
+    }
+  ],
+  "gardener_outcome": {
+    "decision": "retain-minimal-dual-view",
+    "containers_before": [
+      "requested_signatures",
+      "requested_by_key"
+    ],
+    "containers_after": [
+      "requested_signatures",
+      "requested_by_key"
+    ],
+    "reason": "They duplicate references but not responsibility: one owns canonical explicit-plan order, the other exact identity-preserving lookup. Deleting either would trade a tiny bounded reference container for extra search/construction work or weaker ordering clarity.",
+    "parallel_abstractions_added": 0,
+    "bloat_added": 0
+  },
+  "verification": {
+    "audited_head": "6235b77240d2062963a257696e006af8a5c6b364",
+    "production_blob": "daedalus/twin/relation_compiler.py@768c346920a622a1f6639b172a81352bde4ca3fa",
+    "relation_signature_contract": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "previous_exact_head_fourfold_tensor_run": {
+      "id": 34322406731,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "previous_exact_head_tauri_run": {
+      "id": 34322406677,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "new_behavioral_claim": false,
+    "full_suite_green": false,
+    "note": "GPU-113 changes no production or test code. The preceding exact head is reproducibly green in the hosted Fourfold/Tensor and Tauri workflows; no manual full-suite claim is made."
+  },
+  "claims": {
+    "performance_win": false,
+    "memory_win": false,
+    "exact_closure_head_green": false,
+    "full_suite_green": false,
+    "gpu_tensor_core_win": false,
+    "tensor_vs_forest_win": false,
+    "crewai_win": false,
+    "alphaevolve_win": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_step": "GPU-114 should move to the measured fact_aggregation_direct bucket. Audit _record_fact's facts.setdefault(signature, {}) path first: Python evaluates the empty-dict default on every call, so the frozen 8,193-fact case may allocate and discard one empty dict per retained fact even after the bucket exists. Replace it only inside the existing owner with an explicit get/create path if focused contracts and hosted evidence preserve Boolean, natural and evidence-dag semantics; do not add a cache or second fact store.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-113",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "6235b77240d2062963a257696e006af8a5c6b364",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "finding",
+          "objective"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "finding",
+          "rejected_consolidations"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "finding",
+          "verification",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
+}

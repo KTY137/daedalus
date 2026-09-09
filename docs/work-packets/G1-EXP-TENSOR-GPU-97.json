@@ -1,0 +1,155 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-97",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "4b060f00527cc5eb6ec722b970bdb4a94d792fbc",
+    "dependencies": "G1-EXP-TENSOR-GPU-96 and its exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["audit", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only this research record. Production, tests, probes, public API, wire schemas, digest semantics, authority and promotion state are unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-97",
+  "work_packet": "G1-EXP-TENSOR-GPU-97",
+  "title": "Retain stateless relation-block serialization boundary after repeated-materialization audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "4b060f00527cc5eb6ec722b970bdb4a94d792fbc",
+  "scope": "Audit TypedRelationBlock.to_dict, to_json and digest for one concrete repeated full materialization that can be deleted or shared while preserving the canonical wire shape, EvidenceValue encoding and canonical digest owner, without mutable-state caching, a second serializer/hash owner, or a new public surface.",
+  "audit": {
+    "current_owner": {
+      "path": "daedalus/twin/relation_blocks.py::TypedRelationBlock.to_dict/to_json/digest",
+      "finding": "to_dict is the single relation-block wire projection: it materializes nested subject/signature/axis records, CSR tuples as JSON lists, and semiring-aware scalar wire values. to_json delegates that payload to the repository canonical_json owner; digest delegates the same payload to canonical_sha."
+    },
+    "repeated_materialization": {
+      "finding": "Calling to_json and digest separately rebuilds the relation-block payload separately. The repeated O(axis+nnz+evidence) projection is real, especially for EvidenceValue scalars, but it occurs only when callers request separate serialized products; neither method retains hidden state."
+    },
+    "cache_candidate": {
+      "finding": "Caching the materialized dict, canonical JSON string/bytes, or digest inside each frozen block would retain an additional O(serialized block size) representation after first use. That increases steady-state memory for sparse blocks, adds hidden cache state/lifetime policy, and conflicts with the campaign requirement to prefer bounded memory and avoid unmeasured caches."
+    },
+    "serializer_helper_candidate": {
+      "finding": "Factoring a private wire-payload helper changes no materialization count: each to_dict/to_json/digest request still needs a fresh mutable JSON-compatible object. Returning immutable tuples from that helper would change the public to_dict wire shape unless converted back, merely moving the same copies."
+    },
+    "digest_from_json_candidate": {
+      "finding": "Making digest hash self.to_json() would still build the same complete JSON payload and string, while duplicating the sha256-over-canonical-json rule already owned by canonical_sha. Keeping canonical_sha as the single digest owner avoids a relation-block-specific hashing path."
+    },
+    "evidence_encoding_boundary": {
+      "finding": "EvidenceValue is an internal immutable algebra value, not the persisted JSON scalar. _json_scalar must continue encoding each evidence value as the explicit scalar_type='evidence' wrapper plus EvidenceValue.to_dict output. Reusing raw values or exposing tuples would change the canonical wire contract."
+    },
+    "gardener_conclusion": "No safe delete/consolidate win exists in this serializer surface without either retaining an extra serialized copy per block, duplicating canonical hashing semantics, or changing wire shape. Retain the stateless serialization boundary and end this micro-materialization audit series. Subsequent Tensor packets must move to measured sparse/incremental hotspots rather than adding serializer abstractions."
+  },
+  "semantic_invariants": {
+    "wire_shape": "TypedRelationBlock.to_dict remains JSON-compatible with subject, signature, row_axis, column_axis, semiring_name, row_offsets, column_indices and values fields; tuple-backed axes/CSR arrays remain lists on wire.",
+    "evidence_encoding": "EvidenceValue scalars remain explicitly tagged with scalar_type='evidence' and their canonical EvidenceValue payload; non-evidence scalars retain their existing exact bool/int/finite-float encoding.",
+    "canonical_json_owner": "Repository canonical_json remains the sole canonical serialization rule used by relation blocks.",
+    "canonical_digest_owner": "Repository canonical_sha remains the sole digest rule for relation-block structured payloads; no relation-block-specific hash implementation is added.",
+    "bounded_memory": "No serialized payload, JSON bytes/string or digest cache is retained on TypedRelationBlock instances.",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; relation blocks remain regenerable internal computational views.",
+    "public_api": "No public API, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "serializer_cache_added": false,
+    "serializer_helper_added": false,
+    "digest_owner_changed": false,
+    "stateless_boundary_retained": true,
+    "micro_materialization_series_ended": true,
+    "negative_gardener_evidence_retained": true,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-97 confirms that separate to_json/digest calls do repeat full wire projection, but every proposed sharing mechanism either retains another block-sized representation, duplicates canonical hashing semantics, or changes the public JSON-compatible shape. The existing stateless owner is retained and further Tensor work moves to measured sparse/incremental hotspots."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "4b060f00527cc5eb6ec722b970bdb4a94d792fbc",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "semiring": "daedalus/twin/semiring.py@21d46382d84562f97feac2b2b4301d1f00450e70",
+    "canonical_sha_owner": "daedalus/kernel/events/envelope.py",
+    "prior_exact_head_fourfold_tensor_run": "34241883637:completed/success",
+    "prior_exact_head_tauri_run": "34241883653:completed/success",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "static_audit": "to_dict performs the necessary conversion from immutable internal tuples/EvidenceValue objects to the canonical JSON-compatible structured payload. to_json and digest intentionally route through the repository canonical serialization/digest owners. Sharing results requires retained cache state or caller-level reuse, neither of which belongs in the block contract without measured evidence.",
+    "new_test_required": false,
+    "reason": "No executable behavior changes. A test asserting repeated allocation or the absence of caching would overspecify an implementation detail without strengthening canonical wire/digest semantics; existing round-trip, evidence-scalar and digest tests remain the semantic contracts.",
+    "prior_head_ci": "GPU-96 exact head 4b060f00527cc5eb6ec722b970bdb4a94d792fbc has Fourfold/Tensor run 34241883637 completed/success and Tauri run 34241883653 completed/success.",
+    "closure_head_ci_requirement": "This documentation-only closure commit requires its own hosted run evidence before any exact-head green statement is made.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "unmeasured_cache_rejected": true,
+    "duplicate_digest_owner_rejected": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 23,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-98: leave serializer micro-optimizations. Use the existing sparse/bitset diagnostic infrastructure to identify one measured canonical reconstruction or incremental-update hotspot under a frozen bounded case. Production changes are permitted only if the measurement isolates a dominant cost and the fix stays inside an existing owner without adding a second block type, cache, backend registry or graph authority. Prefer an incremental/delta path required by campaign issue #239 over another allocation micro-optimization."
+}

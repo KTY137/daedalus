@@ -1,0 +1,10 @@
+{
+ "measured": "2026-09-09",
+ "probe": "experiments/forest_v2/s09_eval/probe_type_plane_supply.py",
+ "refinement": "a path ending .schema.json is Type; nothing else changes",
+ "runs_identical": true,
+ "sha256": {
+  "probe_run1.json": "26e7c26d64cfc5ab510d9737da8e2921cfcd2fdcf26116662a34680a7cb3e284",
+  "probe_run2.json": "26e7c26d64cfc5ab510d9737da8e2921cfcd2fdcf26116662a34680a7cb3e284"
+ }
+}

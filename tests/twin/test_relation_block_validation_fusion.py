@@ -214,6 +214,12 @@ def test_fused_validation_preserves_prehead_error_precedence(
     assert _error(**overrides) == expected
 
 
+def test_row_offset_type_scan_precedes_boundary_and_monotonicity_refusal() -> None:
+    assert _error(row_offsets=(1, 0, "bad")) == (
+        "block.row_offsets must contain integers"
+    )
+
+
 def test_count_mismatch_fallback_keeps_column_type_before_range_and_count() -> None:
     assert _error(
         row_offsets=(0, 2, 2),

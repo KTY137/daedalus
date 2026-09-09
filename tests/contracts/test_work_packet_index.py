@@ -194,19 +194,21 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "473 tracked files" in message  # measured 2026-09-08 ignition retention
+    # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
+    # +3 for the tensor lane's second wave (GPU-109/110/111).
+    assert "512 tracked files" in message  # measured 2026-09-09, +CONFIRM-03 +GPU-113
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 470,
+        "assigned_artifacts": 509,
         "legacy_artifacts": 204,
-        "packet_artifacts": 472,
-        "packet_ids": 407,
-        "post_index_artifacts": 268,
+        "packet_artifacts": 511,
+        "packet_ids": 446,
+        "post_index_artifacts": 307,
         "registry_artifacts": 1,
-        "tracked_files": 473,
+        "tracked_files": 512,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -255,6 +257,9 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
     payload = _index()
     packets = {packet["packet_id"]: packet for packet in payload["packets"]}
     expected_primary_ids = {
+        "G1-ARIADNE-10",
+        "G1-EVAL-CORPUS-01",
+        "G1-EVAL-USAGE-01",
         "G1-IGNITION-04",
         "G1-IGNITION-03",
         "G1-ACCEL-01",
@@ -279,10 +284,12 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-IKARUS-33",
         "G1-IKARUS-34",
         "G1-IKARUS-35",
+        "G1-IKARUS-36",
         "G1-IKARUS-42",
         "G1-IKARUS-43",
         "G1-IKARUS-44",
         "G1-IKARUS-45",
+        "G1-PROJECTS-01",
         "G1-SELF-00",
         "G1-SELF-01",
         "G1-TESTS-01",
@@ -495,6 +502,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-RUNTIME-PROVIDER-04",
         "G1-RUNTIME-PROVIDER-05",
         "G1-RUNTIME-PROVIDER-06",
+        "G1-TOKENIZER-01",
         "G1-UI-01",
         "G1-UI-02",
         "G1-UI-03",
@@ -516,12 +524,65 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-UI-19",
         "G1-UI-20",
         "G1-UI-21",
+        "G1-UI-22",
         "G1-WEB-01",
         "G1-WIKI-01",
         "G1-WP-IKARUS-COMPUTER-LOOP-01",
         "G1-WP-INDEX-01",
         "G1-SCC-02",
         "G1-TENSOR-01",
+        "G3-BASE-01",
+        # 22 tensor-lane probes landed together when
+        # origin/exp/tensor-kernel-contract-01 was integrated on 2026-09-09.
+        # Seven of them (89, 103-108) arrived WITHOUT the
+        # registry_contract.sections projection their own predecessors
+        # (101, 102) carry; that regression is repaired in the same commit by
+        # projecting each packet's real fields, never by inventing content.
+        "G1-EXP-TENSOR-GPU-87",
+        "G1-EXP-TENSOR-GPU-88",
+        "G1-EXP-TENSOR-GPU-89",
+        "G1-EXP-TENSOR-GPU-90",
+        "G1-EXP-TENSOR-GPU-91",
+        "G1-EXP-TENSOR-GPU-92",
+        "G1-EXP-TENSOR-GPU-93",
+        "G1-EXP-TENSOR-GPU-94",
+        "G1-EXP-TENSOR-GPU-95",
+        "G1-EXP-TENSOR-GPU-96",
+        "G1-EXP-TENSOR-GPU-97",
+        "G1-EXP-TENSOR-GPU-98",
+        "G1-EXP-TENSOR-GPU-99",
+        "G1-EXP-TENSOR-GPU-100",
+        "G1-EXP-TENSOR-GPU-101",
+        "G1-EXP-TENSOR-GPU-102",
+        "G1-EXP-TENSOR-GPU-103",
+        "G1-EXP-TENSOR-GPU-104",
+        "G1-EXP-TENSOR-GPU-105",
+        "G1-EXP-TENSOR-GPU-106",
+        "G1-EXP-TENSOR-GPU-107",
+        "G1-EXP-TENSOR-GPU-108",
+        # wave 4 (GPU-112) dropped registry_contract ENTIRELY, not just its
+        # sections; the repair script now synthesizes one from the packet's own
+        # masterplan block plus a git-derived base revision, or refuses.
+        "G1-EXP-TENSOR-GPU-112",
+        # Second tensor wave, same afternoon, same missing sections projection --
+        # repaired by scripts/repair_work_packet_sections.py, which derives the
+        # projection from fields each packet actually has instead of a
+        # hard-coded per-packet plan.
+        "G1-EXP-TENSOR-GPU-109",
+        "G1-EXP-TENSOR-GPU-110",
+        "G1-EXP-TENSOR-GPU-111",
+        # G3-SEAL-02: the kernel binding that closes G3-BASE-01 blocker F4.
+        "G3-SEAL-02",
+        # G2-XPLANE-CONFIRM-01: the pre-registration of the confirmatory
+        # cross-plane run, committed before any second repository is cloned.
+        "G2-XPLANE-CONFIRM-01",
+        # CONFIRM-02: re-tests CONFIRM-01's two KEEPs on a repository chosen
+        # to be structurally unlike fastapi (md:py ratio below 0.40).
+        "G2-XPLANE-CONFIRM-02",
+        # CONFIRM-03: the redesign arm the 14.1 KILL points at.
+        "G2-XPLANE-CONFIRM-03",
+        # tensor wave 5
+        "G1-EXP-TENSOR-GPU-113",
     }
     post_index_packets = {
         packet_id: packet

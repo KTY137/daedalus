@@ -115,7 +115,27 @@ def _pin_latent_route_off(tmp_path_factory):
     # Since fd314dd5 ikarus_os.ask installs the budget process guard and reads
     # the ledger named by DAEDALUS_BUDGET_LEDGER; without a pin a suite run
     # would meter against the operator's runs/budget/ledger.json.
-    had_ledger = "DAEDALUS_BUDGET_LEDGER" in os.environ
+    #
+    # The pin is UNCONDITIONAL as of 2026-09-09. It used to be skipped whenever
+    # the variable was already set, out of respect for an operator running the
+    # suite against a chosen ledger -- but that made one leaked value poison
+    # every test after it, because a leaked pin looks exactly like a deliberate
+    # one. MEASURED on the eight-packet integration: 34 tests in
+    # test_ikarus_voice_invocation.py and test_ikarus_stream.py failed in the
+    # full suite and passed in isolation, all with the same refusal --
+    # "committed $5.0000 of $5.0000, 2 calls recorded" -- i.e. an accumulating
+    # SHARED ledger, not a code defect.
+    #
+    # A per-test ledger is also the right default on the merits: a test that
+    # asserts an argv shape must not be gated by how much money the tests
+    # before it happened to reserve. Tests that are ABOUT the ceiling still
+    # work, because they get a clean ledger and set up the state they mean to
+    # assert.
+    #
+    # The operator escape hatch stays, but it must now be explicit and cannot
+    # be produced by accident:
+    #     DAEDALUS_TEST_USE_AMBIENT_LEDGER=1
+    had_ledger = os.environ.get("DAEDALUS_TEST_USE_AMBIENT_LEDGER") == "1"
     if not had_ledger:
         os.environ["DAEDALUS_BUDGET_LEDGER"] = str(
             tmp_path_factory.mktemp("budget") / "ledger.json"

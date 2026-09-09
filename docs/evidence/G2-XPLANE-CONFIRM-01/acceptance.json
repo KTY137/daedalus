@@ -1,0 +1,34 @@
+{
+ "candidate": "fastapi",
+ "candidate_position": 1,
+ "cross_plane_admissible": 531,
+ "hypotheses": {
+  "H1_primary": "HOLDS",
+  "H2_placebo": "FAILS to replicate (n=30 control cap)",
+  "H3_binding": "HOLDS"
+ },
+ "measured": "2026-09-09",
+ "packet": "G2-XPLANE-CONFIRM-01",
+ "preregistered_threshold": "cross_plane_admissible >= 68",
+ "s10_verdicts": {
+  "INCONCLUSIVE": 1,
+  "KEEP": 2,
+  "KILL": 0,
+  "NOT_EVALUABLE": 12,
+  "UNDECIDABLE": 1,
+  "coverage": "3 of 16"
+ },
+ "sha256": {
+  "kill_input_fastapi.json.gz": "48cccdde34ef8711cfcb6a503f0a49d5b19f8fe59b3e84644d6e07f7eb8a7699",
+  "provenance_fastapi.json": "719e3848c02df2ccb012acc6d843105a83176272ed557cadef526a7e9d49e43a",
+  "raw_fastapi.json.gz": "b279aa45861fc210d11374a2de399655175b13b5dc1ef05c93b0f00da65e7893",
+  "s10_report_fastapi.txt": "5c1d91d485689fb15fe248483fb7940a13e135f292e4252c8f96e7557eb067ac",
+  "stratified_run1.json": "f4019c94d54de6b8ba63b133c71ce780671790ec5551bc16dfaf27fdc65673d2",
+  "stratified_run2.json": "f4019c94d54de6b8ba63b133c71ce780671790ec5551bc16dfaf27fdc65673d2",
+  "taskset_fastapi.json.gz": "11215fbaebad8e54f9fd2d47733608cd6bff25dd0a98a353a68af183977fc82b"
+ },
+ "stage": "COMPLETE -- selection, task set, harness run, s10 verdicts, stratified analysis",
+ "stratified_runs_identical": true,
+ "taskset_digest": "sha256:84f6f76158544fe6b943910892fb4702f2f2ea58fcd5408ceb17eeed7befa501",
+ "verdict": "PASSES -- stopping rule satisfied at candidate 1, flask not tested"
+}

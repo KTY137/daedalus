@@ -96,6 +96,8 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -251,7 +253,30 @@ BRIDGES: dict[tuple[str, str], str] = {
 #: is a rule, not a special case.
 DISPATCH_ROOTS: dict[str, str] = {"daedalus.health": "probe"}
 
-CREDENTIAL = re.compile(r"(API_KEY|_KEY$|TOKEN|SECRET|PASSWORD|CREDENTIAL)", re.I)
+#: ``TOKEN`` is anchored to an underscore-delimited SEGMENT; the other
+#: alternatives are not, because none of them appears inside an unrelated word.
+#: Measured 2026-09-09 on the evening integration: the bare substring made
+#: ``TIKTOKEN_CACHE_DIR`` -- a cache DIRECTORY read by `G1-TOKENIZER-01` in
+#: ``daedalus.structcore.tokens:_bpe_cache_path``, and tiktoken's own upstream
+#: variable name, so not ours to rename -- classify as a credential, pushing an
+#: undeclared ``secrets`` effect onto ``cli.health``, ``cli.eval`` and
+#: ``cli.council``.
+#:
+#: Declaring ``secrets`` on those three doors was the other way to make this
+#: green, and it would have been WORSE than the failure: it asserts at the
+#: effect boundary that they read credentials when they read a cache path. A
+#: registry that overstates effects is not a safer registry, it is one nobody
+#: can reason with. ``test_the_derivation_is_not_vacuous`` says as much --
+#: "the rule was supposed to discriminate, so declare it rather than deleting
+#: this line" -- and here there is nothing true to declare.
+#:
+#: Real credential names spell TOKEN as a whole segment (``GITHUB_TOKEN``,
+#: ``HF_TOKEN``, ``ACCESS_TOKEN_FILE``, bare ``TOKEN``); a word that merely
+#: contains the letters (``TIKTOKEN``, ``TOKENIZER``) does not.
+#: ``test_the_credential_rule_discriminates_by_segment`` pins both directions.
+CREDENTIAL = re.compile(
+    r"(API_KEY|_KEY$|(?:^|_)TOKENS?(?:$|_)|SECRET|PASSWORD|CREDENTIAL)", re.I
+)
 BILLABLE = {
     (row["file"].replace("/", ".")[: -len(".py")], row["func"])
     for row in BILLABLE_SITES
@@ -996,6 +1021,37 @@ def test_the_no_row_verdicts_are_still_true():
                 f"verdict ({reason}) no longer holds"
             )
     assert not problems, "a no-row verdict went stale:\n" + "\n".join(problems)
+
+
+@pytest.mark.parametrize(
+    "name, is_credential",
+    [
+        # real credentials -- TOKEN as a whole underscore-delimited segment
+        ("GITHUB_TOKEN", True),
+        ("HF_TOKEN", True),
+        ("TOKEN", True),
+        ("ACCESS_TOKEN_FILE", True),
+        ("REFRESH_TOKENS", True),
+        ("DEEPSEEK_API_KEY", True),
+        ("OPENAI_SECRET", True),
+        ("DB_PASSWORD", True),
+        ("AWS_CREDENTIAL_FILE", True),
+        ("SIGNING_KEY", True),
+        # NOT credentials -- the letters T-O-K-E-N inside another word
+        ("TIKTOKEN_CACHE_DIR", False),
+        ("TOKENIZER_PATH", False),
+        ("DATA_GYM_CACHE_DIR", False),
+        ("XDG_CACHE_HOME", False),
+    ],
+)
+def test_the_credential_rule_discriminates_by_segment(name, is_credential):
+    """Both directions, because a rule that over-fires is as broken as one
+    that under-fires -- it just fails in the direction that looks responsible.
+
+    The false positive this pins (``TIKTOKEN_CACHE_DIR``) cost three CLI doors
+    an undeclared ``secrets`` effect on the 2026-09-09 integration.
+    """
+    assert bool(CREDENTIAL.search(name)) is is_credential
 
 
 def test_the_derivation_is_not_vacuous():

@@ -1,0 +1,24 @@
+[
+ {
+  "anchor_commit": "004a96740fb990c7d6dc39bd305b08852635ec5d",
+  "anchor_committer_date": "2025-12-29T08:16:10-03:00",
+  "candidate": "pytest",
+  "commits_reachable_from_anchor": 17104,
+  "license_sha256": "0cc5ea2ce3cbae09ce9581e64a70bff7b74fef07f6b295597ab6a2cdead840d1",
+  "license_spdx": "MIT",
+  "origin_url": "https://github.com/pytest-dev/pytest.git",
+  "temporal_cutoff_declared": "2026-01-01T00:00:00Z",
+  "verdict": "REJECTED: criterion 5 -- knowledge:code 1.10, higher than fastapi 0.79"
+ },
+ {
+  "anchor_commit": "c3cc5a95d4f72e6ccc27ebae23344fce8cc70786",
+  "anchor_committer_date": "2025-12-12T14:22:42-08:00",
+  "candidate": "black",
+  "commits_reachable_from_anchor": 2105,
+  "license_sha256": "5d025205be1cac55de08ebd9f961ec7d74d0f998f65f17856ddd227a7d3bf333",
+  "license_spdx": "MIT",
+  "origin_url": "https://github.com/psf/black.git",
+  "temporal_cutoff_declared": "2026-01-01T00:00:00Z",
+  "verdict": "SELECTED: all seven criteria"
+ }
+]

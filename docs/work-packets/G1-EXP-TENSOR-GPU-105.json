@@ -1,0 +1,230 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-105",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "ee5cc16859cc1e51e4bd28d0738e4c995e7922e6",
+    "dependencies": "G1-EXP-TENSOR-GPU-104, canonical compile_relation_blocks owner, ReferenceCompileResult and Gate-1 ignition before/after compilation",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "callsite_inventory",
+          "existing_before_after_owner"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "remaining_authority_gap",
+          "minimum_inputs_for_next_experiment"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-105",
+  "title": "Locate the existing before/after Forest/Fourfold owner before incremental Tensor wiring",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "ee5cc16859cc1e51e4bd28d0738e4c995e7922e6",
+  "scope": "Inventory the production call sites and retained consumers around compile_relation_blocks and Fourfold construction. Find an existing owner that naturally possesses an authoritative previous and current KnowledgeForest/FourfoldSnapshot pair. Do not add previous-state caching to the compiler, a second delta family, a digest-to-edge index, a new backend, a new registry or a parallel projection path.",
+  "callsite_inventory": {
+    "canonical_relation_compiler": {
+      "path": "daedalus/twin/relation_compiler.py",
+      "role": "pure revision-bound Forest/Fourfold to TypedRelationBlock projection",
+      "state_retention": false,
+      "previous_snapshot_owned": false,
+      "current_inputs": [
+        "KnowledgeForest",
+        "FourfoldSnapshot",
+        "Semiring",
+        "optional RelationSignature sequence"
+      ]
+    },
+    "production_compile_relation_blocks_caller": {
+      "path": "daedalus/twin/relation_projection.py::boolean_relation_block_from_fourfold",
+      "role": "thin public single-relation compatibility facade",
+      "previous_snapshot_owned": false,
+      "current_forest_owned": true,
+      "current_snapshot_owned": true,
+      "note": "The facade forwards exactly one current Forest/snapshot/signature tuple into compile_relation_blocks and returns one block. Moving history here would turn a compatibility shim into a state owner and recreate the parallel abstraction GPU-71 removed."
+    },
+    "read_projection": {
+      "path": "daedalus/twin/read_projection.py::fourfold_read_projection",
+      "role": "single-revision renderer projection",
+      "previous_snapshot_owned": false,
+      "current_forest_owned": true,
+      "current_snapshot_owned": true,
+      "relation_block_consumer": false,
+      "note": "It builds one KnowledgeForest and one FourfoldSnapshot from the current index and renders them; it has no before-state and should remain read-only presentation shaping."
+    },
+    "diagnostic_consumers": {
+      "paths": [
+        "tests/twin/test_tensor_forest_cost_probe.py",
+        "tests/twin/test_tensor_heldout_csr_probe.py",
+        "tests/twin/test_relation_compiler_*.py"
+      ],
+      "production_owner": false,
+      "note": "These are measurement/contract consumers and may construct frozen before/after subjects, but they are not a production state owner."
+    }
+  },
+  "existing_before_after_owner": {
+    "found": true,
+    "path": "daedalus/ignition/gate1.py::run_gate1_ignition",
+    "owner_role": "Gate-1 bounded orchestration/evidence slice",
+    "base_value": "base_compile = compile_reference_project(...) before attempts",
+    "candidate_value": "candidate_compile = compile_reference_project(...) after candidate composition",
+    "already_compares": "fourfold_graph_delta(base_compile.snapshot, candidate_compile.snapshot)",
+    "authority_payload": {
+      "type": "daedalus/twin/reference_compiler.py::ReferenceCompileResult",
+      "contains": [
+        "KnowledgeForest forest",
+        "FourfoldSnapshot snapshot",
+        "manifest_sha256",
+        "source_bundle_sha256",
+        "file_sha256s",
+        "optional source_tree_sha256"
+      ],
+      "base_and_candidate_available_in_same_scope": true,
+      "forest_snapshot_binding_is_mechanical": "Each ReferenceCompileResult constructs snapshot.source_forest_sha256 from that result's forest.content_sha256 and carries the source revision used for the compile."
+    },
+    "why_this_is_the_natural_experimental_seam": "The Gate-1 owner already has both authoritative before and after compilations in one bounded execution and already records a graph delta. Incremental Tensor experiments can therefore receive explicit before/after values here without hidden mutable compiler state or a process cache.",
+    "scope_limit": "This is an existing bounded Gate-1 reference-project owner, not evidence that every Renovation/Genesis caller already has a before/after pair. It is suitable for the next experiment, not yet a general incremental runtime contract."
+  },
+  "remaining_authority_gap": {
+    "relation_digest_sets_available": true,
+    "digest_to_edge_mapping_available": false,
+    "detail": "PlaneSnapshot.relation_sha256s lets the before/after owner cheaply identify changed retained digest sets per plane. It still does not identify the corresponding ForestEdge payload without examining candidate/base Forest edges because the canonical snapshot stores a sorted digest set rather than a digest-to-edge map.",
+    "consequence": "Finding the correct before/after owner closes the state-wiring question but does not yet justify a hash-skip or O(delta) incremental compiler. GPU-103's digest-to-edge authority gap remains intact.",
+    "unsafe_shortcuts_rejected": [
+      "store previous Forest/Fourfold state inside compile_relation_blocks",
+      "make relation_projection stateful",
+      "reuse renderer state as semantic history",
+      "treat relation_sha256s position as ForestEdge position",
+      "add a process-global digest-to-edge cache",
+      "promote IgnitionGraphDelta into a Tensor relation receipt without revision/Forest and same-plane relation fields"
+    ]
+  },
+  "minimum_inputs_for_next_experiment": {
+    "base_forest": "authoritative KnowledgeForest from base ReferenceCompileResult",
+    "base_snapshot": "FourfoldSnapshot mechanically bound to base_forest",
+    "candidate_forest": "authoritative KnowledgeForest from candidate ReferenceCompileResult",
+    "candidate_snapshot": "FourfoldSnapshot mechanically bound to candidate_forest",
+    "identity": [
+      "base/candidate source_revision",
+      "base/candidate source_forest_sha256",
+      "base/candidate source_tree_sha256 when available"
+    ],
+    "projection_selection": "frozen RelationSignature tuple plus observer/semiring",
+    "required_oracle": "ordinary full compile_relation_blocks result remains the correctness oracle"
+  },
+  "decision": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "workflow_change": false,
+    "new_delta_contract": false,
+    "new_incremental_backend": false,
+    "new_cache_or_index": false,
+    "parallel_projection": false,
+    "finding": "An existing before/after authority owner does exist: run_gate1_ignition transiently owns base and candidate ReferenceCompileResult values, and each value already contains both Forest and Fourfold snapshot. The compiler and compatibility facade should remain stateless. The remaining blocker is not where to keep history; it is how to turn changed relation digest sets into safe changed-edge work without inventing another authority."
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "relation_compiler_blob": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "relation_projection_blob": "daedalus/twin/relation_projection.py@3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+    "read_projection_blob": "daedalus/twin/read_projection.py@87a8fda8115f48da3d91d44d1cf620c72983b902",
+    "reference_compiler_blob": "daedalus/twin/reference_compiler.py@fcb197f4d6edf2d4bd8dd240a6ddfb32a0ed646d",
+    "gate1_owner_blob": "daedalus/ignition/gate1.py@6267e2c4c44210b93db919571fe15b8535ec2bd4",
+    "gpu104_exact_head_fourfold_tensor": "34289024722:completed/success on ee5cc16859cc1e51e4bd28d0738e4c995e7922e6",
+    "gpu104_exact_head_tauri": "34289024741:completed/success on ee5cc16859cc1e51e4bd28d0738e4c995e7922e6",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "kind": "source-and-callsite audit",
+    "masterplan_checked_first": true,
+    "canonical_relation_compiler_checked": true,
+    "production_relation_facade_checked": true,
+    "read_projection_checked": true,
+    "reference_compile_result_checked": true,
+    "gate1_before_after_owner_checked": true,
+    "base_exact_head_fourfold_tensor_green": true,
+    "base_exact_head_tauri_green": true,
+    "new_executable_claim": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "duplicated_runtime_abstraction_added": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false,
+    "state_owner_selected_without_new_state_store": "daedalus/ignition/gate1.py::run_gate1_ignition for the next bounded experiment only"
+  },
+  "claim_boundaries": [
+    "No claim that a production incremental Tensor path exists.",
+    "No claim that changed digest sets currently identify changed ForestEdge payloads without further work.",
+    "No speedup or memory win claim; GPU-105 changes no executable code.",
+    "No claim that the Gate-1 reference-project seam generalizes to every Daedalus workflow.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-106 should add a diagnostic-only Gate-1/reference-project delta probe that uses the existing base_compile/candidate_compile authority pair, computes per-plane retained relation-digest set differences, freezes the affected RelationSignature set, and compares any proposed changed-work selection against ordinary full compile_relation_blocks output. Do not add a production incremental compiler or digest-to-edge index yet; if changed digests still require a full Forest-edge rehash/scan, measure that cost explicitly and retain the negative result."
+}

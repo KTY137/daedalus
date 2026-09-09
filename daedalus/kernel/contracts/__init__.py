@@ -56,6 +56,8 @@ _EXPORT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "security",
         (
             "OwnerApproval",
+            "BaselineHarnessSeal",
+            "SEAL_OPERATION",
             "EffectLeaseRequest",
             "EffectLease",
             "RuntimeTrustLedgerPort",

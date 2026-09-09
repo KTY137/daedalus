@@ -1,0 +1,230 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-102",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "b0c7617c6f773eeb9e4314a58ae009063037814d",
+    "dependencies": "G1-EXP-TENSOR-GPU-101 and the canonical compile_relation_blocks owner",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "attribution_contract", "measurement"]},
+      "contracts_and_behavior": {"source_fields": ["attribution_contract", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only the direct-callee attribution added to the existing relation-delta diagnostic, its focused assertions and this research record. No production compiler, projection authority, cache, incremental backend, public API or persisted runtime state is added."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-102",
+  "work_packet": "G1-EXP-TENSOR-GPU-102",
+  "title": "Split the full-rebuild compiler front half by direct existing-owner callees",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "b0c7617c6f773eeb9e4314a58ae009063037814d",
+  "probe_head": "7eab9cb8537c339dd4fa47386996791db552dc2b",
+  "contract_head": "df031fe19c73938dd4d37f4d6d45368284c7f3c4",
+  "measurement_head": "df031fe19c73938dd4d37f4d6d45368284c7f3c4",
+  "scope": "Refine GPU-101 inside the already existing relation-delta diagnostic only. Attribute direct compile_relation_blocks calls involved in the selected same-plane edge-admission seam, keep fact aggregation as a separate direct bucket, and retain the rest as an explicit residual. Do not add a second projection path or production incremental implementation.",
+  "attribution_contract": {
+    "probe": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "schema": "daedalus-tensor-relation-delta-rebuild/3",
+    "existing_owner_only": "Base, delta and profiled delta continue to execute the unchanged production compile_relation_blocks owner.",
+    "direct_callee_rule": "Use cProfile caller-local subentries from compile_relation_blocks. This prevents nested Forest/Fourfold digest work from being charged to the selected same-plane edge-admission seam.",
+    "observed_same_plane_edge_admission": [
+      "direct RelationSignature.__init__ calls from compile_relation_blocks",
+      "direct ForestEdge.to_dict calls from compile_relation_blocks",
+      "direct canonical_sha calls from compile_relation_blocks"
+    ],
+    "fact_aggregation": "Direct compile_relation_blocks -> _record_fact calls remain a separate disjoint observed bucket.",
+    "residual": "The remaining non-block cumulative envelope keeps inline endpoint lookup, retained-set membership, branching, append work, receipt/signature/axis setup and other unobserved compiler work. It is not labeled pure edge-scan wall time.",
+    "call_count_contract": "In the frozen selected same-plane Boolean fixture, each new direct observed edge-admission metric and direct fact aggregation must be called exactly once per retained Forest edge.",
+    "claim_boundary": "All cProfile values are diagnostic attribution only. Profile overhead distorts wall time; no incremental, memory, GPU or Tensor-vs-Forest superiority follows."
+  },
+  "measurement": {
+    "authority": "diagnostic only; KnowledgeForest/Fourfold remain semantic authority and compile_relation_blocks remains the only projection owner",
+    "source_head": "df031fe19c73938dd4d37f4d6d45368284c7f3c4",
+    "source_workflow": {
+      "id": 34278704055,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "source_artifact": {
+      "artifact_id": 10076749535,
+      "artifact_name": "tensor-relation-delta-rebuild-d67e0ed62a2a3a51c6f4e82556dec60982c41191",
+      "report": "relation_delta_rebuild_ci.json",
+      "report_sha256": "370c14321b1effcd1db418211dd17a6e78f730afc51a433bc43fa99919a45c97",
+      "archive_sha256": "35dd43d1ff5f0fcecaab334e42dca832cd90de7ed9b57cc5e7a647945f87c872"
+    },
+    "ci_case": {
+      "nodes": 512,
+      "row_width": 16,
+      "base_edges": 8192,
+      "delta_edges": 8193,
+      "base_output_entries": 8192,
+      "delta_output_entries": 8193,
+      "changed_coordinate_count": 1,
+      "added_coordinate": ["src/node_0000.py", "src/node_0017.py", true],
+      "removed_coordinate_count": 0,
+      "deterministic_rebuild_entries_per_changed_coordinate": 8193.0,
+      "deterministic_edge_scan_per_changed_coordinate": 8193.0,
+      "changed_coordinate_fraction_of_delta_output": 0.00012205541315757354,
+      "ordinary_repeats": 7,
+      "warmup": 2,
+      "profile_repeats": 3
+    },
+    "ordinary_wall_timing_ms": {
+      "base_compile": {"samples": 7, "median": 145.914773, "min": 139.149151, "max": 148.388385},
+      "delta_compile": {"samples": 7, "median": 143.234755, "min": 142.368936, "max": 150.01913},
+      "delta_to_base_median_ratio": 0.9816329906499598,
+      "interpretation": "Both are ordinary full rebuilds. Their ratio is not an incremental speedup because no incremental implementation exists."
+    },
+    "profiled_attribution_ms": {
+      "profiled_compile_wall": {"samples": 3, "median": 314.716203, "min": 309.307891, "max": 318.62414},
+      "compiler_total": {"calls": 1, "self_median": 26.957145, "cumulative_median": 313.694613},
+      "selected_block_reconstruction": {"calls": 1, "self_median": 6.585714, "cumulative_median": 11.607233},
+      "typed_block_post_init": {"calls": 1, "self_median": 1.4873830000000001, "cumulative_median": 1.617885},
+      "forest_partition_validation": {"calls": 1, "self_median": 0.28958600000000007, "cumulative_median": 0.475459},
+      "edge_signature_construction": {"calls": 8193, "self_median": 8.79452, "cumulative_median": 32.267227000000005},
+      "edge_wire_materialization": {"calls": 8193, "self_median": 7.4530270000000005, "cumulative_median": 38.726207},
+      "retained_relation_digest": {"calls": 8193, "self_median": 8.668768, "cumulative_median": 83.43463700000001},
+      "fact_aggregation_direct": {"calls": 8193, "self_median": 13.765299000000002, "cumulative_median": 24.369392},
+      "observed_same_plane_edge_admission_cumulative_median": 154.42807100000002,
+      "observed_same_plane_edge_admission_fraction_of_compiler_cumulative": 0.49228792781341135,
+      "fact_aggregation_direct_fraction_of_compiler_cumulative": 0.07768508284839434,
+      "selected_block_fraction_of_compiler_cumulative": 0.03700169693382653,
+      "non_block_compiler_residual_cumulative_median": 302.08738,
+      "non_block_residual_fraction_of_compiler_cumulative": 0.9629983030661734,
+      "remaining_non_block_after_observed_edge_and_fact_cumulative_median": 123.28991699999997,
+      "remaining_non_block_fraction_of_compiler_cumulative": 0.39302529240436773,
+      "interpretation": "In this frozen profiled case, the conservative observed direct same-plane edge-admission component is about 49.23% of compile_relation_blocks cumulative profile time; direct fact aggregation is about 7.77%, selected block reconstruction about 3.70%, and about 39.30% remains in the broad residual. canonical_sha is the largest individually observed direct edge-admission callee at about 26.60% of compiler cumulative profile time. These are cProfile attribution fractions, not unprofiled wall-time shares or speedup predictions."
+    },
+    "digests": {
+      "base_compiled": "45bc8b12203d7a5084e6be91ec359db81357f32061c8671aa6c72df702cf5467",
+      "delta_compiled": "721830a9417cb6153b3f44cd8cf05381c89a9873cdf1850e21523b4ed15bd3e4"
+    },
+    "fail_closed": "The partial code-plane case is refused with 'relation compilation requires complete endpoint planes; code=partial'.",
+    "finding": "GPU-102 narrows the GPU-101 front-half envelope without changing production. For the frozen case, direct existing-owner calls attributable to same-plane signature construction, edge wire materialization and retained relation hashing account for about 49.23% of profiled compiler cumulative time, versus about 7.77% for direct fact aggregation and about 3.70% for selected block reconstruction. Per-edge retained relation hashing is the largest individually observed direct bucket. This justifies auditing the authority-safe relation-digest seam before proposing any delta API, while the 39.30% remaining residual prevents overclaiming that digest work is the whole bottleneck."
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; the diagnostic never becomes a graph or fact owner.",
+    "projection_owner": "compile_relation_blocks production code remains unchanged and is the only projection owner used by the probe.",
+    "closed_world": "Selected relation endpoint planes remain complete; partial code remains refused before sparse zero interpretation.",
+    "fixed_axes": "The GPU-100 fixed-axis one-coordinate delta fixture is retained unchanged.",
+    "canonical_output": "Each profiled compile must retain the exact ordinary delta CompiledRelationBlocks digest.",
+    "bounded_memory": "At most five sequential profile samples are permitted and only compact aggregate metrics are persisted.",
+    "public_api": "No public API, production wire schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": true,
+    "workflow_change": false,
+    "work_packet_record_added": true,
+    "incremental_backend_implemented": false,
+    "parallel_projection_implemented": false,
+    "trusted_constructor_added": false,
+    "cache_or_registry_added": false,
+    "summary": "GPU-102 closes with hosted schema-v3 evidence. Direct same-plane signature construction, edge wire materialization and retained relation hashing form a conservative observed 49.23% of profiled compile_relation_blocks cumulative time in the frozen one-coordinate delta case; direct fact aggregation is 7.77%, selected block reconstruction 3.70%, and 39.30% remains unexplained by these disjoint observed buckets. Production code is unchanged."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "b0c7617c6f773eeb9e4314a58ae009063037814d",
+    "probe_commit": "7eab9cb8537c339dd4fa47386996791db552dc2b",
+    "probe_path": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "probe_blob": "c5ee54c8ac0e3972bb0c3dbbac22c714b7176977",
+    "test_commit": "df031fe19c73938dd4d37f4d6d45368284c7f3c4",
+    "test_path": "tests/twin/test_tensor_relation_delta_rebuild_probe.py",
+    "test_blob": "b786af39d7fe805550d89a15359041cb5ffaf68a",
+    "measurement_head": "df031fe19c73938dd4d37f4d6d45368284c7f3c4",
+    "measurement_fourfold_tensor_run": "34278704055:completed/success on df031fe19c73938dd4d37f4d6d45368284c7f3c4",
+    "measurement_artifact": "10076749535/relation_delta_rebuild_ci.json report-sha256:370c14321b1effcd1db418211dd17a6e78f730afc51a433bc43fa99919a45c97 archive-sha256:35dd43d1ff5f0fcecaab334e42dca832cd90de7ed9b57cc5e7a647945f87c872",
+    "production_relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "production_relation_block_blob_unchanged": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "focused_contract_updated": true,
+    "schema_v3_call_counts_contract_pinned": true,
+    "digest_equivalence_asserted_in_probe": true,
+    "partial_endpoint_fail_closed_contract_retained": true,
+    "ordinary_gpu100_amplification_contract_retained": true,
+    "hosted_measurement_head_fourfold_tensor_ci": "Run 34278704055 completed/success on exact measurement head df031fe19c73938dd4d37f4d6d45368284c7f3c4; all four contract arms, isolated wheel imports and complete repository collection succeeded while Complete suite (manual only) remained skipped.",
+    "hosted_measurement_artifact": true,
+    "artifact_integrity_sha256_recorded": true,
+    "measurement_head_tauri_all_green": false,
+    "exact_final_documentation_closure_head_green": false,
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 1,
+    "workflow_files_changed": 0,
+    "documentation_files_changed": 1,
+    "base_to_measurement_diff": "2 files; probe +158/-23, focused test +72/-15",
+    "new_production_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false,
+    "reuse": "The existing GPU-100/101 probe and canonical compiler owner are extended/observed rather than creating another profiler, workflow, projection implementation or fact store."
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 29,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "incremental_speedup": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "next": {
+    "work_packet": "G1-EXP-TENSOR-GPU-103",
+    "scope": "Audit the measured retained-relation digest seam across legacy Forest -> Fourfold -> compile_relation_blocks. Determine whether any digest computation can be deleted or consolidated inside an existing authority boundary without storing a second edge index, trusting unverified Forest membership, bypassing Fourfold relation retention, or adding a cache. If the digest-to-edge association required for safe skipping is absent, close with negative evidence and move to a revision-bound delta receipt design rather than smuggling in a parallel fact owner."
+  }
+}

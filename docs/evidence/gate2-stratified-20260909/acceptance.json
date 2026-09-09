@@ -1,0 +1,9 @@
+{
+ "measured": "2026-09-09",
+ "probe": "experiments/forest_v2/s09_eval/probe_stratified_fusion_effect.py",
+ "runs_identical": true,
+ "sha256": {
+  "run1.json": "0fd8369bc57f0e4989f7c1e62b3e24e1eebf735ca4c344e9c792617610dd3e4a",
+  "run2.json": "0fd8369bc57f0e4989f7c1e62b3e24e1eebf735ca4c344e9c792617610dd3e4a"
+ }
+}

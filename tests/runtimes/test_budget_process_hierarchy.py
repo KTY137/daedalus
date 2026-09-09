@@ -131,8 +131,16 @@ def test_owner_installer_uses_injected_classifier_and_reservation_ports() -> Non
     seen: list[tuple[str, str]] = []
 
     class Settled:
-        def settle(self) -> None:
-            seen.append(("settle", "ok"))
+        # ``measured`` arrived with the voice packet (G1-IKARUS-36): the
+        # vendor's own reported cost now settles the reservation instead of the
+        # worst-case estimate. This double was not updated with it, so the real
+        # ``budget_process`` call site raised TypeError -- a stale double still
+        # describing a production signature that no longer exists. Recorded
+        # rather than silently widened, because it is exactly the class of
+        # defect an integration branch exists to find: both packets were green
+        # alone.
+        def settle(self, measured: float | None = None) -> None:
+            seen.append(("settle", "ok" if measured is None else f"ok:{measured}"))
 
     def classify(argv: Any) -> str | None:
         return "test_vendor" if argv == ["synthetic-vendor"] else None

@@ -164,8 +164,30 @@ SECRET_FLOOR_CONTENT: tuple[str, ...] = (
     # ~70ms. A shape-based floor still cannot reach these (documented, not chased):
     # unquoted values (password: secret / YAML unquoted), a secret split across
     # lines, or a value whose first embedded escaped quote is within 4 chars.
-    r"""(?i)(?:passwd|password|pwd|secret|token|api[_-]?key|access[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])[^'"\n]{4,}\1""",
-    r"""(?i)(?:passwd|password|pwd|secret|token|api[_-]?key|access[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])\1\1[^\n]{4,}""",
+    #
+    # ``(?<!tik)token`` (2026-09-09). ``token`` had no left boundary, so it
+    # matched inside ``TIKTOKEN_``: `G1-TOKENIZER-01`'s
+    # ``TIKTOKEN_ENCODING = "cl100k_base"`` -- a public encoding name -- was
+    # floored as a credential, as was a COMMENT containing ``# tiktoken: "..."``.
+    #
+    # Why the narrow exclusion and not a general left boundary. A boundary like
+    # ``(?<![A-Za-z0-9])token`` reads cleaner and would also stop matching
+    # ``mytoken``/``apitoken``/``usertoken`` -- plausible names for a REAL
+    # secret in careless code. Between over-firing on a public constant and
+    # under-firing on a credential, this table must prefer over-firing; so the
+    # exclusion is exactly the colliding library name and nothing more.
+    # `tokenizer`/`detokenize` style collisions are NOT fixed by this and are
+    # recorded rather than chased: they begin with the keyword, so no
+    # left-boundary rule would help either.
+    #
+    # Paid for by rewriting ``api[_-]?key|access[_-]?key`` as
+    # ``(?:api|access)[_-]?key`` -- the identical keyword set, 4 characters
+    # shorter. That mattered: the first attempt at this fix pushed both
+    # patterns to 203 characters, and ``_compile_labeled`` refused to build the
+    # table. It failed LOUDLY, which is the whole point of that assertion, and
+    # is why the cap is not simply raised here. Current length 199; headroom 1.
+    r"""(?i)(?:passwd|password|pwd|secret|(?<!tik)token|(?:api|access)[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])[^'"\n]{4,}\1""",
+    r"""(?i)(?:passwd|password|pwd|secret|(?<!tik)token|(?:api|access)[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])\1\1[^\n]{4,}""",
 )
 
 # Human-readable label per floor-content pattern, so the ``withheld`` report

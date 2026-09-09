@@ -1,0 +1,16 @@
+{
+ "anchor_commit": "53d2453d1a77f3384a1648d717f8ddafb5e9e460",
+ "anchor_committer_date": "2025-12-29T18:54:43Z",
+ "anchor_subject": "\ud83d\udcdd Update release notes",
+ "clone_head_at_measurement": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+ "commits_reachable_from_anchor": 6503,
+ "commits_total_at_clone": 7713,
+ "corpus_entry": "fastapi",
+ "license_file": "LICENSE",
+ "license_first_line": "The MIT License (MIT)",
+ "license_sha256": "2853a942962e3bb755239b5fecb736503be392554c1d90f97cea7f29f4465d34",
+ "license_spdx": "MIT",
+ "origin_url": "https://github.com/fastapi/fastapi.git",
+ "selected_by": "G2-XPLANE-CONFIRM-01 candidate order position 1",
+ "temporal_cutoff_declared": "2026-01-01T00:00:00Z"
+}
