@@ -359,7 +359,21 @@ def default_spec(seed: int = 11, feature_dimension: int = 32) -> TensorSpec:
 
 
 def infer_plane(path: str) -> str:
-    """Map every eligible text artifact into exactly one Project-Twin plane."""
+    """Map every eligible text artifact into exactly one Project-Twin plane.
+
+    EXPERIMENT-LOCAL PLANE RULE. The canonical answer to "which plane does this
+    artifact belong to?" is ``daedalus/twin/extractors/registry.py``'s
+    ``semantic_planes`` (decision: ``docs/G2_TYPE_PLANE_DECISION_20260909.md``).
+
+    This heuristic captures 0.45-1.45% of declared type information on the three
+    subjects measured -- it finds a naming convention, not a type system -- and
+    it forces one plane per path where the canonical rule lets a ``.py`` file be
+    both code and type.
+
+    Retained unchanged on purpose: G2-TENSOR-CENSUS-01 was measured under it, so
+    its LABELS_NULL verdict is scoped to this rule and rewriting it now would
+    invalidate that result.
+    """
 
     normal = path.replace("\\", "/").lower()
     name = PurePosixPath(normal).name

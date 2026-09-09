@@ -71,6 +71,16 @@ SCHEMA = "forest_v2.s09.taskset/2"
 #: Which Project-Twin plane a gold path is evidence for, by suffix.  A coarse
 #: proxy and nothing more: the Type plane has no file-level representative at
 #: all, so a corpus can look "three-plane" here while touching two.
+# EXPERIMENT-LOCAL PLANE RULE. The canonical answer to "which plane does this
+# artifact belong to?" is `daedalus/twin/extractors/registry.py`'s
+# `semantic_planes` (decision: docs/G2_TYPE_PLANE_DECISION_20260909.md). This map
+# differs from it in two measured ways: it has a `presentation` plane the plan
+# does not define, and NO type plane at all -- 0.00% coverage of declared type
+# information on all three subjects measured, which is why it was disqualified.
+#
+# It is retained unchanged on purpose. Every result published from this corpus
+# was measured under it, and rewriting it now would invalidate them. Results
+# obtained here are scoped to this rule, not to the canonical one.
 PLANE_BY_SUFFIX = {
     ".py": "code", ".ts": "code", ".tsx": "code", ".js": "code",
     ".jsx": "code", ".sh": "code",
