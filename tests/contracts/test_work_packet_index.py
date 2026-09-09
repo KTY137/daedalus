@@ -194,19 +194,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "473 tracked files" in message  # measured 2026-09-08 ignition retention
+    assert "481 tracked files" in message  # measured 2026-09-08 ignition retention
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 470,
+        "assigned_artifacts": 478,
         "legacy_artifacts": 204,
-        "packet_artifacts": 472,
-        "packet_ids": 407,
-        "post_index_artifacts": 268,
+        "packet_artifacts": 480,
+        "packet_ids": 415,
+        "post_index_artifacts": 276,
         "registry_artifacts": 1,
-        "tracked_files": 473,
+        "tracked_files": 481,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -255,6 +255,9 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
     payload = _index()
     packets = {packet["packet_id"]: packet for packet in payload["packets"]}
     expected_primary_ids = {
+        "G1-ARIADNE-10",
+        "G1-EVAL-CORPUS-01",
+        "G1-EVAL-USAGE-01",
         "G1-IGNITION-04",
         "G1-IGNITION-03",
         "G1-ACCEL-01",
@@ -279,10 +282,12 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-IKARUS-33",
         "G1-IKARUS-34",
         "G1-IKARUS-35",
+        "G1-IKARUS-36",
         "G1-IKARUS-42",
         "G1-IKARUS-43",
         "G1-IKARUS-44",
         "G1-IKARUS-45",
+        "G1-PROJECTS-01",
         "G1-SELF-00",
         "G1-SELF-01",
         "G1-TESTS-01",
@@ -495,6 +500,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-RUNTIME-PROVIDER-04",
         "G1-RUNTIME-PROVIDER-05",
         "G1-RUNTIME-PROVIDER-06",
+        "G1-TOKENIZER-01",
         "G1-UI-01",
         "G1-UI-02",
         "G1-UI-03",
@@ -516,12 +522,14 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-UI-19",
         "G1-UI-20",
         "G1-UI-21",
+        "G1-UI-22",
         "G1-WEB-01",
         "G1-WIKI-01",
         "G1-WP-IKARUS-COMPUTER-LOOP-01",
         "G1-WP-INDEX-01",
         "G1-SCC-02",
         "G1-TENSOR-01",
+        "G3-BASE-01",
     }
     post_index_packets = {
         packet_id: packet

@@ -56,6 +56,7 @@ from typing import Callable
 
 from .kernel.policy.pricing import (
     BudgetError,
+    CLI_BUDGET_CAP_OVERRUN_FACTOR,
     ENV_MAX_CALLS,
     ENV_ON_UNKNOWN,
     ENV_SUBSCRIPTIONS,
@@ -108,6 +109,12 @@ __all__ = [
     "classify_argv", "classify_url",
     "install_process_guard", "uninstall_process_guard",
     "BILLABLE_SITES",
+    # G1-IKARUS-36: a child CLI that declares its own --max-budget-usd is
+    # priced against that declaration, and a claude spawn that reports its own
+    # total_cost_usd settles at it. Both are importable from the facade so no
+    # caller re-implements either.
+    "CLI_BUDGET_CAP_OVERRUN_FACTOR", "cli_budget_cap_usd",
+    "claude_reported_cost_usd",
 ]
 
 
@@ -133,8 +140,10 @@ from .runtimes.execution.budget_process import (
     _inside_explicit,
     _is_read_only_vendor_probe,
     _render,
+    claude_reported_cost_usd,
     classify_argv,
     classify_url,
+    cli_budget_cap_usd,
     guard,
     uninstall_process_guard,
 )

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/article.schema.json",
+  "title": "Knowledge Hub Article",
+  "type": "object",
+  "required": ["id", "slug", "title", "body", "status", "tag"],
+  "properties": {
+    "id": {"type": "string"},
+    "slug": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+    "title": {"type": "string", "minLength": 1},
+    "body": {"type": "string", "minLength": 1},
+    "status": {"enum": ["draft", "published"]},
+    "tag": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

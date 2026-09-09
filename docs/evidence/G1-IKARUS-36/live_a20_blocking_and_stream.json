@@ -1,0 +1,221 @@
+{
+  "blocking": {
+    "cli_budget_cap_usd": 0.5,
+    "cost_basis": "provider_reported",
+    "cost_usd_measured": 0.253992,
+    "cost_usd_reserved": 1.5,
+    "duration_ms": 15921,
+    "failure_detail": null,
+    "failure_reason_code": null,
+    "flags": [
+      "--tools",
+      "--model",
+      "--max-turns",
+      "--max-budget-usd",
+      "--no-session-persistence",
+      "--output-format"
+    ],
+    "model_used": "claude-sonnet-5",
+    "num_turns": 1,
+    "stderr_tail": "",
+    "stop_reason": "end_turn",
+    "subtype": "success",
+    "terminal_reason": "completed",
+    "tokens": {
+      "cache_creation": 60617,
+      "cache_read": 0,
+      "input": 2,
+      "output": 1152
+    },
+    "wall_seconds": 23.203
+  },
+  "blocking_reply_chars": 783,
+  "ledger": {
+    "calls": 2,
+    "entries": [
+      {
+        "at": 1788882627.923763,
+        "basis": "cli_budget_cap",
+        "calls": 1,
+        "effective_limit_axes": {
+          "attempts": true,
+          "billable_calls": true,
+          "concurrency": true,
+          "mission_spend": true,
+          "period_usd": true,
+          "tokens": true,
+          "wall_time": true,
+          "work_scope": true
+        },
+        "envelopes": [],
+        "id": "03656b6f685f430ab808f2eb17d48930",
+        "kind": "reserve",
+        "label": "ikarus voice: claude.exe -p",
+        "limit_policy": {
+          "configured": {
+            "attempts": true,
+            "billable_calls": true,
+            "concurrency": true,
+            "mission_spend": true,
+            "period_usd": true,
+            "tokens": true,
+            "wall_time": true,
+            "work_scope": true
+          },
+          "mode": "bounded"
+        },
+        "limit_policy_fingerprint_sha256": "0701d8651dabacf1bfbb3ef8972ce9fac03855591affbcce25c89ff204c1fa47",
+        "model": "sonnet",
+        "usd": 1.5,
+        "vendor": "anthropic_cli"
+      },
+      {
+        "at": 1788882651.108177,
+        "effective_limit_axes": {
+          "attempts": true,
+          "billable_calls": true,
+          "concurrency": true,
+          "mission_spend": true,
+          "period_usd": true,
+          "tokens": true,
+          "wall_time": true,
+          "work_scope": true
+        },
+        "envelopes": [],
+        "estimate_usd": 1.5,
+        "id": "03656b6f685f430ab808f2eb17d48930",
+        "kind": "settle",
+        "label": "ikarus voice: claude.exe -p",
+        "limit_policy": {
+          "configured": {
+            "attempts": true,
+            "billable_calls": true,
+            "concurrency": true,
+            "mission_spend": true,
+            "period_usd": true,
+            "tokens": true,
+            "wall_time": true,
+            "work_scope": true
+          },
+          "mode": "bounded"
+        },
+        "limit_policy_fingerprint_sha256": "0701d8651dabacf1bfbb3ef8972ce9fac03855591affbcce25c89ff204c1fa47",
+        "model": "sonnet",
+        "reason": "",
+        "usd": 0.253992,
+        "vendor": "anthropic_cli"
+      },
+      {
+        "at": 1788882651.1255524,
+        "basis": "cli_budget_cap",
+        "calls": 1,
+        "effective_limit_axes": {
+          "attempts": true,
+          "billable_calls": true,
+          "concurrency": true,
+          "mission_spend": true,
+          "period_usd": true,
+          "tokens": true,
+          "wall_time": true,
+          "work_scope": true
+        },
+        "envelopes": [],
+        "id": "e96c656534564cda91618af234e4107f",
+        "kind": "reserve",
+        "label": "ikarus voice stream: claude.exe -p",
+        "limit_policy": {
+          "configured": {
+            "attempts": true,
+            "billable_calls": true,
+            "concurrency": true,
+            "mission_spend": true,
+            "period_usd": true,
+            "tokens": true,
+            "wall_time": true,
+            "work_scope": true
+          },
+          "mode": "bounded"
+        },
+        "limit_policy_fingerprint_sha256": "0701d8651dabacf1bfbb3ef8972ce9fac03855591affbcce25c89ff204c1fa47",
+        "model": "sonnet",
+        "usd": 1.5,
+        "vendor": "anthropic_cli"
+      },
+      {
+        "at": 1788882668.9942496,
+        "effective_limit_axes": {
+          "attempts": true,
+          "billable_calls": true,
+          "concurrency": true,
+          "mission_spend": true,
+          "period_usd": true,
+          "tokens": true,
+          "wall_time": true,
+          "work_scope": true
+        },
+        "envelopes": [],
+        "estimate_usd": 1.5,
+        "id": "e96c656534564cda91618af234e4107f",
+        "kind": "settle",
+        "label": "ikarus voice stream: claude.exe -p",
+        "limit_policy": {
+          "configured": {
+            "attempts": true,
+            "billable_calls": true,
+            "concurrency": true,
+            "mission_spend": true,
+            "period_usd": true,
+            "tokens": true,
+            "wall_time": true,
+            "work_scope": true
+          },
+          "mode": "bounded"
+        },
+        "limit_policy_fingerprint_sha256": "0701d8651dabacf1bfbb3ef8972ce9fac03855591affbcce25c89ff204c1fa47",
+        "model": "sonnet",
+        "reason": "",
+        "usd": 0.243142,
+        "vendor": "anthropic_cli"
+      }
+    ],
+    "envelopes": {},
+    "open": {},
+    "period": "day",
+    "period_key": "2026-09-08",
+    "spent_usd": 0.49713399999999996,
+    "version": 1
+  },
+  "streaming": {
+    "cli_budget_cap_usd": 0.5,
+    "cost_basis": "provider_reported",
+    "cost_usd_measured": 0.243142,
+    "cost_usd_reserved": 1.5,
+    "duration_ms": 12435,
+    "failure_detail": "Reached maximum number of turns (1)",
+    "failure_reason_code": "max_turns",
+    "flags": [
+      "--tools",
+      "--model",
+      "--max-turns",
+      "--max-budget-usd",
+      "--no-session-persistence",
+      "--output-format",
+      "--include-partial-messages",
+      "--verbose"
+    ],
+    "model_used": "claude-sonnet-5",
+    "num_turns": 2,
+    "stderr_tail": "",
+    "stop_reason": "tool_use",
+    "subtype": "error_max_turns",
+    "terminal_reason": "max_turns",
+    "tokens": {
+      "cache_creation": 58797,
+      "cache_read": 0,
+      "input": 2,
+      "output": 795
+    },
+    "wall_seconds": 17.89
+  },
+  "streaming_reply_chars": 0
+}

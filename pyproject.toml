@@ -35,6 +35,14 @@ polyglot = [
     "tree-sitter-cpp==0.23.4",
 ]
 root = ["uproot==5.7.5"]
+# Exact BPE counting for daedalus.structcore.tokens (tokenizer_status() reports
+# whether counts are exact or chars/4). The cl100k_base BPE file is NOT
+# downloaded by daedalus: status is cache-only and refuses to load when the
+# file is absent. Fetch it once, by hand, with
+#   python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
+# Pulls regex and requests. Installed by every `uv sync --locked --all-extras`
+# bootstrap (bootstrap.ps1 / bootstrap.sh); the `test` extra stays BPE-free.
+tokenizer = ["tiktoken==0.14.0"]
 # Optional graph engine for composing a run brief (daedalus/orchestration/langgraph_adapter.py).
 # NOT a runtime dependency of anything: `create_run` defaults to engine="stdlib",
 # nothing under daedalus/ imports langgraph at module scope, and the adapter is

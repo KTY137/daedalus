@@ -1,0 +1,45 @@
+{
+  "active_gate": 1,
+  "as_of": "2026-09-08",
+  "base_revision": "db38a762991b04cbc96c3cbed5209d6a517fa611",
+  "claim_boundaries": {
+    "gate_transition": false,
+    "resolver_improvement": false
+  },
+  "classification": "ALIGNED",
+  "command": "<repository .venv> python experiments/forest_v2/s02_types/probe_external_corpora.py (run twice; all fields except wall_seconds and root identical)",
+  "corpus_pin": {
+    "files": 509,
+    "sha256": "b217070456853496d88dc47df449ea7652bb9baaddc991b876928464f3d648e7"
+  },
+  "files": {
+    "s02-g1-integration-02-corpora-a.json": {
+      "compressed_sha256": "ea78c83408605456eac5a391e5e0a55736c37038380e812b2a83fd62d9ce38ed",
+      "path": "docs/evidence/G1-INTEGRATION-02/s02-g1-integration-02-corpora-a.json.gz",
+      "raw_bytes": 6368,
+      "raw_sha256": "349c0b47a7b5f221c2859d5972eb1f10737b1e2ada333da331d75fe64a3cf82f"
+    },
+    "s02-g1-integration-02-corpora-b.json": {
+      "compressed_sha256": "bcb8f1905b319f74d0d9447c95e65c728124bb00cce45ab13953a670ee405a05",
+      "path": "docs/evidence/G1-INTEGRATION-02/s02-g1-integration-02-corpora-b.json.gz",
+      "raw_bytes": 6367,
+      "raw_sha256": "e92ba2aaa75fd5028e7ae87f919fc183e6751a6a4d295898954236625ded4e24"
+    }
+  },
+  "kernel_row": {
+    "annotation_only_pct": 94.42,
+    "files_parsed": 509,
+    "full_resolver_pct": 94.31,
+    "functions": 6975,
+    "internal_name_sites": 4665,
+    "internal_named_only": 425,
+    "internal_verified": 4240,
+    "marginal_functions": 8,
+    "marginal_pp": 0.1147,
+    "type_name_resolution_pct": 99.93,
+    "type_name_sites": 46457,
+    "verified_share_of_internal_pct": 90.89
+  },
+  "packet": "G1-INTEGRATION-02",
+  "schema": "daedalus-s02-remeasurement/1"
+}

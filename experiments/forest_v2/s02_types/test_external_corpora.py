@@ -67,18 +67,18 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # runs/g1-ignition-04-20260908. Prior measured rows remain in the README;
     # this moving corpus census is not a resolver superiority claim.
     assert entry["corpus_pin"] == {
-        "files": 485,
-        "sha256": "d6b652d970c1a5a63a3b8d3960da54befd6eaa440b2ee3122e466a1ee6a8358e",
+        "files": 514,
+        "sha256": "6cdc73dd46d3b429f7f92a8014d52cdf73167026197f091c3766a1ab475215f2",
     }
-    assert entry["functions"] == 6778
-    assert entry["annotation_only_pct"] == 94.35  # the control
-    assert entry["full_resolver_pct"] == 94.23
+    assert entry["functions"] == 7016
+    assert entry["annotation_only_pct"] == 94.43  # the control
+    assert entry["full_resolver_pct"] == 94.31
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1180
+    assert entry["marginal_pp"] == 0.114
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["type_name_sites"] == 45190
+    assert entry["type_name_sites"] == 46680
     assert entry["internal_named_only"] == 425
-    assert entry["verified_share_of_internal_pct"] == 90.51
+    assert entry["verified_share_of_internal_pct"] == 90.91
 
 
 

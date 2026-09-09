@@ -1132,7 +1132,21 @@ def test_the_register_is_honest_about_what_is_not_yet_wired():
     # tests/test_council_vendors.py (seat accounting: settle, release when
     # never spawned, ValueError on an empty budget_vendor) and by
     # test_an_explicit_reservation_is_not_double_charged_by_the_interposer.
-    assert explicit == ["daedalus/council/vendors.py::_CliAdapter._dispatch"], (
+    # G1-IKARUS-36 (2026-09-08): both Ikarus voice spawns reserve for
+    # themselves through ``guard("anthropic_cli", model,
+    # cli_budget_cap_usd=...)`` and settle at the CLI's reported
+    # ``total_cost_usd``. The streaming twin HAD to: the interposer's Popen
+    # branch opens and closes its reservation inside ``Popen.__init__``,
+    # before any child stdout exists, so it can never settle measured.
+    # Verified by tests/test_ikarus_voice_invocation.py (measured settlement,
+    # cap-derived estimate, release when never spawned, settle-at-estimate on
+    # timeout) and by
+    # test_an_explicit_reservation_is_not_double_charged_by_the_interposer.
+    assert explicit == [
+        "daedalus/council/vendors.py::_CliAdapter._dispatch",
+        "daedalus/orchestration/ikarus/shell.py::_claude",
+        "daedalus/orchestration/ikarus/shell.py::_claude_stream",
+    ], (
         "a site now claims an explicit reservation; verify it and update this "
         f"expectation: {explicit}")
     assert len(B.BILLABLE_SITES) >= 17
@@ -1144,7 +1158,29 @@ def test_the_register_is_honest_about_what_is_not_yet_wired():
         "daedalus/council/vendors.py::OllamaAdapter._dispatch",
         "daedalus/council/vendors.py::_CliAdapter._dispatch",
         "daedalus/providers/_openai_compat.py::chat_completion",
+        "daedalus/providers/_openai_compat.py::chat_completion_receipt",
     ], f"the set of scan-invisible spend sites changed: {invisible}"
+
+
+def test_both_halves_of_the_delegating_openai_entrypoint_are_registered():
+    """The register must keep naming the function that actually spends.
+
+    G1-EVAL-USAGE-01 made ``chat_completion`` a one-line wrapper over
+    ``chat_completion_receipt``: the request object and the ``_post``/``_send``
+    call moved into the sibling. Both are public entrances that spend, and a
+    register naming only the wrapper reads as coverage it no longer has.
+    Money is still accounted for either way -- both funnel through the single
+    ``_send`` the runtime interposer wraps -- but the honest accounting is the
+    point of this list.
+    """
+    registered = {
+        site["func"] for site in B.BILLABLE_SITES
+        if site["file"] == "daedalus/providers/_openai_compat.py"
+    }
+    assert {"chat_completion", "chat_completion_receipt"} <= registered, (
+        f"the OpenAI-compatible spend register no longer names both entrances: "
+        f"{sorted(registered)}"
+    )
 
 
 # ===========================================================================
