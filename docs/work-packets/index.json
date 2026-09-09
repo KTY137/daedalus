@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 522,
+    "assigned_artifacts": 523,
     "legacy_artifacts": 204,
-    "packet_artifacts": 524,
-    "packet_ids": 459,
-    "post_index_artifacts": 320,
+    "packet_artifacts": 525,
+    "packet_ids": 460,
+    "post_index_artifacts": 321,
     "registry_artifacts": 1,
-    "tracked_files": 525,
+    "tracked_files": 526,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2899,6 +2899,22 @@
       "origin": "post_index",
       "packet_id": "G1-EXP-TENSOR-GPU-124",
       "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-124.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-125.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "3bed82e6d1cf679521f58981ac2ee969c1700cc3",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-124",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-125",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-125.json"
     },
     {
       "artifacts": [
@@ -8428,6 +8444,20 @@
       "format": "json",
       "packet_id": "G1-EXP-TENSOR-GPU-124",
       "path": "docs/work-packets/G1-EXP-TENSOR-GPU-124.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-125",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-125.json",
       "sections": [
         "primary_acceptance_claim",
         "scope",
