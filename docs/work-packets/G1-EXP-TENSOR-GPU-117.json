@@ -1,115 +1,168 @@
 {
-  "work_packet": "G1-EXP-TENSOR-GPU-117",
-  "status": "closed-implementation",
-  "title": "Remove producer-local ForestEdge evidence normalization",
-  "date_berlin": "2026-09-09",
   "branch": "exp/tensor-kernel-contract-01",
-  "objective": "Consolidate evidence canonicalization at the existing bounded _record_fact boundary by deleting the redundant sorted-set normalization in _forest_edge_atoms, while preserving unsorted and duplicate ForestEdge evidence semantics and Fourfold/Forest authority.",
-  "masterplan": {
-    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
-    "revision": 13,
-    "version": "2.4.0",
-    "status": "adopted",
-    "gate": 1,
-    "alignment": "ALIGNED"
+  "branch_hygiene": {
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_legacy_touched": false,
+    "branch_deleted": false,
+    "force_update": false,
+    "new_remote_branch": false,
+    "unique_evidence_deleted": false
+  },
+  "claims": {
+    "alphaevolve_win": false,
+    "crewai_win": false,
+    "documentation_closure_head_green": false,
+    "focused_contract_head_green": true,
+    "gate_transition": false,
+    "manual_full_suite_green": false,
+    "memory_win": false,
+    "owner_approval": false,
+    "performance_win": false,
+    "production_semantics_changed": false,
+    "promotion": false,
+    "tauri_exact_head_green": false,
+    "tensor_vs_forest_win": false
+  },
+  "date_berlin": "2026-09-09",
+  "diff": {
+    "ahead_by": 2,
+    "base": "016ffa7e2f18edaf648f79914cba1956c90228b4",
+    "behind_by": 0,
+    "files": {
+      "daedalus/twin/relation_compiler.py": {
+        "additions": 2,
+        "deletions": 9
+      },
+      "tests/twin/test_relation_compiler_observer_semantics.py": {
+        "additions": 31,
+        "deletions": 1
+      }
+    },
+    "focused_contract_head": "7ae082bcbb2d45a0fddb552e4e030e0fbf01aee9"
+  },
+  "evidence": {
+    "baseline_exact_head_workflows": [
+      {
+        "conclusion": "success",
+        "id": 34343775086,
+        "name": "Fourfold, Tensor and integration contracts",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 34343775060,
+        "name": "Tauri Desktop",
+        "status": "completed"
+      }
+    ],
+    "baseline_head": "016ffa7e2f18edaf648f79914cba1956c90228b4",
+    "focused_contract_head": "7ae082bcbb2d45a0fddb552e4e030e0fbf01aee9",
+    "focused_contract_head_workflows": [
+      {
+        "conclusion": "success",
+        "coverage": "all four Python/hashseed contract jobs, isolated wheel imports, public API checks, and complete repository collection succeeded; Complete suite (manual only) was skipped",
+        "id": 34349434367,
+        "name": "Fourfold, Tensor and integration contracts",
+        "status": "completed"
+      },
+      {
+        "conclusion": null,
+        "id": 34349434303,
+        "name": "Tauri Desktop",
+        "status": "in_progress"
+      }
+    ],
+    "implementation_commit": "3944db8283747a84f7f6b124488c3503db2c0a9c",
+    "observer_semantics_test_blob": "9b1dc478c58ec054fd534e2fc73d562783b7b6c6",
+    "relation_compiler_blob": "5da3368222d2ab02c7857a62bbff313124bc8eb3"
+  },
+  "focused_contract": {
+    "behavior": "An intentionally unsorted ForestEdge evidence tuple with a duplicate witness is returned raw by _forest_edge_atoms and is then canonicalized to one sorted unique evidence term by _record_fact.",
+    "existing_semantics": "test_evidence_observer_retains_alternative_witness_bundles continues to require the same canonical EvidenceValue alternatives for compiled Forest edges.",
+    "test": "test_forest_edge_evidence_normalizes_once_at_fact_boundary"
+  },
+  "implementation": {
+    "after": "_forest_edge_atoms now returns (canonical_sha(edge.to_dict()), *edge.evidence) without producer-local sorting or deduplication. _record_fact remains the single bounded semantic canonicalization boundary and still applies tuple(sorted(set(evidence_atoms))) before inserting an alternative into the coordinate-level set.",
+    "before": "_forest_edge_atoms constructed a set containing canonical_sha(edge.to_dict()) and edge.evidence, sorted that set, and returned a canonical tuple even though _record_fact immediately performed tuple(sorted(set(evidence_atoms))) again.",
+    "gardener_result": "delete duplicate producer normalization instead of adding a helper, cache, evidence index, or parallel fact store",
+    "semantic_boundary": "ForestEdge remains authoritative input and is not changed. Fourfold admission, relation retention, endpoint indexing, observer semantics, evidence absorption, promotion policy, and receipt contracts are unchanged."
   },
   "issue": 239,
+  "masterplan": {
+    "alignment": "ALIGNED",
+    "gate": 1,
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "status": "adopted",
+    "version": "2.4.0"
+  },
+  "next_step": "GPU-118 should audit the evidence-observer edge path for a second exact canonical_sha(edge.to_dict()) within compile_relation_blocks: same-plane relation admission already computes edge_digest, while later evidence materialization currently recomputes the same digest. Reuse is allowed only inside the existing edge-record owner and only if a focused contract proves identical authority and EvidenceValue semantics; do not add a persistent digest index or trusted caller cache.",
+  "objective": "Consolidate evidence canonicalization at the existing bounded _record_fact boundary by deleting the redundant sorted-set normalization in _forest_edge_atoms, while preserving unsorted and duplicate ForestEdge evidence semantics and Fourfold/Forest authority.",
   "pr": 331,
+  "registry_contract": {
+    "active_gate": 1,
+    "artifact_role": "primary",
+    "base_revision": "016ffa7e2f18edaf648f79914cba1956c90228b4",
+    "classification": "ALIGNED",
+    "dependencies": "G1-EXP-TENSOR-GPU-116",
+    "owner": "repository owner",
+    "packet_id": "G1-EXP-TENSOR-GPU-117",
+    "sections": {
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "implementation"
+        ]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "implementation"
+        ]
+      },
+      "migration_and_rollback": {
+        "projection_note": "Rollback is a revert of the two commits this packet records. The change is confined to _forest_edge_atoms in daedalus/twin/relation_compiler.py and moves evidence canonicalization to the existing _record_fact boundary; it adds no public API, cache, index, receipt family or persisted runtime state, so a revert restores prior behaviour with nothing to migrate.",
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ]
+      },
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      }
+    }
+  },
   "scope": {
-    "production_files_changed": 1,
-    "test_files_changed": 1,
-    "new_remote_branches": 0,
-    "new_public_apis": 0,
     "new_caches": 0,
-    "new_indexes": 0,
     "new_compilers": 0,
+    "new_indexes": 0,
+    "new_public_apis": 0,
     "new_receipt_families": 0,
+    "new_remote_branches": 0,
+    "production_files_changed": 1,
     "production_paths": [
       "daedalus/twin/relation_compiler.py"
     ],
+    "test_files_changed": 1,
     "test_paths": [
       "tests/twin/test_relation_compiler_observer_semantics.py"
     ]
   },
-  "implementation": {
-    "before": "_forest_edge_atoms constructed a set containing canonical_sha(edge.to_dict()) and edge.evidence, sorted that set, and returned a canonical tuple even though _record_fact immediately performed tuple(sorted(set(evidence_atoms))) again.",
-    "after": "_forest_edge_atoms now returns (canonical_sha(edge.to_dict()), *edge.evidence) without producer-local sorting or deduplication. _record_fact remains the single bounded semantic canonicalization boundary and still applies tuple(sorted(set(evidence_atoms))) before inserting an alternative into the coordinate-level set.",
-    "semantic_boundary": "ForestEdge remains authoritative input and is not changed. Fourfold admission, relation retention, endpoint indexing, observer semantics, evidence absorption, promotion policy, and receipt contracts are unchanged.",
-    "gardener_result": "delete duplicate producer normalization instead of adding a helper, cache, evidence index, or parallel fact store"
-  },
-  "focused_contract": {
-    "test": "test_forest_edge_evidence_normalizes_once_at_fact_boundary",
-    "behavior": "An intentionally unsorted ForestEdge evidence tuple with a duplicate witness is returned raw by _forest_edge_atoms and is then canonicalized to one sorted unique evidence term by _record_fact.",
-    "existing_semantics": "test_evidence_observer_retains_alternative_witness_bundles continues to require the same canonical EvidenceValue alternatives for compiled Forest edges."
-  },
-  "diff": {
-    "base": "016ffa7e2f18edaf648f79914cba1956c90228b4",
-    "focused_contract_head": "7ae082bcbb2d45a0fddb552e4e030e0fbf01aee9",
-    "ahead_by": 2,
-    "behind_by": 0,
-    "files": {
-      "daedalus/twin/relation_compiler.py": {"additions": 2, "deletions": 9},
-      "tests/twin/test_relation_compiler_observer_semantics.py": {"additions": 31, "deletions": 1}
-    }
-  },
-  "evidence": {
-    "baseline_head": "016ffa7e2f18edaf648f79914cba1956c90228b4",
-    "implementation_commit": "3944db8283747a84f7f6b124488c3503db2c0a9c",
-    "focused_contract_head": "7ae082bcbb2d45a0fddb552e4e030e0fbf01aee9",
-    "relation_compiler_blob": "5da3368222d2ab02c7857a62bbff313124bc8eb3",
-    "observer_semantics_test_blob": "9b1dc478c58ec054fd534e2fc73d562783b7b6c6",
-    "baseline_exact_head_workflows": [
-      {
-        "id": 34343775086,
-        "name": "Fourfold, Tensor and integration contracts",
-        "status": "completed",
-        "conclusion": "success"
-      },
-      {
-        "id": 34343775060,
-        "name": "Tauri Desktop",
-        "status": "completed",
-        "conclusion": "success"
-      }
-    ],
-    "focused_contract_head_workflows": [
-      {
-        "id": 34349434367,
-        "name": "Fourfold, Tensor and integration contracts",
-        "status": "completed",
-        "conclusion": "success",
-        "coverage": "all four Python/hashseed contract jobs, isolated wheel imports, public API checks, and complete repository collection succeeded; Complete suite (manual only) was skipped"
-      },
-      {
-        "id": 34349434303,
-        "name": "Tauri Desktop",
-        "status": "in_progress",
-        "conclusion": null
-      }
-    ]
-  },
-  "claims": {
-    "performance_win": false,
-    "memory_win": false,
-    "production_semantics_changed": false,
-    "focused_contract_head_green": true,
-    "tauri_exact_head_green": false,
-    "documentation_closure_head_green": false,
-    "manual_full_suite_green": false,
-    "tensor_vs_forest_win": false,
-    "crewai_win": false,
-    "alphaevolve_win": false,
-    "owner_approval": false,
-    "promotion": false,
-    "gate_transition": false
-  },
-  "branch_hygiene": {
-    "new_remote_branch": false,
-    "force_update": false,
-    "branch_deleted": false,
-    "unique_evidence_deleted": false,
-    "archive_legacy_touched": false,
-    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
-  },
-  "next_step": "GPU-118 should audit the evidence-observer edge path for a second exact canonical_sha(edge.to_dict()) within compile_relation_blocks: same-plane relation admission already computes edge_digest, while later evidence materialization currently recomputes the same digest. Reuse is allowed only inside the existing edge-record owner and only if a focused contract proves identical authority and EvidenceValue semantics; do not add a persistent digest index or trusted caller cache."
+  "status": "closed-implementation",
+  "title": "Remove producer-local ForestEdge evidence normalization",
+  "work_packet": "G1-EXP-TENSOR-GPU-117"
 }
