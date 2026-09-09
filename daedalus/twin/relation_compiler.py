@@ -18,7 +18,7 @@ from typing import Any, Generic, Mapping, Sequence, TypeVar
 
 from ..kernel.contracts.base import _sha256
 from ..spine.envelope import canonical_sha
-from ..structcore.forest import KnowledgeForest
+from ..structcore.forest import ForestEdge, KnowledgeForest
 from .contracts import CrossPlaneBinding, FOURFOLD_PLANES, FourfoldSnapshot
 from .projection_verifier import _forest_node_partition
 from .relation_blocks import (
@@ -258,6 +258,10 @@ def _record_fact(
     evidence_bundles.add(atoms)
 
 
+def _forest_edge_atoms(edge: ForestEdge) -> tuple[str, ...]:
+    return edge.evidence
+
+
 def compile_relation_blocks(
     forest: KnowledgeForest,
     snapshot: FourfoldSnapshot,
@@ -424,7 +428,7 @@ def compile_relation_blocks(
                 discovered.add(signature)
 
     edge_records: list[
-        tuple[RelationSignature, int, int, str | None, tuple[str, ...] | None]
+        tuple[RelationSignature, int, int, str | None, ForestEdge | None]
     ] = []
     for edge in forest.edges:
         source_location = node_location.get(edge.source)
@@ -490,7 +494,7 @@ def compile_relation_blocks(
                 source_index,
                 target_index,
                 edge_digest if retain_evidence else None,
-                edge.evidence if retain_evidence else None,
+                edge if retain_evidence else None,
             )
         )
         if requested_by_key is None:
@@ -520,12 +524,12 @@ def compile_relation_blocks(
         source_index,
         target_index,
         edge_digest,
-        edge_evidence,
+        edge,
     ) in edge_records:
         if retain_evidence:
-            if edge_digest is None or edge_evidence is None:
+            if edge_digest is None or edge is None:
                 raise AssertionError("evidence observer lost retained edge provenance")
-            atoms: tuple[str, ...] | None = (edge_digest, *edge_evidence)
+            atoms: tuple[str, ...] | None = (edge_digest, *_forest_edge_atoms(edge))
         else:
             atoms = None
         _record_fact(
