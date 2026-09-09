@@ -207,6 +207,17 @@ _GIT_TIMEOUT = 30.0
 # -- see ``load_minted_tasks``.
 DEFAULT_MINT_STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minted_tasks.json")
 
+# The repository's OWN corpus file, resolved from this module's location and
+# deliberately NOT the same name as the constant above. They hold the same
+# value at import, but ``DEFAULT_MINT_STORE_PATH`` is routinely monkeypatched
+# to a tmp file by tests that mint against throwaway fixtures -- so gating the
+# portability refusal on it would fire on exactly those legitimate callers
+# (measured: it broke ``test_mint_commit_cli_then_all_tasks_picks_it_up_via_
+# default_path``, which mints from a temp repo that HAS no portable label).
+# This constant tracks the real committed file, which is the only artifact the
+# refusal is protecting.
+_COMMITTED_STORE_PATH = os.path.abspath(DEFAULT_MINT_STORE_PATH)
+
 
 def _git(repo_root, *args: str) -> str | None:
     """Run git in ``repo_root``; stdout on success, ``None`` on ANY failure
@@ -312,6 +323,55 @@ def _short_hash(*parts: object) -> str:
         h.update(repr(p).encode("utf-8"))
         h.update(b"\x00")
     return h.hexdigest()[:12]
+
+
+def _portable_repo_label(repo_root) -> str:
+    """Turn a minting root into a reference ``tasks.resolve_task_repo`` can
+    resolve on ANY machine -- not only the one that happened to mint.
+
+    THE DEFECT THIS EXISTS TO PREVENT, measured 2026-09-09. Both mint sites
+    used to write ``str(Path(repo_root).resolve())``, an absolute host path,
+    straight into ``minted_tasks.json`` -- a file that is COMMITTED. The store
+    then held 17 tasks pinned to ``C:/Users/nukei/Desktop/agent_env``, a
+    checkout on a different machine that does not exist here, so
+    ``resolve_task_repo`` raised on every one of them; and 31 more pinned to a
+    throwaway git worktree, which resolved only for as long as the process
+    happened to be running inside it. A task corpus that names one developer's
+    filesystem is not a frozen public task set, and Gate 3's freeze obligation
+    is exactly that it be one.
+
+    The labels are the ones ``resolve_task_repo`` already understands, so this
+    adds no second naming scheme (plan §5). ``agent_env`` in particular is
+    derived from the harness's own location, which is the point: it means "the
+    checkout this code is running from", so a self-minted task follows the
+    repository to any machine or worktree instead of pointing back at ours.
+
+    An unrecognized root (a test's temp fixture) is returned unchanged rather
+    than guessed at. Persisting one is refused separately, by
+    ``_refuse_nonportable_repos`` at the store boundary -- minting one in
+    memory is legitimate, writing one into the committed corpus is not.
+    """
+    # ``from .tasks import ...`` and NOT ``from . import tasks``: the latter
+    # scores an edge to the PACKAGE ``daedalus.eval`` as well as to the
+    # submodule, and that package edge closes a cycle -- it grew the existing
+    # ``daedalus.eval`` strongly-connected component from 4 members to 5.
+    # tests/contracts/test_import_scc_hierarchy.py caught it via the component
+    # digest. Importing the submodule directly is one edge, mint -> tasks, and
+    # joins no component.
+    from .tasks import AGENT_ENV_ROOT, FOURFOLD_WIKI_FIXTURE, SUNNY_GARDEN_FIXTURE
+
+    resolved = Path(repo_root).resolve()
+    for label, root in (("agent_env", AGENT_ENV_ROOT),
+                        ("sunny_garden", SUNNY_GARDEN_FIXTURE),
+                        ("fourfold_wiki_app", FOURFOLD_WIKI_FIXTURE)):
+        if not root:
+            continue
+        try:
+            if Path(root).resolve() == resolved:
+                return label
+        except OSError:
+            continue
+    return str(resolved).replace("\\", "/")
 
 
 # Ceiling on must_include -- see _mint_from_diffs for the ranking/drop rule.
@@ -563,7 +623,7 @@ def _mint_from_diffs(
 
     task = {
         "id": f"mint-{source}-{_short_hash(target, tuple(kept))}",
-        "repo": str(Path(repo_root).resolve()).replace("\\", "/"),
+        "repo": _portable_repo_label(repo_root),
         "target": target,
         "must_include": kept,
         "must_include_dropped": dropped,
@@ -863,7 +923,7 @@ def _mint_from_text_diffs(
     kept = ranked[:MUST_INCLUDE_CAP]
     task = {
         "id": "mint-text-%s-%s" % (source, _short_hash(anchor, tuple(kept))),
-        "repo": str(Path(repo_root).resolve()).replace("\\", "/"),
+        "repo": _portable_repo_label(repo_root),
         "target": anchor,
         "must_include": kept,
         "must_include_dropped": len(ranked) - len(kept),
@@ -949,12 +1009,46 @@ def load_minted_tasks(path: str | None = None) -> list[dict]:
     return sorted(data.get("tasks", []), key=lambda t: t["id"])
 
 
+def _refuse_nonportable_repos(tasks: list[dict]) -> None:
+    """Refuse to write a task whose ``repo`` is an absolute host path into the
+    repository's OWN committed corpus.
+
+    This is the boundary the 2026-09-09 defect crossed. Minting a task against
+    a temp fixture is fine and tests do it; what is not fine is that value
+    reaching ``minted_tasks.json``, which is committed, shared, and supposed to
+    be a frozen public task set. An absolute path survives exactly one machine:
+    the store shipped 17 tasks pinned to ``C:/Users/nukei/...`` that raised on
+    every resolution attempt here, and 31 pinned to a disposable worktree.
+
+    SCOPE, stated rather than implied: this fires only when writing
+    ``DEFAULT_MINT_STORE_PATH``. A caller writing its own scratch store at some
+    other path is not policed, because no mechanism here can tell which files a
+    repository commits, and pretending otherwise would advertise a guarantee
+    this does not have. It covers the whole of the surface where the defect
+    actually occurred, which is one file.
+    """
+    bad = sorted({
+        t["repo"] for t in tasks
+        if isinstance(t.get("repo"), str) and os.path.isabs(t["repo"])
+    })
+    if bad:
+        raise ValueError(
+            "refusing to persist %d task repo reference(s) that name an "
+            "absolute host path: %s. Use a label resolve_task_repo understands "
+            "(agent_env / sunny_garden / fourfold_wiki_app / a registered "
+            "project) -- see _portable_repo_label. A corpus that names one "
+            "machine's filesystem is not reproducible on any other."
+            % (len(bad), ", ".join(repr(b) for b in bad)))
+
+
 def save_minted_tasks(tasks: list[dict], path: str | None = None) -> str:
     """Overwrite the mint store with exactly ``tasks``. Deterministic
     formatting (sorted keys, sorted by id) so the diff is meaningful in
     review -- same contract as ``harness.write_baseline``. Returns the path
     written."""
     p = path or DEFAULT_MINT_STORE_PATH
+    if os.path.abspath(p) == _COMMITTED_STORE_PATH:
+        _refuse_nonportable_repos(tasks)
     ordered = sorted(tasks, key=lambda t: t["id"])
     with open(p, "w", encoding="utf-8") as fh:
         json.dump({"schema": 1, "tasks": ordered}, fh, indent=2, sort_keys=True)

@@ -520,7 +520,21 @@ CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain stag
 # the one new supervisor edge to ``...claude_attempt_handoff``, which is
 # function-local inside ``run()`` but counted because the graph is built from
 # the AST.
-CENSUS_EDGES = 2081  # re-measured 2026-09-09 with the ikarus Claude chain staged
+# minted-corpus portability fix: 2081 -> 2082, exactly one added edge,
+# daedalus.eval.mint -> daedalus.eval.tasks, from the function-local import in
+# ``_portable_repo_label`` (counted because the graph is built from the AST).
+# There is no return edge: tasks.py does not import mint.
+#
+# THIS PIN CAUGHT A REAL DEFECT, recorded because the first attempt looked
+# harmless. That version wrote ``from . import tasks as _tasks``, which scores
+# TWO edges -- the submodule AND the package ``daedalus.eval`` -- and the
+# package edge closed a cycle, growing the existing ``daedalus.eval``
+# component from 4 members to 5. The count, the component count (14) and the
+# max size (19) were all unchanged; only the component DIGEST moved, which is
+# the assertion that failed. Had this file pinned counts alone, mint would have
+# joined a strongly-connected component silently. ``from .tasks import ...``
+# takes the submodule edge without the package edge and joins no component.
+CENSUS_EDGES = 2082  # re-measured 2026-09-09, mint -> tasks for portable repo labels
 
 
 def _module_name(path: str) -> str:
