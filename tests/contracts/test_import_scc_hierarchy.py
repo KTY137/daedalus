@@ -502,7 +502,11 @@ CENSUS_MODULES = 515  # re-measured 2026-09-09 with G3-SEAL-02 staged
 # annotation and the deferred runtime import that enforces the type), because
 # the graph stores targets in a set. Fourteen components, maximum nineteen and
 # the component digest are unchanged: the new node participates in no cycle.
-CENSUS_EDGES = 2013  # re-measured 2026-09-09 with G3-SEAL-02 staged
+# ikarus-lane port: 2013 -> 2014, exactly one added edge --
+# runtimes.providers.catalogue -> spine.effect_boundary, from the
+# deferred import inside claude_dispatch_readiness(). Counted once even
+# though it is function-local, because the graph is built from the AST.
+CENSUS_EDGES = 2014  # re-measured 2026-09-09 with G3-SEAL-02 staged
 
 
 def _module_name(path: str) -> str:

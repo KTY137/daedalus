@@ -15,6 +15,7 @@ Two kinds of assertion live here, deliberately kept apart:
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -59,38 +60,43 @@ def test_absent_corpora_say_why_instead_of_vanishing() -> None:
 # the in-repository corpora are pinned
 # --------------------------------------------------------------------------
 def test_kernel_row_is_the_retracted_headline_restated() -> None:
-    """If this fails the kernel package moved; re-measure the write-up."""
+    """The headline is a set of RATES; the corpus census underneath it moves.
+
+    This asserted the corpus ``sha256`` exactly until 2026-09-09, and the
+    superseded comment recorded what that cost: three re-pins in a single day,
+    each noting "files, functions and every percentage identical yet again, sha
+    only". The pin is content-addressed over the whole ``daedalus`` package, so
+    every commit touching production code turned this red while measuring
+    nothing -- a tripwire on the tree rather than a check on the claim.
+
+    Measured 2026-09-09: pristine ``origin/main`` passes 8/8; adding a single
+    one-file change to ``daedalus/twin/reference_compiler.py`` fails it, and so
+    does an unrelated ``relation_compiler.py`` edit from another lane. Two
+    independent branches, neither touching the resolver.
+
+    So the assertions below gate on the rates -- which are the retracted
+    headline, and which held byte-identical across all three of those re-pins --
+    and keep the census as recorded provenance. A real resolver regression still
+    fails here, because it would move ``full_resolver_pct`` or
+    ``marginal_functions``. An unrelated edit under ``daedalus/`` no longer does.
+
+    Census at the last measurement, recorded rather than asserted
+    [MEASURED 2026-09-09]: 515 files, 7052 functions, 46882 type-name sites,
+    426 internal named-only.
+    """
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured 2026-09-09 on integration/gates-1-to-4-20260909: G3-SEAL-02
-    # added daedalus/kernel/seals.py, so this MOVING census moved -- 514 -> 515
-    # files, 7016 -> 7052 functions. Probe run twice, outputs identical except
-    # wall_seconds (2.51 / 2.52); both retained under runs/gate2-20260909/.
-    # Prior measured rows remain in the README; this moving corpus census is
-    # not a resolver superiority claim, and the marginal effect did NOT move:
-    # 8 marginal functions before and after, i.e. adding a kernel module did
-    # not change what the full resolver buys over annotations alone.
-    #
-    # sha re-pinned again the same day when the tensor lane's second wave
-    # edited daedalus/twin/. Only the sha moved: files, functions and every
-    # percentage above were byte-identical across both re-measurements. The
-    # pin is CONTENT-addressed, so any edit under daedalus/ moves it even
-    # when nothing this test measures has changed -- expect to re-pin on
-    # merges that touch no resolver behaviour at all. Third re-pin the same
-    # day (tensor wave 3 edited daedalus/twin/relation_compiler.py): files,
-    # functions and every percentage identical yet again, sha only.
-    assert entry["corpus_pin"] == {
-        "files": 515,
-        "sha256": "4bf963e6c4fa0ff09ad5226d2d83cb0e17822b68445ff6cd37a7f23b6229b263",
-    }
-    assert entry["functions"] == 7052
+    # Provenance must be present and well formed; its VALUE is corpus identity,
+    # not a claim of this slice, so it is deliberately not pinned.
+    pin = entry["corpus_pin"]
+    assert isinstance(pin["files"], int) and pin["files"] > 0
+    assert re.fullmatch(r"[0-9a-f]{64}", pin["sha256"])
+    # The retracted headline itself.
     assert entry["annotation_only_pct"] == 94.44  # the control
     assert entry["full_resolver_pct"] == 94.33
     assert entry["marginal_functions"] == 8
     assert entry["marginal_pp"] == 0.1134
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["type_name_sites"] == 46882
-    assert entry["internal_named_only"] == 426
     assert entry["verified_share_of_internal_pct"] == 90.94
 
 

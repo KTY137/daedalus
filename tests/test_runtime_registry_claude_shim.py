@@ -89,7 +89,23 @@ def test_codex_batch_probe_policy_is_not_changed_by_claude_guard(
     run.assert_called_once()
 
 
-def test_claude_provider_probe_reuses_canonical_executable_admission() -> None:
+def test_claude_provider_probe_requires_runtime_AND_dispatch_readiness() -> None:
+    """A resolved executable is necessary but NOT sufficient.
+
+    Ported from `g1/ikarus-runtime-invocation-binding-07d3`. Before this, a
+    discovered `claude` binary was reported available, so routing and the chat
+    UI advertised a provider the canonical effect boundary must refuse:
+    `provider.claude` is INVENTORY_ONLY and `probe_provider` never consulted
+    the registry.
+
+    The probe now projects that boundary. It does NOT activate dispatch --
+    flipping `provider.claude` to CENTRAL is a separate owner-signed decision
+    under plan §4.1/§10 -- so with the registry as it stands the honest answer
+    is "installed, not activated".
+
+    This assertion is INVERTED from the one it replaces, not deleted: the
+    executable admission is still required to run first and is still asserted.
+    """
     with mock.patch.object(
         claude_provider,
         "claude_command_for_spawn",
@@ -97,9 +113,32 @@ def test_claude_provider_probe_reuses_canonical_executable_admission() -> None:
     ) as admission:
         available, error = providers._availability_probe("claude_cli")
 
+    assert available is False
+    assert "canonical dispatch is not activated" in error
+    assert "inventory_only" in error
+    admission.assert_called_once_with()
+
+
+def test_claude_dispatch_readiness_tracks_the_registry_and_is_not_a_hard_no() -> None:
+    """The refusal belongs to the registry, not to a constant.
+
+    Without this, the test above would still pass if the projection were
+    replaced by `return False, "..."`, and the probe would have quietly
+    stopped tracking the boundary it claims to project.
+    """
+    from daedalus.runtimes.providers import catalogue
+    from daedalus.spine import effect_boundary
+
+    # REGISTRY_BY_ID is a read-only mappingproxy on purpose, so the whole
+    # binding is replaced rather than an entry assigned into it.
+    row = SimpleNamespace(wiring=effect_boundary.Wiring.CENTRAL)
+    with mock.patch.object(
+        effect_boundary, "REGISTRY_BY_ID", {"provider.claude": row}
+    ):
+        available, error = catalogue.claude_dispatch_readiness()
+
     assert available is True
     assert error == ""
-    admission.assert_called_once_with()
 
 
 def test_claude_provider_probe_preserves_runtime_admission_refusal() -> None:
