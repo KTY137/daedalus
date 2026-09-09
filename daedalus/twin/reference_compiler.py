@@ -146,6 +146,26 @@ def compile_reference_project(
         revision=revision,
     )
     inv.edges.extend(claim_edges)
+    # _markdown emits a links_to edge for every .md target it finds, whether or
+    # not that target is a declared knowledge file, and the link check accepts an
+    # undeclared target as long as it exists on disk. Such a link leaves an edge
+    # pointing at a node that was never built, and the node_plane lookup below
+    # then failed with a bare KeyError. That is a fail-closed violation:
+    # ReferenceCompileError is this module's documented failure type, so a caller
+    # guarding compilation with it was silently not protected. Refuse explicitly
+    # instead, naming the link that has to be declared or removed.
+    known_nodes = {node.id for node in inv.nodes}
+    dangling = sorted({
+        (edge.source, edge.target)
+        for edge in inv.edges
+        if edge.source not in known_nodes or edge.target not in known_nodes
+    })
+    if dangling:
+        source, target = dangling[0]
+        raise ReferenceCompileError(
+            f"declared evidence references an undeclared node: {source} -> {target}"
+            + (f" (and {len(dangling) - 1} more)" if len(dangling) > 1 else "")
+        )
     manifest_sha = canonical_sha({
         "schema": REFERENCE_SCHEMA,
         "repository_id": repository_id,

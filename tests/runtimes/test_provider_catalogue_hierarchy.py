@@ -93,17 +93,31 @@ def test_legacy_health_resolves_the_live_factory_monkeypatch() -> None:
         rows = legacy.provider_health()
         available = legacy.available_providers()
     assert factory.call_count == 8
+    # claude_cli is the ONE exception, and it is named here rather than
+    # quietly widened out of the assertion. An available executable is not
+    # sufficient for it: `probe_provider` also projects the canonical effect
+    # boundary, and `provider.claude` is INVENTORY_ONLY. Everything else must
+    # still come back available under a live monkeypatched factory, which is
+    # what this test is actually about.
     assert all(
         row["available"]
         for row in rows
-        if row["implemented"] and not row["requires_key"]
+        if row["implemented"]
+        and not row["requires_key"]
+        and row["name"] != "claude_cli"
     )
+    claude = next(row for row in rows if row["name"] == "claude_cli")
+    assert claude["available"] is False
+    assert "canonical dispatch is not activated" in claude["last_error"]
+    # The KEY set is unchanged -- available_providers() is keyed by every
+    # IMPLEMENTED provider, so claude_cli stays in it and only its value moves.
     assert set(available) == {
         "ollama",
         "claude_cli",
         "deepseek",
         "codex_cli",
     }
+    assert available["claude_cli"] is False
 
 
 def test_unknown_provider_factory_refusal_is_unchanged() -> None:

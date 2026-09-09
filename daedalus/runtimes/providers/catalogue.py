@@ -113,15 +113,52 @@ def configured(
     return any(bool(env.get(key)) for key in meta.env_keys)
 
 
+def claude_dispatch_readiness() -> tuple[bool, str]:
+    """Project the canonical effect boundary instead of executable presence.
+
+    Ported from ``g1/ikarus-runtime-invocation-binding-07d3``. A discovered
+    ``claude`` binary is necessary but not sufficient: ``provider.claude``
+    stays INVENTORY_ONLY until the production composition root can mint the
+    complete sealed runtime authority bundle. Without this, routing and the
+    chat UI advertise a provider the execution boundary must refuse.
+
+    It only READS the registry. Flipping ``provider.claude`` to CENTRAL is a
+    separate owner-signed decision under plan section 4.1/10 and does not ride
+    in here.
+
+    It lives beside the rest of the health algorithm rather than in
+    ``daedalus/providers/__init__.py``, where the originating lane put it:
+    ``tests/runtimes/test_provider_catalogue_hierarchy.py`` asserts that facade
+    defines exactly four functions and no algorithm, and it caught the port
+    doing otherwise.
+    """
+
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, Wiring
+
+    row = REGISTRY_BY_ID.get("provider.claude")
+    if row is None:
+        return False, "provider.claude is missing from the canonical effect registry"
+    if row.wiring is not Wiring.CENTRAL:
+        return False, (
+            "Claude CLI is installed, but canonical dispatch is not activated "
+            f"(provider.claude wiring={row.wiring.value})"
+        )
+    return True, ""
+
+
 def probe_provider(name: str, factory: ProviderFactory) -> tuple[bool, str]:
     """Probe one implemented provider through an injected construction door."""
 
     if not PROVIDER_CATALOGUE[name].implemented:
         return False, "provider placeholder; implementation pending"
     try:
-        return factory(name).available(), ""
+        available = factory(name).available()
     except Exception as exc:  # noqa: BLE001 - a failed probe is health data
         return False, str(exc)
+    if available and name == "claude_cli":
+        # An available executable answers only half the question here.
+        return claude_dispatch_readiness()
+    return available, ""
 
 
 def provider_health(

@@ -92,5 +92,51 @@
     "archive_legacy_touched": false,
     "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
   },
-  "next_step": "GPU-117 may separately test whether producer-local normalization inside _forest_edge_atoms is redundant now that _record_fact is confirmed as the required canonical aggregation boundary. Any deletion must preserve unsorted/duplicate ForestEdge evidence behavior and must be verified by a focused evidence-DAG contract; do not move normalization into a new helper or cache."
+  "next_step": "GPU-117 may separately test whether producer-local normalization inside _forest_edge_atoms is redundant now that _record_fact is confirmed as the required canonical aggregation boundary. Any deletion must preserve unsorted/duplicate ForestEdge evidence behavior and must be verified by a focused evidence-DAG contract; do not move normalization into a new helper or cache.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-116",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "9c1808012805242d8eef9fcdbd6a9b76fdeb3b5f",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "findings"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
 }

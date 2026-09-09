@@ -240,3 +240,183 @@ def test_type_and_presentation_are_never_indexed():
     assert "site/index.html" not in fusion_out
     assert "site/index.html" not in concat_out
     assert "site/index.html" not in code_only_out
+
+
+# --------------------------------------------------------------------------
+# G2-XPLANE-CONFIRM-03: calibration instead of round-robin
+# --------------------------------------------------------------------------
+def test_standardisation_is_parameter_free_and_zero_mean_unit_variance():
+    out = dict(fr._standardise_within_plane([("a", 1.0), ("b", 2.0), ("c", 3.0)]))
+    assert out["b"] == 0.0                      # the mean maps to zero
+    assert round(out["a"], 6) == -round(out["c"], 6)
+    assert round(out["c"], 4) == 1.2247         # (3-2)/sqrt(2/3)
+
+
+def test_degenerate_planes_contribute_the_mean_not_a_penalty():
+    """A plane with one document, or with no spread, must not be pushed to the
+    bottom -- 0.0 is the mean of any standardised distribution."""
+    assert fr._standardise_within_plane([("solo", 9.9)]) == [("solo", 0.0)]
+    assert fr._standardise_within_plane([("a", 2.0), ("b", 2.0)]) == [
+        ("a", 0.0),
+        ("b", 0.0),
+    ]
+    assert fr._standardise_within_plane([]) == []
+
+
+def test_calibration_preserves_within_plane_order_exactly():
+    """The arm must differ from fusion_rrf in the COMBINATION step ONLY.
+
+    Standardisation is monotone, so on a single-plane universe the calibrated
+    ranking has to equal what `_score_plane` already produced. If this ever
+    fails, the arm has changed the scoring too and no comparison against
+    fusion_rrf is attributable to combination.
+    """
+    universe = [
+        _cand("a.py", "alpha alpha alpha beta"),
+        _cand("b.py", "alpha beta"),
+        _cand("c.py", "alpha alpha beta"),
+    ]
+    query = _query("alpha")
+    cache = TokenCache()
+    expected = [
+        path
+        for path, _ in fr._score_plane(fr.word_tokens("alpha"), universe, cache)
+    ]
+
+    assert fr.PlaneCalibratedRetriever().rank(query, universe) == expected
+
+
+def test_rrf_is_literally_round_robin_and_calibration_is_not():
+    """The CONFIRM-03 diagnosis, stated as data rather than as a claim.
+
+    Because `_partition` puts every candidate in exactly one plane, the
+    per-plane rankings are disjoint and `_rrf_combine` sees only rank
+    position. Its output is therefore a strict alternation of planes -- the
+    same interleaving whatever the scores are. Calibration reads each plane's
+    score distribution instead, so it is free to place two documents from one
+    plane before the next plane's best.
+
+    Recorded honestly: on SMALL universes the two agree, because a plane with
+    one document standardises to 0.0 and lands exactly where round-robin would
+    have put it. The difference needs enough documents per plane for the score
+    distributions to have a shape. An earlier version of this test asserted a
+    difference on a 3-document universe and was simply wrong.
+    """
+    code = [
+        _cand("c1.py", "zeta zeta zeta zeta zeta zeta"),
+        _cand("c2.py", "zeta filler filler filler"),
+        _cand("c3.py", "zeta filler filler filler filler"),
+        _cand("c4.py", "zeta filler filler filler filler filler"),
+    ]
+    knowledge = [
+        _cand("k1.md", "zeta zeta filler"),
+        _cand("k2.md", "zeta zeta filler filler"),
+        _cand("k3.md", "zeta zeta filler filler filler"),
+        _cand("k4.md", "zeta zeta filler filler filler filler"),
+    ]
+    query = _query("zeta")
+
+    rrf = fr.FusionRetriever().rank(query, code + knowledge)
+    calibrated = fr.PlaneCalibratedRetriever().rank(query, code + knowledge)
+
+    # RRF alternates strictly: rank 1 of every plane, then rank 2, ...
+    assert [fr.plane_of(path) for path in rrf] == [
+        "code", "knowledge", "code", "knowledge",
+        "code", "knowledge", "code", "knowledge",
+    ]
+    # Calibration does not, and that is the whole difference under test.
+    assert [fr.plane_of(path) for path in calibrated] != [
+        fr.plane_of(path) for path in rrf
+    ]
+    assert rrf != calibrated
+
+
+def test_calibrated_ranking_is_deterministic_on_ties():
+    universe = [_cand("b.py", "kappa"), _cand("a.py", "kappa")]
+    query = _query("kappa")
+    first = fr.PlaneCalibratedRetriever().rank(query, universe)
+    second = fr.PlaneCalibratedRetriever().rank(query, universe)
+    assert first == second == sorted(first)     # path is the declared tie-break
+
+
+def test_calibrated_arm_tallies_returned_planes_like_the_others():
+    universe = [_cand("x.py", "mu"), _cand("y.md", "mu")]
+    arm = fr.PlaneCalibratedRetriever()
+    arm.rank(_query("mu"), universe)
+    counts = arm.returned_plane_counts["raw"]
+    assert counts["code"] == 1
+    assert counts["knowledge"] == 1
+
+
+# --------------------------------------------------------------------------
+# G2-XPLANE-CONFIRM-04: plane as a feature, not as a partition
+# --------------------------------------------------------------------------
+def test_pooled_arm_uses_GLOBAL_idf_not_per_plane_idf():
+    """The half partitioning destroys, asserted directly.
+
+    `rare.py` is the only document containing `omega`. Under GLOBAL idf that
+    term is rare across 6 documents. Under per-plane idf it would be rare
+    across only the 3 code documents, i.e. materially less informative. The
+    pooled arm must rank `rare.py` first; a per-plane-idf arm need not.
+    """
+    universe = [
+        _cand("rare.py", "omega filler filler"),
+        _cand("c2.py", "common filler filler"),
+        _cand("c3.py", "common filler filler"),
+        _cand("k1.md", "common filler filler"),
+        _cand("k2.md", "common filler filler"),
+        _cand("k3.md", "common filler filler"),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("omega"), universe)
+    assert ranking[0] == "rare.py"
+
+
+def test_pooled_arm_never_partitions_the_candidate_pool():
+    """One index: a query matching both planes returns from both, ranked by
+    score alone -- no plane quota, no interleaving, no per-plane top-k."""
+    universe = [
+        _cand("a.py", "sigma sigma sigma"),
+        _cand("b.py", "sigma sigma"),
+        _cand("c.md", "sigma"),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("sigma"), universe)
+    assert ranking == ["a.py", "b.py", "c.md"]
+
+
+def test_per_plane_length_normalisation_changes_the_order_it_should():
+    """The single variable under test, shown as a case.
+
+    Both candidates match `tau` once. The markdown file is long, but it is
+    SHORT relative to its own plane, whose other documents are much longer.
+    The python file is average for its plane. Per-plane normalisation must
+    therefore favour the markdown file, where a global average would not.
+    """
+    universe = [
+        _cand("mid.py", "tau " + "pad " * 20),
+        _cand("short.md", "tau " + "pad " * 40),
+        _cand("long1.md", "other " + "pad " * 400),
+        _cand("long2.md", "other " + "pad " * 400),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("tau"), universe)
+    assert ranking[:2] == ["short.md", "mid.py"], ranking
+
+
+def test_unknown_plane_falls_back_to_the_global_average_not_a_constant():
+    """`.rs` is not in PLANE_BY_SUFFIX, so it has no plane average of its own.
+    It must still be scored, using the global average rather than being
+    dropped or given an invented normaliser."""
+    universe = [
+        _cand("x.rs", "upsilon filler"),
+        _cand("y.py", "upsilon filler filler filler"),
+    ]
+    ranking = fr.PooledPlaneLengthRetriever().rank(_query("upsilon"), universe)
+    assert set(ranking) == {"x.rs", "y.py"}
+
+
+def test_pooled_arm_is_deterministic_and_tallies_planes():
+    universe = [_cand("b.py", "phi"), _cand("a.py", "phi"), _cand("c.md", "phi")]
+    arm = fr.PooledPlaneLengthRetriever()
+    first = arm.rank(_query("phi"), universe)
+    assert first == fr.PooledPlaneLengthRetriever().rank(_query("phi"), universe)
+    counts = arm.returned_plane_counts["raw"]
+    assert counts["code"] == 2 and counts["knowledge"] == 1

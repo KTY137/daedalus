@@ -1,0 +1,35 @@
+{
+ "arm_committed_before_measurement": "69028ef0",
+ "gates": {
+  "mrr_floor": {
+   "black": 0.6309,
+   "fastapi": 0.3844,
+   "threshold": 0.2,
+   "verdict": "PASS"
+  },
+  "rederivation_guard": {
+   "equals_bm25_to_3dp": false,
+   "verdict": "PASS"
+  }
+ },
+ "headline": "four plane-using arms x two repositories = 8 measurements vs pooled bm25, ALL negative, 7 of 8 with CI excluding zero",
+ "hypotheses": {
+  "H10": "FAILS on both",
+  "H11": "fails on the letter (indistinguishable from fusion_rrf on fastapi), holds in substance",
+  "H12": "FIRES"
+ },
+ "measured": "2026-09-09",
+ "packet": "G2-XPLANE-CONFIRM-04",
+ "preregistration": "95371b56",
+ "probes_run_twice_identical": true,
+ "sha256": {
+  "cmp_black_run1.json": "aa0974d0fb11a20edef919330f5701ae42af929e818d728f7914159fd9a2f4af",
+  "cmp_black_run2.json": "aa0974d0fb11a20edef919330f5701ae42af929e818d728f7914159fd9a2f4af",
+  "cmp_fastapi_run1.json": "2dd8d844d870c32dd98ed0be22ca2046d3ad66aa8de6470232961bfb5ce6b8c7",
+  "cmp_fastapi_run2.json": "2dd8d844d870c32dd98ed0be22ca2046d3ad66aa8de6470232961bfb5ce6b8c7",
+  "raw_black.json.gz": "3abbde5eabf735b9856c97bb2a9084d1f5eca7fd31e83fc938b3a036b6f11b6b",
+  "raw_fastapi.json.gz": "11bd881e36377365100a1b6eda9ffce9d5a40393b6ee8d37d95deaa013f7feb2",
+  "vs_bm25_black.json": "a317ada06e00acbf8b8d3c8ad00e77d4f2964a22edcee3dfb59b7a6eccf4b4c4",
+  "vs_bm25_fastapi.json": "6d558d645a9c8e283979a4394f830e12f7119338aa01b938fcef7d0b22e21c39"
+ }
+}

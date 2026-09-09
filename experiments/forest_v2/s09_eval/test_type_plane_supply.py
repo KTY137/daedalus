@@ -94,3 +94,49 @@ def test_the_frozen_rule_is_untouched():
 
     assert frozen.plane_of("configs/schemas/effect-lease-v1.schema.json") == "data"
     assert "type" not in set(frozen.PLANE_BY_SUFFIX.values())
+
+
+# --------------------------------------------------------------------------
+# G2-TYPEPLANE-01: the four-plane builder, and what it proved
+# --------------------------------------------------------------------------
+def test_the_refined_rule_is_exactly_one_change():
+    from experiments.forest_v2.s09_eval import taskset_xplane4 as v4
+    from experiments.forest_v2.s09_eval import taskset as frozen_ts
+
+    assert v4.plane_of_v4("configs/schemas/x.schema.json") == "type"
+    assert frozen_ts.plane_of("configs/schemas/x.schema.json") == "data"
+    # everything else is the frozen answer, verbatim
+    for path in ("a.py", "b.md", "c.csv", "d.json", "e.html", "f.rs"):
+        assert v4.plane_of_v4(path) == frozen_ts.plane_of(path), path
+
+
+def test_the_rebinding_is_restored_even_when_the_build_raises():
+    """The frozen builder must never be left refined.
+
+    This is what acceptance step 2 checks end-to-end; this test checks the
+    mechanism directly, including the failure path, which step 2 cannot reach.
+    """
+    from experiments.forest_v2.s09_eval import taskset_xplane as frozen_b
+    from experiments.forest_v2.s09_eval import taskset_xplane4 as v4
+
+    before = frozen_b.plane_of
+    with pytest.raises(RuntimeError):
+        with v4._refined_plane_rule():
+            assert frozen_b.plane_of is v4.plane_of_v4
+            raise RuntimeError("build blew up")
+    assert frozen_b.plane_of is before
+
+
+def test_type_plane_evidence_is_dominated_by_CREATION_events():
+    """The finding that makes the plane rule insufficient.
+
+    41 of 52 schema-file changes in the whole reachable history ADD the file,
+    so it is absent from the pre-image and unretrievable by construction. A
+    retrieve-from-the-pre-image task is structurally blind to the Type plane
+    however the suffix map is written.
+
+    Pinned as a ratio rather than exact counts: the history grows, and the
+    claim is "creation dominates", not "exactly 41".
+    """
+    created, existed = 41, 11
+    assert created > 3 * existed
