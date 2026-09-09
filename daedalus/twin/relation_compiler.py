@@ -250,7 +250,10 @@ def _record_fact(
     if evidence_atoms is None:
         bucket.setdefault(coordinate, scalar_value)
         return
-    evidence_bundles = bucket.setdefault(coordinate, set())
+    evidence_bundles = bucket.get(coordinate)
+    if evidence_bundles is None:
+        evidence_bundles = set()
+        bucket[coordinate] = evidence_bundles
     atoms = tuple(sorted(set(evidence_atoms)))
     evidence_bundles.add(atoms)
 
@@ -552,7 +555,9 @@ def compile_relation_blocks(
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
     semantic_fact_count = 0
     for signature in selected:
-        entries = facts.get(signature, {})
+        entries = facts.get(signature)
+        if entries is None:
+            entries = {}
         if retain_evidence:
             for coordinate in entries:
                 evidence_bundles = entries[coordinate]
