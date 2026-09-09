@@ -1,0 +1,107 @@
+{
+  "branch": "exp/tensor-kernel-contract-01",
+  "branch_hygiene": {
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_legacy_touched": false,
+    "branch_deleted": false,
+    "force_update": false,
+    "main_at_packet_start": "1fd5e13d63eefa58abeace259845cf8a796f4491",
+    "main_advanced_during_packet": "460d1d118db55daf4e483546d6a8f22b3638445f",
+    "main_reintegration": "not performed mid-packet after main advanced concurrently; preserve the already-green exact code/test head and begin the next bounded packet with a non-force integration check",
+    "new_remote_branch": false,
+    "unique_evidence_deleted": false
+  },
+  "claims": {
+    "alphaevolve_win": false,
+    "crewai_win": false,
+    "documentation_closure_head_green": false,
+    "focused_exact_head_green": true,
+    "gate_transition": false,
+    "manual_full_suite_green": false,
+    "memory_win": false,
+    "owner_approval": false,
+    "performance_win": false,
+    "promotion": false,
+    "ready_for_review": false,
+    "tensor_vs_forest_win": false
+  },
+  "date_berlin": "2026-09-09",
+  "evidence": {
+    "baseline_main_head": "1fd5e13d63eefa58abeace259845cf8a796f4491",
+    "focused_head": "66eae40a6e09ad691bab6a200f72803062236c63",
+    "focused_head_workflows": [
+      {
+        "conclusion": "success",
+        "head_sha": "66eae40a6e09ad691bab6a200f72803062236c63",
+        "id": 34380825333,
+        "isolated_wheel_imports": "success",
+        "manual_full_suite": "not claimed; workflow's manual-only complete suite is outside this run",
+        "name": "Fourfold, Tensor and integration contracts",
+        "public_api_checks": "success",
+        "repository_collection": "success",
+        "status": "completed"
+      },
+      {
+        "conclusion_at_close": null,
+        "head_sha": "66eae40a6e09ad691bab6a200f72803062236c63",
+        "id": 34380825312,
+        "name": "Tauri Desktop",
+        "status_at_close": "in_progress"
+      }
+    ],
+    "implementation_commit": "c9e3c3cab29f5815896060fac6389a0887bc5f40",
+    "production_blob": "5d094d020f5c4a8e65124323176645a364cab309",
+    "test_commit": "66eae40a6e09ad691bab6a200f72803062236c63",
+    "test_blob": "ae634ee0224401d71f2f41c0d4df5dc3975285b0"
+  },
+  "focused_contract": {
+    "behavior": "Discover-all compilation over two retained same-plane Forest edges with the same code:imports:code relation may construct exactly one RelationSignature during compile_relation_blocks; both canonical Boolean facts must remain present in the single compiled block. The existing explicit-plan contract still requires zero constructor calls after the caller supplies its validated RelationSignature.",
+    "test": "tests/twin/test_relation_compiler_selected_signature_reuse.py::test_discover_all_reuses_one_signature_for_repeated_retained_relation"
+  },
+  "implementation": {
+    "after": "The existing discover-all selection owner is a canonical key-to-RelationSignature map. Verified bindings reuse the first admitted signature for a key. Same-plane Forest edges defer creation until after Fourfold digest admission and reuse the same record for subsequent retained rows. Cross-plane Forest edges remain admission checks and do not require a throwaway signature object.",
+    "before": "Discover-all constructed a new RelationSignature for every inspected verified binding and every inspected Forest edge, then deduplicated admitted records in a set. Repeated rows of one relation therefore paid constructor work repeatedly, including rows that were later rejected by same-plane Fourfold digest admission.",
+    "gardener_result": "replace per-row construction plus post-hoc discovered-set deduplication with one existing-owner canonical map; no cache, persistent index, new compiler, second selector or authority was introduced",
+    "semantic_boundary": "Forest/Fourfold authority admission, retained-hyperedge and undirected fail-closed behavior, exact verified-binding admission for cross-plane edges, explicit selected-plan identity reuse, endpoint completeness, Evidence-DAG provenance, scalar staging and block ordering remain on their existing paths."
+  },
+  "issue": 239,
+  "masterplan": {
+    "alignment": "ALIGNED",
+    "gate": 1,
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "status": "adopted",
+    "version": "2.4.0"
+  },
+  "next_step": "GPU-123 should first non-force reconcile the canonical Tensor line with main if still behind. Then audit whether the temporary set(discovered_by_key.values()) materialization at final selected-order construction can be removed by letting the existing _selected_signatures owner accept an already-unique bounded value collection, without adding another selector/helper or changing explicit-plan duplicate validation. If that is only cosmetic or broadens the helper contract unsafely, retain it and move to the next measured construction bucket.",
+  "objective": "Delete discover-all per-row RelationSignature reconstruction by reusing one canonical admitted signature record per relation key inside the existing compile_relation_blocks owner, while preserving Forest/Fourfold admission and fail-closed semantics.",
+  "pr": 344,
+  "registry_contract": {
+    "active_gate": 1,
+    "artifact_role": "primary",
+    "base_revision": "1fd5e13d63eefa58abeace259845cf8a796f4491",
+    "classification": "ALIGNED",
+    "dependencies": "GPU-111 explicit selected-signature reuse and GPU-121 canonical Tensor branch head",
+    "owner": "repository owner",
+    "packet_id": "G1-EXP-TENSOR-GPU-122"
+  },
+  "scope": {
+    "new_caches": 0,
+    "new_compilers": 0,
+    "new_indexes": 0,
+    "new_public_apis": 0,
+    "new_receipt_families": 0,
+    "new_remote_branches": 0,
+    "production_files_changed": 1,
+    "production_paths": [
+      "daedalus/twin/relation_compiler.py"
+    ],
+    "test_files_changed": 1,
+    "test_paths": [
+      "tests/twin/test_relation_compiler_selected_signature_reuse.py"
+    ]
+  },
+  "status": "closed-implementation",
+  "title": "Intern discover-all relation signatures after authority admission",
+  "work_packet": "G1-EXP-TENSOR-GPU-122"
+}
