@@ -1,4 +1,38 @@
-# Result — 8 of the Gate-3 primary tier's 14 tasks are constants
+# Result — bm25 and embeddings never look at the non-code planes
+
+> ## RETRACTION, 2026-09-09, same day
+>
+> **This document was first published under the title "8 of the Gate-3 primary
+> tier's 14 tasks are constants". That claim is RETRACTED. It was wrong on both
+> halves, and an independent adversarial pass refuted it.**
+>
+> The original text is kept below, struck through in §2–§3 rather than deleted,
+> because a retracted claim that leaves no trace teaches nobody anything.
+>
+> **What was wrong, and why:**
+>
+> 1. **The non-code half was my own instrument bug.** The probe reused a helper
+>    that hardcoded `label_plane="code"`, so `separate_indices` was handed
+>    data/knowledge tasks labelled *code*, searched its code index exactly as it
+>    should have, scored 0.00, and was written up as broken. Given the true
+>    plane it scores **1.00 on all four** at rungs 4000 and 16000. The arm was
+>    never broken; the probe was.
+> 2. **The code half did not survive wider measurement either.** I generalized
+>    "constant" from 4 arms at 3 budget rungs. Across 10 arms × 7 budgets,
+>    **not one of the 8 tasks is constant**. Three *mandatory* Gate-3 baselines
+>    I never ran — `alphaevolve_proxy`, `map_elites`, `evaluator_only` — move
+>    `sunny_garden` off 1.00, and rungs 10/50 break the ceiling for four more.
+>
+> What actually survives is narrower and is now this document's title: those
+> four arms at those three rungs do give 48/48 perfect on `sunny_garden`, and
+> `bm25`/`embeddings` return 0.00 on every non-code task because they never
+> search a non-code corpus. That second finding is **confirmed and
+> strengthened** — see `G3_ARMS_NEVER_LOOKED_AT_THE_NON_CODE_PLANES_20260909.md`.
+>
+> The lesson I want to keep: I measured four arms and wrote a sentence about
+> the task set. "These arms cannot distinguish these tasks" and "these tasks
+> carry no information" are different claims, and only the first was measured.
+
 
 Status: MEASURED 2026-09-09
 Classification: EXPERIMENT (Gate-3 prework; active delivery gate is 1)
@@ -24,7 +58,7 @@ sensitivity rungs. The three rungs agree. Zero trials failed.
 scores at or above the real repository everywhere, which is the direction §7
 predicted.
 
-## 2. But the direction was the least of it
+## 2. ~~But the direction was the least of it~~ (RETRACTED — see the box above)
 
 The frozen contrast asked whether repository identity shifts scores. The raw
 vectors answer a bigger question that the summary statistic hides:
@@ -51,7 +85,7 @@ four of its non-code tasks:
 
 A second constant, at the opposite rail.
 
-## 3. What the primary tier actually contains
+## 3. ~~What the primary tier actually contains~~ (RETRACTED — see the box above)
 
 | group | n | behaviour under these arms |
 | --- | ---: | --- |
@@ -59,8 +93,9 @@ A second constant, at the opposite rail.
 | `fourfold_wiki_app`, data + knowledge | 4 | constant **0.00** — floor |
 | `agent_env`, code | 6 | **the only tasks with any variance** |
 
-**Eight of the fourteen primary-tier tasks carry no discriminative
-information.** A cross-plane comparison at this tier is a constant 1.0 against a
+**~~Eight of the fourteen primary-tier tasks carry no discriminative
+information.~~ RETRACTED — refuted across 10 arms x 7 budgets; not one of the
+eight is constant.** A cross-plane comparison at this tier is a constant 1.0 against a
 constant 0.0. It cannot separate two arms, cannot be moved by a better method,
 and cannot be evidence for or against a plane effect. This is a sharper
 statement of the same barrier as complete separation (pre-registration §1), and

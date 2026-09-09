@@ -37,22 +37,30 @@ labels `$schema`, `pattern`, `minLength`, `enum`, which live in
 | arm | score | what it actually returned |
 | --- | ---: | --- |
 | `bm25` | 0.00 | `src/knowledge_hub/search.py::search_articles` — Python |
-| `separate_indices` | 0.00 | `src/knowledge_hub/search.py` — Python |
+| ~~`separate_indices`~~ | ~~0.00~~ | **STALE — see the correction below; this row was produced by my probe passing `label_plane="code"`. With the true plane it scores 1.00.** |
 
-`separate_indices` builds per-plane indices of its own and *still* returned only
-Python here, so it reaches the same structural zero by a different internal
-route. Its cause is not yet diagnosed and is not claimed to be the same one.
+**Corrected 2026-09-09:** this section first reported that `separate_indices`
+also returned only Python. That was a bug in my probe — it passed
+`label_plane="code"` for data/knowledge tasks — not a property of the arm.
+Given the true plane, `separate_indices` scores **1.00 on all four** at rungs
+4000 and 16000. It is therefore the *control*: same tasks, same budget, same
+fixture, answered perfectly by an arm that consults the plane. That makes the
+`bm25`/`embeddings` zeros a statement about those two arms rather than about
+the tasks.
 
 `code_only_graph` errors on all four. That is correct behaviour for a
 declaredly code-only baseline and is not a defect.
 
 ## 2. What this means
 
-**Every non-code number these baselines have ever produced is a structural
+**Every non-code number `bm25` and `embeddings` have produced is a structural
 zero.** Not a measurement of retrieval difficulty; an arithmetic consequence of
-searching the wrong corpus. No better method, no larger budget and no
-plane-conditioning can move it, because the document containing the answer is
-not a candidate.
+searching the wrong corpus. No better method and no plane-conditioning can move
+it, because the document containing the answer is never a candidate.
+
+Scoped deliberately to those two arms. `separate_indices` consults the plane and
+scores 1.00 on the same tasks, so this is a defect in two arms, not a property
+of the baseline set.
 
 This is the s08 defect in mirror image. `GATE2_FOREST_V2_TRIAGE.md` records
 that s08 compared cross-plane fusion against four separate indices on 600
@@ -79,12 +87,16 @@ other half of the condition.
 
 ## 4. Consequences, ordered
 
-1. The Gate-3 primary tier's four non-code tasks cannot discriminate between
-   these arms. Combined with the four `sunny_garden` tasks pinned at 1.00
-   (previous result), **8 of 14 primary tasks are constants**.
-2. Any past or future cross-plane claim resting on these baselines is void as
-   instrumented — not wrong, *uninformative*, which is worse to report as a
-   number because it looks like evidence.
+1. **Corrected 2026-09-09.** This list first said the four non-code tasks
+   "cannot discriminate between these arms" and that 8 of 14 primary tasks are
+   constants. Both are retracted. Those four tasks discriminate *sharply* —
+   they separate an arm that consults the plane (`separate_indices`, 1.00) from
+   two that do not (`bm25`/`embeddings`, 0.00). That is the opposite of
+   carrying no information; it is the cleanest signal in the tier.
+2. Any past or future cross-plane claim resting on **`bm25` or `embeddings`**
+   is void as instrumented — not wrong, *uninformative*, which is worse to
+   report as a number because it looks like evidence. A claim resting on
+   `separate_indices` is not implicated.
 3. The six existing negatives on plane-conditioned retrieval are **not**
    retroactively explained by this. They were measured on other corpora and
    instruments. This does raise a specific question about them — whether any of
@@ -94,8 +106,12 @@ other half of the condition.
 ## 5. What to do, and what deliberately is not being done here
 
 **Done in this packet:** the measurement above, and a plane-coverage admission
-check so that a 0.00 produced by never looking can no longer be silently read as
-a 0.00 produced by looking and failing.
+check, `gate3/coverage.py`, called from `run_comparison` before any trial runs.
+
+(An earlier version of this sentence claimed a 0.00 from never looking "can no
+longer" be misread. Nothing called the module at the time, so that was untrue.
+It is wired now, and the honest form is that the check exists and runs — not
+that misreading has become impossible.)
 
 **Deliberately NOT done here:** changing `bm25` and `embeddings` to request the
 task set's label planes. That is the actual repair, and it changes the measured
@@ -105,6 +121,21 @@ into a diagnostic commit would be exactly the co-evolution §13 forbids. It is
 recorded as the next packet, with the measurement it must produce:
 per-arm × per-plane scores before and after, at the same three budget rungs, so
 the size of the correction is visible rather than asserted.
+
+## 6. Independent verification, 2026-09-09
+
+An adversarial pass re-ran the decisive experiment: wrap `harness._repo_chunks`
+so the call `bm25` and `embeddings` *already make* returns the task's label
+plane, touching neither arm's `run` code. At rung 4000 **all eight cells move
+0.00 → 1.00**. At rung 1000 four of eight move — budget genuinely binds there —
+and at 16000 all eight do.
+
+The causal story in §1–§2 is confirmed, with one refinement to carry into the
+repair packet: **the size of the correction is budget-dependent**, and reporting
+the 4000 result alone would overstate it.
+
+The same pass refuted the separate, weaker claim that the tier is constant —
+see §4 and the retraction box in `G3_ORIGIN_EFFECT_RESULT_20260909.md`.
 
 Iron Plan: EXPERIMENT
 Iron Gate: 1
