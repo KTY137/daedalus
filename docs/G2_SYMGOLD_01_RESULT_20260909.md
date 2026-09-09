@@ -77,6 +77,30 @@ extractor and the retriever contract remain unbuilt and unmeasured.
   between files. Both are acceptable for a volume census and would need
   tightening before the set is used for measurement.
 
+## Robustness check: the coarse definition is not what carried the verdict
+
+The bullet above flags that comparing **source segments** counts a
+whitespace-only reformat as a change. Since the verdict rests on `black`'s
+count, that weakness was measured rather than left as a caveat.
+
+Re-run on `black` with a **structural** identity — `ast.dump` of each symbol,
+which ignores formatting and comments entirely, and which recurses into nested
+classes instead of stopping one level in:
+
+| definition | commits with a changed symbol | symbols/commit | cross-plane cases |
+| --- | ---: | ---: | ---: |
+| source segment (headline) | 661 | 11.3 | **440** |
+| `ast.dump`, formatting-insensitive | 655 | 11.4 | **438** |
+
+**A 2-case difference, 0.5 %.** Reformatting-only churn is not what produced the
+435; on a repository that is *itself a code formatter*, which is the least
+favourable subject available for this particular worry. The verdict holds under
+either definition, both far above the pre-registered threshold of 200.
+
+This does not retire the caveat — a symbol moved between files is still missed
+by both definitions, and neither tracks renames. It retires only the half of it
+that could have moved the verdict.
+
 ## Reproduction
 
 Per subject at the pinned anchor: `git rev-list --first-parent -n 1500`, then
