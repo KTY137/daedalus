@@ -6,7 +6,47 @@
     "classification": "EXPERIMENT",
     "owner": "repository owner",
     "base_revision": "ec7e6603a428258522ae4f933dde4fef3114138e",
-    "dependencies": "G1-EXP-TENSOR-GPU-106, reference compiler, Fourfold relation digests, KnowledgeForest"
+    "dependencies": "G1-EXP-TENSOR-GPU-106, reference compiler, Fourfold relation digests, KnowledgeForest",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "deterministic_contract_result",
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "audit",
+          "gardener_result"
+        ]
+      }
+    }
   },
   "work_packet_id": "G1-EXP-TENSOR-GPU-107",
   "title": "Reuse the producer-local relation digest without creating a second authority",

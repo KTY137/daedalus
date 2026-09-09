@@ -6,7 +6,47 @@
     "classification": "EXPERIMENT",
     "owner": "repository owner",
     "base_revision": "ee5cc16859cc1e51e4bd28d0738e4c995e7922e6",
-    "dependencies": "G1-EXP-TENSOR-GPU-104, canonical compile_relation_blocks owner, ReferenceCompileResult and Gate-1 ignition before/after compilation"
+    "dependencies": "G1-EXP-TENSOR-GPU-104, canonical compile_relation_blocks owner, ReferenceCompileResult and Gate-1 ignition before/after compilation",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "callsite_inventory",
+          "existing_before_after_owner"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "remaining_authority_gap",
+          "minimum_inputs_for_next_experiment"
+        ]
+      }
+    }
   },
   "work_packet_id": "G1-EXP-TENSOR-GPU-105",
   "title": "Locate the existing before/after Forest/Fourfold owner before incremental Tensor wiring",

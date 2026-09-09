@@ -6,7 +6,47 @@
     "classification": "EXPERIMENT",
     "owner": "repository owner",
     "base_revision": "c4ce42b33721b1151308a54782b023ba4026ecdb",
-    "dependencies": "G1-EXP-TENSOR-GPU-102, PlaneSnapshot relation retention semantics, legacy Forest adapter and canonical compile_relation_blocks owner"
+    "dependencies": "G1-EXP-TENSOR-GPU-102, PlaneSnapshot relation retention semantics, legacy Forest adapter and canonical compile_relation_blocks owner",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "result"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "semantic_invariants"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "finding",
+          "claim_boundaries"
+        ]
+      }
+    }
   },
   "work_packet_id": "G1-EXP-TENSOR-GPU-103",
   "title": "Retain relation-digest membership hashing after authority-safe seam audit",

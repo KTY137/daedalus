@@ -6,7 +6,47 @@
     "classification": "EXPERIMENT",
     "owner": "repository owner",
     "base_revision": "a81d63791752c55dfe1ad62a7b087ae2d03f2bd8",
-    "dependencies": "G1-EXP-TENSOR-GPU-105, canonical Fourfold relation digests, KnowledgeForest, compile_relation_blocks"
+    "dependencies": "G1-EXP-TENSOR-GPU-105, canonical Fourfold relation digests, KnowledgeForest, compile_relation_blocks",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "bounded_contract_result",
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "gardener_result",
+          "claim_boundaries"
+        ]
+      }
+    }
   },
   "work_packet_id": "G1-EXP-TENSOR-GPU-106",
   "title": "Measure the relation-digest delta mapping tax at the existing before/after authority seam",
@@ -47,7 +87,11 @@
       "added_relation_digests": 1,
       "removed_relation_digests": 0,
       "affected_signatures": [
-        ["code", "imports", "code"]
+        [
+          "code",
+          "imports",
+          "code"
+        ]
       ]
     },
     "mapping_scope": {
