@@ -203,7 +203,15 @@ CURRENT_COMPONENTS_SHA256 = (
 # ``daedalus.eval.gate3.contracts`` reaches it through a deferred import inside
 # ``RunManifest.__post_init__`` -- a module-level import would make a
 # stdlib-only package depend on the kernel merely to hold a type.
-CENSUS_MODULES = 515  # re-measured 2026-09-09 with G3-SEAL-02 staged
+# ikarus-lane port: 515 -> 519, exactly four added modules and no deletion --
+# the Claude runner chain ported out of the codex ikarus lane:
+# ``daedalus.orchestration.ikarus.claude_composition``,
+# ``...claude_attempt_handoff``, ``...claude_task_attempt_authority`` and
+# ``...claude_task_attempt_runner``. None of the four joins a non-trivial SCC.
+# The component count (14), the maximum component size (19) and the component
+# digest asserted below are all unchanged, which is the claim that matters:
+# the four are a layered chain hanging off the supervisor, not a new cycle.
+CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain staged
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -506,7 +514,13 @@ CENSUS_MODULES = 515  # re-measured 2026-09-09 with G3-SEAL-02 staged
 # runtimes.providers.catalogue -> spine.effect_boundary, from the
 # deferred import inside claude_dispatch_readiness(). Counted once even
 # though it is function-local, because the graph is built from the AST.
-CENSUS_EDGES = 2014  # re-measured 2026-09-09 with G3-SEAL-02 staged
+# ikarus-lane port: 2014 -> 2081 with the four Claude-chain modules above. The
+# +67 is that chain's own fan-out -- each of the four names the kernel, runtime
+# and provider owners it uses individually rather than through a facade -- plus
+# the one new supervisor edge to ``...claude_attempt_handoff``, which is
+# function-local inside ``run()`` but counted because the graph is built from
+# the AST.
+CENSUS_EDGES = 2081  # re-measured 2026-09-09 with the ikarus Claude chain staged
 
 
 def _module_name(path: str) -> str:
