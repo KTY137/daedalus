@@ -81,8 +81,10 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     ``marginal_functions``. An unrelated edit under ``daedalus/`` no longer does.
 
     Census at the last measurement, recorded rather than asserted
-    [MEASURED 2026-09-09]: 515 files, 7052 functions, 46882 type-name sites,
-    426 internal named-only.
+    [MEASURED 2026-09-09, after the ikarus-lane port]: 519 files, 7107
+    functions, 47257 type-name sites, 484 internal named-only. It was 515 /
+    7052 / 46882 / 426 before that port -- recorded here so the drift is
+    visible without re-running anything.
     """
     entry = row("kernel")
     assert entry["present"] is True
@@ -92,12 +94,25 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     assert isinstance(pin["files"], int) and pin["files"] > 0
     assert re.fullmatch(r"[0-9a-f]{64}", pin["sha256"])
     # The retracted headline itself.
-    assert entry["annotation_only_pct"] == 94.44  # the control
-    assert entry["full_resolver_pct"] == 94.33
+    #
+    # Re-pinned 2026-09-09 after the ikarus-lane port added nine annotated
+    # modules under daedalus/. The rates moved because the CORPUS moved -- the
+    # repository's own annotation posture is what they measure -- and that is a
+    # real change, unlike the corpus sha256 this test used to assert, which
+    # moved on any edit at all.
+    #
+    # What did NOT move is the number the slice exists to report:
+    # ``marginal_functions`` stayed at exactly 8 while the corpus grew by 55
+    # functions (7052 -> 7107) and 375 type-name sites (46882 -> 47257). The
+    # resolver still buys the same eight functions over an annotation-only
+    # control that it bought before. Rates drifted at the 0.01pp level; the
+    # claim did not drift at all.
+    assert entry["annotation_only_pct"] == 94.47  # the control
+    assert entry["full_resolver_pct"] == 94.36
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1134
+    assert entry["marginal_pp"] == 0.1126
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["verified_share_of_internal_pct"] == 90.94
+    assert entry["verified_share_of_internal_pct"] == 90.13
 
 
 
