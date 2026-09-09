@@ -36,6 +36,30 @@ from experiments.forest_v2.tensor_embeddings.benchmark import (  # noqa: E402
 SCHEMA = "forest_v2.tensor.xplane_census/1"
 
 
+def fit_to_cap(raw: bytes, cap: int = MAX_CONTENT_BYTES) -> bytes:
+    """Truncate ``raw`` so the *decoded then re-encoded* text still fits ``cap``.
+
+    Cutting raw bytes at the cap is not enough.  ``Candidate.text`` decodes with
+    ``errors="replace"``, so a cut landing mid-sequence turns a 1-3 byte partial
+    into a 3-byte ``U+FFFD``; the encoder then re-encodes that text and rejects
+    it for exceeding the very cap the caller thought it had respected.  That is
+    what blocked the first run of this census: 30 of 88 cases raised
+    ``role field content exceeds the frozen 65536-byte cap``.
+
+    Shrinking on the decoded string and re-encoding to check is the only form
+    that is correct for every input, so it is done that way rather than by
+    subtracting a guess.
+    """
+    text = raw.decode("utf-8", "replace")
+    encoded = text.encode("utf-8")
+    while len(encoded) > cap and text:
+        overflow = len(encoded) - cap
+        # Each dropped character frees at least one byte and at most four.
+        text = text[: max(0, len(text) - (overflow // 4 + 1))]
+        encoded = text.encode("utf-8")
+    return encoded
+
+
 def build_cases(
     repo: Path, taskset_path: Path, limit: int | None, variant: str
 ) -> List[BenchmarkCase]:
@@ -61,7 +85,7 @@ def build_cases(
                 path=path,
                 blob=blob,
                 size=size,
-                raw=blobs[blob][:MAX_CONTENT_BYTES],
+                raw=fit_to_cap(blobs[blob]),
                 content_budget=MAX_CONTENT_BYTES,
             )
             for path, blob, size in eligible

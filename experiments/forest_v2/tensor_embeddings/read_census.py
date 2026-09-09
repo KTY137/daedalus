@@ -66,7 +66,15 @@ def analyse(path: Path) -> dict:
     drift = max(
         (abs(left[k] - right[k]) for k in left.keys() & right.keys()), default=0.0
     )
-    valid = drift <= IDENTITY_TOLERANCE
+    # The frozen table's INVALID branch is wider than the identity check: it also
+    # fires when an arm raises or the harness reports a failure census. Gating on
+    # drift alone would read comparisons out of a run the harness itself marked
+    # BLOCKED / NO_SCIENTIFIC_VERDICT -- which is exactly what the first run of
+    # this census was, and the comparisons in it looked interesting.
+    failures = report.get("failures") or []
+    status = report.get("status")
+    conclusion = report.get("conclusion")
+    valid = drift <= IDENTITY_TOLERANCE and not failures and status != "BLOCKED"
 
     rows = []
     for label, subject, reference in (
@@ -108,13 +116,20 @@ def analyse(path: Path) -> dict:
         "cases_built": payload.get("cases_built"),
         "mean_universe": payload.get("mean_universe"),
         "seconds_benchmark": payload.get("seconds_benchmark"),
-        "identity_check": {
-            "max_abs_drift": drift,
-            "tolerance": IDENTITY_TOLERANCE,
+        "validity": {
+            "max_abs_identity_drift": drift,
+            "identity_tolerance": IDENTITY_TOLERANCE,
+            "harness_status": status,
+            "harness_conclusion": conclusion,
+            "failure_count": len(failures),
             "valid": valid,
         },
-        "rows": rows,
-        "overall": "INVALID" if not valid else None,
+        # Withheld rather than annotated: the frozen table says an INVALID run
+        # yields no comparison, and printing them "for information" is how a
+        # withheld number becomes a quoted one.
+        "rows": rows if valid else [],
+        "rows_withheld": None if valid else len(rows),
+        "overall": "READ" if valid else "INVALID",
     }
 
 
