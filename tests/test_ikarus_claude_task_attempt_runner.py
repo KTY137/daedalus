@@ -214,6 +214,76 @@ def test_handoff_runner_factory_seals_before_returning_provider_runner(
     assert result["attempt_id"] == subjects[1].attempt_id
 
 
+def test_handoff_runner_uses_only_sealed_invocation_after_factory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Late runner-context substitution cannot retarget the sealed provider call."""
+
+    subjects = _live_subjects(tmp_path)
+    handoff = _handoff(subjects, tmp_path)
+    body = fixture._provider_body(subjects, tmp_path)
+    expected = object.__new__(ProviderRuntimeExecutableBindingReceipt)
+    observed = {}
+
+    monkeypatch.setattr(
+        authority,
+        "bind_provider_runtime_invocation",
+        lambda *args, **kwargs: expected,
+    )
+    monkeypatch.setattr(
+        ProviderInvocationPayload,
+        "to_dict",
+        lambda self: {"body": dict(body)},
+    )
+
+    def fake_ask_claude(
+        objective,
+        worktree,
+        paths,
+        *,
+        model,
+        timeout_s,
+        sealed_bundle,
+    ):
+        observed.update(
+            objective=objective,
+            worktree=worktree,
+            paths=list(paths),
+            model=model,
+            timeout_s=timeout_s,
+            sealed_bundle=sealed_bundle,
+        )
+        return _terminal_provider_result(subjects, body)
+
+    monkeypatch.setattr(authority, "ask_claude", fake_ask_claude)
+    factory = runner_adapter.make_task_attempt_claude_handoff_runner_factory(
+        _runtime_binding(),
+        lambda item, authenticated_handoff: _inputs(subjects),
+    )
+    provider_runner = factory(_item(subjects), handoff)
+
+    late_context = type(
+        "LateSubstitutedRunnerContext",
+        (),
+        {
+            "worktree": tmp_path / "foreign-worktree",
+            "branch": "attempt-foreign",
+            "base_revision": "f" * 40,
+            "task": object(),
+        },
+    )()
+    result = provider_runner(late_context)
+
+    assert observed["objective"] == body["objective"]
+    assert observed["worktree"] == body["worktree"]
+    assert observed["paths"] == body["paths"]
+    assert observed["model"] == body["model"]
+    assert observed["timeout_s"] == body["timeout_s"]
+    assert observed["sealed_bundle"] is not None
+    assert result["attempt_id"] == handoff.attempt_id
+
+
 def test_handoff_runner_factory_refuses_nonexact_input_set_before_dispatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
