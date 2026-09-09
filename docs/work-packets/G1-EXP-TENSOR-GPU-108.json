@@ -1,0 +1,124 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-108",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "54932176383d4ec60a9bde6268a33f7613cb7b93",
+    "dependencies": "G1-EXP-TENSOR-GPU-102, G1-EXP-TENSOR-GPU-107, compile_reference_project, compile_relation_blocks"
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-108",
+  "title": "Pin the stateless relation re-verification boundary after producer-local hash deletion",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "54932176383d4ec60a9bde6268a33f7613cb7b93",
+  "scope": "Extend the existing reference relation-digest reuse contract to account for the next canonical consumer boundary. Measure deterministic ForestEdge payload hash counts across compile_reference_project followed by the unchanged Boolean compile_relation_blocks owner. Do not add a new probe, trusted digest input, cache, digest index, receipt family, public API or production incremental path.",
+  "measurement_contract": {
+    "fixture": "examples/fourfold_wiki_app",
+    "producer_owner": "daedalus/twin/reference_compiler.py::compile_reference_project",
+    "consumer_owner": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "observer": "boolean",
+    "producer_edge_payload_hashes": "exactly len(result.forest.edges), preserving GPU-107's one producer-local canonical edge digest per ForestEdge",
+    "consumer_edge_payload_rehashes": "exactly the number of same-plane ForestEdges in the returned authoritative Forest",
+    "retained_digest_coverage": "the set of consumer-rehashed edge digests equals the union of PlaneSnapshot.relation_sha256s for the reference compiler result",
+    "boundary_duplication": "every consumer-rehashed same-plane digest was already produced by compile_reference_project, so each retained same-plane edge payload is canonically hashed once in the producer and once again at the stateless relation projection authority boundary",
+    "correctness_guard": "CompiledRelationBlocks.source_forest_sha256 remains equal to FourfoldSnapshot.source_forest_sha256. No hash result is injected into compile_relation_blocks."
+  },
+  "prior_materiality_evidence": {
+    "source_packet": "G1-EXP-TENSOR-GPU-102",
+    "frozen_case": "8193 retained same-plane Forest edges in the 512x16 one-coordinate delta diagnostic",
+    "retained_relation_digest_calls": 8193,
+    "retained_relation_digest_cprofile_cumulative_median_ms": 83.43463700000001,
+    "fraction_of_compile_relation_blocks_cprofile_cumulative": 0.266,
+    "interpretation": "GPU-102 established relation membership hashing as the largest individually observed direct edge-admission bucket in that synthetic profile. cProfile values are attribution only, not unprofiled wall-time shares or a speedup prediction. GPU-108 therefore pins whether the same canonical payload is recomputed across the producer/consumer authority boundary before considering any contract extension."
+  },
+  "decision": {
+    "closed": true,
+    "production_change": false,
+    "focused_contract_change": true,
+    "new_probe": false,
+    "new_public_api": false,
+    "reference_compile_result_schema_changed": false,
+    "compile_relation_blocks_signature_changed": false,
+    "new_digest_index": false,
+    "new_compiler_cache": false,
+    "new_graph_authority": false,
+    "new_receipt_family": false,
+    "incremental_tensor_unblocked": false,
+    "finding": "GPU-107 removed duplicate hashing inside the producer, but one deliberate stateless re-verification remains across the authoritative producer/consumer boundary: compile_relation_blocks recomputes each same-plane ForestEdge digest before accepting Fourfold relation membership. The current contract does not carry an authority-safe digest-to-edge association into the consumer, so deleting this rehash now would require either trusting an unverified precomputed digest input or adding a new revision-bound contract. No production shortcut is justified by this packet alone."
+  },
+  "unsafe_shortcuts_rejected": [
+    "skip relation_sha256s membership verification because the Forest object came from compile_reference_project",
+    "pass an unversioned digest list into compile_relation_blocks",
+    "process-global or Tensor-owned digest-to-edge cache",
+    "positional pairing of sorted relation_sha256s with Forest edges",
+    "persist a second Forest edge index solely for performance",
+    "treat Python object identity as semantic authority"
+  ],
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "54932176383d4ec60a9bde6268a33f7613cb7b93",
+    "base_exact_head_fourfold_tensor": "34301690077:completed/success on 54932176383d4ec60a9bde6268a33f7613cb7b93",
+    "base_exact_head_tauri": "34301690028:completed/success on 54932176383d4ec60a9bde6268a33f7613cb7b93",
+    "focused_test_path": "tests/twin/test_reference_relation_digest_reuse.py",
+    "focused_test_blob": "ae0425fe1e96820b148ee95f10b272a1f69443d3",
+    "production_reference_compiler_blob_unchanged": "daedalus/twin/reference_compiler.py@a131e5001a609565892ffcfd64ec835bfa02debe",
+    "production_relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "kind": "focused deterministic cross-owner hash-count contract plus existing Fourfold/Tensor integration workflow",
+    "masterplan_checked_first": true,
+    "focused_contract_written": true,
+    "hosted_exact_head_fourfold_tensor_green": false,
+    "hosted_exact_head_tauri_green": false,
+    "manual_full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "workflow_files_changed": 0,
+    "documentation_files_changed": 1,
+    "existing_focused_test_extended": true,
+    "duplicated_runtime_abstraction_added": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "claim_boundaries": [
+    "The duplicated canonical hashing is an integrity-verification boundary, not automatically removable waste.",
+    "GPU-108 makes no latency or memory superiority claim; deterministic hash counts are the primary new evidence and GPU-102 profile data is attribution context only.",
+    "No production incremental Tensor path exists as a result of GPU-108.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-109 should measure the remaining stateless authority-verification envelope before any schema change: isolate forest.content_sha256 verification from per-edge retained relation membership hashing on the same frozen relation-compile cases. Only if a bounded existing result/receipt contract can eliminate a material verified cost without turning precomputed digests into a second authority should an internal contract extension be proposed; otherwise retain stateless re-verification."
+}
