@@ -337,9 +337,6 @@ def compile_relation_blocks(
         if signatures is None
         else _selected_signatures(signatures, set())
     )
-    requested_set = (
-        None if requested_signatures is None else frozenset(requested_signatures)
-    )
     requested_by_key = (
         None
         if requested_signatures is None
@@ -369,8 +366,8 @@ def compile_relation_blocks(
             raise ValueError(
                 f"Forest hyperedge {hyperedge.id!r} must retain at least one member"
             )
-        conflicts = requested_set is None
-        if requested_set is not None:
+        conflicts = requested_signatures is None
+        if requested_signatures is not None:
             conflicts = any(
                 signature.relation == hyperedge.relation
                 and (
@@ -384,7 +381,7 @@ def compile_relation_blocks(
                         and signature.target_plane in member_planes
                     )
                 )
-                for signature in requested_set
+                for signature in requested_signatures
             )
         if not conflicts:
             continue
