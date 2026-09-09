@@ -6,7 +6,49 @@
     "classification": "EXPERIMENT",
     "owner": "repository owner",
     "base_revision": "23456a49ad5f476bf7b5a6e6dd4d23e90ac88206",
-    "dependencies": "G1-EXP-TENSOR-GPU-102, G1-EXP-TENSOR-GPU-103, G1-EXP-TENSOR-GPU-108, KnowledgeForest.content_sha256, compile_relation_blocks"
+    "dependencies": "G1-EXP-TENSOR-GPU-102, G1-EXP-TENSOR-GPU-103, G1-EXP-TENSOR-GPU-108, KnowledgeForest.content_sha256, compile_relation_blocks",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "decision",
+          "finding"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "measurement_contract",
+          "focused_contract_head"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "finding",
+          "claim_boundaries"
+        ]
+      }
+    }
   },
   "work_packet_id": "G1-EXP-TENSOR-GPU-109",
   "title": "Separate aggregate Forest integrity verification from retained relation membership re-verification",

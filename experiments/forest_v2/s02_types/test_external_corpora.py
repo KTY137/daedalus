@@ -70,9 +70,16 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # not a resolver superiority claim, and the marginal effect did NOT move:
     # 8 marginal functions before and after, i.e. adding a kernel module did
     # not change what the full resolver buys over annotations alone.
+    #
+    # sha re-pinned again the same day when the tensor lane's second wave
+    # edited daedalus/twin/. Only the sha moved: files, functions and every
+    # percentage above were byte-identical across both re-measurements. The
+    # pin is CONTENT-addressed, so any edit under daedalus/ moves it even
+    # when nothing this test measures has changed -- expect to re-pin on
+    # merges that touch no resolver behaviour at all.
     assert entry["corpus_pin"] == {
         "files": 515,
-        "sha256": "d8389f7453760e5d12e9617296561661914425ce57c09628600c5b6a71239a23",
+        "sha256": "23370ab1a596954babfd7f67d7a3bd77c9cd5b4266ab9df8bb6282bcba651320",
     }
     assert entry["functions"] == 7052
     assert entry["annotation_only_pct"] == 94.44  # the control

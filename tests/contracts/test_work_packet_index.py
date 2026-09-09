@@ -194,21 +194,21 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    # 481 -> 504 on 2026-09-09: +22 tensor-lane probe packets from
-    # origin/exp/tensor-kernel-contract-01 and +1 for G3-SEAL-02.
-    assert "504 tracked files" in message  # measured 2026-09-09, G3-SEAL-02
+    # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
+    # +3 for the tensor lane's second wave (GPU-109/110/111).
+    assert "507 tracked files" in message  # measured 2026-09-09, tensor wave 2
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 501,
+        "assigned_artifacts": 504,
         "legacy_artifacts": 204,
-        "packet_artifacts": 503,
-        "packet_ids": 438,
-        "post_index_artifacts": 299,
+        "packet_artifacts": 506,
+        "packet_ids": 441,
+        "post_index_artifacts": 302,
         "registry_artifacts": 1,
-        "tracked_files": 504,
+        "tracked_files": 507,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -560,6 +560,13 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-TENSOR-GPU-106",
         "G1-EXP-TENSOR-GPU-107",
         "G1-EXP-TENSOR-GPU-108",
+        # Second tensor wave, same afternoon, same missing sections projection --
+        # repaired by scripts/repair_work_packet_sections.py, which derives the
+        # projection from fields each packet actually has instead of a
+        # hard-coded per-packet plan.
+        "G1-EXP-TENSOR-GPU-109",
+        "G1-EXP-TENSOR-GPU-110",
+        "G1-EXP-TENSOR-GPU-111",
         # G3-SEAL-02: the kernel binding that closes G3-BASE-01 blocker F4.
         "G3-SEAL-02",
     }
