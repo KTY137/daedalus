@@ -14,7 +14,7 @@
     "alphaevolve_win": false,
     "crewai_win": false,
     "documentation_closure_head_green": false,
-    "focused_exact_head_green": false,
+    "focused_exact_head_green": true,
     "gate_transition": false,
     "manual_full_suite_green": false,
     "mechanical_duplicate_hash_removed": true,
@@ -42,14 +42,41 @@
         "status": "completed"
       }
     ],
+    "first_main_reintegration_merge": "881a5b54c2e44575244c66f852cf94bdbb7db92f",
     "focused_contract_commit": "7c4c1e916d36ad8216e0eb2cede887268e1fc290",
-    "focused_head_workflows": [],
+    "focused_head_workflows": [
+      {
+        "conclusion": "success",
+        "contract_matrix": "all four Python/hashseed jobs success",
+        "head_sha": "205c154cfc7eb3b1ce9c910d6ab8d9ea671009cb",
+        "id": 34355962997,
+        "isolated_wheel_imports": "success",
+        "manual_full_suite": "skipped",
+        "name": "Fourfold, Tensor and integration contracts",
+        "repository_collection": "success",
+        "status": "completed"
+      },
+      {
+        "conclusion_at_close": null,
+        "head_sha": "205c154cfc7eb3b1ce9c910d6ab8d9ea671009cb",
+        "id": 34355962632,
+        "name": "Tauri Desktop",
+        "status_at_close": "in_progress"
+      }
+    ],
     "implementation_commit": "dbaf2943294aaa01e60c6ea7b3cc0ee36f934371",
-    "main_reintegrated": "1d5b4bef50dd675df05a4a25734431de981eb206",
-    "main_reintegration_merge": "881a5b54c2e44575244c66f852cf94bdbb7db92f",
-    "note": "No hosted workflow had registered for the initial focused head before main reintegration. The branch was reintegrated with current main by a non-force merge commit preserving both histories and the two GPU-118 blobs; this packet commit is intended to trigger exact-head verification.",
+    "main_reintegrated": "ea5b1f081f9797f3b49ac83f4f2bf6c61af8a028",
+    "note": "The canonical Tensor branch was reintegrated with current main using non-force merge commits. The final focused verification ran on the exact post-reintegration code/test head.",
     "observer_semantics_test_blob": "335d5826679d4a45f8e87625e9f115ac96398c57",
-    "relation_compiler_blob": "369a0fcdf554e5e0d73d150654374deb0fe0a4d8"
+    "relation_compiler_blob": "369a0fcdf554e5e0d73d150654374deb0fe0a4d8",
+    "superseded_run": {
+      "conclusion": "cancelled",
+      "head_sha": "205c154cfc7eb3b1ce9c910d6ab8d9ea671009cb",
+      "id": 34355894616,
+      "name": "Fourfold, Tensor and integration contracts",
+      "reason": "superseded by the later reopen-triggered exact-same-head run 34355962997; the later run completed successfully"
+    },
+    "verified_head": "205c154cfc7eb3b1ce9c910d6ab8d9ea671009cb"
   },
   "focused_contract": {
     "behavior": "For the exact retained ForestEdge payloads in the existing evidence fixture, module-local canonical_sha calls equal the number of retained edges while the compiled EvidenceValue alternatives remain byte/canonical-equivalent to canonical_sha(edge.to_dict()) plus the edge witnesses.",
@@ -71,7 +98,7 @@
     "status": "adopted",
     "version": "2.4.0"
   },
-  "next_step": "Close this packet only after exact-head Fourfold/Tensor verification is reproducibly registered. If green, GPU-119 should audit the retained relation-digest diagnostic so instrumentation reflects one admission hash per retained same-plane edge without adding another measurement abstraction.",
+  "next_step": "GPU-119 should audit the retained relation-digest diagnostic so instrumentation reflects one admission hash per retained same-plane edge and does not accidentally encode the deleted evidence-side rehash as an expected contract. Prefer updating/deleting stale diagnostic assumptions over adding a new measurement abstraction.",
   "objective": "Delete the second exact canonical hash of a retained same-plane ForestEdge from the evidence observer path by carrying the already-authoritative Fourfold-admission digest through the existing ephemeral edge record, without introducing a persistent digest index, cache, caller trust, second fact store, compiler, receipt family, or authority.",
   "pr": 336,
   "registry_contract": {
@@ -137,7 +164,7 @@
       "tests/twin/test_relation_compiler_observer_semantics.py"
     ]
   },
-  "status": "verification-pending",
+  "status": "closed-implementation",
   "title": "Reuse retained same-plane edge digest for evidence materialization",
   "work_packet": "G1-EXP-TENSOR-GPU-118"
 }
