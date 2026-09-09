@@ -259,14 +259,7 @@ def _record_fact(
 
 
 def _forest_edge_atoms(edge: ForestEdge) -> tuple[str, ...]:
-    return tuple(
-        sorted(
-            {
-                canonical_sha(edge.to_dict()),
-                *edge.evidence,
-            }
-        )
-    )
+    return (canonical_sha(edge.to_dict()), *edge.evidence)
 
 
 def compile_relation_blocks(
