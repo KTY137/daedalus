@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 510,
+    "assigned_artifacts": 511,
     "legacy_artifacts": 204,
-    "packet_artifacts": 512,
-    "packet_ids": 447,
-    "post_index_artifacts": 308,
+    "packet_artifacts": 513,
+    "packet_ids": 448,
+    "post_index_artifacts": 309,
     "registry_artifacts": 1,
-    "tracked_files": 513,
+    "tracked_files": 514,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -7415,6 +7415,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G2-XPLANE-CONFIRM-04_PREREGISTRATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "5734feefb1c0dd0c58e0e6f6d4f0a8e2c3b6d5a1",
+        "classification": "EXPERIMENT",
+        "dependencies": "G2-XPLANE-CONFIRM-01, -02, -03",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G2-XPLANE-CONFIRM-04",
+      "primary_artifact": "docs/work-packets/G2-XPLANE-CONFIRM-04_PREREGISTRATION.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G3-BASE-01_FROZEN_BASELINE_HARNESS.md"
       ],
       "metadata": {
@@ -11715,6 +11731,20 @@
       "format": "markdown",
       "packet_id": "G2-XPLANE-CONFIRM-03",
       "path": "docs/work-packets/G2-XPLANE-CONFIRM-03_PREREGISTRATION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G2-XPLANE-CONFIRM-04",
+      "path": "docs/work-packets/G2-XPLANE-CONFIRM-04_PREREGISTRATION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

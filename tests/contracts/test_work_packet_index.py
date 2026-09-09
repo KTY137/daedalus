@@ -196,19 +196,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
     # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
     # +3 for the tensor lane's second wave (GPU-109/110/111).
-    assert "513 tracked files" in message  # measured 2026-09-09, +GPU-114
+    assert "514 tracked files" in message  # measured 2026-09-09, +CONFIRM-04
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 510,
+        "assigned_artifacts": 511,
         "legacy_artifacts": 204,
-        "packet_artifacts": 512,
-        "packet_ids": 447,
-        "post_index_artifacts": 308,
+        "packet_artifacts": 513,
+        "packet_ids": 448,
+        "post_index_artifacts": 309,
         "registry_artifacts": 1,
-        "tracked_files": 513,
+        "tracked_files": 514,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -581,6 +581,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G2-XPLANE-CONFIRM-02",
         # CONFIRM-03: the redesign arm the 14.1 KILL points at.
         "G2-XPLANE-CONFIRM-03",
+        "G2-XPLANE-CONFIRM-04",
         # tensor wave 5
         "G1-EXP-TENSOR-GPU-113",
         "G1-EXP-TENSOR-GPU-114",
