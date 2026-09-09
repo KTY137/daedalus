@@ -10,7 +10,7 @@ that rebuild spend its profiled time inside the existing compiler front half?
 The probe deliberately does not implement or simulate a trusted incremental
 constructor. It reports exact changed-coordinate scope, deterministic
 input/output amplification, ordinary full-rebuild wall timing, and cProfile
-attribution from the unchanged compiler. The front-half split observes only
+attribution from the current compiler. The front-half split observes only
 direct Python callees of ``compile_relation_blocks`` so it cannot accidentally
 charge nested digest work to the selected same-plane edge-admission seam.
 Partial endpoint planes are exercised fail-closed so a future incremental design
@@ -403,8 +403,11 @@ def run_probe(
         raise AssertionError("every bounded same-plane Forest edge must compile exactly once")
 
     delta_edge_count = len(delta_forest.edges)
+    if int(profile_metrics["edge_signature_construction"]["calls"]) != 0:
+        raise AssertionError(
+            "explicit selected compilation reconstructed a RelationSignature per edge"
+        )
     for metric_name in (
-        "edge_signature_construction",
         "edge_wire_materialization",
         "retained_relation_digest",
         "fact_aggregation_direct",
@@ -448,8 +451,9 @@ def run_probe(
             "No production delta path, trusted constructor, cache, second graph authority, "
             "backend registry or validation bypass is introduced or simulated. Profiling "
             "observes the real selected-block reconstruction and direct compiler callees for "
-            "the same-plane edge-admission seam, then leaves all inline and unobserved work "
-            "inside an explicit residual rather than inventing a second projection path."
+            "the same-plane edge-admission seam, including the now-zero explicit-plan "
+            "RelationSignature construction bucket, then leaves all inline and unobserved "
+            "work inside an explicit residual rather than inventing a second projection path."
         ),
         "case": {
             "nodes": nodes,
@@ -525,14 +529,17 @@ def run_probe(
                 "cProfile inclusive attribution only. selected_block_reconstruction is the "
                 "real TypedRelationBlock._from_indexed call made by compile_relation_blocks. "
                 "The observed same-plane edge-admission component is a conservative lower "
-                "bound formed only from direct compiler calls to RelationSignature.__init__, "
-                "ForestEdge.to_dict and canonical_sha; endpoint dictionary lookup, retained-set "
-                "membership, branching, list append and other inline compiler work remain in "
-                "the residual. fact_aggregation_direct is the direct _record_fact call from the "
-                "same owner. These selected direct callees are disjoint at the compiler call "
-                "site, but the remaining non-block value is still a broad compiler-envelope "
-                "residual, not a pure edge-scan wall time. Profiled timings are diagnostic, "
-                "distorted by profiling, and not additive to the unprofiled medians."
+                "bound formed from selected direct compiler callees. In explicit selected "
+                "mode, RelationSignature.__init__ is expected to have zero direct per-edge "
+                "calls because the already-validated requested signature is reused; "
+                "ForestEdge.to_dict and canonical_sha remain observed per retained edge. "
+                "Endpoint dictionary lookup, retained-set membership, branching, list append "
+                "and other inline compiler work remain in the residual. fact_aggregation_direct "
+                "is the direct _record_fact call from the same owner. These selected direct "
+                "callees are disjoint at the compiler call site, but the remaining non-block "
+                "value is still a broad compiler-envelope residual, not a pure edge-scan wall "
+                "time. Profiled timings are diagnostic, distorted by profiling, and not "
+                "additive to the unprofiled medians."
             ),
         },
         "fail_closed": {
