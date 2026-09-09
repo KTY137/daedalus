@@ -113,19 +113,69 @@ What must NOT be concluded from this document:
   say what a *decisive* run would cost; they do not say the prior deserves that
   spend before cheaper falsifications are tried.
 
-## The cheaper thing to try first
+## The cheaper thing to try first -- measured, and it is cheaper than it looks but does less than hoped
 
-14.4 (`plane_has_no_marginal_contribution`) is `NOT_EVALUABLE` for a reason that
-has nothing to do with sample size: the type plane carries **0** gold labels, in
-both this task set and the Gate-3 corpus that `G1-EVAL-CORPUS-01` landed. A
-plane with no labels cannot be ablated. Closing that is a corpus-construction
-problem measured in labels, not in thousands of commits, and it would make one
-more criterion decidable without a second repository.
+14.4 (`plane_has_no_marginal_contribution`) is `NOT_EVALUABLE` because the type
+plane carries **0** gold labels, in both this task set and the Gate-3 corpus
+that `G1-EVAL-CORPUS-01` landed. A plane with no labels cannot be ablated.
 
-Whether it should be closed by finding real type-plane evidence, or whether the
-honest answer is that this repository has no type-plane signal to find, is not
-settled here. Adding a stub to satisfy a census would be plane laundering, and
-`G3-BASE-01` already refused to do it.
+The first version of this section guessed that closing that gap "would make one
+more criterion decidable without a second repository". **That was too strong,
+and the measurement below corrects it.**
+
+### The Type plane is empty because of the RULE, not the repository
+
+`taskset.py::PLANE_BY_SUFFIX` assigns planes by file suffix and says the
+consequence in its own comment: *"the Type plane has no file-level
+representative at all, so a corpus can look 'three-plane' here while touching
+two."* That is true of the rule. It is not true of the tree, which tracks
+**90 `*.schema.json` files** -- JSON Schema, i.e. declared contracts, which is
+precisely plan §5's Type plane ("declared/inferred types, constraints,
+contracts, interfaces") -- and sends every one of them to `data` along with the
+configs and fixtures.
+
+`experiments/forest_v2/s09_eval/probe_type_plane_supply.py` applies exactly one
+refinement (`*.schema.json` is Type, nothing else changes) over the same anchor
+and 1200-commit window. `[MEASURED 2026-09-09, run twice, byte-identical]`:
+
+| quantity | value |
+| --- | ---: |
+| commits carrying Type gold | 51 |
+| ... that are single-plane today and become cross-plane | **0** |
+| commits spanning all FOUR planes (0 today) | 7 |
+| Type gold paths in total | 52 |
+
+| plane combination | frozen | refined |
+| --- | ---: | ---: |
+| `data` | 271 | 230 |
+| `type` | 0 | 41 |
+| `code+data+knowledge` | 28 | 21 |
+| `code+data+knowledge+type` | 0 | 7 |
+
+### What that actually buys, and what it does not
+
+It buys: the Type plane stops being empty, four-plane commits exist at all
+(7 of them), and 14.4 moves from NOT_EVALUABLE to **evaluable**.
+
+It does not buy: any additional cross-plane supply. Every one of the 51 is a
+commit that was ALREADY multi-plane or already single-plane `data`; the
+refinement relabels within them and creates no new cross-plane case. The
+binding constraint of the previous section is untouched.
+
+So 14.4 becomes **evaluable but underpowered by the same argument** -- 52 gold
+paths across 51 commits is roughly one path each, and 7 four-plane commits is
+not an ablation anyone should publish. "Decidable without a second repository"
+was wrong; "runnable without a second repository" is right.
+
+### What has NOT been done, deliberately
+
+The frozen rule is **unchanged**. Refining `plane_of` would change
+`taskset_xplane.json`'s digest, which is load-bearing and pinned, and it would
+re-cut every existing measurement. That is a decision with its own baseline,
+its own retained before/after evidence, and its own packet -- not a side effect
+of a probe. Adding a stub to satisfy a census would be plane laundering, and
+`G3-BASE-01` already refused to do it; silently re-cutting a frozen task set to
+improve a census is the same sin wearing better clothes.
 
 ## Provenance
 
