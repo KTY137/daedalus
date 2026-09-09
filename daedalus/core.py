@@ -114,8 +114,19 @@ def provider_health(project: str | None = None) -> dict[str, Any]:
     warnings = []
     if not any(row["name"] == "ollama" and row["available"] for row in rows):
         warnings.append("Ollama is not fully available; local bench work may fail.")
-    if not any(row["name"] == "claude_cli" and row["available"] for row in rows):
-        warnings.append("Claude CLI is not on PATH; Claude lane may be unavailable.")
+    # "Not on PATH" was the only story this could tell, so a Claude that is
+    # installed but not dispatchable reported a misleading reason. Carry the
+    # probe's own detail through instead.
+    claude_row = next((row for row in rows if row.get("name") == "claude_cli"), None)
+    if not claude_row or not bool(claude_row.get("available")):
+        detail = str((claude_row or {}).get("last_error") or "").strip()
+        if detail:
+            warnings.append(f"Claude lane unavailable: {detail}")
+        else:
+            warnings.append(
+                "Claude lane is unavailable; canonical provider readiness "
+                "could not be proven."
+            )
     return envelope(project, providers=rows, warnings=warnings)
 
 
@@ -975,9 +986,16 @@ def enforce_harness(project: str) -> dict[str, Any]:
 def _availability_from_doctor() -> dict[str, bool]:
     from .doctor import check
 
+    from .providers import _availability_probe
+
     ready = check()
+    claude_dispatch_ready, _ = _availability_probe("claude_cli")
     return {
-        "claude_cli": bool(ready.get("claude_cli")),
+        # Executable discovery is inventory, not dispatch authority. Without
+        # this, automatic/local routing could pick a provider the canonical
+        # effect seam must refuse, disagreeing with the same readiness truth
+        # that /api/providers/status already reports.
+        "claude_cli": bool(ready.get("claude_cli") and claude_dispatch_ready),
         "ollama": bool(ready.get("can_offload_local")),
         "deepseek": bool(ready.get("deepseek_key")),
         "codex_cli": bool(ready.get("codex_cli")),
