@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
+
 from daedalus.ignition.runner import fourfold_graph_delta
 from daedalus.schemas import ContractProvenance
 from daedalus.spine.envelope import canonical_sha
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
 from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
+from daedalus.twin.reference_compiler import ReferenceCompileResult
 from daedalus.twin.relation_blocks import RelationSignature
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
 from daedalus.twin.semiring import BooleanSemiring
@@ -166,6 +169,35 @@ def test_compiler_remains_correct_when_digest_order_cannot_identify_edge_positio
         ("src/c.py", "src/a.py", True),
     )
     assert compiled.semantic_fact_count == 2
+
+
+def test_reference_compile_result_is_not_a_forest_pairing_authority_receipt() -> None:
+    forest, snapshot = _fixture()
+    complete = _complete_code_snapshot(forest, snapshot)
+    tampered_forest = KnowledgeForest(
+        root=forest.root,
+        nodes=forest.nodes,
+        edges=forest.edges,
+        hyperedges=forest.hyperedges,
+        provenance={**dict(forest.provenance), "tampered_after_compile": True},
+    )
+
+    result = ReferenceCompileResult(
+        forest=tampered_forest,
+        snapshot=complete,
+        manifest_sha256=_digest("manifest"),
+        source_bundle_sha256=_digest("source-bundle"),
+        file_sha256s=(),
+    )
+
+    assert result.forest.content_sha256 != result.snapshot.source_forest_sha256
+    with pytest.raises(ValueError, match="snapshot does not bind the supplied Forest digest"):
+        compile_relation_blocks(
+            result.forest,
+            result.snapshot,
+            BooleanSemiring(),
+            signatures=(IMPORTS,),
+        )
 
 
 def test_ignition_graph_delta_is_not_a_revision_bound_relation_delta_receipt() -> None:
