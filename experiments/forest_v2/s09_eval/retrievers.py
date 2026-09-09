@@ -56,7 +56,7 @@ class RandomUniform:
         # Seeded per case so the floor is reproducible, not a lucky draw.
         digest = hashlib.sha256(f"{self.seed}:{query.case_id}".encode()).hexdigest()
         rng = random.Random(int(digest[:16], 16))
-        paths = [c.path for c in universe]
+        paths = [c.key for c in universe]
         rng.shuffle(paths)
         return paths
 
@@ -81,7 +81,7 @@ class PathLexical:
             if not overlap:
                 continue
             # length-normalised so a deep path cannot win by having many tokens
-            scored.append((overlap / math.sqrt(len(tokens)), cand.path))
+            scored.append((overlap / math.sqrt(len(tokens)), cand.key))
         scored.sort(key=lambda item: (-item[0], item[1]))
         return [path for _, path in scored]
 
@@ -96,7 +96,7 @@ class Bm25:
         self.cache = cache if cache is not None else TokenCache()
 
     def _document(self, cand: Candidate) -> Counter:
-        counts = self.cache.counts(cand.blob, cand.text)
+        counts = self.cache.counts(cand.cache_key, cand.text)
         if not self.include_path_tokens:
             return counts
         merged = Counter(counts)
@@ -116,7 +116,7 @@ class Bm25:
             length = sum(counts.values())
             if not length:
                 continue
-            docs.append((cand.path, counts, length))
+            docs.append((cand.key, counts, length))
             total_len += length
             for term in q_terms:
                 if term in counts:
@@ -220,7 +220,7 @@ class RecencyPrior:
             return []
         order = self._recency(Path(query.repo) if query.repo else self.repo, query.revision)
         scored = [
-            (order[c.path], c.path) for c in universe if c.path in order
+            (order[c.path], c.key) for c in universe if c.path in order
         ]
         scored.sort()
         return [path for _, path in scored]

@@ -157,4 +157,68 @@ def changed_symbols(pre: str, post: str) -> Dict[str, str]:
     return out
 
 
-__all__ = ["symbol_table", "carries_annotation", "changed_symbols"]
+def strip_annotations(source: str) -> str:
+    """Return ``source`` with every declared type annotation removed.
+
+    This is the Type-plane ablation: parameter annotations, return annotations
+    and annotated-assignment annotations are dropped, and the tree is unparsed
+    back to text.  Everything else -- identifiers, defaults, docstrings, control
+    flow -- survives, so an arm indexing this text differs from one indexing the
+    original in exactly the plane under test.
+
+    An ``AnnAssign`` with no value (``x: int``) is a pure declaration with
+    nothing left once its annotation goes, so it becomes ``x = None``: dropping
+    the statement would also remove the *name*, which belongs to the code plane
+    and must survive the ablation.
+
+    Unparsing normalises formatting, so a caller must build the control with
+    :func:`normalize_source` rather than with raw text -- otherwise the
+    comparison also measures ``ast.unparse``.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source
+
+    class _Strip(ast.NodeTransformer):
+        def visit_arg(self, node):  # noqa: N802
+            node.annotation = None
+            return node
+
+        def visit_FunctionDef(self, node):  # noqa: N802
+            node.returns = None
+            return self.generic_visit(node)
+
+        def visit_AsyncFunctionDef(self, node):  # noqa: N802
+            node.returns = None
+            return self.generic_visit(node)
+
+        def visit_AnnAssign(self, node):  # noqa: N802
+            value = node.value if node.value is not None else ast.Constant(value=None)
+            return ast.copy_location(
+                ast.Assign(targets=[node.target], value=value), node
+            )
+
+    stripped = ast.fix_missing_locations(_Strip().visit(tree))
+    return ast.unparse(stripped)
+
+
+def normalize_source(source: str) -> str:
+    """Round-trip ``source`` through the AST without changing it.
+
+    The control for :func:`strip_annotations`.  Both arms must be unparsed or
+    the ablation would also be measuring formatting.
+    """
+    try:
+        return ast.unparse(ast.parse(source))
+    except SyntaxError:
+        return source
+
+
+__all__ = [
+    "symbol_table",
+    "carries_annotation",
+    "changed_symbols",
+    "strip_annotations",
+    "normalize_source",
+]

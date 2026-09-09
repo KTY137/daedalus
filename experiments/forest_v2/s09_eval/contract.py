@@ -57,6 +57,18 @@ class Candidate:
     def key(self) -> str:
         return f"{self.path}#{self.qualname}" if self.qualname else self.path
 
+    @property
+    def cache_key(self) -> str:
+        """Content address for token caches.
+
+        The blob alone is wrong for a symbol: every symbol in a file shares its
+        blob, so a blob-keyed cache would hand each of them the whole file's
+        token counts.  Qualifying by name keeps the cache content-addressed --
+        the same symbol at two revisions of an unchanged file still hits once --
+        without letting siblings collide.
+        """
+        return f"{self.blob}#{self.qualname}" if self.qualname else self.blob
+
     def text(self) -> str:
         return self.raw[: self.content_budget].decode("utf-8", "replace")
 
