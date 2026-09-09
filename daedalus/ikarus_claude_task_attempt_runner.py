@@ -10,9 +10,11 @@ dispatch the resulting sealed invocation.
 The factory also snapshots the exact planned runtime-role descriptor. That
 closes a provenance gap between supervisor planning and provider admission: a
 resolver cannot substitute a different runtime binding while still presenting
-valid provider-side evidence. Keeping composition in the factory (rather than
-the returned runner) matters for the same reason: provider-controlled runner
-code never receives the loose authority set.
+valid provider-side evidence. Construction is admission-aware as well:
+``source-only`` descriptors are rejected before a resolver can observe the
+TaskAttempt handoff. Keeping composition in the factory (rather than the
+returned runner) matters for the same reason: provider-controlled runner code
+never receives the loose authority set.
 """
 
 from __future__ import annotations
