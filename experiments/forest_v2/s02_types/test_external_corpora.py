@@ -81,7 +81,7 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # functions and every percentage identical yet again, sha only.
     assert entry["corpus_pin"] == {
         "files": 515,
-        "sha256": "d64945783c9cdc5bd0dd0b261b09e90c27ee8140f13ee885cb5d6547a78b0fa9",
+        "sha256": "4bf963e6c4fa0ff09ad5226d2d83cb0e17822b68445ff6cd37a7f23b6229b263",
     }
     assert entry["functions"] == 7052
     assert entry["annotation_only_pct"] == 94.44  # the control
