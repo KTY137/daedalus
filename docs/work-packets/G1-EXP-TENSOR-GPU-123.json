@@ -1,0 +1,103 @@
+{
+  "audit": {
+    "boundedness": "discovered_by_key can contribute at most MAX_COMPILED_RELATIONS selected signatures; the temporary set is built once after admission, not once per edge or binding",
+    "candidate": "_selected_signatures(None, set(discovered_by_key.values()))",
+    "decision": "retain",
+    "findings": [
+      "GPU-122 already makes discovered_by_key the canonical per-three-field interning owner, so the values are unique for the current compile_relation_blocks caller.",
+      "_selected_signatures currently declares discovered as set[RelationSignature]; that private contract guarantees uniqueness independently of whichever discover caller supplies it.",
+      "Deleting only this set requires broadening the helper to an arbitrary iterable/dict-values contract or duplicating the existing boundedness and deterministic sort logic beside the helper.",
+      "Broadening the helper would make duplicate discovered inputs silently possible for future private callers unless duplicate validation is reintroduced, while duplicating the sort/bound path would create exactly the parallel selection logic this campaign is avoiding.",
+      "Unlike GPU-114/115/117/118/122, this candidate is a single bounded post-admission container materialization rather than repeated per-record construction or duplicate normalization work."
+    ],
+    "new_abstractions": [],
+    "production_changes": [],
+    "reason": "The bounded temporary set is currently the smaller invariant-preserving design. Removing it would trade one <=4096-entry temporary container for a weaker selector contract or duplicated selection logic, neither of which is justified by measured evidence.",
+    "test_changes": []
+  },
+  "authority_and_claims": {
+    "benchmark_win_claimed": false,
+    "forest_fourfold_authority_changed": false,
+    "manual_full_suite_claimed": false,
+    "owner_approval_minted": false,
+    "performance_or_memory_win_claimed": false,
+    "promotion_or_gate_transition": false,
+    "tensor_promoted_to_authority": false
+  },
+  "baseline": {
+    "archive_anchor": "archive/legacy-20260830@6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_sha": "460d1d118db55daf4e483546d6a8f22b3638445f",
+    "pre_reconciliation_head": "ab112dadef0075798700d1f1c59d6efb3ebe7e32",
+    "reconciliation": "non-force two-parent merge; main only added the G2 tensor census preregistration/reader/runner files relative to the common base, so the GPU-121/122 code/test evidence was retained unchanged",
+    "reconciliation_commit": "90206e81fab6ed10e6ad4b429cd774d7405617a7"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "branch_hygiene": {
+    "archive_branch_touched": false,
+    "branch_deleted": false,
+    "force_update_used": false,
+    "new_remote_branch_created": false,
+    "unique_evidence_deleted": false
+  },
+  "campaign_issue": 239,
+  "date": "2026-09-09",
+  "id": "G1-EXP-TENSOR-GPU-123",
+  "masterplan": {
+    "active_gate": "Gate 1 \u2014 Renovation, owner-directed Genesis and general computer assistance",
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "status": "adopted",
+    "version": "2.4.0"
+  },
+  "next_candidate": "Move away from tuple/container micro-edits and use the existing relation-construction diagnostics to select the next repeated or retained-memory bucket. Prefer an existing-owner delete/reuse; close negatively if the change needs a second staging/selection abstraction.",
+  "objective": "Audit whether the one-shot set(discovered_by_key.values()) materialization at the discover-all selection boundary can be deleted without weakening the private selector invariant, duplicating ordering/bound logic, or introducing another selection abstraction.",
+  "registry_contract": {
+    "active_gate": 1,
+    "artifact_role": "primary",
+    "base_revision": "460d1d118db55daf4e483546d6a8f22b3638445f",
+    "classification": "ALIGNED",
+    "dependencies": "G1-EXP-TENSOR-GPU-122",
+    "owner": "repository owner",
+    "packet_id": "G1-EXP-TENSOR-GPU-123",
+    "sections": {
+      "acceptance_matrix": {
+        "source_fields": [
+          "audit"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "authority_and_claims",
+          "audit"
+        ]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "baseline",
+          "audit"
+        ]
+      },
+      "migration_and_rollback": {
+        "projection_note": "This packet is a read-only audit: it deletes no code and adds none, so there is nothing to migrate and a revert would remove only the record. authority_and_claims asserts explicitly that no authority was changed, nothing was promoted and no benchmark or performance win is claimed.",
+        "source_fields": [
+          "branch_hygiene",
+          "next_candidate"
+        ]
+      },
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "audit"
+        ]
+      }
+    }
+  },
+  "status": "closed-negative-audit",
+  "title": "Retain bounded discover-selection set after selector-contract audit"
+}

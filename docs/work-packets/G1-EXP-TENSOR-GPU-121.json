@@ -1,0 +1,142 @@
+{
+  "branch": "exp/tensor-kernel-contract-01",
+  "branch_hygiene": {
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_legacy_touched": false,
+    "branch_deleted": false,
+    "force_update": false,
+    "main_reintegration": "fast-forwarded non-force from GPU-120 head to current main 1fd5e13d63eefa58abeace259845cf8a796f4491 before new writes",
+    "new_remote_branch": false,
+    "unique_evidence_deleted": false
+  },
+  "claims": {
+    "alphaevolve_win": false,
+    "crewai_win": false,
+    "documentation_closure_head_green": false,
+    "focused_exact_head_green": true,
+    "gate_transition": false,
+    "manual_full_suite_green": false,
+    "memory_win": false,
+    "owner_approval": false,
+    "performance_win": false,
+    "promotion": false,
+    "ready_for_review": false,
+    "tensor_vs_forest_win": false
+  },
+  "date_berlin": "2026-09-09",
+  "evidence": {
+    "baseline_main_head": "1fd5e13d63eefa58abeace259845cf8a796f4491",
+    "focused_head": "6486c7edc1b75af7c6bd4129fe217cd5ee3b8578",
+    "focused_head_workflows": [
+      {
+        "conclusion": "success",
+        "head_sha": "6486c7edc1b75af7c6bd4129fe217cd5ee3b8578",
+        "id": 34374335826,
+        "isolated_wheel_imports": "success",
+        "manual_full_suite": "not claimed; workflow's manual-only complete suite is outside this run",
+        "name": "Fourfold, Tensor and integration contracts",
+        "repository_collection": "success",
+        "status": "completed"
+      },
+      {
+        "conclusion_at_close": null,
+        "head_sha": "6486c7edc1b75af7c6bd4129fe217cd5ee3b8578",
+        "id": 34374335773,
+        "name": "Tauri Desktop",
+        "status_at_close": "in_progress"
+      }
+    ],
+    "implementation_commit": "5a864d0b30b37bd67a9b5cfda234a4d051bf9b82",
+    "production_blob": "cceabbf55afb49ed30ab159b2f744d81478fb87b",
+    "test_blob": "8503d1e17470c9d94876c896eae5bb88bc15e3a9",
+    "test_commit": "6486c7edc1b75af7c6bd4129fe217cd5ee3b8578"
+  },
+  "focused_contract": {
+    "behavior": "Boolean and Natural cross-plane compilation inspect the existing binding_records staging owner at the _record_fact boundary and require that no staged scalar record retain a CrossPlaneBinding object; the provenance slot is None and evidence_atoms is None while the compiled fact and verified_binding_count remain unchanged.",
+    "test": "tests/twin/test_relation_compiler_scalar_binding_staging.py::test_scalar_binding_staging_keeps_no_cross_plane_binding_object"
+  },
+  "implementation": {
+    "after": "The existing binding_records owner stores (RelationSignature, source_index, target_index, provenance). Boolean/Natural rows use provenance=None; evidence-dag rows retain the verified CrossPlaneBinding until the already-existing post-admission evidence materialization phase.",
+    "before": "Every selected verified binding retained the complete CrossPlaneBinding object through binding_records even for Boolean/Natural observers, although scalar _record_fact calls intentionally receive no evidence atoms.",
+    "gardener_result": "remove unnecessary scalar provenance retention inside the existing staging owner rather than adding a second binding record type, cache, index or compiler path",
+    "semantic_boundary": "FourfoldSnapshot remains the authority for verified cross-plane bindings. Exact binding-key admission for cross-plane Forest edges, explicit-signature filtering, discover-all selection, endpoint completeness, refusal precedence, Evidence-DAG alternatives and compact receipt counts remain on the existing paths."
+  },
+  "issue": 239,
+  "masterplan": {
+    "alignment": "ALIGNED",
+    "gate": 1,
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "status": "adopted",
+    "version": "2.4.0"
+  },
+  "next_step": "GPU-122 should stop micro-optimizing tuple slots and audit the next measured retained-memory or construction bucket in compile_relation_blocks. Prefer a deletion/reuse result inside the existing owner; if the next candidate requires a second staging abstraction or duplicated admission semantics, retain the current structure and record the audit as negative evidence.",
+  "objective": "Mirror GPU-120's scalar edge staging policy for verified Fourfold bindings so Boolean/Natural compilation does not retain unused CrossPlaneBinding provenance until fact materialization, while preserving the existing admission-to-materialization boundary and Evidence-DAG semantics.",
+  "pr": 344,
+  "registry_contract": {
+    "active_gate": 1,
+    "artifact_role": "primary",
+    "base_revision": "1fd5e13d63eefa58abeace259845cf8a796f4491",
+    "classification": "ALIGNED",
+    "dependencies": "GPU-120 implementation already merged to main through PR #342; no GPU-120 packet artifact is assumed",
+    "owner": "repository owner",
+    "packet_id": "G1-EXP-TENSOR-GPU-121",
+    "sections": {
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "implementation"
+        ]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "implementation"
+        ]
+      },
+      "migration_and_rollback": {
+        "projection_note": "Rollback is a revert of the commits this packet records. The change is confined to relation construction in daedalus/twin/relation_compiler.py and adds no public API, cache, index, receipt family or persisted state, so a revert restores prior behaviour with nothing to migrate.",
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ]
+      },
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      }
+    }
+  },
+  "scope": {
+    "new_caches": 0,
+    "new_compilers": 0,
+    "new_indexes": 0,
+    "new_public_apis": 0,
+    "new_receipt_families": 0,
+    "new_remote_branches": 0,
+    "production_files_changed": 1,
+    "production_paths": [
+      "daedalus/twin/relation_compiler.py"
+    ],
+    "test_files_changed": 1,
+    "test_paths": [
+      "tests/twin/test_relation_compiler_scalar_binding_staging.py"
+    ]
+  },
+  "status": "closed-implementation",
+  "title": "Slim scalar verified-binding staging payload",
+  "work_packet": "G1-EXP-TENSOR-GPU-121"
+}

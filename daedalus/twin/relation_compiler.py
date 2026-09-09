@@ -292,12 +292,14 @@ def compile_relation_blocks(
     canonical Fourfold plane indices once and reuses the indexed block owner;
     explicit plans key their already-validated requested signatures once and
     reuse those same records during binding/edge admission instead of rebuilding
-    an equivalent ``RelationSignature`` for every inspected record. The compiler
-    does not readmit already-authoritative labels through a second coordinate
-    validation pass. The evidence observer retains canonical provenance
-    alternatives; scalar observers keep their final semiring scalars in the
-    same bounded per-signature coordinate map and do not retain per-edge
-    provenance in the admission-to-materialization staging records.
+    an equivalent ``RelationSignature`` for every inspected record. Discover-all
+    interns each admitted signature by the same canonical three-field key so
+    repeated retained rows reuse one record instead of reconstructing it per
+    row. The compiler does not readmit already-authoritative labels through a
+    second coordinate validation pass. The evidence observer retains canonical
+    provenance alternatives; scalar observers keep their final semiring scalars
+    in the same bounded per-signature coordinate map and do not retain per-edge
+    or per-binding provenance in the admission-to-materialization staging records.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -395,8 +397,10 @@ def compile_relation_blocks(
             "into pairwise relation blocks without losing semantics"
         )
 
-    discovered: set[RelationSignature] = set()
-    binding_records: list[tuple[CrossPlaneBinding, RelationSignature, int, int]] = []
+    discovered_by_key: dict[tuple[str, str, str], RelationSignature] = {}
+    binding_records: list[
+        tuple[RelationSignature, int, int, CrossPlaneBinding | None]
+    ] = []
     included_binding_keys: set[tuple[str, str, str, str, str]] = set()
     verified_binding_count = len(snapshot.bindings) if include_verified_bindings else 0
     if include_verified_bindings:
@@ -407,7 +411,10 @@ def compile_relation_blocks(
                 binding.target_plane,
             )
             if requested_by_key is None:
-                signature = RelationSignature(*signature_key)
+                signature = discovered_by_key.get(signature_key)
+                if signature is None:
+                    signature = RelationSignature(*signature_key)
+                    discovered_by_key[signature_key] = signature
             else:
                 signature = requested_by_key.get(signature_key)
                 if signature is None:
@@ -423,9 +430,14 @@ def compile_relation_blocks(
             )
             source_index = node_location[binding.source_node_id][1]
             target_index = node_location[binding.target_node_id][1]
-            binding_records.append((binding, signature, source_index, target_index))
-            if requested_by_key is None:
-                discovered.add(signature)
+            binding_records.append(
+                (
+                    signature,
+                    source_index,
+                    target_index,
+                    binding if retain_evidence else None,
+                )
+            )
 
     edge_records: list[
         tuple[RelationSignature, int, int, str | None, ForestEdge | None]
@@ -442,12 +454,12 @@ def compile_relation_blocks(
         target_plane, target_index = target_location
         signature_key = (source_plane, edge.relation, target_plane)
         if requested_by_key is None:
-            signature = RelationSignature(*signature_key)
+            signature = discovered_by_key.get(signature_key)
         else:
             signature = requested_by_key.get(signature_key)
         edge_digest: str | None = None
         if source_plane == target_plane:
-            if signature is None:
+            if requested_by_key is not None and signature is None:
                 continue
             retained_digests = retained_relation_digests[source_plane]
             if not retained_digests:
@@ -470,9 +482,9 @@ def compile_relation_blocks(
                     "into directed relation blocks without losing semantics"
                 )
             continue
-        if signature is None:
-            continue
         if source_plane != target_plane:
+            if requested_by_key is not None and signature is None:
+                continue
             binding_key = (
                 source_plane,
                 edge.source,
@@ -488,6 +500,9 @@ def compile_relation_blocks(
             continue
         if edge_digest is None:
             raise AssertionError("same-plane edge admission lost its retained digest")
+        if signature is None:
+            signature = RelationSignature(*signature_key)
+            discovered_by_key[signature_key] = signature
         edge_records.append(
             (
                 signature,
@@ -497,13 +512,11 @@ def compile_relation_blocks(
                 edge if retain_evidence else None,
             )
         )
-        if requested_by_key is None:
-            discovered.add(signature)
 
     selected = (
         requested_signatures
         if requested_signatures is not None
-        else _selected_signatures(None, discovered)
+        else _selected_signatures(None, set(discovered_by_key.values()))
     )
     if requested_signatures is None:
         _require_complete_endpoint_planes(snapshot, selected)
@@ -541,18 +554,20 @@ def compile_relation_blocks(
             evidence_atoms=atoms,
         )
 
-    for binding, signature, source_index, target_index in binding_records:
+    for signature, source_index, target_index, binding in binding_records:
+        if retain_evidence:
+            if binding is None:
+                raise AssertionError("evidence observer lost retained binding provenance")
+            atoms = (binding.digest, *binding.evidence_sha256s)
+        else:
+            atoms = None
         _record_fact(
             facts,
             signature=signature,
             source_index=source_index,
             target_index=target_index,
             scalar_value=scalar_value,
-            evidence_atoms=(
-                (binding.digest, *binding.evidence_sha256s)
-                if retain_evidence
-                else None
-            ),
+            evidence_atoms=atoms,
         )
 
     subject = ProjectionSubject(

@@ -22,8 +22,11 @@ on:
       - "apps/web/src/shared/api/**"
       - "apps/web/src/shared/contracts/**"
       - "apps/web/tests/**"
-      - "daedalus/orchestration/ikarus/shell.py"
-      - "daedalus/orchestration/ikarus/cancellation.py"
+      # Named modules rather than a wildcard, which is why the Claude runner
+      # chain ported from the ikarus lane was invisible to this gate: none of
+      # supervisor.py or the four claude_* modules matched, so the workflow
+      # that gates Ikarus runtime admission would never have exercised them.
+      - "daedalus/orchestration/ikarus/**"
       - "daedalus/orchestration/conversation_requests.py"
       - "daedalus/orchestration/genesis/**"
       - "daedalus/kernel/attempt_ledger.py"
@@ -147,6 +150,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p runtime-evidence
+          # The hosted image preinstalls Google's Chrome apt source. Nothing this step
+          # needs comes from it, and a Hash Sum mismatch there kills the whole
+          # `set -euo pipefail` step: measured 2026-09-09, Google republished the index
+          # at 17:16:59Z and every Linux job after it died on `apt-get update` before a
+          # single line of repository code was compiled. Dropping the list narrows the
+          # flake surface and the trust surface at once; `rm -f` so an image without it
+          # is not an error.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
           sudo apt-get update
           sudo apt-get install -y podman uidmap crun fuse-overlayfs slirp4netns
           # The hosted runner image makes /usr/share recursively writable.

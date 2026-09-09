@@ -33,10 +33,12 @@ WHAT THE SUPERVISOR IS NOT, in v1, on purpose:
   here.
 
 ROLES.  Agentic-J gives each subagent a targeted toolset; here a role is a
-:class:`RoleHarness` — a runner factory and a gate factory keyed by name.  The
-supervisor refuses a plan naming a role it was not given BEFORE any attempt
-starts, because "the registry did not know it" must never be discovered
-halfway through a half-executed mission.
+:class:`RoleHarness` — one runner-factory path plus a gate factory keyed by
+name.  A provider-aware role may opt into the authenticated TaskAttempt
+handoff; legacy roles retain their one-argument factory.  The supervisor
+refuses a plan naming a role it was not given BEFORE any attempt starts,
+because "the registry did not know it" must never be discovered halfway
+through a half-executed mission.
 """
 from __future__ import annotations
 
@@ -90,16 +92,26 @@ class StateLedgerBroken(RuntimeError):
 class RoleHarness:
     """What one role is allowed to bring to an attempt.
 
-    ``runner_factory(item)`` returns the ``runner(ctx)`` callable and
-    ``gate_factory(item)`` the ``gate(ctx)`` callable that
+    Legacy ``runner_factory(item)`` remains available for in-process roles and
+    keeps its original meaning.  Provider/runtime integrations instead set
+    ``runner_factory=None`` and use ``handoff_runner_factory(item, handoff)``.
+    That second factory is invoked only after the real :class:`TaskAttempt`
+    RunnerContext has been authenticated; its handoff is detached evidence and
+    grants no capability by itself.  Exactly one runner-factory path must be
+    selected.
+
+    ``gate_factory(item)`` returns the ``gate(ctx)`` callable that
     :class:`TaskAttempt` consumes.  Factories rather than callables so a role
     can specialise per work item (Agentic-J's coder consults per-plugin
     skills; ours consults the item) without the supervisor knowing how.
     """
 
     role: str
-    runner_factory: Callable[["PlannedItem"], Callable[[Any], dict]]
+    runner_factory: Callable[["PlannedItem"], Callable[[Any], dict]] | None
     gate_factory: Callable[["PlannedItem"], Callable[[Any], GateResult]]
+    handoff_runner_factory: (
+        Callable[["PlannedItem", Any], Callable[[Any], dict]] | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +136,45 @@ class PlannedItem:
         object.__setattr__(self, "paths", tuple(str(p) for p in self.paths))
         object.__setattr__(self, "gate_paths", tuple(str(p) for p in self.gate_paths))
         object.__setattr__(self, "runtime_id", self.runtime_id.strip())
+
+
+_AuthenticatedRunnerFactory = Callable[
+    [PlannedItem, Any], Callable[[Any], dict]
+]
+
+
+def _resolved_runner_factory(
+    harness: RoleHarness,
+) -> tuple[_AuthenticatedRunnerFactory | None, str | None]:
+    """Normalize legacy and handoff-aware harnesses to one guarded call shape.
+
+    Creating the legacy adapter executes no caller code.  Both factory styles
+    therefore remain lazy and are reached only after TaskAttempt has entered
+    its effect path and the runner context has been authenticated.
+    """
+
+    legacy = harness.runner_factory
+    authenticated = harness.handoff_runner_factory
+    if legacy is None and authenticated is None:
+        return None, "declares neither runner_factory nor handoff_runner_factory"
+    if legacy is not None and authenticated is not None:
+        return None, "declares both runner_factory and handoff_runner_factory"
+    if authenticated is not None:
+        if not callable(authenticated):
+            return None, "handoff_runner_factory is not callable"
+        return authenticated, None
+    if not callable(legacy):
+        return None, "runner_factory is not callable"
+
+    def invoke_legacy(
+        item: PlannedItem,
+        _handoff: Any,
+        *,
+        factory=legacy,
+    ) -> Callable[[Any], dict]:
+        return factory(item)
+
+    return invoke_legacy, None
 
 
 @dataclass(frozen=True)
@@ -213,6 +264,57 @@ def _utc_now() -> str:
 
 def _canonical(body: Mapping[str, Any]) -> str:
     return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _canonical_attempt_identity(
+    result: Any,
+    contracts: Any,
+    *,
+    mission_id: str,
+    work_item_id: str,
+) -> tuple[str | None, str | None]:
+    """Project the one canonical AttemptContract identity, or name the refusal.
+
+    ``AttemptResult.branch`` and ``effect_key`` are transport/effect evidence;
+    they are not a second attempt-id authority.  The canonical contract is the
+    identity source, while the raw result must corroborate it exactly.  This is
+    the producer seam the provider-backed Ikarus path needs: a runtime receives
+    an authenticated Attempt identity, never a branch string promoted into one
+    by the supervisor.
+    """
+
+    attempt = getattr(contracts, "attempt", None)
+    if attempt is None:
+        return (
+            None,
+            "canonical AttemptContract is unavailable; refusing to project "
+            "TaskAttempt branch/effect data as attempt identity",
+        )
+    if str(getattr(attempt, "mission_id", "")) != mission_id:
+        return None, "canonical AttemptContract mission_id contradicts the mission"
+    if str(getattr(attempt, "task_id", "")) != work_item_id:
+        return None, "canonical AttemptContract task_id contradicts the work item"
+    attempt_id = str(getattr(attempt, "attempt_id", ""))
+    if not attempt_id:
+        return None, "canonical AttemptContract has no attempt_id"
+    if (
+        attempt_id != str(getattr(result, "effect_key", ""))
+        or attempt_id != str(getattr(result, "branch", ""))
+    ):
+        return (
+            None,
+            "canonical AttemptContract attempt_id contradicts TaskAttempt "
+            "effect/branch identity",
+        )
+    result_base = getattr(result, "base_revision", None)
+    if result_base is None or str(getattr(attempt, "base_revision", "")) != str(
+        result_base
+    ):
+        return (
+            None,
+            "canonical AttemptContract base_revision contradicts TaskAttempt result",
+        )
+    return attempt_id, None
 
 
 def _runtime_binding(
@@ -720,7 +822,7 @@ class MissionSupervisor:
         ledger = StateLedger(run_dir / "ledger")
         resolutions: list[
             tuple[
-                Callable[[PlannedItem], Callable[[Any], dict]] | None,
+                _AuthenticatedRunnerFactory | None,
                 Callable[[PlannedItem], Callable[[Any], GateResult]] | None,
                 RuntimeRoleSnapshot | None,
                 str | None,
@@ -743,6 +845,7 @@ class MissionSupervisor:
                 continue
             if item.runtime_id == INPROCESS_RUNTIME_ID:
                 harness = self.roles.get(item.role)
+                resolved_runner_factory = None
                 if task_plan.builder != _task_builder(item, None):
                     error = "role binding drifted after planning"
                 elif harness is None:
@@ -750,16 +853,21 @@ class MissionSupervisor:
                 elif type(harness) is not RoleHarness or harness.role != item.role:
                     error = f"role {item.role!r} has a malformed RoleHarness binding"
                     harness = None
-                elif not callable(harness.runner_factory) or not callable(
-                    harness.gate_factory
-                ):
-                    error = f"role {item.role!r} has non-callable harness factories"
+                elif not callable(harness.gate_factory):
+                    error = f"role {item.role!r} has a non-callable gate_factory"
                     harness = None
                 else:
-                    error = None
+                    resolved_runner_factory, runner_error = _resolved_runner_factory(
+                        harness
+                    )
+                    if runner_error is not None:
+                        error = f"role {item.role!r} {runner_error}"
+                        harness = None
+                    else:
+                        error = None
                 resolutions.append(
                     (
-                        harness.runner_factory if harness is not None else None,
+                        resolved_runner_factory if harness is not None else None,
                         harness.gate_factory if harness is not None else None,
                         None,
                         error,
@@ -808,7 +916,7 @@ class MissionSupervisor:
                         None,
                         None,
                         binding,
-                        "executable fixture has no exact injected RoleHarness: "
+                        "executable runtime has no exact injected RoleHarness: "
                         f"key={binding.harness_key!r}",
                     )
                 )
@@ -819,26 +927,49 @@ class MissionSupervisor:
                         None,
                         None,
                         binding,
-                        "runtime-role fixture has a malformed or role-mismatched "
+                        "runtime-role binding has a malformed or role-mismatched "
                         "RoleHarness",
                     )
                 )
                 continue
-            if not callable(harness.runner_factory) or not callable(
-                harness.gate_factory
+            if not callable(harness.gate_factory):
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "runtime-role binding has a non-callable gate_factory",
+                    )
+                )
+                continue
+            if binding.requires_authenticated_handoff and (
+                harness.runner_factory is not None
+                or harness.handoff_runner_factory is None
             ):
                 resolutions.append(
                     (
                         None,
                         None,
                         binding,
-                        "runtime-role fixture has non-callable harness factories",
+                        "authenticated-handoff runtime requires an exclusive "
+                        "handoff_runner_factory",
+                    )
+                )
+                continue
+            resolved_runner_factory, runner_error = _resolved_runner_factory(harness)
+            if runner_error is not None:
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        f"runtime-role binding {runner_error}",
                     )
                 )
                 continue
             resolutions.append(
                 (
-                    harness.runner_factory,
+                    resolved_runner_factory,
                     harness.gate_factory,
                     binding,
                     None,
@@ -964,6 +1095,18 @@ class MissionSupervisor:
                 + " | ".join(preflight_errors)
             )
 
+        # Import the Claude handoff only on the execution path: planning and
+        # read-only supervisor imports must not drag provider/runtime modules
+        # into process startup.  The binding itself is inert evidence; it does
+        # not mint a second Attempt authority or open another control plane.
+        # Re-resolved per run() so the guards stay one patchable seam.
+        from .claude_attempt_handoff import (
+            IkarusClaudeAttemptHandoffRefused,
+            bind_task_attempt_claude_identity,
+            require_task_attempt_runner_context,
+            require_task_attempt_terminal_contract,
+        )
+
         outcome = "landed"
         for index, (
             task,
@@ -1017,6 +1160,7 @@ class MissionSupervisor:
                 gate_paths=item.gate_paths,
                 runtime_id=item.runtime_id,
             )
+            attempt_binding = None
 
             def lazy_runner(
                 ctx,
@@ -1025,7 +1169,23 @@ class MissionSupervisor:
                 planned_item=runner_item,
                 task_template=callback_task_template,
             ):
-                runner = factory(planned_item)
+                # Authenticate the exact context materialized by THIS
+                # TaskAttempt before caller/runtime factory code receives
+                # control.  A valid branch string alone is not provider
+                # authority; mission/work-item/task/source/scope identity was
+                # frozen from the owner before run() crossed the effect seam.
+                binding_value = attempt_binding
+                if binding_value is None:
+                    raise IkarusClaudeAttemptHandoffRefused(
+                        "TaskAttempt Claude identity was not frozen before runner dispatch"
+                    )
+                runner_handoff = require_task_attempt_runner_context(
+                    binding_value, ctx
+                )
+                # Both legacy and provider-aware factories share this one call
+                # site. The legacy adapter ignores the detached handoff; an
+                # authenticated factory receives it only after the guard above.
+                runner = factory(planned_item, runner_handoff)
                 if not callable(runner):
                     raise TypeError("runner_factory returned a non-callable")
                 return runner(_snapshot_callback_context(ctx, task_template))
@@ -1054,9 +1214,63 @@ class MissionSupervisor:
                 mission_policy_sha256=mission_policy_sha256,
                 execution_limit_policy=mission_limit_policy,
             )
+            try:
+                attempt_binding = bind_task_attempt_claude_identity(
+                    attempt, mission_snapshot
+                )
+            except IkarusClaudeAttemptHandoffRefused as exc:
+                # No TaskAttempt effect has run yet. Preserve that fact: do not
+                # manufacture an attempt id from the branch we just refused to
+                # authenticate, and make fail-fast see a real terminal bounce.
+                BuildTask.mark(task, "bounced")
+                rows[index]["status"] = "bounced"
+                rows[index]["attempt_id"] = None
+                rows[index]["detail"] = (
+                    "TaskAttempt/Claude identity binding refused before runner "
+                    f"dispatch: {exc}"
+                )
+                outcome = "bounced"
+                ledger.publish(base)
+                continue
+
             result = attempt.run()
             result_sink.append(result)
-            terminal_status = "landed" if result.ok else "bounced"
+
+            contract_error = None
+            try:
+                contracts = result.contract_set()
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
+                contracts = None
+                contract_error = (
+                    "canonical attempt contracts could not be reconstructed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+            if contract_error is None:
+                try:
+                    require_task_attempt_terminal_contract(
+                        attempt_binding,
+                        getattr(contracts, "attempt", None),
+                    )
+                except IkarusClaudeAttemptHandoffRefused as exc:
+                    contract_error = (
+                        "terminal AttemptContract does not close the pre-effect "
+                        f"TaskAttempt/Claude identity: {exc}"
+                    )
+            attempt_id, identity_error = _canonical_attempt_identity(
+                result,
+                contracts,
+                mission_id=mission_id,
+                work_item_id=task_plan.work_item_id,
+            )
+            identity_error = contract_error or identity_error
+            if identity_error is not None:
+                # Terminal producer evidence that does not close the exact
+                # pre-effect owner may remain inspectable by digest, but it is
+                # not allowed to feed a trusted Work Pulse attempt identity.
+                attempt_id = None
+            terminal_status = (
+                "landed" if result.ok and identity_error is None else "bounced"
+            )
             # BuildTask is only the mutable BuildSession projection. A runner
             # may retain and mutate it, so bypass any instance-shadowed method
             # and never read its status back into the retained ledger.
@@ -1068,17 +1282,21 @@ class MissionSupervisor:
             BuildTask.mark(task, terminal_status)
             task.last_result = task_result
             rows[index]["status"] = terminal_status
-            rows[index]["attempt_id"] = result.branch
+            # AttemptContract is the identity authority. Branch/effect_key are
+            # corroboration only and can never be promoted into an attempt id.
+            rows[index]["attempt_id"] = attempt_id
             # Digests, never copies: the ledger row points at the canonical
             # records by hash, exactly the posture the ignition receipt takes.
-            contracts = result.contract_set()
             rows[index]["attempt_receipt_sha256"] = getattr(
                 getattr(contracts, "receipt", None), "digest", None
             )
             rows[index]["evidence_packet_sha256"] = getattr(
                 getattr(contracts, "evidence", None), "digest", None
             )
-            if not result.ok:
+            if identity_error is not None:
+                rows[index]["detail"] = identity_error
+                outcome = "bounced"
+            elif not result.ok:
                 rows[index]["detail"] = f"state={result.state} error={result.error}"
                 outcome = "bounced"
             ledger.publish(base)
