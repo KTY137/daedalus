@@ -63,6 +63,15 @@ one I overrode.
 > property**. One expresses it by having no type suffix; the other by having no
 > type manifest key and deriving type nodes from code files.
 
+> **CORRECTED 2026-09-09 by `G2_INGEST_01_RESULT_20260909.md`.** The sentence
+> above is wrong. A third production instrument,
+> `daedalus/twin/extractors/registry.py`, assigns `.py` to
+> `semantic_planes = ("code", "type")` — Type *is* file-level there. The three
+> instruments disagree about **exclusivity**, not about whether Type is
+> file-level: two force one plane per file and therefore cannot express Type,
+> and `reference_compiler.py:101` refuses multi-plane membership outright. The
+> claim above generalised from two instruments to the domain.
+
 `taskset.py`'s comment — *"the Type plane has no file-level representative at
 all"* — is not a limitation of the suffix map. It is a true statement about the
 domain, and both implementations encode it.
