@@ -237,7 +237,10 @@ def _record_fact(
     scalar_value: bool | int | None,
     evidence_atoms: Sequence[str] | None,
 ) -> None:
-    bucket = facts.setdefault(signature, {})
+    bucket = facts.get(signature)
+    if bucket is None:
+        bucket = {}
+        facts[signature] = bucket
     coordinate = (source_index, target_index)
     if coordinate not in bucket and len(bucket) >= MAX_BLOCK_ENTRIES:
         raise ValueError(
