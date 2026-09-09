@@ -212,6 +212,7 @@ def test_handoff_runner_factory_receives_authenticated_snapshot_after_guard(
 ) -> None:
     events: list[str] = []
     received: list[handoff.ClaudeTaskAttemptRunnerHandoff] = []
+    live_worktrees: list[Path] = []
     real_guard = handoff.require_task_attempt_runner_context
 
     def guard(binding, context):
@@ -221,6 +222,10 @@ def test_handoff_runner_factory_receives_authenticated_snapshot_after_guard(
     def factory(item: PlannedItem, runner_handoff):
         events.append("handoff_factory")
         assert type(runner_handoff) is handoff.ClaudeTaskAttemptRunnerHandoff
+        # The isolated worktree is provider authority only while this attempt
+        # owns it; TaskAttempt is allowed to remove it after terminal cleanup.
+        assert runner_handoff.worktree.is_dir()
+        live_worktrees.append(runner_handoff.worktree)
         received.append(runner_handoff)
         # Provider/runtime code may retain or even deliberately mutate its
         # detached evidence copy. The supervisor's terminal binding must not
@@ -239,12 +244,12 @@ def test_handoff_runner_factory_receives_authenticated_snapshot_after_guard(
     assert final["outcome"] == "landed"
     assert events == ["guard", "handoff_factory"]
     assert len(received) == 1
+    assert len(live_worktrees) == 1
     runner_handoff = received[0]
     assert runner_handoff.mission_id == final["mission_id"]
     assert runner_handoff.work_item_id == final["items"][0]["work_item_id"]
     assert runner_handoff.source_revision == final["source_revision"]
     assert runner_handoff.target_paths == ("docs/a.md",)
-    assert runner_handoff.worktree.is_dir()
     assert runner_handoff.attempt_id == "provider-mutated"
     assert final["items"][0]["attempt_id"] == supervisor.results[0].branch
     assert final["items"][0]["attempt_id"] != "provider-mutated"
