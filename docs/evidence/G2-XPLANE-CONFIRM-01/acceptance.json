@@ -1,0 +1,15 @@
+{
+ "candidate": "fastapi",
+ "candidate_position": 1,
+ "cross_plane_admissible": 531,
+ "measured": "2026-09-09",
+ "packet": "G2-XPLANE-CONFIRM-01",
+ "preregistered_threshold": "cross_plane_admissible >= 68",
+ "sha256": {
+  "provenance_fastapi.json": "719e3848c02df2ccb012acc6d843105a83176272ed557cadef526a7e9d49e43a",
+  "taskset_fastapi.json.gz": "11215fbaebad8e54f9fd2d47733608cd6bff25dd0a98a353a68af183977fc82b"
+ },
+ "stage": "selection and task-set construction (harness run pending)",
+ "taskset_digest": "sha256:84f6f76158544fe6b943910892fb4702f2f2ea58fcd5408ceb17eeed7befa501",
+ "verdict": "PASSES -- stopping rule satisfied at candidate 1, flask not tested"
+}
