@@ -193,7 +193,21 @@ def test_task_attempt_runner_context_authenticates_exact_isolated_workspace(tmp_
         is_cancelled=lambda: False,
     )
 
-    assert handoff.require_task_attempt_runner_context(binding, context) == worktree.resolve()
+    runner_handoff = handoff.require_task_attempt_runner_context(binding, context)
+    assert type(runner_handoff) is handoff.ClaudeTaskAttemptRunnerHandoff
+    assert runner_handoff.mission_id == binding.mission_id
+    assert runner_handoff.work_item_id == binding.work_item_id
+    assert runner_handoff.attempt_id == binding.attempt_id
+    assert runner_handoff.source_revision == binding.source_revision
+    assert runner_handoff.task_sha256 == binding.task_sha256
+    assert runner_handoff.target_paths == binding.target_paths
+    assert runner_handoff.worktree == worktree.resolve()
+
+    # Provider-facing callback evidence is deliberately a copy. Even hostile
+    # mutation through object.__setattr__ cannot rewrite the supervisor-owned
+    # binding that terminal verification later consumes.
+    object.__setattr__(runner_handoff, "attempt_id", "attempt-mutated")
+    assert binding.attempt_id == owner.attempt_id
 
     substituted = RunnerContext(
         worktree=worktree,
