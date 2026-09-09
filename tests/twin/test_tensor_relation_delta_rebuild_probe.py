@@ -64,13 +64,13 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
     assert metrics["typed_block_post_init"]["calls"] == 1
     assert metrics["fact_aggregation"]["calls"] == 25
     assert metrics["forest_partition_validation"]["calls"] == 1
-    assert metrics["edge_signature_construction"]["calls"] == 25
+    assert metrics["edge_signature_construction"]["calls"] == 0
     assert metrics["edge_wire_materialization"]["calls"] == 25
     assert metrics["retained_relation_digest"]["calls"] == 25
     assert metrics["fact_aggregation_direct"]["calls"] == 25
     assert "conservative lower bound" in attribution["interpretation"]
-    assert "direct compiler calls" in attribution["interpretation"]
-    assert "not a pure edge-scan wall time" in attribution["interpretation"]
+    assert "zero direct per-edge" in attribution["interpretation"]
+    assert "not a pure edge-scan wall" in attribution["interpretation"]
 
     assert report["fail_closed"]["partial_endpoint_plane"] == "refused"
     assert "code=partial" in report["fail_closed"]["message"]
