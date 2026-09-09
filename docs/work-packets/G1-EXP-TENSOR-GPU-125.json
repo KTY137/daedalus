@@ -1,0 +1,151 @@
+{
+  "baseline": {
+    "advance_method": "non-force fast-forward",
+    "archive_legacy_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "canonical_branch_pre_work": "3bed82e6d1cf679521f58981ac2ee969c1700cc3",
+    "main_at_packet_start": "3bed82e6d1cf679521f58981ac2ee969c1700cc3"
+  },
+  "branch_hygiene": {
+    "archive_branch_touched": false,
+    "auto_merge_enabled": false,
+    "branch_deleted": false,
+    "force_update_used": false,
+    "gate_transition_performed": false,
+    "merge_performed": false,
+    "new_remote_branch_created": false,
+    "owner_approval_minted": false,
+    "promotion_performed": false,
+    "ready_for_review_transition": false,
+    "unique_evidence_deleted": false
+  },
+  "campaign_issue": 239,
+  "concurrency_note": {
+    "branch_state_at_packet_close": "main remained 3bed82e6d1cf679521f58981ac2ee969c1700cc3 through the exact code/test verification; GPU-125 is additive on the canonical Tensor line",
+    "main_advanced_during_packet_to": null,
+    "policy": "Preserve the exact verified code/test head. If main advances after closure, reconcile non-force at the start of the next bounded Tensor packet before new code."
+  },
+  "date_europe_berlin": "2026-09-09",
+  "decision": {
+    "kind": "existing-owner scope reduction",
+    "summary": "Reuse the already validated requested RelationSignature tuple to construct retained Fourfold relation-digest admission sets only for selected same-plane source planes; discover-all retains all-plane behavior and explicit cross-plane-only plans construct no relation-digest sets.",
+    "why_gardening": "The explicit query plan already proves which same-plane relation authorities can be consulted before retained digest sets are materialized. Building a frozenset for every Fourfold plane duplicated construction and retained-memory work for planes that cannot participate in the selected plan. No new cache, index, selector, compiler, store, API or authority was needed."
+  },
+  "focused_contract": {
+    "assertions": [
+      "explicit code->code imports compilation constructs exactly one retained relation-digest set, equal to the canonical code PlaneSnapshot.relation_sha256s",
+      "explicit code->type declares compilation constructs zero retained relation-digest sets because exact verified CrossPlaneBinding admission is the authority owner for that path",
+      "GPU-124 endpoint-axis scoping and canonical compiled relation entries remain unchanged"
+    ],
+    "blob": "26fa2bcd447c5ab81c01b2c0a5f0834a0f95d94f",
+    "commit": "2ff56e8294c2c1107359495bb852e25f7df64c47",
+    "head": "2ff56e8294c2c1107359495bb852e25f7df64c47",
+    "path": "tests/twin/test_relation_compiler_axis_scope.py"
+  },
+  "implementation": {
+    "behavior": [
+      "derive retained_relation_planes from requested_signatures only for same-plane signatures",
+      "retain FOURFOLD_PLANES as the discover-all retained-digest scope",
+      "materialize frozenset(plane.relation_sha256s) only for planes in retained_relation_planes",
+      "leave same-plane digest admission, hyperedge refusal and verified cross-plane binding admission on their existing authority paths"
+    ],
+    "blob": "2b38fb315e0c47752be0adfdff825d0bbe331bf3",
+    "commit": "46d542c9ac4eaf5ff77e9eb60471ac23cec82dc6",
+    "path": "daedalus/twin/relation_compiler.py"
+  },
+  "invariants": [
+    "KnowledgeForest and FourfoldSnapshot remain the semantic authorities",
+    "Tensor relation blocks remain a regenerable computational projection, not a fifth plane",
+    "discover-all still admits retained same-plane relations against every Fourfold plane relation_sha256s set",
+    "explicit same-plane plans still require the exact canonical ForestEdge digest to be retained by the selected Fourfold plane",
+    "explicit cross-plane plans still require exact included verified Fourfold bindings and do not readmit cross-plane Forest edges through relation_sha256s",
+    "retained hyperedge and undirected-edge fail-closed behavior is unchanged",
+    "no public API, persistent cache, digest index, alternate selector/compiler, fact store, receipt family or promotion path was introduced"
+  ],
+  "masterplan": {
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "status": "adopted",
+    "version": "2.4.0"
+  },
+  "next_bounded_candidate": "Use the existing relation construction/delta diagnostics to select the next repeatedly executed or retained-memory bucket. Do not broaden retained-digest admission into a cache or parallel index; if the next candidate needs a second owner, close it as negative gardening evidence instead.",
+  "objective": "Delete unconditional retained relation-digest set construction for Fourfold planes that cannot participate in an explicit selected relation plan, while preserving discover-all, same-plane authority admission and exact verified cross-plane binding semantics.",
+  "pull_request": {
+    "draft": true,
+    "head_branch": "exp/tensor-kernel-contract-01",
+    "merged": false,
+    "number": 355,
+    "state_at_packet_close": "open"
+  },
+  "registry_contract": {
+    "active_gate": 1,
+    "artifact_role": "primary",
+    "base_revision": "3bed82e6d1cf679521f58981ac2ee969c1700cc3",
+    "branch": "exp/tensor-kernel-contract-01",
+    "classification": "EXPERIMENT",
+    "dependencies": "G1-EXP-TENSOR-GPU-124",
+    "owner": "repository owner",
+    "packet_id": "G1-EXP-TENSOR-GPU-125",
+    "sections": {
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "invariants",
+          "implementation"
+        ]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "implementation",
+          "concurrency_note"
+        ]
+      },
+      "migration_and_rollback": {
+        "projection_note": "Rollback is a revert of the implementation and focused-contract commits this packet records. The change is confined to retained relation-digest set construction inside daedalus/twin/relation_compiler.py and adds no public API, cache, index, receipt family or persisted state.",
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_candidate"
+        ]
+      },
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "decision"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "focused_contract"
+        ]
+      }
+    },
+    "status": "closed-implementation"
+  },
+  "title": "Scope retained digest sets to selected same-plane relations",
+  "verification": {
+    "claim_boundary": "Focused exact code/test head is green in the Fourfold/Tensor workflow. No manual full-suite, repository-wide all-checks, wall-time, RSS, Tensor-vs-Forest, CrewAI or AlphaEvolve superiority claim is made.",
+    "event": "pull_request",
+    "exact_code_test_head": "2ff56e8294c2c1107359495bb852e25f7df64c47",
+    "manual_complete_suite": "skipped",
+    "result": "completed/success",
+    "run_id": 34398788351,
+    "successful_jobs": [
+      "Isolated wheel imports",
+      "Complete repository collection",
+      "Contracts (Python 3.10, hash 0)",
+      "Contracts (Python 3.10, hash 123456)",
+      "Contracts (Python 3.12, hash 0)",
+      "Contracts (Python 3.12, hash 123456)"
+    ],
+    "tauri_run_id": 34398788344,
+    "tauri_status_when_packet_closed": "in_progress",
+    "workflow": "Fourfold, Tensor and integration contracts"
+  }
+}
