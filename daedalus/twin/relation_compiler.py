@@ -259,7 +259,7 @@ def _record_fact(
 
 
 def _forest_edge_atoms(edge: ForestEdge) -> tuple[str, ...]:
-    return (canonical_sha(edge.to_dict()), *edge.evidence)
+    return edge.evidence
 
 
 def compile_relation_blocks(
@@ -426,7 +426,7 @@ def compile_relation_blocks(
             if requested_by_key is None:
                 discovered.add(signature)
 
-    edge_records: list[tuple[ForestEdge, RelationSignature, int, int]] = []
+    edge_records: list[tuple[ForestEdge, str, RelationSignature, int, int]] = []
     for edge in forest.edges:
         source_location = node_location.get(edge.source)
         target_location = node_location.get(edge.target)
@@ -442,6 +442,7 @@ def compile_relation_blocks(
             signature = RelationSignature(*signature_key)
         else:
             signature = requested_by_key.get(signature_key)
+        edge_digest: str | None = None
         if source_plane == target_plane:
             if signature is None:
                 continue
@@ -482,7 +483,9 @@ def compile_relation_blocks(
                     "included verified Fourfold binding before relation compilation"
                 )
             continue
-        edge_records.append((edge, signature, source_index, target_index))
+        if edge_digest is None:
+            raise AssertionError("same-plane edge admission lost its retained digest")
+        edge_records.append((edge, edge_digest, signature, source_index, target_index))
         if requested_by_key is None:
             discovered.add(signature)
 
@@ -506,8 +509,12 @@ def compile_relation_blocks(
         RelationSignature,
         dict[tuple[int, int], Any],
     ] = {}
-    for edge, signature, source_index, target_index in edge_records:
-        atoms = _forest_edge_atoms(edge) if retain_evidence else None
+    for edge, edge_digest, signature, source_index, target_index in edge_records:
+        atoms = (
+            (edge_digest, *_forest_edge_atoms(edge))
+            if retain_evidence
+            else None
+        )
         _record_fact(
             facts,
             signature=signature,

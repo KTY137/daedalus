@@ -172,6 +172,43 @@ def test_evidence_observer_retains_alternative_witness_bundles() -> None:
     assert compiled.forest_edge_count == 2
 
 
+def test_evidence_observer_reuses_retained_edge_digest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    edge_payloads = tuple(edge.to_dict() for edge in forest.edges)
+    expected = {
+        tuple(sorted({canonical_sha(edge.to_dict()), *edge.evidence}))
+        for edge in forest.edges
+    }
+    original_canonical_sha = relation_compiler.canonical_sha
+    edge_hash_calls = 0
+
+    def counting_canonical_sha(value: object) -> str:
+        nonlocal edge_hash_calls
+        if any(value == payload for payload in edge_payloads):
+            edge_hash_calls += 1
+        return original_canonical_sha(value)
+
+    monkeypatch.setattr(
+        relation_compiler,
+        "canonical_sha",
+        counting_canonical_sha,
+    )
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        EvidenceDagSemiring(),
+        signatures=(SIGNATURE,),
+    )
+
+    assert edge_hash_calls == len(forest.edges)
+    value = _single_value(compiled)
+    assert isinstance(value, EvidenceValue)
+    assert set(value.alternatives) == expected
+
+
 def test_forest_edge_evidence_normalizes_once_at_fact_boundary() -> None:
     witness_a = _digest("boundary-a")
     witness_b = _digest("boundary-b")
@@ -185,7 +222,7 @@ def test_forest_edge_evidence_normalizes_once_at_fact_boundary() -> None:
     edge_digest = canonical_sha(edge.to_dict())
 
     atoms = relation_compiler._forest_edge_atoms(edge)
-    assert atoms == (edge_digest, witness_b, witness_a, witness_b)
+    assert atoms == (witness_b, witness_a, witness_b)
 
     facts: dict[RelationSignature, dict[tuple[int, int], object]] = {}
     relation_compiler._record_fact(
@@ -194,7 +231,7 @@ def test_forest_edge_evidence_normalizes_once_at_fact_boundary() -> None:
         source_index=0,
         target_index=1,
         scalar_value=None,
-        evidence_atoms=atoms,
+        evidence_atoms=(edge_digest, *atoms),
     )
 
     assert facts[SIGNATURE][(0, 1)] == {

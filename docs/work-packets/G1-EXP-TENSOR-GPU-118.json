@@ -1,0 +1,143 @@
+{
+  "branch": "exp/tensor-kernel-contract-01",
+  "branch_hygiene": {
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_legacy_touched": false,
+    "branch_deleted": false,
+    "force_update": false,
+    "main_reintegration": "non-force merge preserving GPU-118 commits and current main history",
+    "new_remote_branch": false,
+    "prior_pr_331": "already merged by repository activity before GPU-118 writes; GPU-118 did not merge, approve, promote, or transition it",
+    "unique_evidence_deleted": false
+  },
+  "claims": {
+    "alphaevolve_win": false,
+    "crewai_win": false,
+    "documentation_closure_head_green": false,
+    "focused_exact_head_green": false,
+    "gate_transition": false,
+    "manual_full_suite_green": false,
+    "mechanical_duplicate_hash_removed": true,
+    "memory_win": false,
+    "owner_approval": false,
+    "performance_win": false,
+    "production_semantics_changed": false,
+    "promotion": false,
+    "tensor_vs_forest_win": false
+  },
+  "date_berlin": "2026-09-09",
+  "evidence": {
+    "baseline_closure_head": "e05c09e2f81e30776758b282dd5b440a022ef04c",
+    "baseline_exact_head_workflows": [
+      {
+        "conclusion": "success",
+        "id": 34349648771,
+        "name": "Fourfold, Tensor and integration contracts",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 34349648814,
+        "name": "Tauri Desktop",
+        "status": "completed"
+      }
+    ],
+    "focused_contract_commit": "7c4c1e916d36ad8216e0eb2cede887268e1fc290",
+    "focused_head_workflows": [],
+    "implementation_commit": "dbaf2943294aaa01e60c6ea7b3cc0ee36f934371",
+    "main_reintegrated": "1d5b4bef50dd675df05a4a25734431de981eb206",
+    "main_reintegration_merge": "881a5b54c2e44575244c66f852cf94bdbb7db92f",
+    "note": "No hosted workflow had registered for the initial focused head before main reintegration. The branch was reintegrated with current main by a non-force merge commit preserving both histories and the two GPU-118 blobs; this packet commit is intended to trigger exact-head verification.",
+    "observer_semantics_test_blob": "335d5826679d4a45f8e87625e9f115ac96398c57",
+    "relation_compiler_blob": "369a0fcdf554e5e0d73d150654374deb0fe0a4d8"
+  },
+  "focused_contract": {
+    "behavior": "For the exact retained ForestEdge payloads in the existing evidence fixture, module-local canonical_sha calls equal the number of retained edges while the compiled EvidenceValue alternatives remain byte/canonical-equivalent to canonical_sha(edge.to_dict()) plus the edge witnesses.",
+    "normalization_contract": "test_forest_edge_evidence_normalizes_once_at_fact_boundary continues to pin _record_fact as the sole sort/dedup owner; _forest_edge_atoms returns raw evidence only.",
+    "test": "test_evidence_observer_reuses_retained_edge_digest"
+  },
+  "implementation": {
+    "after": "The existing ephemeral edge_records owner carries the already-admitted edge_digest beside the edge and canonical indices. _forest_edge_atoms now returns only the raw ForestEdge.evidence tuple, and the evidence materialization path prefixes the retained edge_digest before the existing _record_fact sort/dedup boundary.",
+    "before": "Same-plane admission computed canonical_sha(edge.to_dict()) as edge_digest to prove exact membership in the authoritative Fourfold plane; later _forest_edge_atoms recomputed canonical_sha(edge.to_dict()) again when the evidence observer materialized the same retained edge.",
+    "gardener_result": "reuse the already-computed authority-bound ephemeral digest instead of adding a cache or second digest index",
+    "semantic_boundary": "Fourfold retained-relation membership remains the only admission authority. Forest/Fourfold identity checks, endpoint partitioning, cross-plane verified binding admission, undirected/hyperedge refusal, observer semantics, evidence canonicalization, promotion policy, and receipt contracts are unchanged."
+  },
+  "issue": 239,
+  "masterplan": {
+    "alignment": "ALIGNED",
+    "gate": 1,
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "status": "adopted",
+    "version": "2.4.0"
+  },
+  "next_step": "Close this packet only after exact-head Fourfold/Tensor verification is reproducibly registered. If green, GPU-119 should audit the retained relation-digest diagnostic so instrumentation reflects one admission hash per retained same-plane edge without adding another measurement abstraction.",
+  "objective": "Delete the second exact canonical hash of a retained same-plane ForestEdge from the evidence observer path by carrying the already-authoritative Fourfold-admission digest through the existing ephemeral edge record, without introducing a persistent digest index, cache, caller trust, second fact store, compiler, receipt family, or authority.",
+  "pr": 336,
+  "registry_contract": {
+    "active_gate": 1,
+    "artifact_role": "primary",
+    "base_revision": "e05c09e2f81e30776758b282dd5b440a022ef04c",
+    "classification": "ALIGNED",
+    "dependencies": "G1-EXP-TENSOR-GPU-117",
+    "owner": "repository owner",
+    "packet_id": "G1-EXP-TENSOR-GPU-118",
+    "sections": {
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "implementation"
+        ]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "implementation"
+        ]
+      },
+      "migration_and_rollback": {
+        "projection_note": "Rollback is a revert of the two commits this packet records. The change is confined to same-plane edge admission in daedalus/twin/relation_compiler.py, where an already-computed edge_digest is carried on the existing ephemeral edge_records owner instead of being recomputed; it adds no public API, cache, index, receipt family or persisted state, so a revert restores the prior recomputation with nothing to migrate.",
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ]
+      },
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      }
+    }
+  },
+  "scope": {
+    "new_caches": 0,
+    "new_compilers": 0,
+    "new_indexes": 0,
+    "new_public_apis": 0,
+    "new_receipt_families": 0,
+    "new_remote_branches": 0,
+    "production_files_changed": 1,
+    "production_paths": [
+      "daedalus/twin/relation_compiler.py"
+    ],
+    "test_files_changed": 1,
+    "test_paths": [
+      "tests/twin/test_relation_compiler_observer_semantics.py"
+    ]
+  },
+  "status": "verification-pending",
+  "title": "Reuse retained same-plane edge digest for evidence materialization",
+  "work_packet": "G1-EXP-TENSOR-GPU-118"
+}
