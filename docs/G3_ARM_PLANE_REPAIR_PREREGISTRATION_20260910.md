@@ -98,5 +98,74 @@ baseline silently acquires a defect.
   separate question this packet does not answer.
 - Not a promotion of anything out of quarantine.
 
+---
+
+## AMENDMENT 1 — the defect is in six arms, not two, and the repository already knew
+
+Appended 2026-09-10, **before** the frozen run's results were read.
+
+### Six, not two
+
+Grepping every caller rather than the four arms I happened to run:
+
+```
+best_of_n.py:88          _repo_chunks(task.repo_root)
+bm25.py:86               harness._repo_chunks(task.repo_root)
+embeddings.py:204        _repo_chunks(task.repo_root)
+local_mutation.py:116    _repo_chunks(task.repo_root)
+random_search.py:104     _repo_chunks(task.repo_root)
+single_llm_loop.py:159   harness._repo_chunks(task.repo_root)
+```
+
+**Six of the ten Gate-3 arms** retrieve the code-only default. Not one caller
+anywhere in production passes `planes=`; the only uses are in tests. The
+previous packet said "two arms" because it measured four.
+
+### Scope of this run, restated honestly
+
+The frozen contrast (§3) still measures `bm25` and `embeddings` only — the two
+deterministic ones, where a before/after score comparison is a clean
+measurement rather than a seed-variance exercise.
+
+The other four are **stochastic**, and a scored before/after on them at n=14
+would mostly measure seeds. They receive the same one-line change, and their
+repair is verified structurally instead: by
+`test_real_arm_declarations_match_what_they_retrieve`, which runs each arm and
+classifies the documents it actually returns. That is a weaker check than a
+scored contrast and is labelled as such — it establishes *that they look*, not
+*how much it helps*.
+
+### The repository already solved this, in the older layer
+
+`harness._plane_unindexed_reason` / `_plane_unindexed_row` exist precisely for
+this situation. When a task's target cannot be reached by the default index,
+the product harness **declares the task PLANE-UNINDEXED and does not score it**,
+and its docstring calls these "structural properties of the DEFAULT index
+rather than measurements of anything."
+
+`harness.py:734` states the intent outright: *"The retrieval extension point
+exists (`_repo_chunks(..., planes=...)`); the arm that uses it is Gate-3 work."*
+
+So this is not a subtle oversight anyone could be expected to miss. It is a
+lesson the older layer learned, documented, and encoded — and the newer Gate-3
+arm layer did not carry forward. Where the harness says *unindexed*, the arms
+say **0.00**, and a 0.00 enters a mean while an "unindexed" declaration does
+not.
+
+That reframes the consequence for the six existing negatives on
+plane-conditioned retrieval, which the previous packet left as an open
+question: measured through the harness, non-code tasks would have been
+**excluded as plane-unindexed rather than scored as zero**. So those negatives
+are not artifacts of this defect. Their real limitation is different and
+narrower — they never tested non-code retrieval at all, which the harness was
+saying plainly the whole time.
+
+### Consequence for the acceptance matrix
+
+A7 is added: **no Gate-3 arm may silently score a task its universe cannot
+reach.** Either it retrieves the plane, or it reports the task the way the
+harness does. An arm that returns 0.00 for a document it never indexed is
+producing a number that looks like evidence and is not.
+
 Iron Plan: EXPERIMENT
 Iron Gate: 1
