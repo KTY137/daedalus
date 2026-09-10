@@ -146,6 +146,12 @@ _TEST_ARGV_BARE_OPTIONS = frozenset({
 #: retained at all, so this only affects the gate's scratch, but the value is
 #: still held to pytest's own closed set rather than passed through.
 _TEST_ARGV_TB_STYLES = frozenset({"auto", "long", "short", "line", "native", "no"})
+#: pytest builds its parser with ``fromfile_prefix_chars="@"``. A token with
+#: this prefix is resolved BY ARGPARSE into the contents of the named file,
+#: spliced in as arguments, with no path restriction -- so it is not a path and
+#: no path rule can hold it. Measured round 3: a `conftest.py` outside the
+#: workspace was imported and executed inside the gate in all three arms.
+_ARGPARSE_PREFIX_CHARS = frozenset("@")
 MAX_TEST_MAXFAIL = 1000
 #: Only this interpreter token may open a test command. It is replaced by the
 #: interpreter the campaign resolved, so an argv can never name a binary path.
@@ -296,12 +302,19 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
         item = argv[index]
         index += 1
         if not item.startswith("-"):
-            if item.startswith(("/", "\\")) or (len(item) > 1 and item[1] == ":"):
+            # ADMIT a path; do not enumerate bad ones. Three rounds were lost
+            # to enumeration -- `-Ic`, then `-pevilplugin` and
+            # `-cC:/Windows/win.ini`, then `@C:/Windows/Temp/pwn.txt`, which is
+            # not a path at all and slipped past four hand-written shape checks
+            # because the leading `@` shifts every offset by one (Cerberus
+            # round 3, CRITICAL 3).
+            if item[:1] in _ARGPARSE_PREFIX_CHARS:
                 raise AriadneCampaignError(
-                    f"evaluator argv may not name an absolute path: {item}")
-            if any(part == ".." for part in item.replace("\\", "/").split("/")):
-                raise AriadneCampaignError(
-                    f"evaluator argv may not leave the workspace: {item}")
+                    f"evaluator argv may not carry an argument FILE: {item}. A leading "
+                    f"'{item[:1]}' is argparse's fromfile prefix, so this names a file "
+                    "whose lines are spliced in as arguments -- with no path "
+                    "restriction, before pytest sees them")
+            _admit_workspace_relative(item.rstrip("/"), label="evaluator argv path")
             continue
         if item in _TEST_ARGV_BARE_OPTIONS:
             continue
@@ -312,7 +325,11 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
             continue
         if item.startswith("--maxfail="):
             digits = item[len("--maxfail="):]
-            if not digits.isdigit() or not 1 <= int(digits) <= MAX_TEST_MAXFAIL:
+            # `str.isdigit()` is true for `\xb2` while `int()` raises on it, so
+            # the ascii guard is what keeps every refusal here an
+            # AriadneCampaignError (Cerberus round 3, low).
+            if (not digits.isascii() or not digits.isdigit()
+                    or not 1 <= int(digits) <= MAX_TEST_MAXFAIL):
                 raise AriadneCampaignError(
                     f"evaluator argv has an unusable --maxfail: {item}")
             continue
@@ -347,15 +364,17 @@ def _plugin_disable_tokens(item: str, argv: tuple[str, ...], next_index: int) ->
     ``-p`` is the one option a test command genuinely needs -- the campaign's
     own command must disable the cache plugin so pytest does not write into the
     tree it is judging -- and it is also the one that LOADS and executes an
-    arbitrary module. It is admitted only in its ``no:NAME`` disabling form, in
-    every spelling pytest accepts, including the bundled ``-pno:NAME`` that
-    defeated round 2's denylist.
+    arbitrary module. It is admitted only in its ``no:NAME`` disabling form,
+    including the bundled ``-pno:NAME`` that defeated round 2's denylist.
+
+    ``--plugin`` was admitted here until round 3 and pytest has no such option:
+    ``-p`` is registered short-only. Admitting a spelling the tool rejects is
+    surface for nothing, and the packet's suite had pinned it as a GOOD campaign
+    shape -- a command that exits 4 in every arm.
     """
 
-    if item in ("-p", "--plugin"):
+    if item == "-p":
         value, consumed = (argv[next_index] if next_index < len(argv) else ""), 1
-    elif item.startswith("--plugin="):
-        value, consumed = item[len("--plugin="):], 0
     elif item.startswith("-p"):
         value, consumed = item[2:], 0
     else:

@@ -79,13 +79,26 @@ still worthless. The packet was candid about forgery and silent about vacuity.
    including the plugin load. Both were admitted and both are honoured by the
    real pytest.
 
-   Every argument is now admitted by name or refused: a workspace-relative
-   path, one of six bare options, `--tb=STYLE` from pytest's own closed set,
-   `--maxfail=N`, or `-p no:NAME` in every spelling pytest accepts — including
-   the bundled `-pno:NAME`, because refusing that would break a real command
-   while refusing nothing. The set grows only on evidence that a campaign needs
-   an option, and each addition must argue that the option reads nothing
-   outside the workspace and loads no code.
+   Round 3 then defeated the *path* branch, which was still a denylist:
+   `@C:/Windows/Temp/pwn.txt` was admitted, because it is **not a path**.
+   pytest builds its parser with `fromfile_prefix_chars="@"`, so argparse opens
+   the named file and splices its lines in as arguments — before pytest sees
+   them, with no path restriction at all. Measured through `run_campaign`, a
+   `conftest.py` outside the workspace and in no revision was imported and
+   EXECUTED inside the contained gate in all three arms, after reading the
+   operator's environment; only the sandbox write root stopped it leaving a
+   marker.
+
+   Three rounds, one shape: enumerating bad forms instead of admitting good
+   ones. Options are admitted by name — six bare ones, `--tb=STYLE` from
+   pytest's own closed set, `--maxfail=N`, and `-p no:NAME` including the
+   bundled `-pno:NAME`. Path tokens go through `_admit_workspace_relative`,
+   the same primitive the revision entries use, with an explicit refusal of
+   argparse's prefix character on top — required rather than implied, because
+   that primitive admits `@pwn.txt` on its own. The consequence worth stating:
+   a pytest **node id** (`tests/t.py::test_a`) is now refused, because the
+   primitive refuses `:`. Selecting one test is not a shape any campaign in the
+   tree uses, and adding it back is an evidenced change, not an oversight.
 
 ## What this packet does NOT close, measured and retained
 
@@ -148,8 +161,11 @@ master plan, its amendment chain, `AGENTS.md`.
    exist;
 3. an untracked `export-ignore` line is refused by the workspace comparison,
    with `git status` clean at the time;
-4. an inline program, an absolute path and a `..` in the argv are refused, and
-   the ordinary `-m pytest -q tests` shape is admitted;
+4. every argv option is admitted by name and every argv path through
+   `_admit_workspace_relative`; an inline program, a bundled short option, an
+   argparse argument file (`@…`), an absolute path, a `..`, a device segment
+   and a `:` are all refused, and the ordinary `-m pytest -q tests` shape is
+   admitted;
 5. the exact-match default path is unchanged;
 6. the existing G1-IKARUS-48 suite still passes.
 
@@ -205,3 +221,35 @@ gitlinks were all refused; nothing escaped the workspace root.
 **Mutation table, 5/5 guards proven load-bearing:** disabling the argument
 allowlist, the plugin-disable rule, the device-name refusal, the post-write size
 check, or the digest binding each turns a named test red.
+
+
+## Review round 3 (2026-09-11, `adfae1d9`)
+
+**Cerberus: `block`, one CRITICAL — new, and the third instance of one shape.**
+
+| # | finding | repair |
+| --- | --- | --- |
+| CRITICAL 3 | `@<any path>` admitted. pytest sets `fromfile_prefix_chars="@"`, so argparse splices the named file's lines in as arguments with no path restriction. Measured end to end: a `conftest.py` outside the workspace was imported and EXECUTED in all three arms, and all three exited zero having run a suite that is not in the workspace | path tokens go through `_admit_workspace_relative`; argparse's prefix character is refused explicitly |
+| low | `str.isdigit()` is true for `²` while `int()` raises, so `--maxfail=²` escaped as a bare `ValueError` rather than an `AriadneCampaignError`, breaking the contract that every refusal here is one | ascii guard |
+| low | `--plugin` was admitted and pytest has no such option (`-p` is short-only), and the suite had pinned `--plugin=no:randomly` as a GOOD campaign shape — a command that exits 4 in every arm | removed from both |
+| low | untracked scratch under `runs/` turned `test_registry_new_doors.py` red, and `runs/` is a tracked directory | scratch moved out of the tree |
+
+**Confirmed by the reviewer, independently:** the device-name refusal holds
+against every spelling Windows actually resolves as a device (`NUL `, `NUL.`,
+`NUL:`, `CONOUT$.log`, `aux.tar.gz`), and the spellings it admits — `com¹`,
+`ＮＵＬ`, `NUL~1` — are measured **not** to be devices on this host. The
+content-sensitive vacuity test demonstrates the route for the stated reason.
+The three duplicate helpers and the dead file list are gone. The removal of the
+header comparison was right: binding the payload to the oid the tree names is
+strictly stronger, so there is no case the header check caught that the digest
+check misses.
+
+**The lesson worth keeping, and it is the reviewer's:** no mutation could have
+caught CRITICAL 3, because the mutation set is drawn from the same imagination
+as the rule. A mutation table proves a guard is load-bearing; it cannot prove
+the guard is the right guard. What caught this three times was executing the
+real tool against the admitted argv.
+
+**Measured after round 3:** 28 tests in the packet suite; 4/4 new guards
+load-bearing (removing the argparse-prefix refusal, the shared path admission,
+the ascii guard or the `--plugin` removal each turns the argv test red).

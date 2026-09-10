@@ -669,27 +669,51 @@ def test_the_evaluator_argv_head_is_an_allowlist():
         (("python", "-m", "pytest", "--tb=evil"), "unknown traceback style"),
         (("python", "-m", "pytest", "--maxfail=x"), "unusable --maxfail"),
         (("python", "-m", "pytest", "--maxfail=0"), "unusable --maxfail"),
-        (("python", "-m", "pytest", "C:/Windows/Temp"), "absolute path"),
-        (("python", "-m", "pytest", "/etc"), "absolute path"),
-        (("python", "-m", "pytest", "../../.."), "leave the workspace"),
+        (("python", "-m", "pytest", "C:/Windows/Temp"), "relative to the workspace"),
+        (("python", "-m", "pytest", "/etc"), "relative to the workspace"),
+        (("python", "-m", "pytest", "../../.."), "no empty or relative segments"),
         (("python", "-m", "pytest", "-p", "sitecustomize"), "only DISABLE a plugin"),
         (("python", "-m", "pytest", "-p=evil"), "only DISABLE a plugin"),
         (("python", "-m", "pytest", "-pno:"), "only DISABLE a plugin"),
-        (("python", "-m", "pytest", "--plugin=evil"), "only DISABLE a plugin"),
+        # Round 3, CRITICAL 3. `@x` is NOT a path: pytest builds its parser
+        # with `fromfile_prefix_chars="@"`, so argparse opens the named file
+        # and splices its lines in as arguments -- before pytest sees them,
+        # with no path restriction. Measured through `run_campaign`, a
+        # `conftest.py` outside the workspace and in no revision was imported
+        # and EXECUTED inside the contained gate in all three arms.
+        (("python", "-m", "pytest", "@C:/Windows/Temp/pwn.txt"), "argument FILE"),
+        (("python", "-m", "pytest", "@/etc/pwn.txt"), "argument FILE"),
+        (("python", "-m", "pytest", "@//server/share/pwn.txt"), "argument FILE"),
+        (("python", "-m", "pytest", "@pwn.txt"), "argument FILE"),
+        # pytest has no `--plugin`; `-p` is registered short-only.
+        (("python", "-m", "pytest", "--plugin=no:randomly"), "by name only"),
+        (("python", "-m", "pytest", "--plugin=evil"), "by name only"),
+        # `str.isdigit()` is true for these and `int()` raises on the first,
+        # so without the ascii guard this escapes as a bare ValueError.
+        (("python", "-m", "pytest", "--maxfail=\u00b2"), "unusable --maxfail"),
+        (("python", "-m", "pytest", "--maxfail=\u0663"), "unusable --maxfail"),
+        # A path token now goes through `_admit_workspace_relative` -- the same
+        # primitive the revision entries use -- instead of four hand-written
+        # shape checks. That is what closes the class rather than the spelling.
+        (("python", "-m", "pytest", "tests/NUL"), "no Windows filesystem can hold"),
+        (("python", "-m", "pytest", "tests/x:y"), "relative to the workspace"),
+        (("python", "-m", "pytest", "tests/t.py::test_a"), "relative to the workspace"),
+        (("python", "-m", "pytest", "tests//unit"), "no empty or relative segments"),
     ):
         with pytest.raises(AriadneCampaignError, match=expected):
             _admit_test_evaluator(TestCommandEvaluator(argv=bad))
 
     # The shapes a real campaign uses still pass, including disabling the cache
-    # writer so pytest does not dirty the tree it is judging -- in every
-    # spelling, because refusing the bundled `-pno:NAME` would break a real
-    # command while refusing nothing.
+    # writer so pytest does not dirty the tree it is judging, including the
+    # bundled `-pno:NAME`, because refusing that would break a real command
+    # while refusing nothing. `--plugin` is NOT among them: pytest has no such
+    # option, and this list had pinned it as a good shape (round 3, low).
     for good in (
         ("python", "-m", "pytest", "-q", "tests"),
         ("python", "-m", "pytest", "-q", "-p", "no:cacheprovider"),
         ("python", "-m", "pytest", "-pno:cacheprovider", "tests"),
-        ("python", "-m", "pytest", "--plugin=no:randomly"),
         ("python", "-m", "pytest", "--tb=short", "--maxfail=1", "tests/unit"),
+        ("python", "-m", "pytest", "tests/unit/"),
         ("python", "-m", "pytest", "-x", "--no-header", "tests"),
     ):
         _admit_test_evaluator(TestCommandEvaluator(argv=good))
