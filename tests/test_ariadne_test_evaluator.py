@@ -187,13 +187,14 @@ def test_every_evaluator_refusal_precedes_the_repository(tmp_path):
 
     for bad, expected in (
         (TestCommandEvaluator(argv=()), "1-32 text arguments"),
-        (TestCommandEvaluator(argv=("sh", "-c", "rm -rf /")), "must start with 'python'"),
-        (TestCommandEvaluator(argv=("python", "x" * 500)), "short, non-empty text"),
-        (TestCommandEvaluator(argv=("python",), timeout_s=0), "between 1 and"),
-        (TestCommandEvaluator(argv=("python",), timeout_s=MAX_TEST_TIMEOUT_S + 1), "between 1 and"),
-        (TestCommandEvaluator(argv=("python",), test_roots=()), "non-empty text prefixes"),
-        (TestCommandEvaluator(argv=("python",), test_roots=("../escape",)), "relative segments"),
-        (TestCommandEvaluator(argv=("python",), test_roots=("C:/abs",)), "relative to the workspace"),
+        (TestCommandEvaluator(argv=("sh", "-c", "rm -rf /")), "must be exactly python -m pytest"),
+        (TestCommandEvaluator(argv=("python", "x" * 500)), "must be exactly python -m pytest"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest", "x" * 500)), "short, non-empty text"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), timeout_s=0), "between 1 and"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), timeout_s=MAX_TEST_TIMEOUT_S + 1), "between 1 and"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), test_roots=()), "non-empty text prefixes"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), test_roots=("../escape",)), "relative segments"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), test_roots=("C:/abs",)), "relative to the workspace"),
     ):
         with pytest.raises(AriadneCampaignError, match=expected):
             _admit_test_evaluator(bad)
@@ -529,7 +530,12 @@ def test_a_change_no_test_reads_is_not_nominated(tmp_path):
     revision = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
                               capture_output=True, text=True, check=True).stdout.strip()
 
-    with pytest.raises(AriadneCampaignError, match="no test FAILED against the negative control"):
+    # `LIMIT = 10` mangles to `LIMIT = 10__ariadne_negative__`, which is a SYNTAX
+    # error, so the control does not parse. That is a different situation from
+    # "the suite is blind" and the campaign now says which one it met -- the
+    # first version of this test used the wrong one as its demonstration
+    # (Cerberus round 1 of G1-IKARUS-49, high 2).
+    with pytest.raises(AriadneCampaignError, match="did not parse or collect"):
         run_campaign(
             repo_root=str(root), source_revision=revision, campaign_id="a17-uncovered",
             target_path="pkg/mod.py", before="LIMIT = 10", after="LIMIT = 999",
@@ -610,27 +616,90 @@ def test_an_untracked_attributes_file_cannot_choose_what_is_judged(tmp_path):
                                capture_output=True, text=True, check=True).stdout
     assert porcelain == ""  # invisible to every ordinary check
 
-    with pytest.raises(AriadneCampaignError, match="does not match the pinned revision"):
-        _extract_revision(root, revision, tmp_path / "ws-attrs")
+    files, _ = _extract_revision(root, revision, tmp_path / "ws-attrs")
+    assert files == 3  # the export filter cannot remove what is read by digest
 
 
-def test_an_evaluator_argv_may_not_name_an_absolute_path_or_an_inline_program():
-    """Odysseus round 2 (O2-4): the packet's acceptance row claimed this refusal
-    existed. It did not -- `python -c "import os; ..."` was admitted, and so was
-    a path outside the workspace."""
+def test_the_evaluator_argv_head_is_an_allowlist():
+    """Cerberus round 1 of G1-IKARUS-49 (CRITICAL 2): the rule was a denylist of
+    spellings, and CPython bundles short options. `python -Ic "import os;
+    os.system(...)"` was admitted, and so were `-Sc`, `--command=`, `-` (the
+    program on stdin), `-m pip install requests` (which writes the interpreter
+    that judges every later campaign) and `--pyargs` (which runs an INSTALLED
+    package's tests instead of the workspace's).
 
+    A denylist of an option parser this module does not own cannot be closed.
+    The head is an allowlist: the command IS `python -m pytest`."""
+
+    for bad in (
+        ("python", "-Ic", "import os; os.system('whoami')"),
+        ("python", "-Sc", "import os"),
+        ("python", "--command=import os"),
+        ("python", "-"),
+        ("python", "-c", "import os"),
+        ("python", "-m", "pip", "install", "requests"),
+        ("python", "-m", "http.server", "8000"),
+        ("python", "-X", "importtime", "-m", "pytest"),
+        ("pytest",),
+        ("python", "-m"),
+    ):
+        with pytest.raises(AriadneCampaignError, match="must be exactly python -m pytest"):
+            _admit_test_evaluator(TestCommandEvaluator(argv=bad))
+
+    # Arguments to pytest are still held to the workspace.
     for bad, expected in (
-        (("python", "-c", "import os"), "inline program"),
-        (("python", "--command", "x"), "inline program"),
+        (("python", "-m", "pytest", "--pyargs", "daedalus"), "inline program"),
+        (("python", "-m", "pytest", "--rootdir=/etc"), "absolute path"),
         (("python", "-m", "pytest", "C:/Windows/Temp"), "absolute path"),
         (("python", "-m", "pytest", "/etc"), "absolute path"),
         (("python", "-m", "pytest", "../../.."), "leave the workspace"),
-        (("python", "-m", "pytest", "--rootdir=/etc"), "absolute path"),
+        (("python", "-m", "pytest", "-p", "sitecustomize"), "only DISABLE a plugin"),
+        (("python", "-m", "pytest", "-p=evil"), "only DISABLE a plugin"),
     ):
         with pytest.raises(AriadneCampaignError, match=expected):
             _admit_test_evaluator(TestCommandEvaluator(argv=bad))
-    # The ordinary shape still passes.
+
+    # The shapes a real campaign uses still pass, including disabling the cache
+    # writer so pytest does not dirty the tree it is judging.
     _admit_test_evaluator(TestCommandEvaluator(argv=("python", "-m", "pytest", "-q", "tests")))
+    _admit_test_evaluator(TestCommandEvaluator(
+        argv=("python", "-m", "pytest", "-q", "-p", "no:cacheprovider")))
+
+
+def test_the_workspace_is_built_from_objects_not_from_git_archive(tmp_path):
+    """Cerberus round 1 of G1-IKARUS-49 (CRITICAL 1): the workspace comparison
+    checked NAMES. `git archive` also applies attribute-selected export AND
+    smudge filters -- the latter an arbitrary shell command from an untracked
+    config. The reviewer rewrote the guarding test's body while the file list
+    stayed identical, and ran a command on the host on the way.
+
+    Reading blobs by digest has no attribute, filter or end-of-line input at
+    all, which is why this is now a construction rather than a check."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    guard = (root / "tests" / "test_mod.py").read_text(encoding="utf-8")
+
+    (root / ".git" / "info").mkdir(parents=True, exist_ok=True)
+    (root / ".git" / "info" / "attributes").write_text(
+        "tests/test_mod.py filter=neutered\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "config", "filter.neutered.smudge",
+                    "sed s/assert/assert True or/"], check=True, capture_output=True)
+    porcelain = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                               capture_output=True, text=True, check=True).stdout
+    assert porcelain == ""  # invisible to every ordinary check
+
+    files, _ = _extract_revision(root, revision, tmp_path / "ws")
+    assert files == 3
+    # The bytes are the revision's, not the filter's.
+    assert (tmp_path / "ws" / "tests" / "test_mod.py").read_text(encoding="utf-8") == guard
+    assert "assert True or" not in (tmp_path / "ws" / "tests" / "test_mod.py").read_text(encoding="utf-8")
+
+    # And the export filter that removed a file entirely is equally inert.
+    (root / ".git" / "info" / "attributes").write_text(
+        "tests/test_mod.py export-ignore\n", encoding="utf-8")
+    files_again, _ = _extract_revision(root, revision, tmp_path / "ws2")
+    assert files_again == 3
+    assert (tmp_path / "ws2" / "tests" / "test_mod.py").read_text(encoding="utf-8") == guard
 
 
 def test_the_module_says_what_a_green_run_does_not_prove():

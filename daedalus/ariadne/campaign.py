@@ -120,10 +120,18 @@ _TEST_OBSERVATION_KEYS = (
 )
 #: An inline program is not a test command: it is a way to run anything at all
 #: under the campaign's lease, and the argv is caller-supplied.
-#: -m pytest is how a test command starts, so the module switch stays. An
-#: INLINE program does not: it is a way to run anything at all under the
-#: campaign's lease from a caller-supplied argv.
-_TEST_ARGV_FORBIDDEN_FLAGS = frozenset({"-c", "--command"})
+#: The only head a test command may have. Everything after it is arguments to
+#: pytest, and those are still held to the workspace (no absolute path, no
+#: traversal, no inline program smuggled through a pytest option).
+_TEST_ARGV_HEAD = ("python", "-m", "pytest")
+_TEST_ARGV_FORBIDDEN_FLAGS = frozenset({
+    "-c", "--command", "--pyargs", "--rootdir", "--confcutdir",
+    "--import-mode", "--basetemp",
+})
+#: ``-p no:NAME`` DISABLES a plugin, and the campaign's own command needs it so
+#: pytest does not write a cache into the tree it is judging. ``-p NAME`` LOADS
+#: one, which is a way to run code the suite never asked for.
+_PLUGIN_FLAGS = ("-p", "--plugin")
 #: Only this interpreter token may open a test command. It is replaced by the
 #: interpreter the campaign resolved, so an argv can never name a binary path.
 _TEST_ARGV_INTERPRETER = "python"
@@ -142,6 +150,8 @@ TEST_REPORT_RELATIVE = "daedalus-ariadne-report.xml"
 #: The report is hostile input to the orchestrator, so it is bounded before it
 #: is parsed at all.
 MAX_TEST_REPORT_BYTES = 4 * 1024 * 1024
+#: Every git call this module makes is bounded.
+GIT_CALL_TIMEOUT_S = 120
 #: Seconds allowed per arm for building the evaluation workspace, on top of the
 #: command's own timeout. Measured on this repository: 4.5-5 s for 6371 files.
 WORKSPACE_BUILD_ALLOWANCE_S = 60
@@ -155,7 +165,10 @@ SESSION_CONTROL_NAMES = frozenset({
 })
 SESSION_CONTROL_SUFFIXES = (".pth",)
 #: A workspace built from one revision of an ordinary repository. Measured on
-#: this repository 2026-09-10: 6371 files, 284 MiB, 4.5 s.
+#: this repository 2026-09-10 through the object database: 6378 files, 282 MiB,
+#: 4.65 s -- the four tracked symlinks are materialised as the paths they store,
+#: which is what their blobs contain, so this repository is admissible as its
+#: own self-Renovation subject again.
 MAX_WORKSPACE_FILES = 50_000
 MAX_WORKSPACE_BYTES = 2 * 1024 * 1024 * 1024
 
@@ -237,11 +250,15 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
             or any(type(item) is not str for item in argv)):
         raise AriadneCampaignError(
             f"evaluator argv must be 1-{MAX_TEST_ARGV} text arguments")
-    if argv[0] != _TEST_ARGV_INTERPRETER:
-        # The lease grants tools=("python",) and the campaign substitutes the
-        # interpreter it resolved, so an argv can never name a binary path.
+    # An ALLOWLIST, because a denylist of an option parser this module does not
+    # own cannot be closed: `-Ic` bundles the inline-program switch, and so do
+    # `-Sc` and `--command=`; `-` reads the program from stdin; `-m pip install`
+    # writes the interpreter that judges every later campaign (Cerberus round 1
+    # of this packet, CRITICAL 2). The command IS `python -m pytest`.
+    if tuple(argv[:3]) != _TEST_ARGV_HEAD:
         raise AriadneCampaignError(
-            f"evaluator argv must start with '{_TEST_ARGV_INTERPRETER}'")
+            "evaluator argv must be exactly " + " ".join(_TEST_ARGV_HEAD) + " followed by "
+            "arguments for it")
     for item in argv:
         if not item or len(item) > MAX_TEST_ARG_CHARS or "\x00" in item:
             raise AriadneCampaignError("evaluator argv entries must be short, non-empty text")
@@ -249,10 +266,22 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
     # not: `python -c "import os; os.system(...)"` was admitted, and so was a
     # path outside the workspace (Odysseus round 2 on the merged packet, O2-4).
     # A test command names things INSIDE the workspace and nothing else.
-    for item in argv[1:]:
+    for index, item in enumerate(argv[3:], start=3):
         if item in _TEST_ARGV_FORBIDDEN_FLAGS:
             raise AriadneCampaignError(
                 f"evaluator argv may not carry an inline program: {item}")
+        if item in _PLUGIN_FLAGS or item.startswith(tuple(f"{flag}=" for flag in _PLUGIN_FLAGS)):
+            # NOT `value`: that name is the evaluator record this function is
+            # admitting, and shadowing it made every later check read a string.
+            plugin_value = item.split("=", 1)[1] if "=" in item else (
+                argv[index + 1] if index + 1 < len(argv) else "")
+            if not plugin_value.startswith("no:"):
+                raise AriadneCampaignError(
+                    "evaluator argv may only DISABLE a plugin ('-p no:NAME'), not load one: "
+                    f"{plugin_value}")
+            continue
+        if index > 3 and argv[index - 1] in _PLUGIN_FLAGS:
+            continue  # already checked as that flag's value
         candidate = item.split("=", 1)[-1] if item.startswith("--") else item
         if not candidate or candidate.startswith("-"):
             continue
@@ -360,14 +389,25 @@ def _read_test_identities(path: Path) -> tuple[str, ...]:
     except (ElementTree.ParseError, ValueError):
         return ()
     identities: list[str] = []
-    for case in root_element.iter("testcase"):
+    for case in root_element.iter():
+        # Namespace-blind on the way in as well as on the way down: a namespaced
+        # report yielded NO identities at all, which read as "nothing ran"
+        # (Cerberus round 1 of this packet, medium 1).
+        if case.tag.rsplit("}", 1)[-1] != "testcase":
+            continue
         name = f"{case.get('classname', '')}::{case.get('name', '')}"
-        outcome = "passed"
-        for child in case:
-            tag = child.tag.rsplit("}", 1)[-1]
-            if tag in ("failure", "error", "skipped"):
-                outcome = tag
-                break
+        # Worst outcome wins, at any depth. First-child-wins let a `skipped`
+        # element listed before a `failure` hide the failure.
+        found = {child.tag.rsplit("}", 1)[-1] for child in case.iter()}
+        status = str(case.get("status", "")).lower()
+        if "error" in found or status in ("error", "errored"):
+            outcome = "error"
+        elif "failure" in found or status in ("failure", "failed"):
+            outcome = "failure"
+        elif "skipped" in found or status == "skipped":
+            outcome = "skipped"
+        else:
+            outcome = "passed"
         identities.append(f"{name}={outcome}")
     return tuple(sorted(identities))
 
@@ -420,6 +460,207 @@ def _refuse_target_inside_test_roots(target_path: str, test_roots: tuple[str, ..
         )
 
 
+def _git_out(root: Path, args: list[str], *, stdin: bytes | None = None) -> bytes:
+    """One bounded git call with a scrubbed environment.
+
+    The kernel scrubs exactly these variables on its own git path; the
+    evaluator's calls did not, and one of them executed a filter command from
+    an untracked config with the operator's environment (Cerberus round 1 of
+    this packet, medium 3).
+    """
+
+    env = dict(os.environ)
+    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG",
+                 "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_ATTR_SYSTEM",
+                 "GIT_SSH_COMMAND", "GIT_EXTERNAL_DIFF", "GIT_ASKPASS"):
+        env.pop(name, None)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], input=stdin, capture_output=True,
+            check=True, timeout=GIT_CALL_TIMEOUT_S, env=env,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise AriadneCampaignError(
+            f"the pinned revision could not be read: {type(exc).__name__}"
+        ) from exc
+
+
+def _revision_blobs(root: Path, revision: str) -> tuple[tuple[str, str, str], ...]:
+    """Every entry the revision declares: (mode, blob digest, path).
+
+    Read from the object database, not from `git archive`. `git archive`
+    applies `$GIT_DIR/info/attributes`, which selects export filters AND smudge
+    filters -- arbitrary shell commands named in an untracked config. The
+    reviewer used one to rewrite the guarding test's content while the file
+    list stayed identical, and to run a command on the host (CRITICAL 1).
+    """
+
+    listing = _git_out(root, ["ls-tree", "-r", "-z", revision]).decode("utf-8", errors="strict")
+    entries: list[tuple[str, str, str]] = []
+    for record in listing.split("\x00"):
+        if not record:
+            continue
+        meta, _, name = record.partition("\t")
+        parts = meta.split()
+        if len(parts) != 3:
+            raise AriadneCampaignError("the pinned revision's tree listing is unreadable")
+        mode, kind, digest = parts
+        if kind != "blob":
+            # A submodule is a commit pointer, not source this evaluator reads.
+            raise AriadneCampaignError(
+                f"the pinned revision contains a {kind} entry this workspace cannot "
+                f"represent: {name}")
+        entries.append((mode, digest, _admit_workspace_relative(name, label="revision entry")))
+    return tuple(sorted(entries, key=lambda item: item[2]))
+
+
+def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
+    """Build an evaluation workspace from one Git revision's OBJECTS.
+
+    Not from `git archive`. That command applies `$GIT_DIR/info/attributes`,
+    which can select an export filter, a smudge filter (an arbitrary shell
+    command named in an untracked config) and an end-of-line conversion. All
+    three change what a campaign judges, none of them is in any revision, and
+    none of them shows up in `git status`. A reviewer used one to rewrite the
+    guarding test's body while the file list stayed identical, and another to
+    run a command on the host (Cerberus round 1 of G1-IKARUS-49).
+
+    Reading blobs by digest has none of those inputs, and every file is checked
+    against the digest the revision names before it is counted.
+    """
+
+    entries = _revision_blobs(root, revision)
+    if len(entries) > MAX_WORKSPACE_FILES:
+        raise AriadneCampaignError("evaluation workspace exceeds its bounds")
+    into.mkdir(parents=True, exist_ok=True)
+    if not entries:
+        return 0, 0
+    request = b"".join(f"{digest}\n".encode("ascii") for _mode, digest, _name in entries)
+    stream = _git_out(root, ["cat-file", "--batch"], stdin=request)
+    files = 0
+    total = 0
+    seen: set[str] = set()
+    cursor = 0
+    for mode, digest, name in entries:
+        newline = stream.find(b"\n", cursor)
+        if newline == -1:
+            raise AriadneCampaignError("the pinned revision's object stream ended early")
+        header = stream[cursor:newline].decode("ascii", errors="strict").split()
+        cursor = newline + 1
+        if len(header) != 3 or header[1] != "blob":
+            raise AriadneCampaignError(f"the pinned revision does not yield a blob for {name}")
+        size = int(header[2])
+        payload = stream[cursor:cursor + size]
+        cursor += size + 1  # git writes a newline after every object
+        if len(payload) != size:
+            raise AriadneCampaignError(f"the pinned revision's object is truncated: {name}")
+        if hashlib.sha1(b"blob %d\x00" % size + payload).hexdigest() != header[0]:
+            raise AriadneCampaignError(f"the pinned revision's object does not match its digest: {name}")
+        folded = name.casefold()
+        if folded in seen:
+            # Two names the filesystem folds together: one would silently
+            # overwrite the other and the count would still say two.
+            raise AriadneCampaignError(
+                f"the pinned revision contains two paths this filesystem folds together: {name}")
+        seen.add(folded)
+        files += 1
+        total += size
+        if total > MAX_WORKSPACE_BYTES:
+            raise AriadneCampaignError("evaluation workspace exceeds its bounds")
+        target = into.joinpath(*name.split("/"))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # A symlink's blob IS its target path, and writing it as a regular file
+        # is a faithful materialisation of what the revision stores. The tests
+        # do not follow it, and refusing outright made this repository -- which
+        # has four tracked symlinks -- an inadmissible subject for its own
+        # self-Renovation strand.
+        target.write_bytes(payload)
+    return files, total
+
+
+def _refuse_target_inside_test_roots(target_path: str, test_roots: tuple[str, ...]) -> None:
+    """A candidate may not be a test when tests are the judge.
+
+    The workspace is the pinned revision with one file replaced, so a target
+    inside a test root would let the candidate rewrite the very assertions that
+    decide its verdict -- the plan's section 8.1 rule, applied to the project's
+    own suite rather than only to this evaluator's tests.
+    """
+
+    spelling = target_path.replace("\\", "/").strip("/").casefold()
+    for root in test_roots:
+        prefix = root.replace("\\", "/").strip("/").casefold()
+        if spelling == prefix or spelling.startswith(prefix + "/"):
+            raise AriadneCampaignError(
+                "target_path is inside a declared test root, and the tests are the "
+                f"evaluator for this campaign: {root}"
+            )
+    name = spelling.rsplit("/", 1)[-1]
+    if name in SESSION_CONTROL_NAMES or name.endswith(SESSION_CONTROL_SUFFIXES):
+        raise AriadneCampaignError(
+            "target_path configures the test session rather than being tested by it, "
+            f"so a candidate could decide its own verdict: {name}"
+        )
+
+
+def _git_out(root: Path, args: list[str], *, stdin: bytes | None = None) -> bytes:
+    """One bounded git call with a scrubbed environment.
+
+    The kernel scrubs exactly these variables on its own git path; the
+    evaluator's calls did not, and one of them executed a filter command from
+    an untracked config with the operator's environment (Cerberus round 1 of
+    this packet, medium 3).
+    """
+
+    env = dict(os.environ)
+    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG",
+                 "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_ATTR_SYSTEM",
+                 "GIT_SSH_COMMAND", "GIT_EXTERNAL_DIFF", "GIT_ASKPASS"):
+        env.pop(name, None)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], input=stdin, capture_output=True,
+            check=True, timeout=GIT_CALL_TIMEOUT_S, env=env,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise AriadneCampaignError(
+            f"the pinned revision could not be read: {type(exc).__name__}"
+        ) from exc
+
+
+def _revision_blobs(root: Path, revision: str) -> tuple[tuple[str, str, str], ...]:
+    """Every entry the revision declares: (mode, blob digest, path).
+
+    Read from the object database, not from `git archive`. `git archive`
+    applies `$GIT_DIR/info/attributes`, which selects export filters AND smudge
+    filters -- arbitrary shell commands named in an untracked config. The
+    reviewer used one to rewrite the guarding test's content while the file
+    list stayed identical, and to run a command on the host (CRITICAL 1).
+    """
+
+    listing = _git_out(root, ["ls-tree", "-r", "-z", revision]).decode("utf-8", errors="strict")
+    entries: list[tuple[str, str, str]] = []
+    for record in listing.split("\x00"):
+        if not record:
+            continue
+        meta, _, name = record.partition("\t")
+        parts = meta.split()
+        if len(parts) != 3:
+            raise AriadneCampaignError("the pinned revision's tree listing is unreadable")
+        mode, kind, digest = parts
+        if kind != "blob":
+            # A submodule is a commit pointer, not source this evaluator reads.
+            raise AriadneCampaignError(
+                f"the pinned revision contains a {kind} entry this workspace cannot "
+                f"represent: {name}")
+        entries.append((mode, digest, _admit_workspace_relative(name, label="revision entry")))
+    return tuple(sorted(entries, key=lambda item: item[2]))
+
+
 def _revision_file_list(root: Path, revision: str) -> tuple[str, ...]:
     """Every blob path the revision itself declares, from the object database.
 
@@ -441,84 +682,6 @@ def _revision_file_list(root: Path, revision: str) -> tuple[str, ...]:
             f"the pinned revision's file list is unreadable: {type(exc).__name__}"
         ) from exc
     return tuple(sorted(name for name in listing.split("\x00") if name))
-
-
-def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
-    """Build an evaluation workspace from one Git revision, deterministically.
-
-    ``git archive`` reads the REVISION, never the working tree, so a dirty
-    checkout cannot leak into a trial, and the extraction is byte-identical
-    across runs (measured on this repository: two extractions, one digest).
-    A member that is not a regular file is REFUSED, not skipped: dropping it
-    silently made the workspace differ from the revision while the count said
-    otherwise.
-    """
-
-    try:
-        archive = subprocess.run(
-            ["git", "-C", str(root), "archive", "--format=tar", revision],
-            capture_output=True, check=True,
-        ).stdout
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise AriadneCampaignError(
-            f"evaluation workspace could not be built from the pinned revision: {type(exc).__name__}"
-        ) from exc
-    into.mkdir(parents=True, exist_ok=True)
-    files = 0
-    total = 0
-    try:
-        seen: set[str] = set()
-        with tarfile.open(fileobj=io.BytesIO(archive), mode="r|") as tar:
-            for member in tar:
-                if member.isdir():
-                    continue
-                if not member.isfile():
-                    # A symlink, a device or a hard link cannot be represented
-                    # faithfully here, and skipping it silently made the
-                    # workspace differ from the revision while the count said
-                    # otherwise (Odysseus round 1: four tracked symlinks).
-                    raise AriadneCampaignError(
-                        "the pinned revision contains a member this workspace cannot "
-                        f"represent: {member.name}"
-                    )
-                relative = _admit_workspace_relative(member.name, label="archive member")
-                folded = relative.casefold()
-                if folded in seen:
-                    # Two names the filesystem folds together: one would silently
-                    # overwrite the other and the count would still say two.
-                    raise AriadneCampaignError(
-                        "the pinned revision contains two paths this filesystem folds "
-                        f"together: {relative}"
-                    )
-                seen.add(folded)
-                payload_stream = tar.extractfile(member)
-                if payload_stream is None:
-                    continue
-                payload = payload_stream.read()
-                files += 1
-                total += len(payload)
-                if files > MAX_WORKSPACE_FILES or total > MAX_WORKSPACE_BYTES:
-                    raise AriadneCampaignError("evaluation workspace exceeds its bounds")
-                target = into.joinpath(*relative.split("/"))
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(payload)
-    except tarfile.TarError as exc:
-        raise AriadneCampaignError(
-            f"evaluation workspace archive is unreadable: {type(exc).__name__}"
-        ) from exc
-    # The workspace must be what the revision says it is, not what an untracked
-    # attributes file decided to hand over (O2-2).
-    declared = set(_revision_file_list(root, revision))
-    present = {p.relative_to(into).as_posix() for p in into.rglob("*") if p.is_file()}
-    if declared != present:
-        missing = sorted(declared - present)[:5]
-        extra = sorted(present - declared)[:5]
-        raise AriadneCampaignError(
-            "the evaluation workspace does not match the pinned revision's own file "
-            f"list (missing {len(declared - present)}, unexpected {len(present - declared)}"
-            f"): {missing or extra}"
-        )
-    return files, total
 
 
 _CAMPAIGN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -2232,6 +2395,15 @@ def run_campaign(
                     except AriadneCampaignError:
                         report_counts = {"tests": 0, "failures": 0, "errors": 0,
                                          "skipped": 0, "executed": 0}
+                    identities = _read_test_identities(
+                        evaluation_workspace / TEST_REPORT_RELATIVE
+                    )
+                    if identities and len(identities) != report_counts["tests"]:
+                        # The counts come from `<testsuite>` attributes and the
+                        # identities from `<testcase>` elements. A report whose
+                        # two halves disagree is not evidence (medium 1).
+                        report_counts = {"tests": 0, "failures": 0, "errors": 0,
+                                         "skipped": 0, "executed": 0}
                     trial_passed = (
                         trial_passed
                         and report_counts["executed"] > 0
@@ -2239,9 +2411,7 @@ def run_campaign(
                         and report_counts["errors"] == 0
                     )
                     executed_by_variant[variant] = report_counts["executed"]
-                    identities_by_variant[variant] = _read_test_identities(
-                        evaluation_workspace / TEST_REPORT_RELATIVE
-                    )
+                    identities_by_variant[variant] = identities
                     # A tree of the pinned revision per arm is ~284 MiB on this
                     # repository; three of them per campaign, retained forever,
                     # is not evidence, it is disk (Cerberus round 1, high 3).
@@ -2728,7 +2898,14 @@ def run_campaign(
                     "baseline, so the suite does not exercise the changed region and a "
                     "passing repair proves nothing about it"
                 )
-            if not any(identity.endswith("=failure") for identity in control_ids):
+            # The failing test must be one the BASELINE passed: a flaky rerun
+            # that emits both outcomes, or an id present only in the control,
+            # otherwise satisfies this (Cerberus round 1, medium 2).
+            baseline_passed = {identity[: -len("=passed")]
+                               for identity in baseline_ids if identity.endswith("=passed")}
+            control_failed = {identity[: -len("=failure")]
+                              for identity in control_ids if identity.endswith("=failure")}
+            if not (control_failed & baseline_passed):
                 # A test that ERRORED did not run: the mangled file failed to
                 # import or collect, so the control proved the suite LOADS the
                 # file and nothing about whether it exercises the changed region
@@ -2737,10 +2914,24 @@ def run_campaign(
                 # A test that FAILED ran and disagreed, which is the evidence
                 # this arm exists to produce. Refusing here means many campaigns
                 # will not nominate; that is correct, because they prove nothing.
+                # Two different situations, and saying the wrong one is a lie
+                # the operator will act on (Cerberus round 1, high 2). The
+                # campaign's mutation appends an identifier to the target text,
+                # which is a SYNTAX error for a numeric literal, a closing quote
+                # or a `def` name -- there the module never parses and even a
+                # suite that genuinely covers the region errors.
+                if any(identity.endswith("=error") for identity in control_ids):
+                    raise AriadneCampaignError(
+                        "the negative control did not parse or collect, so this campaign "
+                        "cannot discriminate: the mutation appends an identifier to the "
+                        "target text, which is a syntax error in this position. Choose a "
+                        "`before` whose mangled form still parses (an expression or a "
+                        "string's contents) or the evidence cannot be produced"
+                    )
                 raise AriadneCampaignError(
-                    "no test FAILED against the negative control -- they errored or were "
-                    "skipped, so the suite only showed that the file still loads, not "
-                    "that it exercises the changed region"
+                    "no test that the baseline passed FAILED against the negative control, "
+                    "so the suite did not disagree about the changed region and a passing "
+                    "repair proves nothing about it"
                 )
         selected = repair_trial
         selected_packet = evidence_by_key[(selected.variant_id, selected.seed)]
