@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
-SUITES = ["tests/runtimes/test_computer_ariadne.py", "tests/test_ikarus_computer_dispatch.py",
+SUITES = ["tests/gates/test_repository_tree.py", "tests/runtimes/test_computer_ariadne.py", "tests/test_ikarus_computer_dispatch.py",
           "tests/test_ikarus_computer_loop_ariadne.py", "tests/runtimes/test_computer_service.py"]
 A = "daedalus/runtimes/computer_ariadne.py"
 S = "daedalus/runtimes/computer.py"
@@ -88,8 +88,8 @@ MUTATIONS = [
      '            if segment in ("", ".", ".."):',
      '            if segment in ("", ".."):'),
     ("M26 the postcondition ignores the evidence directory", A,
-     '                    and evidence_present)',
-     '                    and True)'),
+     '                    and evidence_present and receipt_matches_request)',
+     '                    and True and receipt_matches_request)'),
     ("M27 a no-op grant claims applied", L,
      '            if enabling == present:',
      '            if False:'),
@@ -97,7 +97,7 @@ MUTATIONS = [
      '        if verb.casefold() in {"enable", "disable"} and [w.casefold() for w in argument.split()[:1]] == ["ariadne"]:',
      '        if verb.casefold() in {"enable", "disable"} and argument.split()[:1] == ["ariadne"]:'),
     ("M29 the projection is built from the raw receipt again", A,
-     '        data: Mapping[str, Any] = json.loads(receipt_text)',
+     '        data: Mapping[str, Any] = parsed',
      '        data: Mapping[str, Any] = receipt'),
     ("M19 the registry accepts a non-callable factory", L,
      '    if factory is not None and not callable(factory):\n        raise ComputerLoopRefused("campaign runner factory must be callable")',
@@ -117,6 +117,33 @@ MUTATIONS = [
     ("M34 the projection re-reads the registry after the runner", A,
      "        return self._project_receipt(receipt, relative, campaign_id, source_revision, repo_root, started_at)",
      "        return self._project_receipt(receipt, relative, campaign_id, source_revision, self._repo_root(), started_at)"),
+    ("M35 a hard link is read by the campaign's own reader", "daedalus/gates/repository/tree.py",
+     '        if getattr(before, "st_nlink", 1) > 1:',
+     '        if False:'),
+    ("M36 a supplied campaign label is not bound to the operation", A,
+     '        label = value[:_LABEL_CHARS]\n        return f"{label}-{digest[:12]}"',
+     '        return value'),
+    ("M37 the evidence freshness check has no ceiling", A,
+     "                entry.is_file() and floor <= entry.stat().st_mtime <= ceiling",
+     "                entry.is_file() and floor <= entry.stat().st_mtime"),
+    ("M38 a large integer is rendered into the projection", A,
+     "        return value if value.bit_length() <= MAX_INT_BITS else f\"<integer of {value.bit_length()} bits>\"",
+     "        return value"),
+    ("M39 a receipt about another campaign still verifies", A,
+     "                    and evidence_present and receipt_matches_request)",
+     "                    and evidence_present)"),
+    ("M40 a receipt that is not an object is read anyway", A,
+     '        if not isinstance(parsed, dict):',
+     '        if False:'),
+    ("M41 a budget-equality field passes through untyped", A,
+     '            "budget_equality": {key: _flag(equality.get(key)) for key in',
+     '            "budget_equality": {key: equality.get(key) for key in'),
+    ("M42 the evidence check is unguarded after the runner", A,
+     "        except Exception:  # noqa: BLE001 - after the runner, a failed check is \"not verified\", never a refusal",
+     "        except _PreRunRefusal:"),
+    ("M43 the projection's gate call is unguarded after the runner", A,
+     "        except Exception:  # noqa: BLE001 - same rule: after the runner nothing here may refuse",
+     "        except _PreRunRefusal:"),
 ]
 
 

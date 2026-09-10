@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -51,15 +52,21 @@ def _project(monkeypatch, repo_root: str, *, deny=("tct_app/devices/",)):
 class _Recorder:
     """A runner that records the call and returns a real-shaped receipt."""
 
-    def __init__(self, receipt=None, *, raise_with=None):
+    def __init__(self, receipt=None, *, raise_with=None, echo_request=True):
         self.calls = []
         self.receipt = receipt if receipt is not None else _receipt()
         self.raise_with = raise_with
+        self.echo_request = echo_request
 
     def run_campaign(self, **kwargs):
         self.calls.append(kwargs)
         if self.raise_with is not None:
             raise self.raise_with
+        if self.echo_request:
+            # The real campaign's receipt is about the campaign it was asked to
+            # run; a fixture that did not echo hid the round-3 D19 check.
+            return {**self.receipt, "campaign_id": kwargs.get("campaign_id", self.receipt.get("campaign_id")),
+                    "source_revision": kwargs.get("source_revision", self.receipt.get("source_revision"))}
         return self.receipt
 
 
@@ -390,7 +397,13 @@ def test_a_campaign_id_is_held_to_the_filesystem_spelling_of_its_directory(tmp_p
     runner, recorder = _runner()
     tool = _tool(tmp_path, monkeypatch, runner)
     result = tool.execute({**ARGS, "campaign_id": "camp1.a-b_2"})
-    assert result["campaign_id"] == "camp1.a-b_2" and len(recorder.calls) == 1
+    # The id keeps the planner's label AND carries the operation it belongs to
+    # (Odysseus round 3, D14: a bare label let one campaign borrow another's
+    # fresh evidence directory and report a verified postcondition).
+    assert result["campaign_id"].startswith("camp1.a-b_2-") and len(recorder.calls) == 1
+    assert len(result["campaign_id"]) <= 64 and recorder.calls[0]["campaign_id"] == result["campaign_id"]
+    other = tool.execute({**ARGS, "after": "return 3", "campaign_id": "camp1.a-b_2"})
+    assert other["campaign_id"] != result["campaign_id"]  # a different operation, a different directory
 
 
 def test_the_evidence_must_have_been_written_during_this_run(tmp_path, monkeypatch):
@@ -439,6 +452,127 @@ def test_every_projected_value_is_bounded_not_only_every_list(tmp_path, monkeypa
     assert result["selection_mode"].endswith("chars)") and len(result["selection_mode"]) < 300
     assert result["negative_outcomes"][0].endswith("chars)")
     assert result["trials"][0]["blockers"][0].endswith("chars)")
+
+
+def test_a_receipt_about_another_campaign_does_not_verify_the_postcondition(tmp_path, monkeypatch):
+    """Odysseus round 3 (D19): the projection echoes the REQUEST, so a receipt
+    about a different campaign or revision was reported under this campaign's
+    id and target with `outcome` taken from that foreign receipt."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    monkeypatch.setenv("USERPROFILE", str(profile))
+    monkeypatch.setattr(killswitch, "OS_PROFILE_DIR", profile)
+    foreign = _receipt()
+    foreign["campaign_id"] = "somebody-elses-campaign"
+    foreign["source_revision"] = "b" * 40
+    runner, _ = _runner(_Recorder(receipt=foreign, echo_request=False))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    first = tool.execute(dict(ARGS))
+    evidence = killswitch.control_root(Path(tool._repo_root())) / "ariadne" / "effect-evidence" / first["campaign_id"]
+    evidence.mkdir(parents=True)
+    (evidence / "lease-subject.json").write_text("{}", encoding="utf-8")
+    result = tool.execute(dict(ARGS))
+    assert result["evidence_present"] is True and result["receipt_matches_request"] is False
+    assert result["postcondition_verified"] is False
+    assert "somebody-elses-campaign" not in json.dumps(result)
+
+
+def test_evidence_with_a_future_timestamp_does_not_verify_forever(tmp_path, monkeypatch):
+    """Odysseus round 3 (D15): the freshness floor had no ceiling, so a single
+    file dated in the future verified every later forgery."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    monkeypatch.setenv("USERPROFILE", str(profile))
+    monkeypatch.setattr(killswitch, "OS_PROFILE_DIR", profile)
+    runner, _ = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+    first = tool.execute(dict(ARGS))
+    evidence = killswitch.control_root(Path(tool._repo_root())) / "ariadne" / "effect-evidence" / first["campaign_id"]
+    evidence.mkdir(parents=True)
+    planted = evidence / "lease-subject.json"
+    planted.write_text("{}", encoding="utf-8")
+    ahead = time.time() + 365 * 24 * 3600
+    os.utime(planted, (ahead, ahead))
+    result = tool.execute(dict(ARGS))
+    assert result["evidence_present"] is False and result["postcondition_verified"] is False
+
+
+def test_a_large_integer_in_the_receipt_is_described_not_rendered(tmp_path, monkeypatch):
+    """Odysseus round 3 (D16): `_short` passed every int through, so only
+    CPython's 4300-digit conversion limit bounded the projection -- 62 KB out
+    of rules that promise 200 characters."""
+    huge = _receipt()
+    huge["selected_seed"] = 10 ** 4000
+    huge["trials"][0]["usage"] = {"wall_time_ms": 10 ** 4000}
+    runner, _ = _runner(_Recorder(receipt=huge))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    result = tool.execute(dict(ARGS))
+    rendered = json.dumps(result)
+    assert len(rendered) < 20000, len(rendered)
+    assert str(result["selected_seed"]).startswith("<integer of ")
+    assert str(result["trials"][0]["wall_time_ms"]).startswith("<integer of ")
+
+
+def test_an_unreadable_receipt_shape_is_classified_not_crashed(tmp_path, monkeypatch):
+    """Odysseus round 3 (D18/D20/D21): a Mapping that is not a dict renders to
+    a STRING through `default=str`, and every read then raised an unclassified
+    AttributeError; an unreadable list shape read as "empty, nothing elided";
+    a string in a budget-equality field read as a true flag."""
+    class NotADict(Mapping):
+        def __init__(self, data): self._data = data
+        def __getitem__(self, key): return self._data[key]
+        def __iter__(self): return iter(self._data)
+        def __len__(self): return len(self._data)
+
+    runner, _ = _runner(_Recorder(receipt=NotADict(_receipt()), echo_request=False))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    with pytest.raises(ComputerRefused, match="not an object"):
+        tool.execute(dict(ARGS))
+
+    shaped = _receipt()
+    shaped["trials"] = {"a": 1}
+    shaped["negative_outcomes"] = {"b": 2}
+    shaped["budget_equality"] = {"configured_equal": "false", "realized_usage_recorded": "no", "within_budget": 0}
+    runner, _ = _runner(_Recorder(receipt=shaped))
+    result = _tool(tmp_path, monkeypatch, runner).execute(dict(ARGS))
+    assert result["trials"] == [] and result["trials_readable"] is False
+    assert result["negative_outcomes_readable"] is False
+    assert list(result["budget_equality"].values()) == [None, None, None]
+
+
+def test_a_failing_evidence_check_reads_as_unverified_never_as_a_refusal(tmp_path, monkeypatch):
+    """Odysseus round 3 (D17): removing the guard around the evidence check made
+    no test fail, because no test made that check raise. A campaign HAS run at
+    that point, so a control root that cannot be read is "not verified" -- it
+    is never a pre-run refusal, which would settle the lease as effect-free."""
+    from daedalus.spine import killswitch as ks
+    runner, recorder = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+
+    def explode(root):
+        raise PermissionError(13, "denied", "C:\\Users\\victim\\control")
+    monkeypatch.setattr(ks, "control_root", explode)
+    result = tool.execute(dict(ARGS))
+    assert len(recorder.calls) == 1  # the campaign ran
+    assert result["outcome"] == "nominated" and result["evidence_present"] is False
+    assert result["postcondition_verified"] is False and "victim" not in json.dumps(result)
+
+
+def test_a_failing_gate_call_in_the_projection_withholds_the_target(tmp_path, monkeypatch):
+    """Odysseus round 3 (D17): the projection's own guard around the target-path
+    gate was never exercised, because the gate's inner guard swallowed the only
+    failure a test produced. A failure there withholds the path; it never
+    refuses after the runner."""
+    runner, recorder = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+
+    def explode(relative):
+        raise RuntimeError("gate is unavailable: C:\\Users\\victim\\projects")
+    monkeypatch.setattr(tool, "_admit_path", explode)
+    result = tool.execute(dict(ARGS))
+    assert len(recorder.calls) == 1
+    assert result["target_path"] == "<withheld>" and result["outcome"] == "nominated"
+    assert "victim" not in json.dumps(result)
 
 
 def test_a_runner_of_the_wrong_type_is_refused(tmp_path, monkeypatch):
@@ -510,13 +644,16 @@ def test_the_projection_carries_verdicts_and_hashes_but_no_locator_path_or_after
     assert result["campaign_id"].startswith("ikarus-") and len(result["campaign_id"]) == 7 + 24
 
 
-def test_the_default_campaign_id_is_deterministic_per_operation_and_a_given_id_is_kept(tmp_path, monkeypatch):
+def test_the_default_campaign_id_is_deterministic_per_operation_and_a_given_label_is_bound_to_it(tmp_path, monkeypatch):
     runner, _ = _runner()
     tool = _tool(tmp_path, monkeypatch, runner)
     first = tool.execute(dict(ARGS))["campaign_id"]
     assert tool.execute(dict(ARGS))["campaign_id"] == first
     assert tool.execute({**ARGS, "after": "return 3"})["campaign_id"] != first
-    assert tool.execute({**ARGS, "campaign_id": "owner.named-1"})["campaign_id"] == "owner.named-1"
+    # A supplied label is KEPT and bound to the operation (Odysseus round 3,
+    # D14): the label alone named a directory another campaign could fill.
+    named = tool.execute({**ARGS, "campaign_id": "owner.named-1"})["campaign_id"]
+    assert named.startswith("owner.named-1-") and named.endswith(first[len("ikarus-"):][:12])
 
 
 def test_the_target_path_is_withheld_on_the_untrusted_lane_when_the_gate_refuses_it(tmp_path, monkeypatch):

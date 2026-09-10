@@ -115,9 +115,10 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # ``marginal_functions`` is exactly 8; the rates moved by 0.01-0.02pp.
     #
     # Re-pinned again 2026-09-10 on the combined tree (G1-IKARUS-46 review
-    # round 10 + G1-IKARUS-47 review round 2 added computer_ariadne.py and the
-    # helpers ``_walk_token`` and ``_short``): 7181 functions, 47644 type-name
-    # sites, 521 files parsed, probe run twice (docs/evidence/G1-IKARUS-47).
+    # round 10 + G1-IKARUS-47 review rounds 2 and 3 added computer_ariadne.py
+    # and the helpers ``_walk_token``, ``_short`` and ``_flag``): 7182 functions,
+    # 47646 type-name sites, 521 files parsed, probe run twice
+    # (docs/evidence/G1-IKARUS-47).
     # ``full_resolver_pct`` moved 94.34 -> 94.35. What the row exists to report
     # did NOT move: ``marginal_functions`` is still exactly 8 and
     # ``marginal_pp`` is still 0.1114, as is the annotation-only control.

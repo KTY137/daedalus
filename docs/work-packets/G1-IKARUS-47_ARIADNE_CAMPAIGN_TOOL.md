@@ -253,7 +253,7 @@ were confirmed resolved.
 | hard link (low-medium) | `mklink /H pkg/hard.py daedalus/spine/killswitch.py` — one inode, two names: `realpath` returns the requested spelling, so every lexical and resolved check passed and the campaign was admitted for a protected file. The kernel HAS an `st_nlink` check but resolves against the computer workspace, so it never sees the subject | `_admit_target_file` refuses `st_nlink > 1` | `test_a_hard_link_to_a_protected_file_is_refused_before_the_runner`; M30 |
 | D4 residue (medium) | the default `campaign_id` is a digest of the OPERATION, so a second call with the same arguments inherited the first run's evidence directory: a forged receipt (a runner that writes nothing) reported `postcondition_verified=True` | the evidence must carry a timestamp from THIS run (`started_at` minus a 2 s filesystem tolerance) | `test_the_evidence_must_have_been_written_during_this_run`; M32 |
 | D11 (low-medium) | `campaign_id` had no filesystem-spelling rule although the target segments do: `CAMP1`, `camp1.` and `con` name the same or no directory on Windows | lower case, no trailing dot or space, no reserved device name | `test_a_campaign_id_is_held_to_the_filesystem_spelling_of_its_directory`; M31 |
-| D9 residue / D12 (low) | counts were bounded, VALUES were not: a 2 MB receipt field produced a 2.5 MB projection | every projected value is cut at 200 characters with the loss stated | `test_every_projected_value_is_bounded_not_only_every_list`; M33 |
+| D9 residue / D12 (low) | counts were bounded, VALUES were not: a 2 MB receipt field produced a 2.5 MB projection | every projected STRING is cut at 200 characters with the loss stated — integers were still unbounded until round 3 (D16) | `test_every_projected_value_is_bounded_not_only_every_list`; M33 |
 | D1, D2, D3, D5, D6, D7, D8 | re-attacked: junctions (intermediate and terminal), 8.3 short names (`IKARUS~1.MD`), case and Unicode spellings (`daedaluſ`), `::$DATA`, trailing dot, 24 malformed shapes, a stateful `__str__`, the case-folded subcommand | confirmed resolved; a case-different but legitimate spelling (`Pkg/Mod.py`) is still admitted, so the rule does not over-refuse | the existing round-1 tests |
 
 **Not closed, stated.** A file symbolic link could not be measured on this host
@@ -261,9 +261,44 @@ were confirmed resolved.
 mechanism is proven by the junction case plus an `S_ISLNK` test. The evidence
 check proves that evidence appeared under this campaign's directory during this
 run — presence, not causation (Cerberus NEW-4); a receipt is not tied to the
-files by a digest. Between the admission `stat` and the campaign's own read the
-subject could change (NEW-3): the campaign re-reads and refuses on its own
-`before` mismatch, and nothing is applied either way.
+files by a digest. Between the admission `stat` and the campaign's own read the subject could
+change (NEW-3). Round 2 claimed the campaign's own `before` mismatch closes
+that window. **That claim was false and is withdrawn:** `before` is chosen by
+the planner, which can pick a fragment that occurs in the file it wants to
+reach, and Odysseus won the race 12 times out of 12 (round 3, D13). The window
+is closed at the read instead — see round 3.
+
+## Review round 3 (2026-09-10, `a2a6198d`)
+
+**Odysseus: one HIGH with an executed end-to-end exploit, one HIGH/MEDIUM, two
+MEDIUM, six LOW.** The round-2 repairs held where they were measured: no
+`_PreRunRefusal` is reachable after the runner (11 injections at the seam; the
+three exceptions that do escape carry no `effect_state`, and the service
+requires the literal `"none"` for this family, so they reconcile instead of
+claiming no effect); every static link shape is refused; the campaign-id regex
+is ASCII, so no Unicode folding route exists at all.
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D13 (HIGH, executed) | the `st_nlink` refusal is admission-time, and the campaign's own reader never checked it. A concurrent writer that swapped the admitted file for a HARD LINK during the `git rev-parse` window won every attempt (0.39 ms writer against a 12.2 ms window) and the REAL campaign, through the REAL lease, nominated a candidate carrying `daedalus/spine/killswitch.py` bytes, with those bytes in six control-root files. Nothing was applied (invariant 5 held), but a §8.1 leakage boundary was crossed | the check moves to where the read is atomic: `os.fstat(descriptor).st_nlink > 1` in `read_repository_source`, beside the existing device/inode/size race check. This is a deliberate, minimal extension of this packet's scope into `daedalus/gates/repository/tree.py`, because the hole is reachable through the door this packet opens and closing it at the door only narrows the window | `test_a_hard_link_is_refused_on_the_open_descriptor` (the reader's own suite); M35 |
+| D14 (HIGH/MEDIUM) | a planner-supplied `campaign_id` named the evidence directory with no binding to the operation, so campaign B borrowed campaign A's FRESH evidence and reported a verified postcondition — the round-2 fix closed re-using your own stale directory and left borrowing someone else's open | the id always carries the operation digest: a supplied label becomes `<label>-<digest12>`, the default stays `ikarus-<digest24>` | `test_a_campaign_id_is_held_to_the_filesystem_spelling_of_its_directory`, `test_the_default_campaign_id_is_deterministic_per_operation_and_a_given_label_is_bound_to_it`; M36 |
+| D15 (MEDIUM) | the freshness floor had no ceiling: one file dated a year ahead verified every later forgery | bounded on both sides (`floor <= mtime <= now + tolerance`) | `test_evidence_with_a_future_timestamp_does_not_verify_forever`; M37 |
+| D16 (MEDIUM) | `_short` passed every integer through, so only CPython's 4300-digit conversion limit bounded the projection — 62 KB out of rules that promise 200 characters — and the packet's own row said otherwise | an integer wider than 256 bits is described, not rendered; the row above is corrected | `test_a_large_integer_in_the_receipt_is_described_not_rendered`; M38 |
+| D17 (LOW-MEDIUM) | two of the three legs of the round-2 repair were mutation-invisible: no test made the evidence check or the projection's gate call fail | both are exercised, so removing either guard is caught | `test_a_failing_evidence_check_reads_as_unverified_never_as_a_refusal`, `test_a_failing_gate_call_in_the_projection_withholds_the_target`; M42, M43 |
+| D18 (LOW) | a Mapping that is not a `dict` renders to a STRING through `default=str`, and every read then raised an unclassified `AttributeError` | classified: "campaign receipt is not an object" | `test_an_unreadable_receipt_shape_is_classified_not_crashed`; M40 |
+| D19 (LOW) | the projection echoes the REQUEST, so a receipt about another campaign was reported under this campaign's id and target | the receipt's own id and revision are compared with the request; a mismatch is reported and fails the postcondition | `test_a_receipt_about_another_campaign_does_not_verify_the_postcondition`; M39 |
+| D20 (LOW) | an unreadable list shape read as "empty, nothing elided", so the planner could not tell it from "no trials" | `trials_readable` and `negative_outcomes_readable` | the same test; part of M40's suite |
+| D21 (LOW) | `budget_equality` passed `"false"` and `0` through, which a JSON consumer reads as true flags | a boolean or nothing | the same test; M41 |
+| D22 (LOW) | the truncation marker is text a producer could write itself | stated in `_short`'s docstring; the marker is a hint, and `trials_readable`/`*_elided` are the load-bearing fields | — |
+
+**Not reproducible on this host, stated:** 8.3 short names (the volume has 8dot3
+disabled) and a file symbolic link (the token has no `SeCreateSymbolicLink`).
+Neither is claimed closed; the junction case exercises the same resolution.
+
+**Still true after this round:** the evidence check is presence during this run,
+not causation — no digest ties a receipt to the files it points at. The id now
+binds the directory to the operation, which is what D14 needed, but a dishonest
+runner remains outside what this adapter can verify.
 
 ## Evidence, expected failures and review
 

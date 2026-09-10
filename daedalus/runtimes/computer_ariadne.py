@@ -47,6 +47,10 @@ MAX_FRAGMENT_CHARS = 200_000
 TIMEOUT_MIN_S = 1
 TIMEOUT_MAX_S = 120
 TIMEOUT_DEFAULT_S = 30
+#: How much of a planner-supplied campaign label is kept in front of the
+#: operation digest, so that the whole id stays inside the campaign's own
+#: 64-character rule.
+_LABEL_CHARS = 40
 #: The campaign's own rule (``campaign._CAMPAIGN_ID_RE``): first character
 #: alphanumeric, then up to 63 of ``[A-Za-z0-9._-]`` (Odysseus round 1, D3: a
 #: looser rule here let ``.hidden`` reach the runner and be refused there).
@@ -59,6 +63,8 @@ LIST_SHOWN = 10
 #: producer-supplied, and a 2 MB ``selection_mode`` yielded a 2.5 MB projection
 #: (Odysseus round 2 of this packet, D9).
 MAX_VALUE_CHARS = 200
+#: An integer wider than this is described, not rendered (D16).
+MAX_INT_BITS = 256
 #: How far the evidence freshness check may look back, in seconds: filesystem
 #: timestamp granularity and a clock that ticks between the two reads.
 EVIDENCE_MTIME_TOLERANCE_S = 2.0
@@ -100,14 +106,30 @@ def _listed(value: Any) -> list[Any]:
 
 
 def _short(value: Any) -> Any:
-    """A projected value, bounded. Numbers and ``None`` pass; everything else
-    is text and is cut at :data:`MAX_VALUE_CHARS` with the loss stated."""
-    if value is None or isinstance(value, (bool, int, float)):
+    """A projected value, bounded. ``None``, booleans and floats pass; a large
+    integer is described instead of rendered, and every other value is text cut
+    at :data:`MAX_VALUE_CHARS`.
+
+    An integer was NOT bounded before: only CPython's 4300-digit
+    integer-to-string limit stood between a receipt field and the projection,
+    which made a 62 KB projection out of 200-character rules (G1-IKARUS-47,
+    Odysseus round 3, D16). The caller counts the truncations, because the
+    marker below is text a producer could also write itself (D22).
+    """
+    if value is None or isinstance(value, (bool, float)):
         return value
+    if isinstance(value, int):
+        return value if value.bit_length() <= MAX_INT_BITS else f"<integer of {value.bit_length()} bits>"
     text = value if isinstance(value, str) else str(value)
     if len(text) <= MAX_VALUE_CHARS:
         return text
     return text[:MAX_VALUE_CHARS] + f"...(+{len(text) - MAX_VALUE_CHARS} chars)"
+
+
+def _flag(value: Any) -> Any:
+    """A budget-equality flag: a boolean or nothing. A string ``"false"`` and a
+    zero read as a true flag to a JSON consumer (Odysseus round 3, D21)."""
+    return value if isinstance(value, bool) else None
 
 
 def _is_sha256(value: Any) -> bool:
@@ -269,8 +291,9 @@ class AriadneCampaignTool:
 
     @staticmethod
     def _campaign_id(value: object, operation: Mapping[str, Any]) -> str:
+        digest = hashlib.sha256(json.dumps(operation, sort_keys=True, ensure_ascii=False)
+                                .encode("utf-8")).hexdigest()
         if value is None:
-            digest = hashlib.sha256(json.dumps(operation, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
             return f"ikarus-{digest[:24]}"
         if not isinstance(value, str) or not _CAMPAIGN_ID_RE.fullmatch(value):
             raise _PreRunRefusal("campaign_id must be 1-64 path-free letters, digits, '.', '_' or '-'")
@@ -279,7 +302,13 @@ class AriadneCampaignTool:
         if value != value.casefold() or value.rstrip(". ") != value or value.split(".")[0].casefold() in _RESERVED_NAMES:
             raise _PreRunRefusal("campaign_id must be lower case, must not end in '.' or a space, and must not "
                                  "be a reserved device name: the evidence directory is named after it")
-        return value
+        # The evidence directory is named after the id, and the postcondition
+        # below reads that directory. A planner-chosen label alone let one
+        # campaign borrow ANOTHER campaign's fresh evidence and report a
+        # verified postcondition (Odysseus round 3, D14), so the label always
+        # carries the operation it belongs to.
+        label = value[:_LABEL_CHARS]
+        return f"{label}-{digest[:12]}"
 
     # ------------------------------------------------------------------ execution
     def execute(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -352,10 +381,21 @@ class AriadneCampaignTool:
         except (TypeError, ValueError) as exc:
             raise _CampaignFailure(f"campaign receipt is not renderable: {type(exc).__name__}") from exc
         receipt_sha256 = hashlib.sha256(receipt_text.encode("utf-8")).hexdigest()
-        data: Mapping[str, Any] = json.loads(receipt_text)
+        parsed = json.loads(receipt_text)
+        if not isinstance(parsed, dict):
+            # A Mapping that is not a dict renders through ``default=str``, so
+            # the parse returns a STRING and every read below raised an
+            # unclassified AttributeError (Odysseus round 3, D18).
+            raise _CampaignFailure("campaign receipt is not an object")
+        data: Mapping[str, Any] = parsed
+        # The projection echoes the REQUEST, so a receipt about another campaign
+        # would be reported under this campaign's id and target unless the two
+        # are compared (Odysseus round 3, D19).
+        receipt_matches_request = (data.get("campaign_id") in (None, campaign_id)
+                                   and data.get("source_revision") in (None, source_revision))
         trials = []
-        all_trials = [t for t in (data.get("trials") or ()) if isinstance(t, Mapping)] \
-            if isinstance(data.get("trials"), (list, tuple)) else []
+        trials_readable = isinstance(data.get("trials"), (list, tuple))
+        all_trials = [t for t in (data.get("trials") or ()) if isinstance(t, Mapping)] if trials_readable else []
         for trial in all_trials[:TRIALS_SHOWN]:
             usage_raw = trial.get("usage")
             usage: Mapping[str, Any] = usage_raw if isinstance(usage_raw, Mapping) else {}
@@ -387,13 +427,18 @@ class AriadneCampaignTool:
         try:
             from daedalus.spine.killswitch import control_root
             evidence_dir = control_root(Path(repo_root)) / "ariadne" / "effect-evidence" / campaign_id
+            # Bounded on BOTH sides: a floor alone meant one file with a
+            # future timestamp verified every later forgery, for as long as
+            # that timestamp stayed ahead (Odysseus round 3, D15).
             floor = started_at - EVIDENCE_MTIME_TOLERANCE_S
+            ceiling = time.time() + EVIDENCE_MTIME_TOLERANCE_S
             evidence_present = evidence_dir.is_dir() and any(
-                entry.is_file() and entry.stat().st_mtime >= floor for entry in evidence_dir.rglob("*"))
+                entry.is_file() and floor <= entry.stat().st_mtime <= ceiling
+                for entry in evidence_dir.rglob("*"))
         except Exception:  # noqa: BLE001 - after the runner, a failed check is "not verified", never a refusal
             evidence_present = False
         verified = (outcome == "nominated" and _is_sha256(candidate_sha) and _is_sha256(nomination_sha)
-                    and evidence_present)
+                    and evidence_present and receipt_matches_request)
         result = {
             "schema": RESULT_SCHEMA,
             "kind": "campaign",
@@ -408,7 +453,13 @@ class AriadneCampaignTool:
             "selection_mode": _short(data.get("selection_mode")),
             "trials": trials,
             "trials_elided": max(0, len(all_trials) - TRIALS_SHOWN),
-            "budget_equality": {key: _short(equality.get(key)) for key in
+            # An unreadable shape read as "no trials" with nothing elided, so
+            # the planner could not tell the two apart (D20).
+            "trials_readable": trials_readable,
+            "negative_outcomes_readable": isinstance(data.get("negative_outcomes"), (list, tuple))
+            or data.get("negative_outcomes") is None,
+            "receipt_matches_request": receipt_matches_request,
+            "budget_equality": {key: _flag(equality.get(key)) for key in
                                 ("configured_equal", "realized_usage_recorded", "within_budget")},
             "negative_outcomes": negative[:LIST_SHOWN],
             "negative_outcomes_elided": max(0, len(negative) - LIST_SHOWN),
