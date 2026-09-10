@@ -581,11 +581,27 @@ def _framework_rows(
                 "probed": True,
             }
         return normalized
+    # The cockpit calls /api/accelerators/status WITHOUT deep=1, so this is the
+    # branch the desktop capability panel actually renders. In a frozen build
+    # ``_has_module`` answers a question about the BUNDLE, not about the host:
+    # tools/build_tauri_sidecar.py names torch, cupy, cupyx, cupy_backends,
+    # warp, newton, nvidia, triton and cuda in DESKTOP_PYINSTALLER_EXCLUDES, so
+    # False here is guaranteed by construction and is not evidence that the
+    # machine lacks them. Saying "deep probe not requested" -- a string the
+    # cockpit suppresses -- let that guaranteed False read as a measurement.
+    shallow_detail = "deep probe not requested"
+    if _frozen_application() and not os.environ.get(ACCELERATOR_PYTHON_ENV, "").strip():
+        shallow_detail = (
+            "not shipped in the desktop bundle: this frozen backend excludes the "
+            "optional accelerator runtimes, so it cannot see one that is "
+            f"installed on the machine. Set {ACCELERATOR_PYTHON_ENV} to a python "
+            "executable from such an environment and request a deep probe."
+        )
     return {
         name: {
             "installed": _has_module(name),
             "cuda_ready": None,
-            "detail": "deep probe not requested",
+            "detail": shallow_detail,
             "probed": False,
         }
         for name in names

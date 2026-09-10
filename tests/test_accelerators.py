@@ -523,3 +523,50 @@ def test_shallow_status_names_no_interpreter_because_none_was_asked() -> None:
         payload["framework_probe_diagnostics"]["transport_outcome"]
         == "not_requested"
     )
+
+
+def test_shallow_rows_in_a_source_checkout_keep_the_quiet_sentinel() -> None:
+    """The cockpit suppresses this exact string; only a real checkout earns it."""
+
+    with mock.patch.dict("os.environ", {}, clear=True),             mock.patch.object(accelerators.sys, "frozen", False, create=True),             mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    assert all(row["detail"] == "deep probe not requested" for row in rows.values())
+
+
+def test_shallow_rows_in_a_frozen_bundle_name_the_exclusion_not_the_machine() -> None:
+    """The branch the desktop capability panel actually renders.
+
+    ``/api/accelerators/status`` is called without ``deep=1``, so the panel
+    reads ``_has_module`` inside the frozen backend. The desktop build excludes
+    every accelerator runtime by design, so False there is guaranteed and says
+    nothing about the host. It must not be dressed as a measurement.
+    """
+
+    with mock.patch.dict("os.environ", {}, clear=True),             mock.patch.object(accelerators.sys, "frozen", True, create=True),             mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    assert set(rows) == {"torch", "cupy", "warp", "cuvs", "cugraph", "newton"}
+    for name, row in rows.items():
+        assert row["probed"] is False, name
+        assert row["cuda_ready"] is None, name
+        # Not the string the cockpit hides: this reason has to reach the panel.
+        assert row["detail"] != "deep probe not requested", name
+        assert "not shipped in the desktop bundle" in row["detail"], name
+        assert accelerators.ACCELERATOR_PYTHON_ENV in row["detail"], name
+
+
+def test_frozen_shallow_rows_keep_a_measured_presence(tmp_path) -> None:
+    """A configured interpreter means the operator owns the answer again."""
+
+    interpreter = tmp_path / "python.exe"
+    interpreter.write_bytes(b"")
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: str(interpreter)},
+        clear=True,
+    ), mock.patch.object(accelerators.sys, "frozen", True, create=True),             mock.patch.object(accelerators, "_has_module", return_value=True):
+        rows = accelerators._framework_rows(deep=False)
+
+    assert all(row["installed"] is True for row in rows.values())
+    assert all(row["detail"] == "deep probe not requested" for row in rows.values())
