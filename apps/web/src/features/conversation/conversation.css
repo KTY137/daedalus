@@ -63,6 +63,30 @@
   min-height: 0;
   padding-right: var(--u2);
 }
+/*
+ * A turn is a self-contained block, and an off-screen one does not need to be
+ * laid out at all.
+ *
+ * The transcript and the composer share one flex column, so every size change
+ * in the composer marks the transcript dirty. Measured 2026-09-10 with a
+ * 40-turn thread (Chromium 151, devtools trace): each keystroke produced two
+ * layouts with dirtyObjects=10 but totalObjects=3416 and partialLayout=false
+ * -- Chromium walked the entire transcript's layout tree to place ten dirty
+ * boxes, ~4 ms a pass. The transcript was not re-rendering; it was simply too
+ * big to walk. `content-visibility: auto` lets the browser skip layout and
+ * paint for the turns nobody is looking at: totalObjects fell to 1166 and the
+ * pass to 1.17 ms. (`contain: layout` on the scroller was tried here too and
+ * measured as noise beside this, so it is deliberately absent.)
+ *
+ * `contain-intrinsic-size: auto <size>` is what keeps the scrollbar honest:
+ * the `auto` keyword makes Chromium remember each turn's last rendered height
+ * instead of guessing the placeholder value forever, so scroll position and
+ * the pin-to-bottom in Conversation.tsx stay where the reader left them.
+ */
+.convo-scroll > .turn {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 160px;
+}
 .convo-scroll,
 .ctxplan-body,
 .brain-menu,
@@ -766,23 +790,52 @@
   gap: var(--u2);
   min-width: 0;
 }
-.composer textarea {
+/*
+ * The field sizes itself against a hidden copy of its own text stacked in the
+ * same grid cell, so nothing has to measure it (see Conversation.tsx).
+ *
+ * THE RULE THAT KEEPS IT HONEST: every selector that sizes `.composer
+ * textarea` names `.composer-grow::after` beside it, in the same file and at
+ * the same specificity. The two boxes have to agree on min-height, padding,
+ * font and line-height, or the mirror sizes the field for a typography the
+ * field does not have. shell.css and responsive.css carry the same pair for
+ * their own breakpoints; a lone `.composer textarea` rule is a bug.
+ */
+.composer-grow {
   flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.composer-grow::after {
+  content: attr(data-value);
+  visibility: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  pointer-events: none;
+}
+.composer-grow > textarea,
+.composer-grow::after { grid-area: 1 / 1 / 2 / 2; }
+.composer textarea,
+.composer-grow::after {
   min-width: 0;
   min-height: 44px;
   max-height: 200px;
   padding: 11px var(--u2);
   border: 0;
-  background: transparent;
-  color: var(--ink);
   font: inherit;
   line-height: 1.45;
+}
+.composer textarea {
+  background: transparent;
+  color: var(--ink);
   resize: none;
   overflow-y: auto;
 }
 .composer textarea:focus { outline: none; }
 .composer textarea::placeholder { color: var(--ink3); }
-.cockpit-body.talk .composer textarea { min-height: 52px; padding: 13px var(--u2); font-size: var(--fs-lg); }
+.cockpit-body.talk .composer textarea,
+.cockpit-body.talk .composer-grow::after { min-height: 52px; padding: 13px var(--u2); font-size: var(--fs-lg); }
 
 .composer-send {
   flex: none;

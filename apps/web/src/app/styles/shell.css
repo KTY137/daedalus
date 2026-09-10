@@ -357,7 +357,8 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .cockpit-body.talk .convo-scroll { max-height: none; overflow: visible; }
 .cockpit-body.talk .convo-empty { font-size: var(--fs-lg); max-width: 60ch; }
 .cockpit-body.talk .turn-text { font-size: var(--fs-lg); line-height: 1.5; }
-.cockpit-body.talk .composer textarea { min-height: 52px; padding: 15px var(--u3); font-size: var(--fs-lg); }
+.cockpit-body.talk .composer textarea,
+.cockpit-body.talk .composer-grow::after { min-height: 52px; padding: 15px var(--u3); font-size: var(--fs-lg); }
 .cockpit-body.talk .composer button { min-width: 52px; min-height: 52px; }
 
 /* The rail's two tabs. Same grammar as the view switch in the chrome — a
