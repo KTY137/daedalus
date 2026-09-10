@@ -227,29 +227,39 @@ class _Unrenderable(Exception):
 def _strings_in(value: Any) -> list[str]:
     """Every string a value hands on once ``_json_safe`` serialises it.
 
-    The value is RENDERED first, exactly as ``_json_safe`` renders it, and the
-    strings are read off the rendering: a set has no JSON form, so
-    ``default=str`` emits the whole container as one text built from element
-    ``repr()``s -- gating the elements' ``str()`` (round 4) missed a ``Path``
-    whose repr carries the host path (Odysseus round 5, D14). What is gated is
-    now byte-for-byte what leaves. Bytes are decoded first (``default=str``
-    would render ``b'…'`` -- the decoded text is a superset of it).
+    The value is RENDERED first, through the very same ``json.dumps`` call
+    ``_json_safe`` makes (same ``default`` hook, same flags), and the strings
+    are read off the rendering: a set has no JSON form, so the hook emits the
+    whole container as one text built from element ``repr()``s -- gating the
+    elements' ``str()`` (round 4) missed a ``Path`` whose repr carries the
+    host path (Odysseus round 5, D14). One renderer, so what is gated is
+    byte-for-byte what leaves (Cerberus round 6: a separate decode pass let a
+    non-dict Mapping with its own ``__repr__`` diverge).
     """
+    return _rendered_strings(_render_value(value))
+
+
+def _render_value(value: Any) -> Any:
+    """The JSON-native form of a value -- rendered ONCE. The gate reads its
+    strings off this form and the observation EMITS this form, so a value whose
+    ``str()`` changes between two calls cannot be gated as one text and emitted
+    as another (Odysseus round 6, D20)."""
     try:
-        rendered = json.loads(json.dumps(_decoded(value), ensure_ascii=False, default=str, allow_nan=False))
-    except Exception as exc:  # noqa: BLE001 - ``default=str`` runs foreign __str__ code; any failure withholds
+        return json.loads(_render(value))
+    except Exception as exc:  # noqa: BLE001 - the hook runs foreign __str__ code; any failure withholds
         raise _Unrenderable(f"{type(exc).__name__}: {exc}"[:200]) from exc
-    return _rendered_strings(rendered)
 
 
-def _decoded(value: Any) -> Any:
-    if isinstance(value, bytes):
-        return value.decode("utf-8", "replace")
-    if isinstance(value, Mapping):
-        return {key: _decoded(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_decoded(item) for item in value]
-    return value
+def _render_default(value: Any) -> str:
+    """The one ``default`` hook: bytes as their decoded text, everything else
+    as ``str()`` -- what a planner or a retained artifact would see."""
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return bytes(value).decode("utf-8", "replace")
+    return str(value)
+
+
+def _render(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, default=_render_default, allow_nan=False)
 
 
 def _rendered_strings(value: Any) -> list[str]:
@@ -270,8 +280,9 @@ def _bounded_text(value: object, limit: int = MAX_TEXT_CHARS) -> tuple[str, bool
 
 
 def _json_safe(value: Any) -> Any:
-    """Round-trip through JSON so the observation is exactly what is retained."""
-    return json.loads(json.dumps(value, ensure_ascii=False, default=str, allow_nan=False))
+    """Round-trip through JSON so the observation is exactly what is retained --
+    through the same renderer the gate used."""
+    return json.loads(_render(value))
 
 
 def _status_line_paths(line: str) -> list[str]:
@@ -384,17 +395,20 @@ class DaedalusObservation:
             if not isinstance(row, Mapping):
                 withheld += 1
                 continue
-            projected = {key: row[key] for key in keep_keys if key in row} if keep_keys else dict(row)
-            paths = [str(row[key]) for key in path_keys if isinstance(row.get(key), str) and row.get(key)]
-            # EVERY string that will be handed on is gated, not only the named
-            # text keys: a kept field outside ``text_keys`` (``phase`` on a task
-            # brief) carried a host path to the planner (Odysseus round 2, D1).
+            # The projected row is RENDERED once; its strings are gated and the
+            # rendering is what is kept (D20). EVERY string that will be handed
+            # on is gated, not only the named text keys: a kept field outside
+            # ``text_keys`` (``phase`` on a task brief) carried a host path to
+            # the planner (Odysseus round 2, D1).
             try:
-                handed_on = [text for key, value in projected.items() if key not in path_keys
-                             for text in _strings_in(value)]
+                projected = {key: _render_value(row[key]) for key in keep_keys if key in row} if keep_keys \
+                    else {str(key): _render_value(value) for key, value in row.items()}
             except _Unrenderable:
                 withheld += 1
                 continue
+            paths = [str(row[key]) for key in path_keys if isinstance(row.get(key), str) and row.get(key)]
+            handed_on = [text for key, value in projected.items() if key not in path_keys
+                         for text in _rendered_strings(value)]
             named = [str(row[key]) for key in text_keys if isinstance(row.get(key), str) and row.get(key)]
             text = " ".join(dict.fromkeys(named + handed_on))
             if not paths and not text:
@@ -413,7 +427,7 @@ class DaedalusObservation:
             self._checkpoint()
             # effect_free: no persistent cache write or eviction under the
             # profile, no process pool, no churn ``git log`` (Cerberus MAJOR 1).
-            self._index = cached_index(repo_root, effect_free=True)
+            self._index = self._produce("index", lambda: cached_index(repo_root, effect_free=True))
             self._checkpoint()
         return self._index
 
@@ -441,9 +455,13 @@ class DaedalusObservation:
     # ------------------------------------------------------------------ tools
     def _status(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
-        git = dict(self._readers.git_counters(repo_root))
+        git = self._produce("git counters", lambda: self._readers.git_counters(repo_root))
+        if not isinstance(git, Mapping):
+            raise ComputerRefused("observation producer failed (git counters): no mapping")
         self._checkpoint()
-        bridge = dict(self._readers.bridge_status(self._project))
+        bridge = self._produce("bridge status", lambda: self._readers.bridge_status(self._project))
+        if not isinstance(bridge, Mapping):
+            raise ComputerRefused("observation producer failed (bridge status): no mapping")
         queue_raw = {key: bridge.get(key) for key in (
             "queue_depth", "in_flight", "unread_count", "reports_total")}
         watcher = bridge.get("watcher") if isinstance(bridge.get("watcher"), dict) else {}
@@ -474,8 +492,9 @@ class DaedalusObservation:
                         withheld_paths += 1
                 observed[key] = "\n".join(kept_lines)
                 continue
-            if self._admit_value(key, value):
-                observed[key] = value
+            admitted, rendered = self._gate_value(key, value)
+            if admitted:
+                observed[key] = rendered
             else:
                 withheld_fields += 1
         observed["git_status_withheld"] = withheld_paths
@@ -483,31 +502,66 @@ class DaedalusObservation:
         queue: dict[str, Any] = {}
         queue_withheld = 0
         for key, value in queue_raw.items():
-            if self._admit_value(key, value):
-                queue[key] = value
+            admitted, rendered = self._gate_value(key, value)
+            if admitted:
+                queue[key] = rendered
             else:
                 queue_withheld += 1
         queue["fields_withheld"] = queue_withheld
         return {"git": observed, "queue": queue, "registered": True}
 
-    def _admit_value(self, key: str, value: Any) -> bool:
-        """A scalar or container is admitted only if every string it would hand
-        on passes the shape check and the project's gate; a value the
-        observation could not render is withheld the same way (D16)."""
+    def _gate_value(self, key: str, value: Any) -> tuple[bool, Any]:
+        """``(admitted, rendered)``: a scalar or container is admitted only if
+        every string of its ONE rendering passes the shape check and the
+        project's gate, and that rendering is what the observation emits
+        (D20); a value that cannot be rendered is withheld (D16)."""
         try:
-            texts = _strings_in(value)
+            rendered = _render_value(value)
         except _Unrenderable:
-            return False
-        return all(not _looks_like_host_path(text) and self._admit(f"{key}.txt", text) for text in texts)
+            return False, None
+        admitted = all(not _looks_like_host_path(text) and self._admit(f"{key}.txt", text)
+                       for text in _rendered_strings(rendered))
+        return admitted, rendered
+
+    def _admit_value(self, key: str, value: Any) -> bool:
+        return self._gate_value(key, value)[0]
+
+    def _gated_fields(self, source: Mapping[str, Any], keys: tuple[str, ...]) -> tuple[dict[str, Any], int]:
+        """Project ``keys`` of a producer's payload through the gate (D23: a
+        counter is a value like any other; a producer that put a path into
+        ``n_files`` would have handed it on)."""
+        observed: dict[str, Any] = {}
+        withheld = 0
+        for key in keys:
+            admitted, rendered = self._gate_value(key, source.get(key))
+            if admitted:
+                observed[key] = rendered
+            else:
+                withheld += 1
+        return observed, withheld
+
+    def _produce(self, label: str, call: Callable[[], Any]) -> Any:
+        """Run a reader or producer; a failure is a refusal that names the
+        failure CLASS only -- its message may carry the very host path the
+        gate exists to withhold (Odysseus round 6, D21: a PermissionError from
+        ``collect_status`` reached the planner's history verbatim)."""
+        try:
+            return call()
+        except ComputerRefused:
+            raise
+        except Exception as exc:  # noqa: BLE001 - every producer failure is a refusal, never a message
+            raise ComputerRefused(f"observation producer failed ({label}): {type(exc).__name__}") from exc
 
     def _structure(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
         from daedalus.structcore.report import structure_summary
         idx = self._cached_index(repo_root)
-        summary = structure_summary(idx, top_hotspots=TOP * 2, top_clones=TOP * 2, top_windows=0,
-                                    top_fanin=TOP * 2, top_renamed=0, top_near=0,
-                                    max_graph_nodes=0, max_graph_edges=0)
-        ignored = summary.get("ignored") if isinstance(summary.get("ignored"), dict) else {}
+        summary = self._produce("structure summary", lambda: structure_summary(
+            idx, top_hotspots=TOP * 2, top_clones=TOP * 2, top_windows=0,
+            top_fanin=TOP * 2, top_renamed=0, top_near=0, max_graph_nodes=0, max_graph_edges=0))
+        if not isinstance(summary, Mapping):
+            raise ComputerRefused("observation producer failed (structure summary): no mapping")
+        ignored = summary.get("ignored") if isinstance(summary.get("ignored"), Mapping) else {}
         hotspots, hotspots_withheld = self._admit_rows(
             summary.get("hotspots", []), ("module",),
             keep_keys=("module", "score", "loc", "long_functions", "guard_count", "cc_max"))
@@ -538,13 +592,15 @@ class DaedalusObservation:
         # ``*_withheld`` counts gate refusals; ``*_elided`` counts the admitted
         # rows the TOP bound drops, so a short list is never mistaken for a
         # complete one (Odysseus round 4, D13).
-        return {"n_files": summary.get("n_files"),
-                "ignored": {"count": ignored.get("count", 0),
-                            "n_files_scanned": ignored.get("n_files_scanned"),
+        counters, counters_withheld = self._gated_fields(summary, ("n_files", "languages", "totals"))
+        ignored_counters, ignored_withheld = self._gated_fields(ignored, ("count", "n_files_scanned"))
+        return {**counters,
+                "ignored": {**ignored_counters,
                             "ignore_patterns": admitted_patterns[:TOP],
                             "ignore_patterns_withheld": len(patterns) - len(admitted_patterns),
-                            "ignore_patterns_elided": max(0, len(admitted_patterns) - TOP)},
-                "languages": summary.get("languages"), "totals": summary.get("totals"),
+                            "ignore_patterns_elided": max(0, len(admitted_patterns) - TOP),
+                            "fields_withheld": ignored_withheld},
+                "fields_withheld": counters_withheld,
                 "hotspots": hotspots[:TOP], "hotspots_withheld": hotspots_withheld,
                 "hotspots_elided": max(0, len(hotspots) - TOP),
                 "clones": clones[:TOP], "clones_withheld": clones_withheld,
@@ -577,15 +633,12 @@ class DaedalusObservation:
             # through the same gate as a ``module`` row of ``daedalus.structure``
             # -- a basename the model chooses must not enumerate the paths the
             # project withholds (Cerberus round 4, H4).
+            # No count either (Odysseus round 6, D22): "2 candidates, all
+            # withheld" confirmed the existence the unique branch denies.
             admitted = [hit for hit in hits if self._admit(hit, "")]
-            withheld = len(hits) - len(admitted)
             if admitted:
-                raise ComputerRefused(
-                    f"module is ambiguous ({len(hits)} indexed candidates, {withheld} withheld by the egress "
-                    f"gate); name one of: " + ", ".join(admitted[:TOP]))
-            raise ComputerRefused(
-                f"module is ambiguous ({len(hits)} indexed candidates, all withheld by the egress gate); "
-                "name a fuller repository-relative path")
+                raise ComputerRefused("module is ambiguous; name one of: " + ", ".join(admitted[:TOP]))
+            raise ComputerRefused(_MODULE_UNAVAILABLE)
         raise ComputerRefused(_MODULE_UNAVAILABLE)
 
     def _slice(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -598,8 +651,11 @@ class DaedalusObservation:
         target = self._resolve_module(idx, arguments.get("module"))
         self._checkpoint()
         lane = self.lane
-        result = semantic_slice(repo_root, target, idx=idx, lane=lane,
-                                policy=self._project_policy(), max_tokens=SLICE_MAX_TOKENS)
+        policy = self._project_policy()
+        result = self._produce("slice", lambda: semantic_slice(repo_root, target, idx=idx, lane=lane,
+                                                               policy=policy, max_tokens=SLICE_MAX_TOKENS))
+        if not isinstance(result, Mapping):
+            raise ComputerRefused("observation producer failed (slice): no mapping")
         text, elided = _bounded_text(result.get("slice_text", ""))
         withheld = result.get("withheld") or []
         # The withheld rows name the FILES the gate refused -- on the untrusted
@@ -634,9 +690,9 @@ class DaedalusObservation:
         # lane may be exactly the directory the project withholds (Cerberus
         # round 4, H4 corollary).
         focus = target if self._admit(target, "") else "<withheld>"
-        return {"focus_file": focus, "lane": lane,
-                "slice_tokens": result.get("slice_tokens"), "n_included": result.get("n_included"),
-                "trimmed_count": result.get("trimmed_count", 0),
+        counters, counters_withheld = self._gated_fields(
+            {**result, "trimmed_count": result.get("trimmed_count", 0)}, ("slice_tokens", "n_included", "trimmed_count"))
+        return {"focus_file": focus, "lane": lane, **counters, "fields_withheld": counters_withheld,
                 "withheld": shown, "withheld_count": len(rows),
                 "withheld_elided": max(0, len(rows) - TOP),
                 "text": text, "text_elided": elided}
@@ -644,19 +700,23 @@ class DaedalusObservation:
     def _docrefs(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
         from daedalus.spine import docrefs
-        report = docrefs.scan(repo_root)
+        report = self._produce("docrefs", lambda: docrefs.scan(repo_root))
         self._checkpoint()
-        payload = report.to_dict()
+        payload = self._produce("docrefs", lambda: report.to_dict())
+        if not isinstance(payload, Mapping):
+            raise ComputerRefused("observation producer failed (docrefs): no mapping")
         broken, withheld = self._admit_rows(payload.get("broken", []),
                                             ("doc_path", "module_path"), ("raw", "symbol"),
                                             keep_keys=("doc_path", "line", "raw", "module_path", "symbol", "state"))
         # Scanner error strings carry the absolute path of the unreadable file
         # (Cerberus MAJOR 2): only their number is observed.
-        return {"n_resolving": payload.get("n_resolving"), "n_broken": payload.get("n_broken"),
-                "n_skipped": payload.get("n_skipped"), "files_scanned": payload.get("files_scanned"),
+        counters, counters_withheld = self._gated_fields(
+            payload, ("n_resolving", "n_broken", "n_skipped", "files_scanned"))
+        errors = payload.get("errors")
+        return {**counters, "fields_withheld": counters_withheld,
                 "broken": broken[:TOP], "broken_elided": max(0, len(broken) - TOP),
                 "broken_withheld": withheld,
-                "errors_count": len(payload.get("errors", []))}
+                "errors_count": len(errors) if isinstance(errors, (list, tuple)) else 0}
 
     def _tasks(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         self._repo_root()  # a task list is still scoped to a registered project
@@ -665,7 +725,7 @@ class DaedalusObservation:
         # import cycle (see ProjectReaders), so this observation stays with the
         # file-bridge reports. The chat's ``/computer tasks`` remains the door to
         # mission history.
-        briefs = list(self._readers.report_briefs(self._project))
+        briefs = self._produce("report briefs", lambda: list(self._readers.report_briefs(self._project)))
         reports, withheld = self._admit_rows(
             briefs, (), ("summary", "name", "agent", "provider", "lane", "project"),
             keep_keys=("name", "status", "lane", "project", "agent", "provider", "phase", "summary"))

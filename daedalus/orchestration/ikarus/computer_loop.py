@@ -1101,10 +1101,14 @@ def _egress_destination_sentence(leaves: bool, trusted: bool, host: str | None) 
 def _daedalus_tools_egress_warning(provider: str, *, trusted: bool, host: str | None = None) -> str:
     if host is not None:
         from ...sensitivity import is_loopback_host
-        # The declaration clause defends itself (Cerberus round 5, low): a
-        # trusted LOOPBACK host was never declared, only a trusted remote one.
-        declared = trusted and not is_loopback_host(host)
-        where = (f"Der konfigurierte Planner `{provider}` läuft auf `{host}`, nicht auf diesem Rechner"
+        # Both clauses defend themselves (Cerberus rounds 5 and 6, low): the
+        # caller fires only when the observations leave, but a loopback host
+        # must never be called "nicht auf diesem Rechner", and a trusted
+        # LOOPBACK host was never declared, only a trusted remote one.
+        loopback = is_loopback_host(host)
+        declared = trusted and not loopback
+        where = (f"Der konfigurierte Planner `{provider}` läuft auf `{host}`"
+                 + (" (dieser Rechner)" if loopback else ", nicht auf diesem Rechner")
                  + (" — einem Host, den du in DAEDALUS_TRUSTED_HOSTS als vertraut erklärt hast" if declared else "")
                  + ". Mit den Daedalus-Werkzeugen gehen "
                  f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt dorthin.")

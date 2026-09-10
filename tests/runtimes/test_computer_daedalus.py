@@ -210,17 +210,17 @@ def test_an_ambiguous_module_names_only_the_candidates_the_gate_admits(tmp_path,
     with pytest.raises(ComputerRefused) as refused:
         adapter._resolve_module(idx, "laser.py")
     message = str(refused.value)
-    assert "3 indexed candidates, 2 withheld" in message and "name one of: lib/laser.py" in message
-    assert "tct_app" not in message and "vendor" not in message
+    assert message == "module is ambiguous; name one of: lib/laser.py"
+    # No count either (Odysseus round 6, D22): two withheld files sharing a
+    # basename answer exactly like a miss.
     with pytest.raises(ComputerRefused) as refused:
         adapter._resolve_module({"modules": {"tct_app/devices/laser.py": {}, "vendor/acme/laser.py": {}}}, "laser.py")
-    assert "all withheld" in str(refused.value)
-    assert "tct_app" not in str(refused.value) and "vendor" not in str(refused.value)
+    assert str(refused.value) == subject._MODULE_UNAVAILABLE
     # The trusted lane sees the same list its structure rows would show.
     trusted = subject.DaedalusObservation(_policy(tmp_path, planner_provider="claude_code_cli",
                                                   allow_remote_context=True),
                                           "fixture", lambda: None, tmp_path, _gated_readers("", []))
-    with pytest.raises(ComputerRefused, match="0 withheld"):
+    with pytest.raises(ComputerRefused, match="lib/laser.py, tct_app/devices/laser.py, vendor/acme/laser.py"):
         trusted._resolve_module(idx, "laser.py")
 
 
@@ -408,7 +408,7 @@ def test_structure_rows_go_through_the_path_gate(tmp_path, monkeypatch):
     # producer adds later cannot join the prompt; N7: the real ignore keys.
     assert "future_field" not in structure["hotspots"][0]
     assert structure["ignored"] == {"count": 1, "n_files_scanned": 4, "ignore_patterns": ["@tests"],
-                                    "ignore_patterns_withheld": 0, "ignore_patterns_elided": 0}
+                                    "ignore_patterns_withheld": 0, "ignore_patterns_elided": 0, "fields_withheld": 0}
     assert "secret/x.py" not in json.dumps(structure)
     assert [row["name"] for row in structure["clones"]] == ["helper"]
     assert structure["clones"][0]["sites"] == [{"module": "pkg/mod.py", "line": 1}]
@@ -477,7 +477,7 @@ def test_ignore_patterns_are_gated_and_counted(tmp_path, monkeypatch):
         "languages": {}, "totals": {}, "hotspots": [], "clones": [], "fan_in": []})
     structure = adapter.execute("daedalus.structure", {})
     assert structure["ignored"] == {"count": 2, "n_files_scanned": 3, "ignore_patterns": ["@tests"],
-                                    "ignore_patterns_withheld": 2, "ignore_patterns_elided": 0}
+                                    "ignore_patterns_withheld": 2, "ignore_patterns_elided": 0, "fields_withheld": 0}
 
 
 def _real_rules(adapter, lane="untrusted"):
@@ -682,6 +682,135 @@ def test_a_set_is_gated_on_the_text_json_renders_for_it(tmp_path, monkeypatch):
     assert "roots" not in status["git"] and status["git"]["fields_withheld"] == 1
     assert "someone" not in json.dumps(status) and "SECRET" not in json.dumps(status)
     assert "labels" in status["git"]
+
+
+def test_the_gate_and_the_emitter_share_one_renderer(tmp_path, monkeypatch):
+    """Cerberus round 6 (low): a separate decode pass before gating let a
+    non-dict Mapping with its own repr be gated on its items and emitted as
+    its repr. One renderer now: gated text == emitted text, for a Mapping
+    subclass, bytes, a bytearray and a set of Paths alike."""
+    from collections.abc import Mapping as ABCMapping
+    from pathlib import PureWindowsPath
+
+    class Sneaky(ABCMapping):
+        def __init__(self):
+            self._d = {"k": "safe"}
+
+        def __getitem__(self, key):
+            return self._d[key]
+
+        def __iter__(self):
+            return iter(self._d)
+
+        def __len__(self):
+            return 1
+
+        def __repr__(self):
+            return "Sneaky(root=C:/Users/someone/hidden.pem)"
+
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    readers = subject.ProjectReaders(
+        git_counters=lambda root: {"git_branch": "main", "git_status": "", "open_todos": 0,
+                                   "sneaky": Sneaky(), "raw": b"plain bytes", "arr": bytearray(b"C:\\Users\\someone"),
+                                   "paths": {PureWindowsPath("C:/Users/someone/x")}},
+        bridge_status=lambda project: {"queue_depth": 0, "in_flight": 0, "unread_count": 0,
+                                       "reports_total": 0, "watcher": {"state": "none"}},
+        report_briefs=lambda project: [])
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, readers)
+    status = adapter.execute("daedalus.status", {})
+    assert set(status["git"]) == {"git_branch", "git_status", "open_todos", "raw", "git_status_withheld", "fields_withheld"}
+    assert status["git"]["raw"] == "plain bytes" and status["git"]["fields_withheld"] == 3
+    assert "someone" not in json.dumps(status)
+    for value in (Sneaky(), b"x", bytearray(b"y"), {PureWindowsPath("C:/a")}, [{"n": (1, b"z")}]):
+        assert subject._strings_in(value) == subject._rendered_strings(json.loads(subject._render(value)))
+
+
+def test_what_is_emitted_is_the_rendering_that_was_gated(tmp_path, monkeypatch):
+    """Odysseus round 6 (D20): the value was rendered twice -- once to gate,
+    once to emit -- so an object whose ``str()`` changes between calls was
+    admitted as "benign" and emitted as a host path. Rendered once."""
+    class Shifty:
+        def __init__(self):
+            self.calls = 0
+
+        def __str__(self):
+            self.calls += 1
+            return "benign" if self.calls == 1 else "C:\\Users\\victim\\secret.key"
+
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    readers = subject.ProjectReaders(
+        git_counters=lambda root: {"git_branch": "main", "git_status": "", "open_todos": 0, "shifty": Shifty()},
+        bridge_status=lambda project: {"queue_depth": 0, "in_flight": 0, "unread_count": 0,
+                                       "reports_total": 0, "watcher": {"state": "none"}},
+        report_briefs=lambda project: [{"name": "a.report.json", "summary": "ok", "phase": Shifty()}])
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, readers)
+    status = adapter.execute("daedalus.status", {})
+    assert status["git"]["shifty"] == "benign"
+    tasks = adapter.execute("daedalus.tasks", {})
+    assert tasks["reports"][0]["phase"] == "benign"
+    assert "victim" not in json.dumps(status) + json.dumps(tasks)
+
+
+def test_a_reader_or_producer_failure_names_its_class_never_its_message(tmp_path, monkeypatch):
+    """Odysseus round 6 (D21): a raising reader escaped ``execute`` with its
+    message intact -- a PermissionError carries the absolute path -- and the
+    service put that text into the planner's history. Every reader and
+    producer failure is now a refusal naming the class only, provably before
+    any effect."""
+    from daedalus.spine import docrefs as docrefs_module
+    from daedalus.structcore import report as report_module
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    boom = PermissionError("[Errno 13] Permission denied: 'C:\\Users\\victim\\OUTBOX\\x.json'")
+
+    def raising(*args, **kwargs):
+        raise boom
+    readers = subject.ProjectReaders(git_counters=raising, bridge_status=raising, report_briefs=raising)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, readers)
+    for tool in ("daedalus.status", "daedalus.tasks"):
+        with pytest.raises(ComputerRefused) as refused:
+            adapter.execute(tool, {})
+        assert "PermissionError" in str(refused.value) and "victim" not in str(refused.value)
+    shaped = subject.ProjectReaders(git_counters=lambda root: ["not", "a", "mapping"],
+                                    bridge_status=lambda project: "nope", report_briefs=lambda project: 17)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, shaped)
+    with pytest.raises(ComputerRefused, match="git counters"):
+        adapter.execute("daedalus.status", {})
+    with pytest.raises(ComputerRefused, match="TypeError"):
+        adapter.execute("daedalus.tasks", {})
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    monkeypatch.setattr(report_module, "structure_summary", raising)
+    monkeypatch.setattr(docrefs_module, "scan", raising)
+    monkeypatch.setattr(slicer, "semantic_slice", raising)
+    for tool, args in (("daedalus.structure", {}), ("daedalus.docrefs", {}), ("daedalus.slice", {"module": "pkg/mod.py"})):
+        with pytest.raises(ComputerRefused) as refused:
+            adapter.execute(tool, args)
+        assert "PermissionError" in str(refused.value) and "victim" not in str(refused.value)
+
+
+def test_counters_are_gated_like_every_other_value(tmp_path, monkeypatch):
+    """Odysseus round 6 (D23): ``n_files``, ``languages``, ``totals``, the
+    docrefs and slice counters passed ungated. A producer that put a path
+    there would have handed it on."""
+    from daedalus.structcore import report as report_module
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
+        "n_files": "C:\\Users\\victim\\n", "languages": {"python": {"files": 2}}, "totals": {"loc": 5},
+        "hotspots": [], "fan_in": [], "clones": [],
+        "ignored": {"count": 1, "n_files_scanned": "/home/victim/x", "ignore_patterns": []}})
+    structure = adapter.execute("daedalus.structure", {})
+    assert "n_files" not in structure and structure["fields_withheld"] == 1
+    assert structure["languages"] == {"python": {"files": 2}} and structure["totals"] == {"loc": 5}
+    assert structure["ignored"]["count"] == 1 and "n_files_scanned" not in structure["ignored"]
+    assert structure["ignored"]["fields_withheld"] == 1
+    assert "victim" not in json.dumps(structure)
 
 
 def test_an_unrenderable_value_is_withheld_and_counted_not_crashed_on(tmp_path, monkeypatch):
@@ -1039,7 +1168,7 @@ def test_structure_and_slice_observations_read_the_scratch_repository(scratch_re
     # ignore-file path; only the counts and the ignore PATTERNS are observed
     # now, under the key the index really emits (Cerberus N7).
     assert set(structure["ignored"]) == {"count", "n_files_scanned", "ignore_patterns", "ignore_patterns_withheld",
-                                         "ignore_patterns_elided"}
+                                         "ignore_patterns_elided", "fields_withheld"}
     assert str(scratch_repo) not in json.dumps(structure)
     sliced = adapter.execute("daedalus.slice", {"module": "mod.py"})
     assert sliced["focus_file"].endswith("pkg/mod.py")

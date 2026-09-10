@@ -516,6 +516,28 @@ items, all repaired in the sixth commit together with the Cerberus residue:
 | D15 (minor, honesty) | a focus file containing the literal header (this adapter does) was split at its own occurrence: text silently dropped while `text_elided` said false | the rebuild runs only when the slicer reported withheld rows and splits at the LAST occurrence, which is the slicer's | `test_a_focus_file_containing_the_header_literal_keeps_its_text`; M46 |
 | D19 (trivial) | `_tasks` bounded before the gate and reported no elision | gate every brief, bound after, `reports_elided` | `test_tasks_gate_every_brief_before_the_bound_and_count_the_elision`; M45 |
 
+**Cerberus round 6** (`ed71c8d1`, frozen copy): **`approve`**, `blocking:
+false`. The H3 residue RESOLVED across the four-host × two-declaration ×
+four-provider × two-flag matrix (report line, status, planner reply and offer
+all read `_planner_facts`; a pre-field report says *unbekannt*, a non-bool
+value too); D14/D16/D18 resolved insofar as they change what is told; the
+diff adds no write, spawn, network or policy reach. Two latent lows and one
+pre-existing medium it named for a separate packet (the `/computer planner`
+confirmation is decided by provider name — `bb81dea2`, before this packet).
+
+**Odysseus round 6** (same snapshot): D15 and D19 RESOLVED; D14, D16 and D18
+PARTIAL with residues; all four guards of round 5 die under mutation. The
+residues and the Cerberus lows, all repaired in the seventh commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| Cerberus low (latent) | the warning's first clause called a loopback host "nicht auf diesem Rechner" (unreachable: the caller fires only when the observations leave) | both clauses of the warning defend themselves | (warning text) |
+| Cerberus low (hypothesis) | a separate decode pass before gating let a non-dict `Mapping` with its own `__repr__` be gated on its items and emitted as its repr | one renderer (`_render`, one `default` hook) for the gate and the emitter | `test_the_gate_and_the_emitter_share_one_renderer`; M38 |
+| D20 (low) | the value was rendered twice — once to gate, once to emit — so an object whose `str()` changes between calls was admitted as "benign" and emitted as a host path | rendered ONCE: the gate reads its strings off the rendering and the observation emits that rendering (`_gate_value`, rendered rows) | `test_what_is_emitted_is_the_rendering_that_was_gated`; M48 |
+| D21 (medium) | a raising reader or producer escaped `execute` with its message intact — a `PermissionError` from `collect_status` carries the absolute path — and the service put that text into the planner's history, past every gate | every reader and producer runs through `_produce`: a failure is a refusal naming the CLASS only; a non-mapping result is a refusal | `test_a_reader_or_producer_failure_names_its_class_never_its_message`; M49 |
+| D22 (low-medium) | the ambiguity branch counted the withheld ("2 candidates, all withheld"), confirming the existence the unique branch denies | no count: admitted candidates are listed, otherwise the same text as a miss | `test_an_ambiguous_module_names_only_the_candidates_the_gate_admits`; M50 |
+| D23 (low) | `n_files`, `languages`, `totals`, the ignored, docrefs and slice counters passed ungated | every counter goes through `_gated_fields`, withheld ones counted in `fields_withheld` | `test_counters_are_gated_like_every_other_value`; M51 |
+
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file
 outside the index? (2) does any daedalus.* result reach a Codex/DeepSeek
