@@ -601,6 +601,28 @@ class TypedRelationBlock(Generic[T]):
             tuple(values),
         )
 
+    def reduce(
+        self,
+        semiring: Semiring[T],
+        *,
+        max_operations: int = MAX_REFERENCE_OPERATIONS,
+    ) -> T:
+        """Fold all retained sparse values with canonical semiring addition.
+
+        CSR order is already canonical, and implicit sparse zeros are the additive
+        identity, so reduction needs no dense materialization, index, or second
+        execution path. The result is a pure observer of this exact subject.
+        """
+
+        reference = self._require_semiring(semiring)
+        limit = _operation_limit(max_operations)
+        result = reference.zero
+        for operations, value in enumerate(self.values, start=1):
+            if operations > limit:
+                raise ValueError("reference reduction exceeds bounded operation limit")
+            result = reference.add(result, value)
+        return result
+
     def matmul(
         self,
         other: "TypedRelationBlock[T]",
