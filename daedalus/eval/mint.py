@@ -1066,6 +1066,49 @@ def _structural_dump(src: str) -> str | None:
         return None
 
 
+def _changed_paths_with_status(repo_root, sha: str) -> list[tuple[str, str]] | None:
+    """``[(status, path)]`` for one commit, WITH rename and copy detection.
+
+    ``--find-copies-harder`` is the whole point. Without it git reports a
+    byte-identical copy of an existing file as a plain add, so an audit that
+    trusts "added" concludes a file has no prior version while one sits in the
+    parent tree under another name. That is exactly how a pure packaging move
+    -- 56 of 57 label sources reported ``C100`` -- passed this audit with the
+    strongest verdict in its vocabulary.
+    """
+    out = _git(repo_root, "show", "--name-status", "--format=",
+               "-M40%", "-C40%", "--find-copies-harder", sha)
+    if out is None:
+        return None
+    rows: list[tuple[str, str]] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        # C/R rows carry source and destination; the destination is what the
+        # commit now contains, and what a label could be taken from.
+        path = parts[-1].strip()
+        if path:
+            rows.append((parts[0].strip(), path))
+    return rows
+
+
+def _label_source_rows(repo_root, sha: str, anchor: str):
+    """Files a mint could have taken labels from: everything the commit touched
+    EXCEPT the anchor.
+
+    Both mint paths exclude the anchor from ``must_include`` deliberately
+    (``_mint_from_diffs``: "never the anchor's own"; ``_mint_from_text_diffs``:
+    ``cross_file -= with_labels[anchor]``). Auditing the anchor inspects the one
+    file in the commit that supplied NONE of the gold labels -- a correct
+    statement about the wrong file, harmless right up until it is not.
+    """
+    rows = _changed_paths_with_status(repo_root, sha)
+    if rows is None:
+        return None
+    return [(st, p) for st, p in rows if p != anchor]
+
+
 def audit_noise_threats(task: dict, repo_root) -> dict:
     """Check the three threats ``MINT_CONFIRM_THRESHOLD``'s comment names.
 
@@ -1128,29 +1171,93 @@ def audit_noise_threats(task: dict, repo_root) -> dict:
         return out
 
     parent = _resolve_sha(repo_root, f"{sha}^")
-    before = _show(repo_root, parent, rel) if parent else None
 
-    if before is None:
-        # The anchor was ADDED by this commit. T1 and T2 both presuppose a
-        # prior version of the file: you cannot reformat, or rename within,
-        # something that did not exist. Ruled out by construction.
-        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "impossible"
-    elif not rel.endswith(".py"):
-        # Markdown and JSON need their own normalizer. Not built here, and
-        # reported as undecided rather than assumed clean.
+    # THE FILES THAT ACTUALLY SUPPLY THE LABELS -- not the anchor, which by
+    # construction supplies none of them. Auditing the anchor was a correct
+    # statement about the wrong file.
+    sources = _label_source_rows(repo_root, sha, rel)
+    if not sources:
         out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
-    else:
-        da, db = _structural_dump(after), _structural_dump(before)
+        out["verdict"] = ("fired" if out["t3_generated"] == "fired"
+                          else "undecided")
+        return out
+
+    # T3 over the label sources as well as the anchor: a commit whose anchor is
+    # a hand-written doc and whose labels come from dist/ is a generated-file
+    # regen wearing a clean path.
+    if any(any(m in path.lower() for m in _GENERATED_PATH_MARKERS)
+           for _st, path in sources):
+        out["t3_generated"] = "fired"
+
+    # T2, FIRST AND CHEAPEST: a label source that git reports as a copy or a
+    # rename already existed in the parent tree under another name. Its symbols
+    # are not new, whatever the path suggests. This is "a rename that
+    # round-trips to byte-identical source under a new name" at FILE
+    # granularity, and it is what the previous version of this audit missed --
+    # it passed a pure packaging move, 56 of whose 57 label sources were C100.
+    copied = [p for st, p in sources if st and st[0] in ("C", "R")]
+    if copied:
+        # ATTRIBUTED, not blanket. A large commit often carries one renamed
+        # file that supplied none of the gold labels, and firing the whole task
+        # on its presence would discard good tasks to look strict. A label is
+        # blamed on a copy only when it actually occurs in that copy's content
+        # at the mint revision.
+        labels = [str(x) for x in (task.get("must_include") or ())]
+        blamed = []
+        for path in copied:
+            body = _show(repo_root, sha, path)
+            if body is None:
+                continue
+            blamed += [lab for lab in labels if lab and lab in body]
+        if blamed:
+            out["t2_rename_roundtrip"] = "fired"
+            out["t1_cosmetic"] = "clean"
+            out["t2_blamed_labels"] = sorted(set(blamed))[:10]
+            out["verdict"] = "fired"
+            return out
+
+    verdicts_t1: set[str] = set()
+    verdicts_t2: set[str] = set()
+    for st, path in sources:
+        if st.startswith("A"):
+            # Genuinely new content -- not a copy, since copy detection ran
+            # above and would have reported C. Nothing existed to reformat or
+            # to rename within.
+            verdicts_t1.add("impossible")
+            verdicts_t2.add("impossible")
+            continue
+        if not path.endswith(".py"):
+            # Markdown and JSON need their own normalizer. Not built here, and
+            # reported as undecided rather than assumed clean.
+            verdicts_t1.add("undecided")
+            verdicts_t2.add("undecided")
+            continue
+        src_after = _show(repo_root, sha, path)
+        src_before = _show(repo_root, parent, path) if parent else None
+        if src_after is None or src_before is None:
+            verdicts_t1.add("undecided")
+            verdicts_t2.add("undecided")
+            continue
+        da, db = _structural_dump(src_after), _structural_dump(src_before)
         if da is None or db is None:
-            out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
-        else:
-            # T1: the bytes changed but the structure did not -> cosmetic.
-            out["t1_cosmetic"] = "fired" if (da == db and after != before) else "clean"
-            # T2: a label names a symbol whose structure already existed under
-            # a different name in the parent -- the "rename that round-trips to
-            # byte-identical source" case.
-            out["t2_rename_roundtrip"] = _audit_rename_roundtrip(
-                task, before, after)
+            verdicts_t1.add("undecided")
+            verdicts_t2.add("undecided")
+            continue
+        verdicts_t1.add("fired" if (da == db and src_after != src_before) else "clean")
+        verdicts_t2.add(_audit_rename_roundtrip(task, src_before, src_after))
+
+    def _worst(vs: set[str]) -> str:
+        # Precedence is deliberate: a threat seen ANYWHERE among the label
+        # sources decides, and an undecidable source outranks a clean one.
+        # Aggregating the other way would let one clean file vouch for a
+        # commit's worth of files nobody checked.
+        for level in ("fired", "undecided", "clean", "impossible"):
+            if level in vs:
+                return level
+        return "undecided"
+
+    out["t1_cosmetic"] = _worst(verdicts_t1)
+    out["t2_rename_roundtrip"] = _worst(verdicts_t2)
 
     decided = [out["t1_cosmetic"], out["t2_rename_roundtrip"], out["t3_generated"]]
     if "fired" in decided:

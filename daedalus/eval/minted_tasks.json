@@ -41,8 +41,8 @@
       "must_include_dropped": 12,
       "noise_audit": {
         "minted_at_sha": "fc0e146efc94104cd50b225447e81555ccf95235",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -77,8 +77,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "82a9ac00be832248c338c1593403f14294bcb057",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -168,8 +168,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "60dc78b4e346ee3abe867ad97d77b0fc2aadb066",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -210,10 +210,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "4ae9aaf690c6d4b53556994fd0921e211ca88062",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -294,10 +294,10 @@
       "must_include_dropped": 12,
       "noise_audit": {
         "minted_at_sha": "c4a10254d6f9301a0c0abc3fe20cd2c04824d366",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -386,8 +386,8 @@
       "must_include_dropped": 34,
       "noise_audit": {
         "minted_at_sha": "0e03c0835bf722ee09a76a548f43d3b8a6eb8891",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -437,8 +437,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "381bfaf25d7de6b9cbd820d946b7efe26db95069",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -532,8 +532,8 @@
         "minted_at_sha": "12fd47e9487339d9676e67378d169a635a724d8a",
         "t1_cosmetic": "undecided",
         "t2_rename_roundtrip": "undecided",
-        "t3_generated": "clean",
-        "verdict": "undecided",
+        "t3_generated": "fired",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -622,8 +622,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "deccbddfcd8f5f88555bd2227ac8b28ed7e2abc1",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -676,8 +676,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "83380687cb2badaee93a6225f84afb0bb52de186",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -733,10 +733,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "4cd0fb16954021d0341d2c9edf66e0a2112d3990",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
-        "t3_generated": "clean",
-        "verdict": "clean",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
+        "t3_generated": "fired",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -800,10 +800,15 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "544d1f022c62ce51a4252b07977ffdeb27d087b0",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
-        "t3_generated": "clean",
-        "verdict": "clean",
+        "t1_cosmetic": "clean",
+        "t2_blamed_labels": [
+          "describe",
+          "main",
+          "matches"
+        ],
+        "t2_rename_roundtrip": "fired",
+        "t3_generated": "fired",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -849,10 +854,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "ff59963e67ba630698eee1f6cbc81f8e2c964b1d",
-        "t1_cosmetic": "clean",
-        "t2_rename_roundtrip": "clean",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -883,10 +888,19 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "d3f8c2ccf9369ae3c7cd5849aeff15e37aea765e",
-        "t1_cosmetic": "undecided",
-        "t2_rename_roundtrip": "undecided",
-        "t3_generated": "clean",
-        "verdict": "undecided",
+        "t1_cosmetic": "clean",
+        "t2_blamed_labels": [
+          "$schema",
+          "aliases",
+          "registries",
+          "rsc",
+          "style",
+          "tailwind",
+          "tsx"
+        ],
+        "t2_rename_roundtrip": "fired",
+        "t3_generated": "fired",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -917,10 +931,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "be58f69ac91690807cdceb4246690df9852ab73e",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -952,10 +966,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "5927e41d3725b361226d45eb8c292c54da6c84fc",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "fired",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -1002,10 +1016,10 @@
       "must_include_dropped": 40,
       "noise_audit": {
         "minted_at_sha": "0f292d23b7eb17d031e8d6a31dbac5d40c1a2308",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1052,10 +1066,22 @@
       "must_include_dropped": 15,
       "noise_audit": {
         "minted_at_sha": "69d9cf17441b8af229247d4cd66a1a838523fd1a",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_blamed_labels": [
+          "$defs",
+          "$id",
+          "$schema",
+          "AGENTS.md -- daedalus harness rules for Codex in this repo",
+          "After interruptions",
+          "Baseline",
+          "CLAUDE.md -- daedalus harness rules for this repo",
+          "Communication rules",
+          "Route work through the harness",
+          "_comment"
+        ],
+        "t2_rename_roundtrip": "fired",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -1104,8 +1130,8 @@
         "minted_at_sha": "5bd55251b99f497101019b8cfabfa7d6503272e2",
         "t1_cosmetic": "undecided",
         "t2_rename_roundtrip": "undecided",
-        "t3_generated": "clean",
-        "verdict": "undecided",
+        "t3_generated": "fired",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -1144,10 +1170,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "2746531c4acc031179dafce9d9f75aa536f58387",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1176,8 +1202,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "01bda9f09462e354a0b3f120c59a81eadf36408f",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -1209,10 +1235,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "ff4475542ba8da8df235977a6646bd398b19cbe3",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1242,8 +1268,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "d339dc959848cf4606d44266c6efd3d5620b6198",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -1278,10 +1304,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "a6847e67e378a470ac31bf0c600198b7b282b94e",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1311,10 +1337,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "c73ca37688f2ad080d9166702167051491bf16a5",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1377,8 +1403,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "c413f68dbd1689592df96b4bba06276d8752a063",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -1410,10 +1436,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "32d9531baf32759c901c163fc66b9884fdf396a4",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1442,8 +1468,8 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "706de084dbef0f66ee0917a496108b882b7f4db7",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_rename_roundtrip": "clean",
         "t3_generated": "clean",
         "verdict": "clean",
         "version": 1
@@ -1529,10 +1555,10 @@
       "must_include_dropped": 26,
       "noise_audit": {
         "minted_at_sha": "e35021d189b0f9341aa6b0a56770542c5b4557e0",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1562,10 +1588,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "9134f2c4cd2bf0a49b8a3ab1be5d3cac09624b31",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1599,10 +1625,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "e93cb76a50c8a3a73c35ea35981ada263c7cc876",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1649,10 +1675,10 @@
       "must_include_dropped": 40,
       "noise_audit": {
         "minted_at_sha": "c94079d26c09d65a52b1aa0bbaee469976e0cc1e",
-        "t1_cosmetic": "undecided",
+        "t1_cosmetic": "fired",
         "t2_rename_roundtrip": "undecided",
-        "t3_generated": "clean",
-        "verdict": "undecided",
+        "t3_generated": "fired",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -1696,10 +1722,10 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "4ef1cd0a06f55504188709f0d35ae1ddfed69ceb",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "undecided",
         "version": 1
       },
       "repo": "agent_env",
@@ -1876,10 +1902,13 @@
       "must_include_dropped": 0,
       "noise_audit": {
         "minted_at_sha": "b2586f6584bd18cd913e3a8ab60799af4b62aac0",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
+        "t1_cosmetic": "clean",
+        "t2_blamed_labels": [
+          "Scope"
+        ],
+        "t2_rename_roundtrip": "fired",
         "t3_generated": "clean",
-        "verdict": "clean",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",
@@ -1926,10 +1955,10 @@
       "must_include_dropped": 73,
       "noise_audit": {
         "minted_at_sha": "d9655df2412e9a87762c15ed84b6bcc62f2d9c83",
-        "t1_cosmetic": "impossible",
-        "t2_rename_roundtrip": "impossible",
-        "t3_generated": "clean",
-        "verdict": "clean",
+        "t1_cosmetic": "undecided",
+        "t2_rename_roundtrip": "undecided",
+        "t3_generated": "fired",
+        "verdict": "fired",
         "version": 1
       },
       "repo": "agent_env",

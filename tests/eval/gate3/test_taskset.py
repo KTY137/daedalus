@@ -275,7 +275,9 @@ def test_real_corpus_census_is_pinned_and_reported():
         the reason this update is safe: 31 tasks entered the corpus and not
         one entered a number.
 
-      MEASURED 2026-09-10, after G3-MINT-AUDIT promoted on a second witness:
+      MEASURED 2026-09-10, then REVERTED the same day (see the retraction
+      below and the digest note at the assertion). What follows describes a
+      promotion that no longer stands:
         - primary tier: 14 -> 49; census {'code': 24, 'type': 0, 'data': 16,
           'knowledge': 9}; frozen digest MOVED (see the note at the assertion)
         - 35 tasks left quarantine, none by recurrence. Every one carries
@@ -288,10 +290,16 @@ def test_real_corpus_census_is_pinned_and_reported():
           14 agent_env + 2 fixture, and knowledge holds 7 agent_env + 2
           fixture. Every plane spans more than one repository, so a plane
           effect and an origin effect are no longer perfectly confounded.
-        - the promoted tasks discriminate: over the 35, bm25 means 0.209 and
-          separate_indices means 0.500 at budget 4000, with 14 and 17 distinct
-          score values and zero errors. They are graded tasks, not the
-          constants the fixture rows turned out to be.
+        - RETRACTED 2026-09-10, same day. This block claimed the promoted
+          tasks "discriminate: bm25 0.209 and separate_indices 0.500 at budget
+          4000 ... two arms separated by 0.29". An independent pass could not
+          reproduce it from any routing: measured 0.243 and 0.265, a separation
+          of 0.022, with separate_indices off by ~1.9x. I kept no instrument
+          and no receipt, so the only record of the original pair was this
+          sentence -- the unverifiable-claim defect AGENTS.md names, in the
+          sentence that justified the promotion. It also found 7 of the 35
+          constant across 11 arm x budget configurations, so "the opposite of
+          the constant rows they join" was false for those seven.
         - still quarantined: 11 Markdown/JSON tasks whose normalizer does not
           exist yet (undecided is never promoted) and 2 whose target did not
           exist at their own minted_at_sha (unverifiable provenance).
