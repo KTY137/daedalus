@@ -25,6 +25,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,6 +55,20 @@ _WINDOWS_RESERVED = frozenset({"con", "prn", "aux", "nul", *(f"com{i}" for i in 
                                *(f"lpt{i}" for i in range(1, 10))})
 TRIALS_SHOWN = 8
 LIST_SHOWN = 10
+#: Every projected value is bounded as well as every list: a receipt field is
+#: producer-supplied, and a 2 MB ``selection_mode`` yielded a 2.5 MB projection
+#: (Odysseus round 2 of this packet, D9).
+MAX_VALUE_CHARS = 200
+#: How far the evidence freshness check may look back, in seconds: filesystem
+#: timestamp granularity and a clock that ticks between the two reads.
+EVIDENCE_MTIME_TOLERANCE_S = 2.0
+#: Names the subject's filesystem would fold together or rewrite. The evidence
+#: directory is named after the campaign ID, and Windows resolves ``camp1``,
+#: ``CAMP1`` and ``camp1.`` to ONE directory, so two IDs this adapter treats as
+#: distinct would share one postcondition (Odysseus round 2, D11).
+_RESERVED_NAMES = frozenset({"con", "prn", "aux", "nul", "com0", "com1", "com2", "com3", "com4", "com5",
+                             "com6", "com7", "com8", "com9", "lpt0", "lpt1", "lpt2", "lpt3", "lpt4",
+                             "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"})
 #: The roots the campaign itself refuses, from the one definition
 #: (``kernel.source_trees``), so the refusal happens BEFORE the runner is
 #: entered and cannot drift from the campaign's.
@@ -82,6 +97,17 @@ def _safe_failure_text(exc: BaseException) -> str:
 
 def _listed(value: Any) -> list[Any]:
     return list(value) if isinstance(value, (list, tuple)) else []
+
+
+def _short(value: Any) -> Any:
+    """A projected value, bounded. Numbers and ``None`` pass; everything else
+    is text and is cut at :data:`MAX_VALUE_CHARS` with the loss stated."""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    text = value if isinstance(value, str) else str(value)
+    if len(text) <= MAX_VALUE_CHARS:
+        return text
+    return text[:MAX_VALUE_CHARS] + f"...(+{len(text) - MAX_VALUE_CHARS} chars)"
 
 
 def _is_sha256(value: Any) -> bool:
@@ -213,6 +239,15 @@ class AriadneCampaignTool:
         import stat
         if not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
             raise _PreRunRefusal("target_path is not a regular file in the subject")
+        # A HARD link is a second NAME for one inode, not a link the resolver
+        # can see: ``os.path.realpath`` returns the requested spelling and the
+        # boundary check passes, while the file also lives inside the leakage
+        # boundary (Odysseus round 2 of this packet: a hardlink to
+        # ``daedalus/spine/killswitch.py`` was admitted). The kernel has this
+        # check but resolves against the computer workspace, so it never sees
+        # the subject's tree.
+        if getattr(info, "st_nlink", 1) > 1:
+            raise _PreRunRefusal("target_path has more than one name (hard link); the subject file is ambiguous")
 
     @staticmethod
     def _fragment(value: object, label: str, *, allow_empty: bool) -> str:
@@ -239,6 +274,11 @@ class AriadneCampaignTool:
             return f"ikarus-{digest[:24]}"
         if not isinstance(value, str) or not _CAMPAIGN_ID_RE.fullmatch(value):
             raise _PreRunRefusal("campaign_id must be 1-64 path-free letters, digits, '.', '_' or '-'")
+        # The ID names a directory, so it is held to the same filesystem
+        # spelling rule as the target path segments (Odysseus round 2, D11).
+        if value != value.casefold() or value.rstrip(". ") != value or value.split(".")[0].casefold() in _RESERVED_NAMES:
+            raise _PreRunRefusal("campaign_id must be lower case, must not end in '.' or a space, and must not "
+                                 "be a reserved device name: the evidence directory is named after it")
         return value
 
     # ------------------------------------------------------------------ execution
@@ -257,6 +297,11 @@ class AriadneCampaignTool:
                      "project": self._project}
         campaign_id = self._campaign_id(arguments.get("campaign_id"), operation)
         repo_root = self._repo_root()
+        # The evidence check below must prove THIS run wrote evidence: the
+        # default campaign ID is derived from the operation, so a receipt
+        # forged for an operation that already ran once would otherwise inherit
+        # the first run's directory (Odysseus round 2 of this packet, D4).
+        started_at = time.time()
         self._checkpoint()
         self._admit_target_file(repo_root, relative)
         try:
@@ -278,11 +323,17 @@ class AriadneCampaignTool:
             raise _CampaignFailure(_safe_failure_text(exc)) from exc
         if not isinstance(receipt, Mapping):
             raise _CampaignFailure("campaign runner returned no receipt")
-        return self._project_receipt(receipt, relative, campaign_id, source_revision)
+        # Nothing below may raise a PRE-run refusal: the campaign has run. The
+        # projection takes what it needs as arguments and turns any failure of
+        # the evidence check into ``evidence_present=False`` (Cerberus round 2
+        # of this packet, NEW-1: a second registry read inside the projection
+        # raised ``_PreRunRefusal`` after the runner and the lease was settled
+        # as if nothing had happened).
+        return self._project_receipt(receipt, relative, campaign_id, source_revision, repo_root, started_at)
 
     # ------------------------------------------------------------------ projection
     def _project_receipt(self, receipt: Mapping[str, Any], relative: str, campaign_id: str,
-                         source_revision: str) -> dict[str, Any]:
+                         source_revision: str, repo_root: str, started_at: float) -> dict[str, Any]:
         """The receipt as the planner may see it: verdicts, hashes and counts.
 
         No locator (they are absolute paths under the control root), no
@@ -309,27 +360,37 @@ class AriadneCampaignTool:
             usage_raw = trial.get("usage")
             usage: Mapping[str, Any] = usage_raw if isinstance(usage_raw, Mapping) else {}
             trials.append({
-                "variant_id": str(trial.get("variant_id", "")),
-                "status": str(trial.get("status", "")),
-                "wall_time_ms": usage.get("wall_time_ms"),
-                "negative_outcomes": [str(x) for x in _listed(trial.get("negative_outcomes"))][:LIST_SHOWN],
-                "blockers": [str(x) for x in _listed(trial.get("blockers"))][:LIST_SHOWN],
+                "variant_id": _short(str(trial.get("variant_id", ""))),
+                "status": _short(str(trial.get("status", ""))),
+                "wall_time_ms": _short(usage.get("wall_time_ms")),
+                "negative_outcomes": [_short(str(x)) for x in _listed(trial.get("negative_outcomes"))][:LIST_SHOWN],
+                "blockers": [_short(str(x)) for x in _listed(trial.get("blockers"))][:LIST_SHOWN],
             })
         equality_raw = data.get("budget_equality")
         equality: Mapping[str, Any] = equality_raw if isinstance(equality_raw, Mapping) else {}
-        outcome = str(data.get("outcome", ""))
-        target = relative if self._admit_path(relative) else "<withheld>"
-        negative = [str(x) for x in _listed(data.get("negative_outcomes"))]
+        outcome = _short(str(data.get("outcome", "")))
+        try:
+            target = relative if self._admit_path(relative) else "<withheld>"
+        except Exception:  # noqa: BLE001 - same rule: after the runner nothing here may refuse
+            target = "<withheld>"
+        negative = [_short(str(x)) for x in _listed(data.get("negative_outcomes"))]
         candidate_sha = data.get("candidate_tree_sha256")
         nomination_sha = data.get("nomination_receipt_sha256")
         # The postcondition is BACKED (Odysseus round 1, D4): a nomination, two
-        # well-formed digests, and the campaign's evidence directory for this
-        # campaign id present under the subject's control root.
-        from daedalus.spine.killswitch import control_root
-        evidence_dir = control_root(Path(self._repo_root())) / "ariadne" / "effect-evidence" / campaign_id
+        # well-formed digests, and evidence written under the subject's control
+        # root DURING this run (Odysseus round 2, D4 residue: the directory is
+        # named after the campaign ID, and the default ID is a digest of the
+        # operation, so a second call with the same operation found the first
+        # run's directory). ``EVIDENCE_MTIME_TOLERANCE_S`` absorbs filesystem
+        # timestamp granularity; the check says evidence appeared around this
+        # run, never that a particular receipt produced it.
         try:
-            evidence_present = evidence_dir.is_dir() and any(evidence_dir.rglob("*"))
-        except OSError:
+            from daedalus.spine.killswitch import control_root
+            evidence_dir = control_root(Path(repo_root)) / "ariadne" / "effect-evidence" / campaign_id
+            floor = started_at - EVIDENCE_MTIME_TOLERANCE_S
+            evidence_present = evidence_dir.is_dir() and any(
+                entry.is_file() and entry.stat().st_mtime >= floor for entry in evidence_dir.rglob("*"))
+        except Exception:  # noqa: BLE001 - after the runner, a failed check is "not verified", never a refusal
             evidence_present = False
         verified = (outcome == "nominated" and _is_sha256(candidate_sha) and _is_sha256(nomination_sha)
                     and evidence_present)
@@ -342,12 +403,12 @@ class AriadneCampaignTool:
             "campaign_id": campaign_id,
             "source_revision": source_revision,
             "target_path": target,
-            "selected_variant_id": data.get("selected_variant_id"),
-            "selected_seed": data.get("selected_seed"),
-            "selection_mode": data.get("selection_mode"),
+            "selected_variant_id": _short(data.get("selected_variant_id")),
+            "selected_seed": _short(data.get("selected_seed")),
+            "selection_mode": _short(data.get("selection_mode")),
             "trials": trials,
             "trials_elided": max(0, len(all_trials) - TRIALS_SHOWN),
-            "budget_equality": {key: equality.get(key) for key in
+            "budget_equality": {key: _short(equality.get(key)) for key in
                                 ("configured_equal", "realized_usage_recorded", "within_budget")},
             "negative_outcomes": negative[:LIST_SHOWN],
             "negative_outcomes_elided": max(0, len(negative) - LIST_SHOWN),
@@ -376,7 +437,10 @@ class AriadneCampaignTool:
 
     def _admit_path(self, relative: str) -> bool:
         """The lane's gate on the target path echo (a retained report is read
-        by more than the planner)."""
+        by more than the planner). On the TRUSTED lane ``slice_egress_rule``
+        applies the secret floor only -- exactly as for the Voice -- so a path
+        the project's deny list names is echoed there and withheld on the
+        untrusted lane (Cerberus round 2, NEW-2: stated, not claimed away)."""
         from daedalus.foundation.projects import load_project
         from daedalus.sensitivity import load_policy, slice_egress_rule
         try:

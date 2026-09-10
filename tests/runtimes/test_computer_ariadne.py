@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -315,6 +316,129 @@ def test_the_projection_is_rendered_once_and_bounded(tmp_path, monkeypatch):
     with pytest.raises(ComputerRefused, match="not renderable") as refused:
         tool.execute(dict(ARGS))
     assert refused.value.effect_state == "uncertain"
+
+
+def test_nothing_after_the_runner_can_raise_a_pre_run_refusal(tmp_path, monkeypatch):
+    """Cerberus round 2 (NEW-1, critical): the postcondition check re-read the
+    registry AFTER the campaign had run; when that read failed the adapter
+    raised ``_PreRunRefusal`` and the service settled the lease as "no effect"
+    while the campaign had written its evidence. The projection now takes the
+    repository root as an argument and a failing check reads as not verified."""
+    from daedalus.foundation import projects
+    calls = {"n": 0}
+    subject_root = tmp_path / "subject"
+    (subject_root / "pkg").mkdir(parents=True)
+    (subject_root / "pkg" / "mod.py").write_text("return 1\n", encoding="utf-8")
+    config = {"name": "fixture", "repo_root": str(subject_root),
+              "policy": {"deny": [], "deny_content": [], "allow": ["pkg/"]}}
+
+    def load(name):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise PermissionError(13, "denied", "C:\\Users\\victim\\projects\\fixture.json")
+        return config
+    monkeypatch.setattr(projects, "load_project", load)
+    monkeypatch.setattr(projects, "resolve_repo_root", lambda repo_root, project: repo_root)
+    runner, recorder = _runner()
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    tool = subject.AriadneCampaignTool(policy, "fixture", lambda: None, tmp_path, runner)
+    result = tool.execute(dict(ARGS))
+    assert len(recorder.calls) == 1
+    assert result["outcome"] == "nominated" and result["evidence_present"] is False
+    assert result["postcondition_verified"] is False
+    assert result["target_path"] == "<withheld>"  # the gate could not be consulted; withheld, not refused
+    assert "victim" not in json.dumps(result)
+
+
+def test_a_hard_link_to_a_protected_file_is_refused_before_the_runner(tmp_path, monkeypatch):
+    """Odysseus round 2: a hard link is a second NAME for one inode. The
+    resolver returns the requested spelling, so every lexical and realpath
+    check passed and the campaign was admitted for a file that also lives at
+    ``daedalus/spine/killswitch.py``. The kernel has an ``st_nlink`` check but
+    resolves against the computer workspace, so it never sees the subject."""
+    root = tmp_path / "subject"
+    (root / "pkg").mkdir(parents=True)
+    (root / "daedalus" / "spine").mkdir(parents=True)
+    protected = root / "daedalus" / "spine" / "killswitch.py"
+    protected.write_text("return 1\n", encoding="utf-8")
+    linked = root / "pkg" / "hard.py"
+    try:
+        os.link(protected, linked)
+    except (OSError, NotImplementedError) as exc:  # pragma: no cover - filesystem without hard links
+        pytest.skip(f"hard links unavailable: {type(exc).__name__}")
+    assert linked.stat().st_nlink > 1
+    tool = _tool(tmp_path, monkeypatch, _never_runner(), repo_root=str(root))
+    with pytest.raises(ComputerRefused, match="more than one name"):
+        tool.execute({**ARGS, "target_path": "pkg/hard.py"})
+    # A single-named regular file in the same directory still passes.
+    (root / "pkg" / "mod.py").write_text("return 1\n", encoding="utf-8")
+    runner, recorder = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner, repo_root=str(root))
+    tool.execute(dict(ARGS))
+    assert len(recorder.calls) == 1
+
+
+def test_a_campaign_id_is_held_to_the_filesystem_spelling_of_its_directory(tmp_path, monkeypatch):
+    """Odysseus round 2 (D11): the ID names the evidence directory, and Windows
+    folds ``camp1``, ``CAMP1`` and ``camp1.`` into ONE directory, so two IDs
+    this adapter treats as distinct shared one postcondition. Reserved device
+    names never become a directory at all."""
+    tool = _tool(tmp_path, monkeypatch, _never_runner())
+    for bad in ("CAMP1", "Camp1", "camp1.", "camp1 ", "con", "NUL", "com1", "lpt9.txt", "aux.log"):
+        with pytest.raises(ComputerRefused, match="lower case|path-free"):
+            tool.execute({**ARGS, "campaign_id": bad})
+    runner, recorder = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+    result = tool.execute({**ARGS, "campaign_id": "camp1.a-b_2"})
+    assert result["campaign_id"] == "camp1.a-b_2" and len(recorder.calls) == 1
+
+
+def test_the_evidence_must_have_been_written_during_this_run(tmp_path, monkeypatch):
+    """Odysseus round 2 (D4 residue): the default campaign ID is a digest of
+    the OPERATION, so a second call with the same arguments found the first
+    run's evidence directory. A forged receipt -- a runner that writes nothing
+    and returns digests -- then reported a verified postcondition. Evidence
+    must carry a timestamp from this run."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    monkeypatch.setenv("USERPROFILE", str(profile))
+    monkeypatch.setattr(killswitch, "OS_PROFILE_DIR", profile)
+    runner, _ = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+    first = tool.execute(dict(ARGS))
+    evidence = killswitch.control_root(Path(tool._repo_root())) / "ariadne" / "effect-evidence" / first["campaign_id"]
+    evidence.mkdir(parents=True)
+    written = evidence / "lease-subject.json"
+    written.write_text("{}", encoding="utf-8")
+    assert tool.execute(dict(ARGS))["postcondition_verified"] is True
+    # The same operation again, but the evidence is older than this run: the
+    # directory is inherited, so the postcondition is NOT verified.
+    old = time.time() - 3600
+    os.utime(written, (old, old))
+    forged = tool.execute(dict(ARGS))
+    assert forged["campaign_id"] == first["campaign_id"]
+    assert forged["evidence_present"] is False and forged["postcondition_verified"] is False
+    assert forged["outcome"] == "nominated"  # the receipt still says so; the postcondition does not
+
+
+def test_every_projected_value_is_bounded_not_only_every_list(tmp_path, monkeypatch):
+    """Odysseus round 2 (D9): the counts were bounded but the VALUES were not,
+    so a receipt field of two megabytes produced a projection of two and a half
+    megabytes for the planner and the retained mission report."""
+    huge = _receipt()
+    huge["selection_mode"] = "m" * 300000
+    huge["negative_outcomes"] = ["n" * 300000]
+    huge["selected_variant_id"] = "v" * 300000
+    huge["trials"][0]["blockers"] = ["b" * 300000]
+    huge["trials"][0]["status"] = "s" * 300000
+    runner, _ = _runner(_Recorder(receipt=huge))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    result = tool.execute(dict(ARGS))
+    rendered = json.dumps(result)
+    assert len(rendered) < 20000, len(rendered)
+    assert result["selection_mode"].endswith("chars)") and len(result["selection_mode"]) < 300
+    assert result["negative_outcomes"][0].endswith("chars)")
+    assert result["trials"][0]["blockers"][0].endswith("chars)")
 
 
 def test_a_runner_of_the_wrong_type_is_refused(tmp_path, monkeypatch):

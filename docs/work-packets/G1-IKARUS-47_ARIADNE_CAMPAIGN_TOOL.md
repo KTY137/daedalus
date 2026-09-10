@@ -225,6 +225,46 @@ in `daedalus/ariadne/campaign.py` tests the requested string, and
 dot reaches a protected file there too. Recorded on the coordination board
 as a proposed G1-ARIADNE-11; this packet closes the hole at its own door.
 
+## Review round 2 (2026-09-10, `d7b5b072`)
+
+**Cerberus: `block`, one CRITICAL.** NEW-1 — `_project_receipt` called
+`self._repo_root()` a SECOND time, after `run_campaign` had returned. A
+registry read that fails there raised `_PreRunRefusal`, whose contract is
+`effect_state = "none"`, so the service settled the lease as "provably no
+campaign effect" while the campaign had written its lease, its ledger rows and
+its evidence. Odysseus reproduced it independently (its D10) by failing
+`load_project` on the second call: the runner recorded one call and the service
+returned `state="blocked", error_type="_PreRunRefusal"`. Repair: the projection
+receives `repo_root` (and `started_at`) as arguments, and every check it makes
+is wrapped so a failure reads as "not verified", never as a refusal. NEW-2
+(medium) — the `_admit_path` docstring said the target echo is admitted by the
+lane's gate, which overstates the TRUSTED lane, where `slice_egress_rule`
+applies the secret floor only; the docstring now says so (pre-existing
+behaviour, not changed here). NEW-3 (low, TOCTOU between the admission stat and
+the campaign's own read) and NEW-4 (low, presence is not causation for the
+evidence check) are stated below rather than closed. D1/D2/D6-D9 of round 1
+were confirmed resolved.
+
+**Odysseus** (frozen `git archive` copy, executed probes, 55/55 baseline):
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D10 (medium) = Cerberus NEW-1 | the postcondition check re-read the registry after the campaign ran; a failure there misclassified a real effect as effect-free | `repo_root` and `started_at` are arguments; nothing after the runner raises | `test_nothing_after_the_runner_can_raise_a_pre_run_refusal`; M34 |
+| hard link (low-medium) | `mklink /H pkg/hard.py daedalus/spine/killswitch.py` — one inode, two names: `realpath` returns the requested spelling, so every lexical and resolved check passed and the campaign was admitted for a protected file. The kernel HAS an `st_nlink` check but resolves against the computer workspace, so it never sees the subject | `_admit_target_file` refuses `st_nlink > 1` | `test_a_hard_link_to_a_protected_file_is_refused_before_the_runner`; M30 |
+| D4 residue (medium) | the default `campaign_id` is a digest of the OPERATION, so a second call with the same arguments inherited the first run's evidence directory: a forged receipt (a runner that writes nothing) reported `postcondition_verified=True` | the evidence must carry a timestamp from THIS run (`started_at` minus a 2 s filesystem tolerance) | `test_the_evidence_must_have_been_written_during_this_run`; M32 |
+| D11 (low-medium) | `campaign_id` had no filesystem-spelling rule although the target segments do: `CAMP1`, `camp1.` and `con` name the same or no directory on Windows | lower case, no trailing dot or space, no reserved device name | `test_a_campaign_id_is_held_to_the_filesystem_spelling_of_its_directory`; M31 |
+| D9 residue / D12 (low) | counts were bounded, VALUES were not: a 2 MB receipt field produced a 2.5 MB projection | every projected value is cut at 200 characters with the loss stated | `test_every_projected_value_is_bounded_not_only_every_list`; M33 |
+| D1, D2, D3, D5, D6, D7, D8 | re-attacked: junctions (intermediate and terminal), 8.3 short names (`IKARUS~1.MD`), case and Unicode spellings (`daedaluſ`), `::$DATA`, trailing dot, 24 malformed shapes, a stateful `__str__`, the case-folded subcommand | confirmed resolved; a case-different but legitimate spelling (`Pkg/Mod.py`) is still admitted, so the rule does not over-refuse | the existing round-1 tests |
+
+**Not closed, stated.** A file symbolic link could not be measured on this host
+(`WinError 1314`, the token has no `SeCreateSymbolicLink`); the resolution
+mechanism is proven by the junction case plus an `S_ISLNK` test. The evidence
+check proves that evidence appeared under this campaign's directory during this
+run — presence, not causation (Cerberus NEW-4); a receipt is not tied to the
+files by a digest. Between the admission `stat` and the campaign's own read the
+subject could change (NEW-3): the campaign re-reads and refuses on its own
+`before` mismatch, and nothing is applied either way.
+
 ## Evidence, expected failures and review
 
 `docs/evidence/G1-IKARUS-47/acceptance.json` with suites, mutation table,
