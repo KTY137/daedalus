@@ -317,15 +317,16 @@ def compile_relation_blocks(
     repeated retained rows reuse one record instead of reconstructing it per
     row. Verified cross-plane binding admission and later fact materialization
     share one key-indexed staging owner instead of retaining a second full key
-    set beside the staged records. Admission staging is released immediately
-    after its facts are materialized, and each per-signature fact bucket is
-    consumed as its CSR block is built instead of overlapping every compiled
-    block until function return. The compiler does not readmit already-authoritative
-    labels through a second coordinate validation pass. The evidence observer
-    retains canonical provenance alternatives; scalar observers keep their final
-    semiring scalars in the same bounded per-signature coordinate map and do not
-    retain per-edge or per-binding provenance in the admission-to-materialization
-    staging records.
+    set beside the staged records. Endpoint/index, retained-digest, requested-key
+    and discover-all lookup structures are released after their final admission
+    use; admission staging is released immediately after its facts are
+    materialized, and each per-signature fact bucket is consumed as its CSR block
+    is built instead of overlapping every compiled block until function return.
+    The compiler does not readmit already-authoritative labels through a second
+    coordinate validation pass. The evidence observer retains canonical
+    provenance alternatives; scalar observers keep their final semiring scalars
+    in the same bounded per-signature coordinate map and do not retain per-edge
+    or per-binding provenance in the admission-to-materialization staging records.
     """
 
     if not isinstance(forest, KnowledgeForest):
@@ -545,6 +546,10 @@ def compile_relation_blocks(
             )
         )
 
+    # All endpoint, retained-digest, and explicit-plan lookups are admission-only.
+    # Drop their complete containers before fact and CSR materialization overlap.
+    del node_location, retained_relation_digests, requested_by_key
+
     selected = (
         requested_signatures
         if requested_signatures is not None
@@ -552,6 +557,8 @@ def compile_relation_blocks(
     )
     if requested_signatures is None:
         _require_complete_endpoint_planes(snapshot, selected)
+    del discovered_by_key
+
     scalar_value: bool | int | None
     if observer_name == "boolean":
         scalar_value = True
