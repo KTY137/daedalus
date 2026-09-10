@@ -12,6 +12,7 @@ import os
 import threading
 import time
 import uuid
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from math import isfinite
@@ -21,15 +22,21 @@ from typing import Any, Iterator
 from .limits import (
     ENV_EXECUTION_LIMIT_POLICY,
     ExecutionLimitPolicy,
+    LIMIT_AXES,
     LimitAxes,
     LimitPolicyError,
     MODE_CUSTOM,
-    load_from_env as load_limit_policy_from_env,
 )
 from .pricing import BudgetError, ENV_MAX_CALLS, Estimate, price_call
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_LEDGER_PATH = ROOT / "runs" / "budget" / "ledger.json"
+
+# The desktop settings document the owner admitted through
+# ``PUT /api/desktop/settings``. Relative to the runtime root on purpose --
+# see "the admitted desktop settings document" below for why no environment
+# variable may name this file.
+ADMITTED_SETTINGS_REL = Path("config") / "connections.json"
 
 ENV_LEDGER = "DAEDALUS_BUDGET_LEDGER"
 ENV_CEILING = "DAEDALUS_BUDGET_USD"
@@ -70,6 +77,9 @@ MAX_ENTRIES = 500
 DEFAULT_ENVELOPE_TTL_S = 6 * 3600.0
 
 __all__ = [
+    "ADMITTED_SETTINGS_REL",
+    "AdmittedSettings",
+    "AdmittedSettingsUnreadable",
     "BudgetRefused",
     "BudgetState",
     "BudgetUnavailable",
@@ -85,11 +95,21 @@ __all__ = [
     "ENV_PERIOD_CEILING_ENABLED",
     "Ledger",
     "Reservation",
+    "SOURCE_ADMITTED_DOCUMENT",
+    "SOURCE_COMPOSED",
+    "SOURCE_DEFAULT",
+    "SOURCE_ENVIRONMENT",
+    "SOURCE_ISSUED_CONTRACT",
+    "SOURCES",
     "SpendEnvelope",
+    "admitted_settings_path",
     "ledger",
+    "load_admitted_settings",
     "open_envelope",
     "reserve",
     "reset_default_ledger",
+    "strictest_number",
+    "strictest_policy",
 ]
 
 # --------------------------------------------------------------------------
@@ -573,10 +593,19 @@ def _num(value: Any, name: str, *, allow_zero: bool = True) -> float:
     return out
 
 
-def _env_float(name: str, default: float) -> float:
+def _env_float_opt(name: str) -> float | None:
+    """The ceiling this environment states, or None when it states none.
+
+    Separate from :func:`_env_float` because "absent" and "absent, so use the
+    default" are different facts once a second input exists: an absent variable
+    imposes no bound at all, while the default is only what applies when NOTHING
+    imposes one.  Collapsing the two is what would let a bare default silently
+    outrank an admitted document.
+    """
+
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return default
+        return None
     try:
         out = float(raw.strip())
     except ValueError as exc:
@@ -588,25 +617,12 @@ def _env_float(name: str, default: float) -> float:
     return out
 
 
-def _env_bool(name: str, default: bool) -> bool:
+def _env_int_opt(name: str) -> int | None:
+    """The call cap this environment states, or None when it states none."""
+
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return default
-    value = raw.strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise BudgetUnavailable(
-        f"{name}={raw!r} is not a boolean; refusing to guess whether the "
-        "period USD ceiling is active"
-    )
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if raw is None or not raw.strip():
-        return default
+        return None
     try:
         out = int(raw.strip())
     except ValueError as exc:
@@ -615,6 +631,328 @@ def _env_int(name: str, default: int) -> int:
     if out <= 0:
         raise BudgetUnavailable(f"{name}={raw!r} is not a usable call cap (must be > 0)")
     return out
+
+
+# --------------------------------------------------------------------------
+# the admitted desktop settings document
+# --------------------------------------------------------------------------
+# WHY THE KERNEL READS A DOCUMENT AT ALL. Until 2026-09-11 every monetary and
+# execution-limit axis here was resolved from ``os.environ`` alone. That is one
+# hole with two faces (packet G1-SETTINGS-01, defect D1, measured 2026-09-10):
+# what the owner admitted through ``PUT /api/desktop/settings`` -- the one path
+# that validates, demands ``caps.confirm_widening`` for a widening (master plan
+# section 4.1) and leaves a receipt -- never reached a process the desktop did
+# not start, while an ambient variable that went through no admission at all
+# reached every process.
+#
+# THE RULE IS STRICTEST-WINS, PER AXIS. Both inputs are consulted and the
+# NARROWER decides. It is the only composition that closes both faces without
+# opening a third:
+#
+#   * an unadmitted variable can never widen past what the owner admitted, so
+#     the environment stops being an unconfirmed widening path (section 4.1);
+#   * a deliberately narrower variable still wins, so every shell, CI job and
+#     test that LOWERS a cap keeps working exactly as it did;
+#   * composing can only ever narrow, so making the kernel read the document
+#     cannot itself become a way to widen authority without the transient
+#     confirmation the desktop path already demands before it writes one.
+#
+# THE DOCUMENT IS FOUND IN CODE, NEVER THROUGH THE ENVIRONMENT. If a variable
+# could name the file, then that variable plus a crafted file would be exactly
+# the unconfirmed widening this closes. The anchor is the same ``parents[3]``
+# root that already anchors :data:`DEFAULT_LEDGER_PATH` and the packaged
+# desktop's ``daedalus.interfaces.desktop.sidecar.bundled_root``; only an
+# explicit Python argument moves it.
+#
+# WHAT THIS IS NOT. It is not a second store: the file has exactly one writer.
+# It is not a second validator: ``normalize_config``/``prepare_settings`` own
+# validation, and the parsing below is this module's OWN rule for a ceiling, a
+# call cap and a limit policy -- the same rule it applies to its own overrides
+# and to the environment. It relaxes no boundary: the kill switch, egress
+# admission, write roots, secret and tool policy, evaluator isolation, owner
+# approval and the no-auto-promotion rule are elsewhere and untouched.
+
+#: The admitted document decided this axis.
+SOURCE_ADMITTED_DOCUMENT = "admitted_document"
+#: A process environment variable decided it, being the narrower of the two.
+SOURCE_ENVIRONMENT = "environment"
+#: Neither input states anything; the code default applies.
+SOURCE_DEFAULT = "default"
+#: Neither input alone: the strictest flag was taken per axis from both.
+SOURCE_COMPOSED = "composed"
+#: An explicit constructor argument decided it. A Mission, EffectLease or
+#: SpendEnvelope that already captured a policy keeps it; master plan section
+#: 4.1 -- "an already issued contract is not rewritten by a later settings
+#: change".
+SOURCE_ISSUED_CONTRACT = "issued_contract"
+
+SOURCES: tuple[str, ...] = (
+    SOURCE_ADMITTED_DOCUMENT,
+    SOURCE_COMPOSED,
+    SOURCE_DEFAULT,
+    SOURCE_ENVIRONMENT,
+    SOURCE_ISSUED_CONTRACT,
+)
+
+
+class AdmittedSettingsUnreadable(BudgetUnavailable):
+    """The admitted settings document is present but cannot be trusted.
+
+    Falling back to the environment here would hand back the escape hatch this
+    mechanism closes: corrupt the file the owner admitted and the unadmitted
+    ambient variable decides again. A document that is present and unreadable
+    is therefore a REFUSAL, exactly like a corrupt ledger. An ABSENT document
+    is the one benign case -- it is an unambiguous "the owner admitted nothing
+    here", and the environment and code default answer as they always did.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class AdmittedSettings:
+    """What the owner admitted, as much of it as this module may read.
+
+    A field is ``None`` when the document states nothing about that axis, which
+    is not the same as stating a default: an unstated axis imposes no bound.
+    """
+
+    path: Path
+    period_ceiling_usd: float | None = None
+    max_calls: int | None = None
+    limit_policy: ExecutionLimitPolicy | None = None
+
+
+def admitted_settings_path(
+    runtime_root: str | os.PathLike[str] | None = None,
+) -> Path:
+    """Where the admitted settings document lives for one runtime root."""
+
+    root = ROOT if runtime_root is None else Path(runtime_root)
+    return root / ADMITTED_SETTINGS_REL
+
+
+def load_admitted_settings(
+    runtime_root: str | os.PathLike[str] | None = None,
+) -> AdmittedSettings | None:
+    """Read the admitted document, or None when the owner admitted nothing.
+
+    Raises :class:`AdmittedSettingsUnreadable` when the document is present and
+    any part of what this module reads from it is not usable.
+    """
+
+    path = admitted_settings_path(runtime_root)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError) as exc:
+        raise AdmittedSettingsUnreadable(
+            f"admitted desktop settings '{path}' cannot be read ({exc}); "
+            "refusing to fall back to an unadmitted environment"
+        ) from exc
+    try:
+        raw = json.loads(text)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise AdmittedSettingsUnreadable(
+            f"admitted desktop settings '{path}' are corrupt ({exc}); "
+            "refusing to fall back to an unadmitted environment"
+        ) from exc
+    if not isinstance(raw, dict):
+        raise AdmittedSettingsUnreadable(
+            f"admitted desktop settings '{path}' are not an object; refusing"
+        )
+
+    ceiling: float | None = None
+    max_calls: int | None = None
+    budget = raw.get("budget")
+    if budget is not None:
+        if not isinstance(budget, dict):
+            raise AdmittedSettingsUnreadable(
+                f"admitted desktop settings '{path}' have a non-object "
+                "'budget' section; refusing"
+            )
+        if "period_ceiling_usd" in budget:
+            try:
+                ceiling = _num(
+                    budget["period_ceiling_usd"],
+                    "budget.period_ceiling_usd",
+                    allow_zero=False,
+                )
+            except BudgetUnavailable as exc:
+                raise AdmittedSettingsUnreadable(
+                    f"admitted desktop settings '{path}': {exc}"
+                ) from exc
+        if "max_calls" in budget:
+            value = budget["max_calls"]
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise AdmittedSettingsUnreadable(
+                    f"admitted desktop settings '{path}': budget.max_calls="
+                    f"{value!r} is not a usable call cap (must be an int > 0)"
+                )
+            max_calls = int(value)
+
+    policy: ExecutionLimitPolicy | None = None
+    caps = raw.get("caps")
+    if caps is not None:
+        try:
+            policy = ExecutionLimitPolicy.from_dict(caps)
+        except LimitPolicyError as exc:
+            raise AdmittedSettingsUnreadable(
+                f"admitted desktop settings '{path}': invalid execution limit "
+                f"policy ({exc}); refusing to guess which caps are enforced"
+            ) from exc
+
+    return AdmittedSettings(
+        path=path,
+        period_ceiling_usd=ceiling,
+        max_calls=max_calls,
+        limit_policy=policy,
+    )
+
+
+def environment_limit_policy(
+    environ: Mapping[str, str] | None = None,
+) -> ExecutionLimitPolicy | None:
+    """What this environment states about execution limits, or None.
+
+    None means the environment states NOTHING, which is different from stating
+    ``bounded``: an absent variable imposes no bound and must not silently
+    outrank an admitted document that disabled an axis on purpose.
+
+    Two variables can state it. The canonical JSON one wins when it carries a
+    non-blank value. Only when it does not do we project the retired
+    Revision-9 period-only boolean into ``custom``; that is what prevents an
+    old USD-only uncapped desktop from silently becoming fully unbounded after
+    an upgrade. A blank value is absent for BOTH, exactly as every other
+    variable this module reads treats blank.
+    """
+
+    source = os.environ if environ is None else environ
+    raw = source.get(ENV_EXECUTION_LIMIT_POLICY)
+    if raw is not None and raw.strip():
+        return ExecutionLimitPolicy.from_env_value(raw)
+    legacy = source.get(ENV_PERIOD_CEILING_ENABLED)
+    if legacy is None or not legacy.strip():
+        return None
+    value = legacy.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return ExecutionLimitPolicy()
+    if value in {"0", "false", "no", "off"}:
+        return ExecutionLimitPolicy(
+            mode=MODE_CUSTOM,
+            configured=LimitAxes(period_usd=False),
+        )
+    raise BudgetUnavailable(
+        f"{ENV_PERIOD_CEILING_ENABLED}={legacy!r} is not a boolean; refusing "
+        "to guess whether the period USD ceiling is active"
+    )
+
+
+def strictest_number(
+    *,
+    document: float | int | None,
+    environment: float | int | None,
+    default: float | int,
+) -> tuple[Any, str, Any]:
+    """Return ``(effective, source, refused_environment_value)``.
+
+    ``refused_environment_value`` is what the environment asked for and did not
+    get, and is not None only when the environment tried to WIDEN past the
+    admitted document. Narrowing is never refused and never reported: the
+    desktop admission path accepts a narrowing without a confirmation too.
+    """
+
+    if document is None and environment is None:
+        return default, SOURCE_DEFAULT, None
+    if document is None:
+        return environment, SOURCE_ENVIRONMENT, None
+    if environment is None:
+        return document, SOURCE_ADMITTED_DOCUMENT, None
+    if environment <= document:
+        return environment, SOURCE_ENVIRONMENT, None
+    return document, SOURCE_ADMITTED_DOCUMENT, environment
+
+
+def strictest_policy(
+    *,
+    document: ExecutionLimitPolicy | None,
+    environment: ExecutionLimitPolicy | None,
+) -> tuple[ExecutionLimitPolicy, str, tuple[str, ...]]:
+    """Return ``(effective, source, refused_environment_axes)``.
+
+    An axis is enforced when EITHER input enforces it, so an unadmitted
+    variable cannot disable a cap the owner admitted. ``refused_axes`` names
+    every axis the environment tried to disable and did not get.
+    """
+
+    if document is None and environment is None:
+        return ExecutionLimitPolicy(), SOURCE_DEFAULT, ()
+    if document is None:
+        return environment, SOURCE_ENVIRONMENT, ()
+    if environment is None:
+        return document, SOURCE_ADMITTED_DOCUMENT, ()
+
+    doc_axes = document.effective
+    env_axes = environment.effective
+    refused = tuple(
+        axis
+        for axis in LIMIT_AXES
+        if getattr(doc_axes, axis) and not getattr(env_axes, axis)
+    )
+    strictest = LimitAxes(
+        **{
+            axis: getattr(doc_axes, axis) or getattr(env_axes, axis)
+            for axis in LIMIT_AXES
+        }
+    )
+    # Prefer returning one of the two inputs verbatim when it already IS the
+    # strictest, so the reported mode stays the label the owner or the operator
+    # chose and the retained per-axis configuration survives a later switch
+    # back to ``custom``.
+    if strictest == doc_axes:
+        return document, SOURCE_ADMITTED_DOCUMENT, refused
+    if strictest == env_axes:
+        return environment, SOURCE_ENVIRONMENT, refused
+    return (
+        ExecutionLimitPolicy(mode=MODE_CUSTOM, configured=strictest),
+        SOURCE_COMPOSED,
+        refused,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedLimits:
+    """One resolution of every axis this module owns, with its provenance.
+
+    ``unadmitted_widening`` is the honest half of the answer to "what happens
+    to an environment value that never went through admission?".  Such a value
+    is still honoured -- refusing it would break every shell, CI job and test
+    that has ever exported one, and a NARROWING needs no admission anyway,
+    because the desktop path accepts a narrowing without a confirmation too.
+    What it does not get is silence: a variable that widens past the code
+    default with no admitted document behind it is reported as exactly that.
+    """
+
+    admitted_path: Path | None
+    ceiling_usd: float
+    ceiling_source: str
+    refused_ceiling_usd: float | None
+    ceiling_unadmitted_widening: bool
+    max_calls: int
+    max_calls_source: str
+    refused_max_calls: int | None
+    max_calls_unadmitted_widening: bool
+    policy: ExecutionLimitPolicy
+    policy_source: str
+    refused_policy_axes: tuple[str, ...]
+    unadmitted_disabled_axes: tuple[str, ...]
+
+    @property
+    def unadmitted_widening(self) -> bool:
+        return bool(
+            self.ceiling_unadmitted_widening
+            or self.max_calls_unadmitted_widening
+            or self.unadmitted_disabled_axes
+        )
 
 
 class Ledger:
@@ -637,6 +975,7 @@ class Ledger:
         period: str | None = None,
         now: Callable[[], float] | None = None,
         lock_timeout_s: float = LOCK_TIMEOUT_S,
+        runtime_root: str | os.PathLike[str] | None = None,
     ) -> None:
         raw = path if path is not None else os.environ.get(ENV_LEDGER) or DEFAULT_LEDGER_PATH
         self.path = Path(raw)
@@ -648,31 +987,85 @@ class Ledger:
         self._period_override = period
         self._now = now or time.time
         self.lock_timeout_s = lock_timeout_s
+        # Deliberately a Python argument and not an environment variable. A
+        # variable that relocated the admitted document would be a way to
+        # widen every axis at once with no confirmation -- exactly the hole
+        # this document closes.
+        self._runtime_root = runtime_root
 
     # -- configuration ----------------------------------------------------
 
-    def ceiling_usd(self) -> float:
-        if self._ceiling_override is not None:
-            return _num(self._ceiling_override, ENV_CEILING, allow_zero=False)
-        return _env_float(ENV_CEILING, DEFAULT_CEILING_USD)
+    def _resolve_limits(self) -> _ResolvedLimits:
+        """Resolve every owned axis once, strictest-wins, with provenance.
 
-    def period_ceiling_enabled(self) -> bool:
-        return self.execution_limit_policy().enforces("period_usd")
-
-    def billable_call_ceiling_enabled(self) -> bool:
-        return self.execution_limit_policy().enforces("billable_calls")
-
-    def mission_spend_ceiling_enabled(self) -> bool:
-        return self.execution_limit_policy().enforces("mission_spend")
-
-    def execution_limit_policy(self) -> ExecutionLimitPolicy:
-        """Policy for the next admission, with conservative Rev-9 migration.
-
-        The canonical JSON environment wins when present.  Only when it is
-        absent do we project the retired period-only boolean into ``custom``;
-        this is what prevents an old USD-only uncapped desktop from silently
-        becoming fully unbounded after an upgrade.
+        Read fresh on every call, like every other decision input in this
+        class: a limit resolved before another process published a new document
+        is the same staleness race the lock exists to close.
         """
+
+        admitted = load_admitted_settings(self._runtime_root)
+
+        if self._ceiling_override is not None:
+            ceiling = _num(self._ceiling_override, ENV_CEILING, allow_zero=False)
+            ceiling_source: str = SOURCE_ISSUED_CONTRACT
+            refused_ceiling: float | None = None
+        else:
+            ceiling, ceiling_source, refused_ceiling = strictest_number(
+                document=None if admitted is None else admitted.period_ceiling_usd,
+                environment=_env_float_opt(ENV_CEILING),
+                default=DEFAULT_CEILING_USD,
+            )
+
+        if self._max_calls_override is not None:
+            if isinstance(self._max_calls_override, bool) or int(self._max_calls_override) <= 0:
+                raise BudgetUnavailable(f"max_calls={self._max_calls_override!r} is not usable")
+            calls = int(self._max_calls_override)
+            calls_source: str = SOURCE_ISSUED_CONTRACT
+            refused_calls: int | None = None
+        else:
+            calls, calls_source, refused_calls = strictest_number(
+                document=None if admitted is None else admitted.max_calls,
+                environment=_env_int_opt(ENV_MAX_CALLS),
+                default=DEFAULT_MAX_CALLS,
+            )
+
+        policy, policy_source, refused_axes = self._resolve_policy(admitted)
+
+        admitted_policy = None if admitted is None else admitted.limit_policy
+        unadmitted_axes: tuple[str, ...] = ()
+        if policy_source == SOURCE_ENVIRONMENT and admitted_policy is None:
+            unadmitted_axes = tuple(
+                axis for axis in LIMIT_AXES if not policy.enforces(axis)
+            )
+
+        return _ResolvedLimits(
+            admitted_path=None if admitted is None else admitted.path,
+            ceiling_usd=ceiling,
+            ceiling_source=ceiling_source,
+            refused_ceiling_usd=refused_ceiling,
+            ceiling_unadmitted_widening=(
+                ceiling_source == SOURCE_ENVIRONMENT
+                and (admitted is None or admitted.period_ceiling_usd is None)
+                and ceiling > DEFAULT_CEILING_USD
+            ),
+            max_calls=calls,
+            max_calls_source=calls_source,
+            refused_max_calls=refused_calls,
+            max_calls_unadmitted_widening=(
+                calls_source == SOURCE_ENVIRONMENT
+                and (admitted is None or admitted.max_calls is None)
+                and calls > DEFAULT_MAX_CALLS
+            ),
+            policy=policy,
+            policy_source=policy_source,
+            refused_policy_axes=refused_axes,
+            unadmitted_disabled_axes=unadmitted_axes,
+        )
+
+    def _resolve_policy(
+        self, admitted: AdmittedSettings | None
+    ) -> tuple[ExecutionLimitPolicy, str, tuple[str, ...]]:
+        """The limit policy for the next admission, and where it came from."""
 
         if self._execution_limit_policy_override is not None:
             if self._period_ceiling_enabled_override is not None:
@@ -686,7 +1079,7 @@ class Ledger:
                 raise BudgetUnavailable(
                     "execution_limit_policy must be ExecutionLimitPolicy"
                 )
-            return self._execution_limit_policy_override
+            return self._execution_limit_policy_override, SOURCE_ISSUED_CONTRACT, ()
         try:
             if self._period_ceiling_enabled_override is not None:
                 if not isinstance(self._period_ceiling_enabled_override, bool):
@@ -694,32 +1087,94 @@ class Ledger:
                         "period_ceiling_enabled must be a boolean"
                     )
                 if self._period_ceiling_enabled_override:
-                    return ExecutionLimitPolicy()
-                return ExecutionLimitPolicy(
-                    mode=MODE_CUSTOM,
-                    configured=LimitAxes(period_usd=False),
+                    return ExecutionLimitPolicy(), SOURCE_ISSUED_CONTRACT, ()
+                return (
+                    ExecutionLimitPolicy(
+                        mode=MODE_CUSTOM,
+                        configured=LimitAxes(period_usd=False),
+                    ),
+                    SOURCE_ISSUED_CONTRACT,
+                    (),
                 )
-            if ENV_EXECUTION_LIMIT_POLICY in os.environ:
-                return load_limit_policy_from_env()
-            legacy_period = _env_bool(ENV_PERIOD_CEILING_ENABLED, True)
-            if legacy_period:
-                return ExecutionLimitPolicy()
-            return ExecutionLimitPolicy(
-                mode=MODE_CUSTOM,
-                configured=LimitAxes(period_usd=False),
-            )
+            # What the environment states, or nothing at all. Absent, it
+            # imposes no bound: it does not silently assert ``bounded`` over an
+            # admitted document that disabled an axis on purpose.
+            environment = environment_limit_policy()
         except LimitPolicyError as exc:
             raise BudgetUnavailable(
                 f"invalid execution limit policy: {exc}; refusing to guess "
                 "which resource caps are enforced"
             ) from exc
+        return strictest_policy(
+            document=None if admitted is None else admitted.limit_policy,
+            environment=environment,
+        )
+
+    def limit_provenance(self) -> dict[str, Any]:
+        """Where every resolved execution limit came from, as a report.
+
+        NOT AN ADMISSION INPUT. Nothing decides anything on the strength of
+        this mapping; it exists so that an unadmitted environment value which
+        was refused a widening is VISIBLE rather than silent, and so that a
+        process can say which of the two inputs produced the number it is
+        about to spend against.
+        """
+
+        resolved = self._resolve_limits()
+        return {
+            "admitted_document": (
+                None if resolved.admitted_path is None else str(resolved.admitted_path)
+            ),
+            "unadmitted_widening": resolved.unadmitted_widening,
+            "period_ceiling_usd": {
+                "effective": resolved.ceiling_usd,
+                "source": resolved.ceiling_source,
+                "refused_environment_value": resolved.refused_ceiling_usd,
+                "unadmitted_widening": resolved.ceiling_unadmitted_widening,
+                "environment_variable": ENV_CEILING,
+            },
+            "max_calls": {
+                "effective": resolved.max_calls,
+                "source": resolved.max_calls_source,
+                "refused_environment_value": resolved.refused_max_calls,
+                "unadmitted_widening": resolved.max_calls_unadmitted_widening,
+                "environment_variable": ENV_MAX_CALLS,
+            },
+            "execution_limit_policy": {
+                "mode": resolved.policy.mode,
+                "effective_axes": resolved.policy.effective.as_dict(),
+                "source": resolved.policy_source,
+                "refused_environment_axes": list(resolved.refused_policy_axes),
+                "unadmitted_disabled_axes": list(resolved.unadmitted_disabled_axes),
+                "environment_variable": ENV_EXECUTION_LIMIT_POLICY,
+            },
+        }
+
+    def ceiling_usd(self) -> float:
+        return self._resolve_limits().ceiling_usd
+
+    def period_ceiling_enabled(self) -> bool:
+        return self.execution_limit_policy().enforces("period_usd")
+
+    def billable_call_ceiling_enabled(self) -> bool:
+        return self.execution_limit_policy().enforces("billable_calls")
+
+    def mission_spend_ceiling_enabled(self) -> bool:
+        return self.execution_limit_policy().enforces("mission_spend")
+
+    def execution_limit_policy(self) -> ExecutionLimitPolicy:
+        """Policy for the next admission, strictest-wins across both inputs.
+
+        An explicit constructor override is an already issued contract and
+        decides alone. Otherwise the admitted document and the process
+        environment are composed per axis and an axis is enforced when EITHER
+        states that it is; see "the admitted desktop settings document" above.
+        """
+
+        return self._resolve_policy(load_admitted_settings(self._runtime_root))[0]
 
     def max_calls(self) -> int:
-        if self._max_calls_override is not None:
-            if isinstance(self._max_calls_override, bool) or int(self._max_calls_override) <= 0:
-                raise BudgetUnavailable(f"max_calls={self._max_calls_override!r} is not usable")
-            return int(self._max_calls_override)
-        return _env_int(ENV_MAX_CALLS, DEFAULT_MAX_CALLS)
+        return self._resolve_limits().max_calls
 
     def period(self) -> str:
         raw = (self._period_override or os.environ.get(ENV_PERIOD) or DEFAULT_PERIOD)
@@ -937,10 +1392,13 @@ class Ledger:
         open_res = data.get("open") or {}
         envelopes = self._envelope_views(data)
         hold = float(sum(e["hold_usd"] for e in envelopes))
-        policy = self.execution_limit_policy()
+        # One resolution for the whole state read: three separate calls would
+        # read the admitted document three times and could straddle a save.
+        resolved = self._resolve_limits()
+        policy = resolved.policy
         return BudgetState(
-            ceiling_usd=self.ceiling_usd(),
-            max_calls=self.max_calls(),
+            ceiling_usd=resolved.ceiling_usd,
+            max_calls=resolved.max_calls,
             spent_usd=float(data["spent_usd"]),
             # THE HOLD IS RESERVED MONEY. A granted lease has already committed
             # its ceiling; counting it here is what makes the period ceiling

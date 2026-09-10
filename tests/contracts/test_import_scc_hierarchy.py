@@ -526,7 +526,24 @@ CENSUS_MODULES = 522  # re-measured 2026-09-10 (G1-SETTINGS-01)
 # the one new supervisor edge to ``...claude_attempt_handoff``, which is
 # function-local inside ``run()`` but counted because the graph is built from
 # the AST.
-CENSUS_EDGES = 2107  # re-measured 2026-09-10 (G1-SETTINGS-01): +2 edges, the read-only settings_inventory importing kernel.policy.limits and its sibling configuration; components and their digest unchanged
+# G1-SETTINGS-02, 2026-09-11: 2107 -> 2110, exactly three added edges and no
+# deletion, all of them leaving the same read-only projection so that it
+# REUSES a rule instead of reproducing it:
+#
+#   interfaces.desktop.settings_inventory -> kernel.policy.ledger      +1
+#       (the strictest-wins composition and the source vocabulary)
+#   interfaces.desktop.settings_inventory -> kernel.policy.pricing     +1
+#       (BudgetError, and the vendor table subscription_vendors filters on)
+#   interfaces.desktop.settings_inventory -> sensitivity               +1
+#       (parse_declared_trusted_hosts, so the panel cannot claim a name is
+#        inside the egress trust boundary when the rule drops every name)
+#
+# Module count is unchanged at 522: no module was added or removed. The
+# fourteen components, the maximum of nineteen and CURRENT_COMPONENTS_SHA256
+# are all unchanged, which is the claim that matters -- the projection is a
+# leaf that imports downward and is imported by nothing in production, so
+# none of the three edges can close a cycle.
+CENSUS_EDGES = 2110  # re-measured 2026-09-11 (G1-SETTINGS-02)
 
 
 def _module_name(path: str) -> str:

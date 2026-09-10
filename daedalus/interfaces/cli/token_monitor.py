@@ -249,13 +249,21 @@ def _budget_view(lock_timeout_s: float = BUDGET_READ_LOCK_TIMEOUT_S) -> dict[str
     """
     from ...budget import BudgetError, Ledger
 
+    ledger = Ledger(lock_timeout_s=lock_timeout_s)
     try:
-        state = Ledger(lock_timeout_s=lock_timeout_s).state()
+        state = ledger.state()
+        # WHERE the ceiling came from, beside WHAT it is. Since 2026-09-11 the
+        # ledger composes the admitted desktop settings document with the
+        # process environment, strictest-wins, so "ceiling: $5" no longer says
+        # which of the two produced it -- and an ambient variable that widened
+        # past the code default with nothing admitted behind it would otherwise
+        # be invisible.
+        provenance = ledger.limit_provenance()
     except BudgetError as exc:
         return {"available": False, "reason": str(exc)}
     except OSError as exc:  # unreadable path, permissions, full disk
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
-    return {"available": True, **state.as_dict()}
+    return {"available": True, **state.as_dict(), "limit_provenance": provenance}
 
 
 def _render_budget_view(budget: dict[str, Any]) -> str:
@@ -271,11 +279,60 @@ def _render_budget_view(budget: dict[str, Any]) -> str:
         if budget["billable_call_ceiling_enabled"]
         else f"{budget['calls']} calls recorded; call ceiling disabled"
     )
-    return (
+    line = (
         f"budget: ${budget['spent_usd']:.4f} spent + "
         f"${budget['reserved_usd']:.4f} reserved of {period_limit} "
         f"({call_limit}, period {budget['period_key']})"
     )
+    return line + _render_limit_provenance(budget.get("limit_provenance"))
+
+
+def _render_limit_provenance(provenance: Any) -> str:
+    """Say which input decided the ceiling, but only when it is not obvious.
+
+    Silent in the only case that needs no explanation -- no admitted document
+    and nothing widened -- so the historical one-line rendering is unchanged
+    for a plain checkout and a plain shell.
+    """
+
+    if not isinstance(provenance, dict):
+        return ""
+    clauses: list[str] = []
+    ceiling = provenance.get("period_ceiling_usd") or {}
+    calls = provenance.get("max_calls") or {}
+    policy = provenance.get("execution_limit_policy") or {}
+    if provenance.get("admitted_document"):
+        clauses.append(
+            f"ceiling from {ceiling.get('source')}, "
+            f"calls from {calls.get('source')}, "
+            f"caps from {policy.get('source')}"
+        )
+    refused: list[str] = []
+    if ceiling.get("refused_environment_value") is not None:
+        refused.append(
+            f"DAEDALUS_BUDGET_USD={ceiling['refused_environment_value']}"
+        )
+    if calls.get("refused_environment_value") is not None:
+        refused.append(
+            f"DAEDALUS_BUDGET_MAX_CALLS={calls['refused_environment_value']}"
+        )
+    if policy.get("refused_environment_axes"):
+        refused.append(
+            "DAEDALUS_EXECUTION_LIMIT_POLICY would disable "
+            + ",".join(policy["refused_environment_axes"])
+        )
+    if refused:
+        clauses.append(
+            "refused unadmitted widening: " + "; ".join(refused)
+        )
+    if provenance.get("unadmitted_widening"):
+        clauses.append(
+            "WARNING: widened by an environment variable with no admitted "
+            "settings document behind it"
+        )
+    if not clauses:
+        return ""
+    return " [" + " | ".join(clauses) + "]"
 
 
 def _spine_view(recent: int = 3) -> dict[str, Any]:

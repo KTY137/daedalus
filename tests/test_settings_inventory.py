@@ -143,19 +143,48 @@ def test_a_changed_document_reports_persisted(config):
 # --------------------------------------------------------------------------- #
 
 
-def test_environment_wins_over_the_persisted_document(config):
-    """Ledger precedence, reproduced: a non-blank variable decides."""
-
-    saved = normalize_config(
-        {"budget": {"period_ceiling_usd": 200.0, "max_calls": 5000}},
+def _saved(config, **budget):
+    return normalize_config(
+        {"budget": budget},
         budget_defaults=config["budget"],
         caps_defaults=config["caps"],
     )
+
+
+def test_a_narrower_variable_still_decides(config):
+    """Ledger precedence, reproduced: the STRICTEST of the two decides."""
+
+    saved = _saved(config, period_ceiling_usd=200.0, max_calls=5000)
     rows = _by_id(describe_settings(saved, {"DAEDALUS_BUDGET_USD": "3.5"}))
     row = rows["budget.period_ceiling_usd"]
     assert row.source == SOURCE_ENVIRONMENT
-    assert row.effective == 3.5, "the owner saved 200.0 and gets 3.5"
+    assert row.effective == 3.5, "the owner saved 200.0 and 3.5 is narrower"
     assert row.environment_variable == "DAEDALUS_BUDGET_USD"
+    assert row.refused_environment_value is None, "a narrowing is never refused"
+
+
+def test_a_wider_variable_is_refused_and_named(config):
+    """G1-SETTINGS-02: an unadmitted variable cannot widen past the document."""
+
+    saved = _saved(config, period_ceiling_usd=200.0, max_calls=5000)
+    rows = _by_id(describe_settings(saved, {"DAEDALUS_BUDGET_USD": "999999"}))
+    row = rows["budget.period_ceiling_usd"]
+    assert row.source == SOURCE_PERSISTED
+    assert row.effective == 200.0
+    assert row.refused_environment_value == 999999.0
+
+
+def test_without_a_document_on_disk_the_variable_decides_alone(config):
+    """``manager.config`` is a full mapping even when nothing was ever saved."""
+
+    rows = _by_id(
+        describe_settings(
+            config, {"DAEDALUS_BUDGET_USD": "999999"}, document_present=False
+        )
+    )
+    row = rows["budget.period_ceiling_usd"]
+    assert row.source == SOURCE_ENVIRONMENT
+    assert row.effective == 999999.0
 
 
 def test_blank_environment_value_is_absent_like_the_readers_treat_it(config):
@@ -164,9 +193,16 @@ def test_blank_environment_value_is_absent_like_the_readers_treat_it(config):
 
 
 def test_environment_shadowed_view_lists_exactly_the_shadowed_rows(config):
-    environ = {"DAEDALUS_BUDGET_USD": "9", "OLLAMA_MODEL": "llama3:8b"}
+    """MEASURED 2026-09-11. ``9`` no longer shadows the default ``5.0``: the
+    ledger takes the strictest, so only a NARROWER variable shadows now."""
+
+    environ = {"DAEDALUS_BUDGET_USD": "1", "OLLAMA_MODEL": "llama3:8b"}
     shadowed = {row.id for row in environment_shadowed_settings(config, environ)}
     assert shadowed == {"budget.period_ceiling_usd", "ollama.model"}
+
+    wider = {"DAEDALUS_BUDGET_USD": "9", "OLLAMA_MODEL": "llama3:8b"}
+    shadowed = {row.id for row in environment_shadowed_settings(config, wider)}
+    assert shadowed == {"ollama.model"}, "a wider variable shadows nothing"
 
 
 def test_unusable_environment_value_reports_none_not_raw_text(config):
@@ -179,15 +215,86 @@ def test_unusable_environment_value_reports_none_not_raw_text(config):
 
 
 def test_environment_limit_policy_is_decoded_per_axis(config):
+    """With no document on disk the variable decides, axis by axis."""
+
     policy = ExecutionLimitPolicy(mode="unbounded_execution")
     rows = _by_id(describe_settings(
-        config, {"DAEDALUS_EXECUTION_LIMIT_POLICY": policy.to_env_value()}
+        config,
+        {"DAEDALUS_EXECUTION_LIMIT_POLICY": policy.to_env_value()},
+        document_present=False,
     ))
     assert rows["caps.mode"].effective == "unbounded_execution"
     for axis in LIMIT_AXES:
         row = rows[f"caps.configured.{axis}"]
         assert row.source == SOURCE_ENVIRONMENT
         assert row.effective is True, "configured choices are retained verbatim"
+
+
+def test_an_admitted_bounded_document_refuses_an_unbounded_variable(config):
+    """G1-SETTINGS-02: an axis is enforced when EITHER input enforces it."""
+
+    policy = ExecutionLimitPolicy(mode="unbounded_execution")
+    rows = _by_id(describe_settings(
+        config, {"DAEDALUS_EXECUTION_LIMIT_POLICY": policy.to_env_value()}
+    ))
+    assert rows["caps.mode"].effective == "bounded"
+    assert set(rows["caps.mode"].refused_environment_value) == set(LIMIT_AXES)
+
+
+def test_the_retired_period_boolean_is_modelled(config):
+    """MEASURED 2026-09-11 before this row existed: the projection said
+    ``bounded``/``default`` while ``Ledger.execution_limit_policy()`` returned
+    ``custom`` with the period USD ceiling unenforced, and no descriptor named
+    the variable at all."""
+
+    rows = _by_id(describe_settings(
+        config,
+        {"DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED": "0"},
+        document_present=False,
+    ))
+    assert rows["budget.period_ceiling_enabled"].effective is False
+    assert rows["budget.period_ceiling_enabled"].source == SOURCE_ENVIRONMENT
+    assert rows["caps.mode"].effective == "custom"
+    assert rows["caps.configured.period_usd"].effective is False
+
+
+def test_an_unusable_retired_period_boolean_reports_fail_closed(config):
+    rows = _by_id(describe_settings(
+        config,
+        {"DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED": "maybe"},
+        document_present=False,
+    ))
+    assert rows["budget.period_ceiling_enabled"].effective is None
+    assert rows["caps.mode"].effective is None
+    for axis in LIMIT_AXES:
+        assert rows[f"caps.configured.{axis}"].effective is None
+
+
+@pytest.mark.parametrize(
+    "variable, raw, expected",
+    [
+        ("DAEDALUS_BUDGET_PERIOD", "week", None),
+        ("DAEDALUS_BUDGET_PERIOD", "DAY", "day"),
+        ("DAEDALUS_BUDGET_PERIOD", "   ", None),
+        ("DAEDALUS_BUDGET_ON_UNKNOWN", "refus", "worst_case"),
+        ("DAEDALUS_BUDGET_ON_UNKNOWN", "refuse", "refuse"),
+        ("DAEDALUS_SUBSCRIPTION_VENDORS", "notavendor,anthropic", []),
+        ("DAEDALUS_SUBSCRIPTION_VENDORS", "DeepSeek , notavendor", ["deepseek"]),
+        ("DAEDALUS_TRUSTED_HOSTS", "localhost", []),
+        ("DAEDALUS_TRUSTED_HOSTS", "0.0.0.0", []),
+        ("DAEDALUS_TRUSTED_HOSTS", "100.119.126.9", ["100.119.126.9"]),
+    ],
+)
+def test_env_only_rows_report_what_their_reader_makes_of_the_value(
+    config, variable, raw, expected
+):
+    """MEASURED 2026-09-11 before the coercions: every row above reported the
+    raw text, including ``localhost`` as a declared egress-trust host, which
+    ``declared_trusted_hosts`` deliberately drops."""
+
+    rows = _by_id(describe_settings(config, {variable: raw}))
+    row = next(r for r in rows.values() if r.environment_variable == variable)
+    assert row.effective == expected
 
 
 def test_invalid_environment_limit_policy_reports_fail_closed(config):
@@ -206,11 +313,15 @@ def test_invalid_environment_limit_policy_reports_fail_closed(config):
 
 
 def test_pinned_set_of_widening_settings_without_a_confirming_path(config):
-    """MEASURED 2026-09-10. Adding a fifth must be a deliberate decision."""
+    """MEASURED 2026-09-11, five rows. The fifth -- the retired Revision-9
+    boolean -- was found by independent review of the read half: the
+    projection modelled no row for it while the kernel still consulted it.
+    Adding a sixth must be a deliberate decision."""
 
     found = {row.id for row in unconfirmed_widening_settings(config, {})}
     assert found == {
         "budget.ledger_path",
+        "budget.period_ceiling_enabled",
         "budget.subscription_vendors",
         "trust.declared_hosts",
         "trust.ollama_remote_consent",

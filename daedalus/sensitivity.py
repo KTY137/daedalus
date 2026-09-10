@@ -630,7 +630,21 @@ def declared_trusted_hosts() -> frozenset[str]:
     """
     import os  # local, matching this module's deliberately small import surface
 
-    raw = os.environ.get(ENV_TRUSTED_HOSTS, "") or ""
+    return parse_declared_trusted_hosts(os.environ.get(ENV_TRUSTED_HOSTS, "") or "")
+
+
+def parse_declared_trusted_hosts(raw: str) -> frozenset[str]:
+    """The parsing half of :func:`declared_trusted_hosts`, without the read.
+
+    Split out so a projection can say what a GIVEN declaration would resolve to
+    without reading this process's environment and without re-deriving the
+    rule.  This module's own standing instruction applies: there is one answer
+    to "which addresses did the operator declare", and a settings panel that
+    computed a second one would be the copy that drifts -- and it would drift
+    in the worst direction, listing a name like ``localhost`` as a declared
+    trust-boundary host when the rule below deliberately drops every name.
+    """
+
     out: set[str] = set()
     for part in raw.split(","):
         entry = part.strip()
