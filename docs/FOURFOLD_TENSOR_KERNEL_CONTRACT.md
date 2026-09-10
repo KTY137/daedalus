@@ -12,11 +12,13 @@ or promotion surface.
 
 The smallest executable sparse authority is now `TypedRelationBlock` itself.
 Boolean/natural/tropical/evidence semantics are supplied by the canonical
-reference semirings, and composition is performed directly by bounded
-`TypedRelationBlock.matmul()` and `TypedRelationBlock.hadamard()`. A separate
-contraction-plan AST/interpreter is deliberately not retained unless a concrete
-consumer later demonstrates that such a plan representation adds capability
-without duplicating validation, budgeting, or execution authority.
+reference semirings. Composition, slicing and whole-block scalar reduction are
+performed directly by bounded `TypedRelationBlock.matmul()`,
+`TypedRelationBlock.hadamard()`, `TypedRelationBlock.slice()` and
+`TypedRelationBlock.reduce()`. A separate contraction/reduction plan
+AST/interpreter is deliberately not retained unless a concrete consumer later
+demonstrates that such a plan representation adds capability without
+duplicating validation, budgeting, result identity, or execution authority.
 
 Constructing or evaluating any value described here grants no trust, performs
 no effect, approves no change, and cannot trigger promotion.
@@ -78,6 +80,25 @@ They enforce bounded operation counts directly while emitting canonical CSR,
 so callers do not need a second interpreter to preflight and then repeat the
 same traversal.
 
+`slice()` is the canonical axis-subset operation. It canonicalizes requested
+labels by the existing typed-axis order, rejects unknown or duplicate labels,
+preserves the exact `ProjectionSubject`, `RelationSignature` and semiring, and
+returns the existing immutable block when both axes are unchanged. It creates
+only a short-lived local column-position remap while projecting CSR; it does not
+introduce a persistent label index, second slice representation, or new result
+authority. When a same-plane block shares one axis object and the requested row
+and column subsets are identical, the sliced block preserves that shared axis
+identity.
+
+`reduce()` is deliberately narrower than an axis-wise aggregation API. It folds
+only the retained sparse values, in canonical CSR order, with the canonical
+semiring addition and the existing `max_operations` budget. Implicit sparse
+zeroes are the additive identity and are not materialized. The result is a pure
+scalar observer of the exact block subject; no derived vector/result object is
+retained. Axis-wise reduction remains deferred until a concrete consumer
+requires a revision-bound axis-plus-values identity that can be owned without
+creating a parallel result hierarchy.
+
 ## Strict Forest/Fourfold relation projection
 
 `daedalus/twin/relation_compiler.py` is the sole implementation owner for
@@ -111,15 +132,58 @@ Discover-all compilation and explicit signature selection share that one owner.
 Retained hyperedges and undirected `ForestEdge` records are refused whenever the
 selected relation would require lossy pairwise/directional flattening; an
 explicitly unrelated selection may prune such source evidence without
-materializing it. The Boolean compatibility facade does not broaden or narrow
-these decisions: it requests exactly one signature with `BooleanSemiring()` and
-returns the compiler-produced block.
+materializing it. Explicit signature selection also prunes unrelated directed
+same-plane edges before relation hashing, so affected-signature work should
+reuse that seam rather than add a second compiler or digest/index owner.
+The Boolean compatibility facade does not broaden or narrow these decisions: it
+requests exactly one signature with `BooleanSemiring()` and returns the
+compiler-produced block.
 
 The compiler reuses canonical Fourfold plane/node tuples where possible and
 skips Forest relation hashing when the authoritative retained relation set is
 empty. These are containment/gardening changes, not a second lookup/index layer.
 Keeping the small public compatibility facade avoids an unnecessary API break;
 it is not a second projector.
+
+## Revision-bound delta boundary
+
+A `TypedRelationBlock` is bound to one exact `ProjectionSubject`, including the
+source revision and Fourfold digest. A block from one revision therefore cannot
+be patched in place and still claim the old subject identity after a semantic
+delta. Same-signature/same-axis shape does not relax that boundary: composition
+between blocks from different subjects fails closed.
+
+The current Forest/Fourfold delta surfaces do not provide a canonical,
+persistent digest-to-edge/signature authority suitable for a trusted sparse
+block patch path. Adding a Tensor-owned digest index, accepting caller-trusted
+digests, or retaining a second incremental relation compiler would create a
+parallel trust/graph authority. Incremental block application is therefore
+deferred until an authoritative revision transition can produce a
+candidate-subject-bound result without weakening provenance or duplicating the
+canonical relation compiler.
+
+## Directed relation and reverse-query boundary
+
+`RelationSignature(source_plane, relation, target_plane)` is directional.
+Generic matrix transposition is not relation-semantic inversion: transposing a
+block would swap endpoints while leaving a relation name such as `imports`
+unchanged, which would misstate the underlying Fourfold relation unless an
+explicit inverse relation contract existed.
+
+Reverse traversal is already owned where it is semantically a query orientation.
+StructCore maintains `import_edges_reverse` for callers/dependents views and
+safety/context consumers; those reverse maps answer incoming-neighbour queries
+over existing directed evidence rather than minting new relation truth. On the
+Forest/Fourfold side, reverse adjacency is synthesized only for explicitly
+undirected edges; directed edges and Fourfold bindings retain their original
+source/target orientation.
+
+Consequently the sparse reference kernel does not add a generic
+`TypedRelationBlock.transpose()`, a CSC/reverse-block cache, a Tensor `incoming()`
+API, synthetic inverse relation names, or an inverse-relation registry. A future
+reverse relation capability must be justified by an explicit semantic inverse
+contract or reuse an existing query owner; mathematical convenience alone is
+not sufficient.
 
 ## Contraction-plan experiment pruned (G1-TENSOR-01CV)
 
@@ -148,9 +212,10 @@ not authorize architectural promotion.
 Current evidence continues to falsify a general-purpose CSR-query-engine claim:
 for the simple and held-out workloads exercised so far, preindexed Forest is
 materially cheaper than the strict CSR path. The useful Tensor/CSR scope remains
-composition, typed algebra, evidence semantics, and workloads where those
-properties simplify or improve execution. Otherwise the kernel should be
-contained or pruned rather than expanded with GraphBLAS/GPU/backend layers.
+composition, typed algebra, evidence semantics, canonical slicing/reduction,
+and workloads where those properties simplify or improve execution. Otherwise
+the kernel should be contained or pruned rather than expanded with
+GraphBLAS/GPU/backend layers.
 
 ## Acceptance boundary
 
@@ -162,6 +227,11 @@ Executable checks cover:
 - canonical relation-compiler scalar admission: Boolean existence, natural
   unit-per-semantic-coordinate path counting, and evidence-bundle alternatives;
 - direct sparse multi-hop Fourfold composition via `matmul()` + `hadamard()`;
+- deterministic canonical `slice()` order, subject/signature preservation,
+  unknown/duplicate-label refusal, full-block reuse, same-plane shared-axis
+  reuse, and canonical empty slices;
+- bounded whole-block `reduce()` semantics for the canonical reference
+  semirings, including empty-block identity and operation-limit refusal;
 - Boolean existence, natural multiplicity, tropical minimum cost and evidence
   provenance over the same CSR mechanism;
 - exact Fourfold subject/revision binding and typed-axis compatibility;
@@ -180,7 +250,13 @@ Executable checks cover:
 This experiment does **not** add:
 
 - GraphBLAS, NumPy, PyTorch, GPU or another runtime dependency;
-- a new contraction-plan DSL/interpreter after G1-TENSOR-01CV pruning;
+- a new contraction/reduction-plan DSL/interpreter after G1-TENSOR-01CV pruning;
+- axis-wise reduction or a `TypedVector`/derived-result hierarchy without a
+  concrete revision-bound consumer;
+- generic relation transpose, synthetic inverse relation names, an inverse
+  relation registry, or a Tensor-owned reverse traversal index;
+- trusted/in-place delta application, a Tensor-owned digest-to-edge index, or a
+  second incremental relation compiler;
 - a sheaf/Laplacian implementation;
 - structural sharing or a persistent block store;
 - latent Tucker/RESCAL models;
