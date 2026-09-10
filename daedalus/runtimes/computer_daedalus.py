@@ -31,10 +31,13 @@ and each text fragment goes through ``sensitivity.slice_egress_rule`` on the
 planner's lane -- the unconditional secret floor on every lane, plus the
 project's default-deny allow-list and ``deny_content`` words (from
 ``projects/<name>.json``) on the untrusted lane. Withheld rows are counted,
-never silently dropped. No absolute host path is returned by shape
-(``_looks_like_host_path``), and ``docrefs`` scanner errors are reported as a
-count only. Cerberus review of 2026-09-10 found the first draft gating the
-slice alone; this is the repair.
+never silently dropped. Every value is rendered ONCE and gated on that
+rendering; an absolute-location shape refuses a field (``_looks_like_host_path``,
+``_mentions_host_path``) and is redacted span by span inside the slice text
+(``_redact_host_paths``, counted); reader and producer failures are refused by
+class name only; ``docrefs`` scanner errors are reported as a count only.
+Cerberus review of 2026-09-10 found the first draft gating the slice alone;
+nine review rounds later this is the repair.
 
 The lane is decided per call by :func:`planner_lane` from the owner-configured
 planner: a loopback Ollama or the Claude CLI is ``trusted`` (the same answer
@@ -191,7 +194,7 @@ def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
 
 
-_PATH_TOKEN_END = frozenset(" \t\r\n'\"()<>[]{},;|*&")
+_PATH_TOKEN_END = frozenset(" \t\r\n'\"()<>[]{},;|*&`")
 _LEADING_DELIMITERS = _PATH_TOKEN_END | frozenset("=:@")
 _QUOTES = frozenset("'\"")
 
@@ -231,6 +234,18 @@ def _redact_host_paths(text: str) -> tuple[str, int]:
         else:
             while end < len(text) and text[end] not in _PATH_TOKEN_END:
                 end += 1
+            # An UNQUOTED path with spaces (``C:\\Users\\First Last\\x``,
+            # ``C:\\Program Files\\nodejs\\npx.cmd`` in a docstring) continues
+            # while the next space-separated run still carries a separator
+            # (Odysseus round 9, D31: the surname after the space survived).
+            while end < len(text) and text[end] == " ":
+                probe = end + 1
+                while probe < len(text) and text[probe] not in _PATH_TOKEN_END:
+                    probe += 1
+                run = text[end + 1:probe]
+                if not run or ("\\" not in run and "/" not in run):
+                    break
+                end = probe
         out.append(text[cursor:start])
         out.append("<host-path>")
         cursor = end
@@ -507,7 +522,12 @@ class DaedalusObservation:
             "daedalus.docrefs": self._docrefs,
             "daedalus.tasks": self._tasks,
         }[tool]
-        result = handler(arguments)
+        try:
+            result = handler(arguments)
+        except ComputerRefused:
+            raise
+        except Exception as exc:  # noqa: BLE001 - consuming a foreign payload can raise; class only (D33)
+            raise ComputerRefused(f"observation failed ({tool}): {type(exc).__name__}") from exc
         result.setdefault("kind", "observation")
         result.setdefault("project", self._project)
         result.setdefault("host_mutation", False)
@@ -745,8 +765,16 @@ class DaedalusObservation:
         # round 3, H2) -- and the RULE names the path, the deny fragment or the
         # marker again (Odysseus round 4, D9). Only the role and a rule CLASS
         # travel; the count says how many.
-        rows = [{"role": str(row.get("role", "")), "rule": _rule_class(row.get("rule", ""))}
-                for row in withheld if isinstance(row, Mapping)] if isinstance(withheld, list) else []
+        if isinstance(withheld, (list, tuple)):
+            rows = [{"role": str(row.get("role", "")), "rule": _rule_class(row.get("rule", ""))}
+                    for row in withheld if isinstance(row, Mapping)]
+        elif withheld:
+            # A shape the slicer never produces is not trusted either way: one
+            # unknown withheld row, so the block below is rebuilt and the
+            # slicer's own breadcrumbs never travel (Odysseus round 9, D32).
+            rows = [{"role": "unknown", "rule": "egress_rule"}]
+        else:
+            rows = []
         shown = rows[:TOP]
         if any(row["role"] == "focus" for row in rows):
             # A withheld focus yields no slice at all: the slicer's whole text

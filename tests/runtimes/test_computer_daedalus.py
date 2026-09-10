@@ -826,8 +826,65 @@ def test_a_quoted_path_with_spaces_is_redacted_to_its_closing_quote(tmp_path, mo
             'PLAIN = "relative/path.txt"; unquoted C:\\Program Files\\x tail\n')
     redacted, count = subject._redact_host_paths(text)
     assert "Kowalski" not in redacted and "First Last" not in redacted
-    assert redacted.startswith('WIN_SPACE = "<host-path>"\nUSER = \'<host-path>\'\nPLAIN = "relative/path.txt"; unquoted <host-path> Files')
+    # An unquoted path with spaces is redacted whole as well (round 9, D31).
+    assert redacted.startswith('WIN_SPACE = "<host-path>"\nUSER = \'<host-path>\'\nPLAIN = "relative/path.txt"; unquoted <host-path> tail')
+    # The quote rule is load-bearing where the last segment carries no
+    # separator: only the closing quote says where the path ends (M58).
+    quoted_tail, quoted_count = subject._redact_host_paths('NAME = "C:\\Users\\First Last"\n')
+    assert quoted_tail == 'NAME = "<host-path>"\n' and quoted_count == 1
     assert count == 3
+
+
+def test_an_unquoted_path_with_spaces_is_redacted_whole(tmp_path, monkeypatch):
+    """Odysseus round 9 (D31): ``C:\\Users\\First Last\\secret.key`` in prose or a
+    docstring was redacted to the first space; the surname survived. The path
+    continues while the next space-separated run still carries a separator."""
+    text = ("# owner home is C:\\Users\\First Last\\projects\\daedalus\\notes.txt today\n"
+            "#:   ``C:\\Program Files\\nodejs\\npx.cmd``  -- an absolute path\n"
+            "cat /home/first last/x.txt done\n")
+    redacted, count = subject._redact_host_paths(text)
+    assert "First Last" not in redacted and "Last" not in redacted and "nodejs" not in redacted
+    assert "first last" not in redacted
+    assert redacted == ("# owner home is <host-path> today\n#:   ``<host-path>``  -- an absolute path\n"
+                        "cat <host-path> done\n")
+    assert count == 3
+
+
+def test_a_withheld_field_of_an_unknown_shape_still_rebuilds_the_block(tmp_path, monkeypatch):
+    """Odysseus round 9 (D32): ``isinstance(withheld, list)`` failed open for a
+    tuple or a dict, and the slicer's own breadcrumbs travelled."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    text = ("x = 1\n# ===== WITHHELD (egress gate) =====\n"
+            "# tct_app/devices/iseg.py  (tct_app/devices/iseg.py: denylisted path fragment 'tct_app/devices/')  [context]")
+    for shape in (({"file": "tct_app/devices/iseg.py", "role": "context", "rule": "x"},),
+                  {"file": "tct_app/devices/iseg.py", "role": "context", "rule": "x"}):
+        monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+            "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": text, "withheld": shape})
+        sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+        assert "iseg" not in json.dumps(sliced) and sliced["withheld_count"] >= 1
+
+
+def test_a_failure_while_consuming_a_payload_is_a_class_only_refusal(tmp_path, monkeypatch):
+    """Odysseus round 9 (D33): ``_produce`` wrapped production, not consumption;
+    a Mapping whose ``.get`` raises escaped ``execute`` with its message."""
+    from daedalus.structcore import report as report_module
+
+    class Hostile(dict):
+        def get(self, key, default=None):
+            raise RuntimeError("host path C:\\Users\\secret in the message")
+
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: Hostile())
+    with pytest.raises(ComputerRefused) as refused:
+        adapter.execute("daedalus.structure", {})
+    assert str(refused.value) == "observation failed (daedalus.structure): RuntimeError"
 
 
 def test_a_non_list_producer_field_is_withheld_not_crashed_on(tmp_path, monkeypatch):

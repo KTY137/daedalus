@@ -142,6 +142,15 @@ den Nachrichten-Anhang.
   repariert (Klassenname + Meldung nur ohne Host-Pfad; Satz präzisiert;
   Runner-Registrierung first-wins), Odysseus Runde 1 läuft; danach Rebase auf
   `09ff4586`, Runde 2.
+- Herzschlag: 2026-09-10 17:15 — #364: Runde 8 Cerberus `approve` bestätigt;
+  Odysseus D28–D30 (Pfad mit Leerzeichen, **D29 MAJOR: Slash nach `{|*&@`
+  unerkannt**, Nicht-Listen-Feld crasht) in Commit 9 `378b7f25` geschlossen;
+  666 grün, Mutationstabelle 59/59. Runde 9 (Abschluss, kompakt) läuft; danach
+  „ready“. #365 (Packet 47): Cerberus Runde 1 `block` und Odysseus Runde 1
+  (D1 HIGH Junction-Umgehung der Leakage-Grenze, D2–D9) vollständig
+  repariert, 121 Tests grün; Mutationstabelle 3 (29 Guards) läuft; danach
+  Rebase auf `378b7f25`, s02-Pin, Commit 2, Runde 2. Befund G1-ARIADNE-11
+  (Junction-Lücke in den Kampagnen-Türen) unter „Befunde für andere Lanes“.
 
 ### Lane `codex-desktop` — Desktop-Packaging (Codex, direkt im Primär-Checkout)
 

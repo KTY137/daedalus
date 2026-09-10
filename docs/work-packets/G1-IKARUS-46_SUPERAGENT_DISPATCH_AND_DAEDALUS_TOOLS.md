@@ -571,6 +571,50 @@ Accepted residue, stated: the loopback clause names `localhost` and `::1`
 "nicht auf diesem Rechner" because the host predicate accepts numeric
 literals only (deliberate, errs strict).
 
+**Cerberus round 8** (`09ff4586`): **`approve`** holds; redaction covers the
+seven detector shapes whole-token and the result no longer trips the
+detector; no new reach; two lows accepted (a Windows path with spaces was
+redacted only to the space; division-with-space and public URLs are
+over-redacted, cosmetic). **Odysseus round 8**: D24/D25/D27 RESOLVED, D26
+partial; **D29 (major)**: the POSIX alternative of the detector accepted only
+a fixed list of characters before the slash, so `{/home/…`, `|/home/…`,
+`*/home/…`, `&/home/…`, `@/home/…` were neither detected nor redacted and
+passed the row gate on the untrusted lane; D28 (moderate) a quoted path with
+spaces was redacted to the first space and the surname survived; D30 (minor)
+`sites=None` crashed the observation. All repaired in the ninth commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D29 (major) | fixed delimiter list before the slash | the slash may follow ANY character that is not part of a path token; the token-end class includes `{}\|*&@`; the drive alternative no longer mistakes the `p://` of a URL scheme for a drive; the scheme alternative accepts a host or a path (`file:///…`, `https://host`) | `test_a_slash_after_any_non_path_character_is_a_host_path`; M57, M29 |
+| D28 (moderate) | quoted path with spaces cut at the first space | inside quotes the token runs to the closing quote on the same line | `test_a_quoted_path_with_spaces_is_redacted_to_its_closing_quote`; M58 |
+| D30 (minor) | a non-list producer field was iterated into a crash | withheld as one row; `clones`/`ignore_patterns` guarded | `test_a_non_list_producer_field_is_withheld_not_crashed_on`; M59 |
+
+**Cerberus round 9** (`378b7f25`): **`approve`** holds. Three lows: glob
+patterns with a wildcard before a slash (`tests/*/x`) are now detected and
+therefore WITHHELD from `ignore_patterns` — fail-closed and counted, an
+accepted context loss; `\/`-escaped absolute paths evade the detector (no
+producer emits them); an apostrophe ends an unquoted redaction. **Odysseus
+round 9** (closing): D29 RESOLVED for real producers (a slash after
+`[A-Za-z0-9_.-]`, fullwidth or percent-encoded slashes are not emitted by any
+producer of this repository); D30 RESOLVED (21 shapes, none crash); D28
+partial → **D31 (medium, producer-reachable)**: an UNQUOTED path with spaces
+(`C:\Program Files\nodejs\npx.cmd` in a real, sliceable docstring of
+`daedalus/tools/vet.py`) was redacted to the first space; D32 (low, not
+reachable) `isinstance(withheld, list)` failed open for a tuple or dict; D33
+(low, not reachable) a Mapping whose `.get` raises escaped `execute` with its
+message. All repaired in the tenth commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D31 (medium) | unquoted path with spaces leaked its tail | the token continues across spaces while the next space-separated run still carries a separator; a backtick ends a token | `test_an_unquoted_path_with_spaces_is_redacted_whole`; M60 |
+| D32 (low) | `withheld` of an unknown shape trusted the slicer's breadcrumbs | one unknown withheld row, the block rebuilt | `test_a_withheld_field_of_an_unknown_shape_still_rebuilds_the_block`; M61 |
+| D33 (low) | a failure while consuming a payload escaped `execute` | `execute` refuses by class (`observation failed (<tool>): <Class>`) | `test_a_failure_while_consuming_a_payload_is_a_class_only_refusal`; M62 |
+
+Accepted residues after round 9, stated: `\/`-escaped and percent-encoded or
+fullwidth slashes are not detected (no producer emits them); an apostrophe
+inside an unquoted path ends the redaction at the apostrophe; wildcard globs
+in `ignore_patterns` are withheld and counted.
+
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file
 outside the index? (2) does any daedalus.* result reach a Codex/DeepSeek
