@@ -194,9 +194,58 @@ def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
 
 
-_PATH_TOKEN_END = frozenset(" \t\r\n'\"()<>[]{},;|*&`")
-_LEADING_DELIMITERS = _PATH_TOKEN_END | frozenset("=:@")
-_QUOTES = frozenset("'\"")
+_PATH_TOKEN_END = frozenset(" \t\r\n'\"()<>[]{},;|*&")
+#: A backtick is a QUOTE, not a token end. A markdown code span says where the
+#: path stops -- a backtick-quoted absolute path in a docstring is the
+#: producer-reachable case -- while a backtick INSIDE a token must not stop the
+#: walk: ending the token there left the rest of the path raw where round 9 had
+#: redacted through it (Cerberus round 10, F2).
+_QUOTES = frozenset("'\"`")
+_LEADING_DELIMITERS = _PATH_TOKEN_END | _QUOTES | frozenset("=:@")
+#: How many space-separated runs the unquoted continuation may look ahead over:
+#: two, so exactly ONE separator-free run is bridged (``C:\\Users\\First Last\\x``,
+#: ``C:\\Users\\Jean Luc Picard\\x``). See the residue named in the docstring.
+_SPACE_LOOKAHEAD = 2
+
+
+def _walk_token(text: str, end: int) -> int:
+    """Where an unquoted path token ends: at the next token-end character, then
+    across a space while a run within the lookahead still carries a separator.
+
+    Both the quoted and the unquoted branch use this walk -- an opening quote
+    whose closing partner never arrives must not make the redaction SHORTER
+    than it would be without the quote (measured against the round-9 function:
+    104 of 200 000 generated inputs, every one a path behind an unclosed
+    backtick).
+    """
+    while end < len(text) and text[end] not in _PATH_TOKEN_END:
+        end += 1
+    # An UNQUOTED path with spaces (``C:\\Users\\First Last\\x``,
+    # ``C:\\Program Files\\nodejs\\npx.cmd`` in a docstring) continues
+    # while a run within the lookahead still carries a separator
+    # (Odysseus round 9, D31: the surname after the space survived;
+    # Cerberus round 10, F1: a separator-free run in the MIDDLE of the
+    # path -- ``Jean Luc Picard\\Desktop\\x`` -- stopped the walk).
+    while end < len(text) and text[end] == " ":
+        bridged = None
+        probe = end
+        for _ in range(_SPACE_LOOKAHEAD):
+            if probe >= len(text) or text[probe] != " ":
+                break
+            stop = probe + 1
+            while stop < len(text) and text[stop] not in _PATH_TOKEN_END:
+                stop += 1
+            run = text[probe + 1:stop]
+            if not run:
+                break
+            if "\\" in run or "/" in run:
+                bridged = stop
+                break
+            probe = stop
+        if bridged is None:
+            break
+        end = bridged
+    return end
 
 
 def _redact_host_paths(text: str) -> tuple[str, int]:
@@ -207,6 +256,16 @@ def _redact_host_paths(text: str) -> tuple[str, int]:
     redaction must cover the whole token, so each match is extended to the
     next whitespace, quote or bracket, and a leading delimiter the shape
     matched is kept.
+
+    Named residue (Cerberus round 10, F1; the pinning test is
+    ``test_the_tail_of_an_unquoted_path_after_two_separator_free_words``):
+    an unquoted path whose remaining segments are TWO OR MORE consecutive
+    separator-free runs, or whose last segment carries no separator and no
+    closing quote (``see C:\\Users\\First Last``), is redacted only to where
+    the lookahead reaches; the trailing run survives. Extending further would
+    swallow the prose after every path. Quoted, backtick-quoted and
+    single-bridge spellings are covered. Two adjacent paths merge into one
+    span, so the returned number counts SPANS, not paths.
     """
     text = text or ""
     out: list[str] = []
@@ -226,26 +285,9 @@ def _redact_host_paths(text: str) -> tuple[str, int]:
         if quote is not None:
             close = text.find(quote, end)
             newline = text.find("\n", end)
-            if close != -1 and (newline == -1 or close < newline):
-                end = close
-            else:
-                while end < len(text) and text[end] not in _PATH_TOKEN_END:
-                    end += 1
+            end = close if close != -1 and (newline == -1 or close < newline) else _walk_token(text, end)
         else:
-            while end < len(text) and text[end] not in _PATH_TOKEN_END:
-                end += 1
-            # An UNQUOTED path with spaces (``C:\\Users\\First Last\\x``,
-            # ``C:\\Program Files\\nodejs\\npx.cmd`` in a docstring) continues
-            # while the next space-separated run still carries a separator
-            # (Odysseus round 9, D31: the surname after the space survived).
-            while end < len(text) and text[end] == " ":
-                probe = end + 1
-                while probe < len(text) and text[probe] not in _PATH_TOKEN_END:
-                    probe += 1
-                run = text[end + 1:probe]
-                if not run or ("\\" not in run and "/" not in run):
-                    break
-                end = probe
+            end = _walk_token(text, end)
         out.append(text[cursor:start])
         out.append("<host-path>")
         cursor = end
@@ -528,11 +570,16 @@ class DaedalusObservation:
             raise
         except Exception as exc:  # noqa: BLE001 - consuming a foreign payload can raise; class only (D33)
             raise ComputerRefused(f"observation failed ({tool}): {type(exc).__name__}") from exc
-        result.setdefault("kind", "observation")
-        result.setdefault("project", self._project)
-        result.setdefault("host_mutation", False)
-        result.setdefault("lane", self.lane)
-        return _json_safe(result)
+        try:
+            result.setdefault("kind", "observation")
+            result.setdefault("project", self._project)
+            result.setdefault("host_mutation", False)
+            result.setdefault("lane", self.lane)
+            return _json_safe(result)
+        except ComputerRefused:
+            raise
+        except Exception as exc:  # noqa: BLE001 - rendering the result is consumption too (round 10)
+            raise ComputerRefused(f"observation failed ({tool}): {type(exc).__name__}") from exc
 
     # ------------------------------------------------------------------ tools
     def _status(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -768,14 +815,17 @@ class DaedalusObservation:
         if isinstance(withheld, (list, tuple)):
             rows = [{"role": str(row.get("role", "")), "rule": _rule_class(row.get("rule", ""))}
                     for row in withheld if isinstance(row, Mapping)]
-        elif withheld:
-            # A shape the slicer never produces is not trusted either way: one
+        else:
+            # A shape the slicer never produces is not trusted either way: ONE
             # unknown withheld row, so the block below is rebuilt and the
             # slicer's own breadcrumbs never travel (Odysseus round 9, D32).
+            # ``withheld`` was coerced to a list above, so this branch is the
+            # truthy non-list case and ``withheld_count`` is then a FLOOR, not
+            # a measurement of the payload (Cerberus round 10, F3).
             rows = [{"role": "unknown", "rule": "egress_rule"}]
-        else:
-            rows = []
         shown = rows[:TOP]
+        rebuilt = ("".join(f"\n# <withheld>  ({row['rule']})  [{row['role']}]" for row in shown)
+                   + (f"\n# ... {len(rows) - len(shown)} more withheld" if len(rows) > len(shown) else ""))
         if any(row["role"] == "focus" for row in rows):
             # A withheld focus yields no slice at all: the slicer's whole text
             # is its two-line refusal naming the file and the rule. Rebuilt.
@@ -791,10 +841,21 @@ class DaedalusObservation:
             # (this module does) keeps its text (Odysseus round 5, D15).
             head, tail = text.rsplit(_WITHHELD_HEADER, 1)
             trimmed = [line.rstrip("\r") for line in tail.splitlines() if line.startswith(_TRIMMED_MARKER)]
-            text = (head + _WITHHELD_HEADER
-                    + "".join(f"\n# <withheld>  ({row['rule']})  [{row['role']}]" for row in shown)
-                    + (f"\n# ... {len(rows) - len(shown)} more withheld" if len(rows) > len(shown) else "")
+            text = (head + _WITHHELD_HEADER + rebuilt
                     + "".join("\n" + line for line in trimmed))
+        elif rows and elided:
+            # This adapter's own bound cut the slicer's block off the end, so
+            # its breadcrumbs went with it. The gated rows are appended.
+            text = text + "\n" + _WITHHELD_HEADER + rebuilt
+        elif rows:
+            # Files were withheld, the text was NOT bounded, and still carries
+            # no block this rebuild knows: the slicer's header spelling has
+            # diverged from the one pinned here, so the tail may be ungated
+            # breadcrumbs. The text then answers like a withheld hit instead of
+            # passing raw (Cerberus round 10, F3, fail-closed).
+            text = (_WITHHELD_HEADER + rebuilt
+                    + "\n# slice text withheld: the withheld block could not be rebuilt (fail-closed).")
+            elided = False
         # The resolved focus path is disclosed only if the gate admits it: a
         # basename resolves to its full indexed path, which on the untrusted
         # lane may be exactly the directory the project withholds (Cerberus

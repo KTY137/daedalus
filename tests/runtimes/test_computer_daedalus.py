@@ -835,10 +835,11 @@ def test_a_quoted_path_with_spaces_is_redacted_to_its_closing_quote(tmp_path, mo
     assert count == 3
 
 
-def test_an_unquoted_path_with_spaces_is_redacted_whole(tmp_path, monkeypatch):
+def test_an_unquoted_path_continues_across_a_separator_free_word(tmp_path, monkeypatch):
     """Odysseus round 9 (D31): ``C:\\Users\\First Last\\secret.key`` in prose or a
     docstring was redacted to the first space; the surname survived. The path
-    continues while the next space-separated run still carries a separator."""
+    continues while a run within the lookahead still carries a separator, so
+    ONE separator-free run in the middle is bridged (Cerberus round 10, F1)."""
     text = ("# owner home is C:\\Users\\First Last\\projects\\daedalus\\notes.txt today\n"
             "#:   ``C:\\Program Files\\nodejs\\npx.cmd``  -- an absolute path\n"
             "cat /home/first last/x.txt done\n")
@@ -848,6 +849,48 @@ def test_an_unquoted_path_with_spaces_is_redacted_whole(tmp_path, monkeypatch):
     assert redacted == ("# owner home is <host-path> today\n#:   ``<host-path>``  -- an absolute path\n"
                         "cat <host-path> done\n")
     assert count == 3
+    # A separator-free word INSIDE the path (a two-word first name) stopped the
+    # walk in round 9 and leaked the whole tail (Cerberus round 10, F1).
+    middle, middle_count = subject._redact_host_paths(
+        "path C:\\Users\\Jean Luc Picard\\Desktop\\secret.txt end\n")
+    assert middle == "path <host-path> end\n" and middle_count == 1
+
+
+def test_the_tail_of_an_unquoted_path_after_two_separator_free_words(tmp_path, monkeypatch):
+    """NEGATIVE EVIDENCE, retained on purpose (Cerberus round 10, F1): the
+    lookahead bridges ONE separator-free run. An unquoted path that ENDS in a
+    separator-free run, or whose tail needs two bridges, keeps that run. The
+    alternative -- walking to the end of the line -- would swallow the prose
+    after every path, so this residue is named in the packet rather than
+    closed. The marker and the count still say a redaction happened."""
+    trailing, trailing_count = subject._redact_host_paths("see C:\\Users\\First Last\n")
+    assert trailing == "see <host-path> Last\n" and trailing_count == 1
+    two, _ = subject._redact_host_paths("at C:\\Users\\Jean Luc van Picard\\x.txt end\n")
+    assert two.startswith("at <host-path> ")
+    # A quote or a backtick closes the token whatever the segments look like.
+    for spelling in ('"C:\\Users\\First Last" end', "'C:\\Users\\First Last' end",
+                     "``C:\\Users\\First Last`` end"):
+        closed, closed_count = subject._redact_host_paths(spelling)
+        assert "Last" not in closed and closed_count == 1
+
+
+def test_a_backtick_is_a_quote_and_never_ends_a_path_token(tmp_path, monkeypatch):
+    """Cerberus round 10 (F2): round 9 made the backtick a token END, so a
+    backtick inside a path left the remainder raw where round 8 had redacted
+    it. As a QUOTE it closes a markdown code span -- the producer-reachable
+    case is a docstring in this repository -- and no longer cuts a token."""
+    inside, inside_count = subject._redact_host_paths("C:\\Users\\me`\\secrets\\id_rsa\n")
+    assert inside == "<host-path>\n" and inside_count == 1
+    assert not subject._mentions_host_path(inside)
+    span, span_count = subject._redact_host_paths(
+        "# `C:\\Program Files` inside a JSON string, the strict parser refuses the WHOLE\n")
+    assert span == "# `<host-path>` inside a JSON string, the strict parser refuses the WHOLE\n"
+    assert span_count == 1
+    # An opening quote whose partner never arrives must not redact LESS than
+    # the same text without the quote: both branches use one walk.
+    for opener in ("`", '"', "'"):
+        unclosed, unclosed_count = subject._redact_host_paths(f"{opener}C:\\Users\\First Last\\k.pem tail\n")
+        assert unclosed == f"{opener}<host-path> tail\n" and unclosed_count == 1
 
 
 def test_a_withheld_field_of_an_unknown_shape_still_rebuilds_the_block(tmp_path, monkeypatch):
@@ -866,6 +909,27 @@ def test_a_withheld_field_of_an_unknown_shape_still_rebuilds_the_block(tmp_path,
             "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": text, "withheld": shape})
         sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
         assert "iseg" not in json.dumps(sliced) and sliced["withheld_count"] >= 1
+
+
+def test_a_withheld_block_that_cannot_be_rebuilt_withholds_the_text(tmp_path, monkeypatch):
+    """Cerberus round 10 (F3): the rebuild was conditional on the header
+    spelling pinned here. A slicer that reports withheld files under a
+    DIFFERENT header passed its raw tail -- its own breadcrumbs -- through.
+    Unbounded text without a rebuildable block now answers like a withheld
+    hit; a bounded text (the bound cut the block off) keeps its head and gets
+    the gated rows appended."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    row = {"file": "tct_app/devices/iseg.py", "role": "context", "rule": "denylisted path fragment"}
+    diverged = ("x = 1\n#### WITHHELD BLOCK v2 ####\n# tct_app/devices/iseg.py  (denylisted path fragment)")
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": diverged, "withheld": [row]})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert "iseg" not in json.dumps(sliced) and "x = 1" not in sliced["text"]
+    assert "fail-closed" in sliced["text"] and sliced["withheld_count"] == 1
 
 
 def test_a_failure_while_consuming_a_payload_is_a_class_only_refusal(tmp_path, monkeypatch):

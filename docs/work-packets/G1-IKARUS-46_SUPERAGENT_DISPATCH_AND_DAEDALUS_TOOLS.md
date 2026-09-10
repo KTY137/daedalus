@@ -324,6 +324,40 @@ the same shape G1-IKARUS-36 fixed for Claude; (b) the loop's planner call is
 default $5.00 ceiling one prior unsettled worst case is enough to refuse it —
 sequential calls work because each settles at its measured cost.
 
+## Review round 10 (2026-09-10, `8dc41c84`)
+
+**Cerberus: `needs_fix`, not blocking, no CRITICAL.** F1 (high) — the round-9
+continuation extended a token across a space only while the NEXT run carried a
+separator, so a separator-free run in the middle of a path stopped the walk:
+`C:\Users\Jean Luc Picard\Desktop\secret.txt` left `Luc Picard\Desktop\secret.txt`
+in the text, and a backtick-quoted `C:\Program Files` in a real docstring of this
+repository left `Files`. The residue itself predates the ninth commit, but the
+test name and the packet's residue paragraph asserted a rule stronger than the
+mechanism -- the pattern this packet is otherwise disciplined about. F2 (medium)
+— adding the backtick to `_PATH_TOKEN_END` was the one strictly worse change in
+the ninth commit: a backtick INSIDE a path token ended the walk and left the
+tail raw. Cerberus measured 2824 substantive regressions over 200 000 generated
+inputs against the eighth commit's function. F3 (low) — the unknown withheld
+shape counts one row whatever the payload held, the rebuild was conditional on
+the header spelling pinned here, and one branch was dead. Plus a labelled
+hypothesis: the four `setdefault` lines and `_json_safe` sat OUTSIDE the try, so
+a `__str__` that raises could escape `execute` with its message.
+
+| # | repair | pinned by |
+| --- | --- | --- |
+| F2 | a backtick is a QUOTE, not a token end: it closes a markdown code span and never cuts a token | `test_a_backtick_is_a_quote_and_never_ends_a_path_token`; M63 |
+| F1 | the continuation looks ahead over two runs, so ONE separator-free run inside a path is bridged; the backtick-quoted docstring case is closed by F2's repair | `test_an_unquoted_path_continues_across_a_separator_free_word`; M64 |
+| F1 residue | a path that ENDS in a separator-free run (`see C:\Users\First Last`) or needs two bridges keeps that run: walking further would swallow the prose after every path. Named here, pinned as negative evidence, and the marker plus the count still say a redaction happened | `test_the_tail_of_an_unquoted_path_after_two_separator_free_words` |
+| A/B | an opening quote whose partner never arrives used the plain walk and so redacted LESS than the same text unquoted (104 of 200 000 inputs in this round's own A/B) — both branches now use one `_walk_token` | the same test; M65 |
+| F3 | the unknown shape is the `else` branch (the dead one is gone) and states that the count is a floor; a withheld block that cannot be rebuilt withholds the text (fail-closed) unless the adapter's own bound cut it off | `test_a_withheld_block_that_cannot_be_rebuilt_withholds_the_text`; M66 |
+| hypothesis | rendering the result is consumption too: it is inside the try and refuses by class | M67 |
+
+**Measured this round.** The A/B against the ninth commit's function on one
+generated corpus of 200 000 inputs: 13 110 inputs differ, all of them redacting
+MORE, none redacting less. Cerberus's ten reported inputs are clean, including
+both producer-reachable ones. Mutation table 13: 67 guards applied, 67 caught,
+restored tree green.
+
 ## Evidence, expected failures and review
 
 Evidence lives in `docs/evidence/G1-IKARUS-46/` (acceptance.json with the

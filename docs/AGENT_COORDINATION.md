@@ -152,6 +152,28 @@ den Nachrichten-Anhang.
   Rebase auf `378b7f25`, s02-Pin, Commit 2, Runde 2. Befund G1-ARIADNE-11
   (Junction-Lücke in den Kampagnen-Türen) unter „Befunde für andere Lanes“.
 
+- Herzschlag: 2026-09-10 18:20 — #364 (Packet 46): Runde 10 Cerberus
+  `needs_fix`, **nicht blockierend**: F2 (der Backtick als Token-Ende aus
+  Commit 10 war eine echte Verschlechterung — 2824 Regressionen in 200 000
+  erzeugten Eingaben), F1 (die Leerzeichen-Fortsetzung blieb an einem
+  trennerfreien Wort *innerhalb* des Pfads stehen), F3 (unbekannte
+  withheld-Form). Alles in Commit 11 repariert: der Backtick ist jetzt ein
+  QUOTE, die Fortsetzung überbrückt genau ein trennerfreies Wort, ein nicht
+  rekonstruierbarer withheld-Block hält den Text zurück. Eigenes A/B gegen
+  Commit 10 über 200 000 Eingaben: 13 110 Unterschiede, **alle mehr
+  redigiert, keiner weniger**. 688 grün (siebzehn Suiten, jetzt namentlich in
+  `acceptance.json`), Mutationstabelle 67/67, s02 neu gepinnt (7161/47562 —
+  die eine neue Funktion `_walk_token`). Der Rest — ein Pfad, der auf einem
+  trennerfreien Wort ENDET — bleibt als benanntes Residuum mit eigenem Test
+  (Negativevidenz), weil weiteres Laufen die Prosa hinter jedem Pfad
+  verschlucken würde. #365 (Packet 47): Cerberus Runde 2 `block` mit einem
+  CRITICAL (die Projektion las die Registry ein zweites Mal NACH dem Lauf, ein
+  Fehler dort meldete einen echten Effekt als effektfrei) und Odysseus Runde 2
+  (Hardlink auf eine geschützte Datei wurde zugelassen; geerbtes
+  Evidenzverzeichnis bei gleicher Operation; `campaign_id` ohne
+  Dateisystem-Schreibweise; unbegrenzte Projektionswerte) — alle repariert,
+  60 Tests grün, Mutationstabelle 4 (34 Guards) als nächstes.
+
 ### Lane `codex-desktop` — Desktop-Packaging (Codex, direkt im Primär-Checkout)
 
 - Dirty im Primär-Checkout seit 2026-09-08: `.gitignore`, `apps/web/dist/**`,
