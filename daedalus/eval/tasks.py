@@ -208,8 +208,22 @@ FOURFOLD_WIKI_FIXTURE = str(
 # declaration manifest -- the thing that says which files are data -- not
 # project data itself. Retrieving it would hand a retrieval arm the answer
 # key.
+#
+# ``minted_tasks.json`` is excluded for the SAME stated reason, and its absence
+# from this tuple was a live leak. It is a tracked ``.json`` under
+# ``daedalus/eval/``, so the data-plane extension rule swept the evaluator's
+# OWN STORE into the retrieval universe. Measured 2026-09-10: one 76,439-char
+# chunk holding every gold label of every minted task, from which 29 of 35
+# minted tasks reach recall 1.0 ON THAT CHUNK ALONE. For six of them part of
+# the gold answer exists only inside this file -- an unbounded oracle cannot
+# recall them once it is removed.
+#
+# Inert while every minted task was quarantined; scoreable the moment they were
+# promoted. Plan §14 names "evaluator paths or outputs" among the leakage
+# sources a comparison must prevent. The principle was already written down one
+# paragraph above; the store simply was not on the list.
 _DATA_PLANE_EXTENSIONS = (".csv", ".json")
-_DATA_PLANE_EXCLUDED_NAMES = ("fourfold.json",)
+_DATA_PLANE_EXCLUDED_NAMES = ("fourfold.json", "minted_tasks.json")
 
 #: Shortest label the mechanical filters accept (see LABEL DERIVATION).
 MIN_LABEL_CHARS = 4

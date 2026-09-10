@@ -324,38 +324,35 @@ def test_real_corpus_census_is_pinned_and_reported():
     assert full_census == {"code": 27, "type": 0, "data": 17, "knowledge": 18}
 
     primary, n_excluded = filter_primary_tasks(tasks)
-    assert len(primary) == 49
-    assert n_excluded == 13
+    assert len(primary) == 14
+    assert n_excluded == 48
 
-    with pytest.warns(UserWarning, match=r"excluded 13 of 62"):
+    with pytest.warns(UserWarning, match=r"excluded 48 of 62"):
         fts = build_frozen_taskset(
             "gate3-real-corpus-20260906", tasks, REAL_CORPUS_COUNTING_RULE)
 
     assert isinstance(fts, FrozenTaskSet)
-    assert len(fts.task_ids) == 49
-    assert fts.label_plane_census == {"code": 24, "type": 0, "data": 16, "knowledge": 9}
+    assert len(fts.task_ids) == 14
+    assert fts.label_plane_census == {"code": 10, "type": 0, "data": 2, "knowledge": 2}
     assert fts.planes_present == ("code", "data", "knowledge")
 
     # Pinned digest: deterministic given the frozen name/counting-rule/corpus
     # triple above. Changes only if the corpus, the counting rule text, or
     # this test's chosen name changes.
-    # MOVED, deliberately, 2026-09-10. On 2026-09-09 this digest was
-    # UNCHANGED after 31 tasks entered the corpus, because every one of them
-    # was quarantined -- and the note here said a digest that HAD moved would
-    # mean a quarantined task had leaked into a scored set.
+    # MOVED to d1690bf5... on 2026-09-10 when 35 tasks were promoted on a
+    # noise-audit witness, and MOVED BACK the same day when that witness was
+    # refuted: an independent pass showed a byte-identical COPY is reported by
+    # git as an add, so "the anchor file was added, therefore T1/T2 are
+    # impossible" does not hold -- and one promoted task was a pure packaging
+    # move whose labels were recoverable from the copies' pre-images. The
+    # promotion is reverted; the audits are retained as evidence.
     #
-    # It has moved now, and not by a leak. 35 tasks were promoted out of
-    # quarantine by an explicit second promotion witness (mint.promotion_
-    # witness -> "noise_audit"): every threat MINT_CONFIRM_THRESHOLD's own
-    # comment names was checked and found absent, 32 of them ruled out BY
-    # CONSTRUCTION because their anchor file was added by the minting commit.
-    # The recurrence witness remains unchanged and unused -- it has never fired
-    # once in 400 commits.
-    #
-    # The old digest is kept in this comment so the transition is auditable:
-    #   210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838
+    # This digest is therefore the SAME value it has held since 2026-09-06.
+    # The note below still stands: a digest that moves here without a
+    # deliberate, defensible promotion means a quarantined task leaked into a
+    # scored set.
     assert fts.digest == (
-        "d1690bf57c7e5dfc7a59bc05cc0fa1452862c6029271f31ccf70fc307ba155f7")
+        "210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838")
 
     # THE HEADLINE FINDING, INVERTED BY MEASUREMENT (2026-09-09). It used to
     # read: a cross-plane comparison cannot be run today, and R3 refused. The
