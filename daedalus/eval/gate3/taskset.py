@@ -66,7 +66,7 @@ import re
 import warnings
 from typing import Mapping, Sequence
 
-from .contracts import PLANES, FreezeError, FrozenTaskSet
+from .contracts import FreezeError, FrozenTaskSet, PLANES, canonical_digest
 
 # --------------------------------------------------------------------------- #
 # 1. tier filtering (mirrors daedalus.eval.harness._is_primary_tier)          #
@@ -251,11 +251,25 @@ def build_frozen_taskset(name: str, tasks: Sequence[dict],
         )
     task_ids = tuple(t["id"] for t in primary)
     plane_census = census(primary)
+    # CONTENT, not just identity. Ids and a census do not change when a task's
+    # gold labels are rewritten, so a digest over them alone freezes the
+    # membership of the set and nothing about what the set asks.
+    content = [
+        {
+            "id": t["id"],
+            "target": t.get("target"),
+            "must_include": sorted(t.get("must_include") or ()),
+            "minted_at_sha": t.get("minted_at_sha"),
+            "label_provenance": t.get("label_provenance"),
+        }
+        for t in sorted(primary, key=lambda t: t["id"])
+    ]
     return FrozenTaskSet(
         name=name,
         task_ids=task_ids,
         counting_rule=counting_rule,
         label_plane_census=plane_census,
+        content_digest=canonical_digest(content),
     )
 
 

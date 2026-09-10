@@ -355,12 +355,21 @@ def test_real_corpus_census_is_pinned_and_reported():
     # move whose labels were recoverable from the copies' pre-images. The
     # promotion is reverted; the audits are retained as evidence.
     #
-    # This digest is therefore the SAME value it has held since 2026-09-06.
-    # The note below still stands: a digest that moves here without a
-    # deliberate, defensible promotion means a quarantined task leaked into a
-    # scored set.
+    # MOVED AGAIN, 2026-09-10, for a different and better reason: the digest
+    # now covers task CONTENT (target, gold labels, mint provenance) and not
+    # only ids and a census. The same adversarial pass showed the old one stayed
+    # byte-identical when every ``must_include`` in the set was rewritten -- so
+    # the "the digest moved, therefore the transition is auditable" argument in
+    # the reverted promotion was resting on an instrument that could not see the
+    # thing it was being cited about.
+    #
+    #   210e117e...  ids + census only, 2026-09-06 .. 2026-09-10
+    #   e1445754...  ids + census + content, from 2026-09-10
+    #
+    # The membership of the frozen set is UNCHANGED across that move: still the
+    # same 14 primary tasks. Only the instrument got sharper.
     assert fts.digest == (
-        "210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838")
+        "e1445754d65bbd0d3787163da37f03a078ba7b2637ee99c0a1670c7d73969a46")
 
     # THE HEADLINE FINDING, INVERTED BY MEASUREMENT (2026-09-09). It used to
     # read: a cross-plane comparison cannot be run today, and R3 refused. The
