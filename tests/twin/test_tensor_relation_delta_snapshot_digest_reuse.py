@@ -122,3 +122,58 @@ def test_adapter_then_compiler_keeps_two_distinct_forest_digest_owners() -> None
     assert adapter_digest["calls"] + compiler_digest["calls"] == total_digest["calls"]
     assert compiled.source_forest_sha256 == snapshot.source_forest_sha256
     assert compiled.subject.source_fourfold_sha256 == snapshot.digest
+
+
+def test_compiler_keeps_single_partition_and_axis_setup_owners() -> None:
+    """Reject a second partition/axis cache when setup is already single-owner.
+
+    GPU-137 audits the remaining compiler setup path before changing production
+    code. In this frozen one-plane selected relation case the compiler must call
+    the canonical Forest/Fourfold partition verifier exactly once and construct
+    exactly one TypedAxis for the selected code plane. A separate partition
+    cache or parallel axis registry would therefore duplicate an existing owner
+    rather than delete repeated setup work. This is call-scope evidence only;
+    it is deliberately not a latency or performance-superiority claim.
+    """
+
+    forest = _PROBE._forest(
+        nodes=12,
+        row_width=2,
+        revision=_PROBE.DELTA_REVISION,
+        add_delta=True,
+    )
+    snapshot = _PROBE._snapshot(forest, revision=_PROBE.DELTA_REVISION)
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        compiled = _PROBE._compile(forest, snapshot)
+    finally:
+        profiler.disable()
+
+    stats = tuple(profiler.getstats())
+    compiler_code = _PROBE.compile_relation_blocks.__code__
+    partition_metric = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=compiler_code,
+        callee_codes=(_PROBE._relation_compiler._forest_node_partition.__code__,),
+    )
+    axis_metric = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=compiler_code,
+        callee_codes=(_PROBE.TypedAxis.__init__.__code__,),
+    )
+    axis_post_init_metric = _PROBE._code_metrics(
+        stats,
+        (_PROBE.TypedAxis.__post_init__.__code__,),
+    )
+
+    assert partition_metric["calls"] == 1
+    assert axis_metric["calls"] == 1
+    assert axis_post_init_metric["calls"] == 1
+    assert partition_metric["cumulative_ms"] >= partition_metric["self_ms"] >= 0.0
+    assert axis_metric["cumulative_ms"] >= axis_metric["self_ms"] >= 0.0
+    assert len(compiled.blocks) == 1
+    block = compiled.blocks[0][1]
+    assert block.row_axis is block.column_axis
+    assert block.row_axis.plane == "code"
