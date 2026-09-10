@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -49,6 +50,12 @@ from daedalus.health import (ABSENT, ASSUMED, DEGRADED, INHERITED,  # noqa: E402
 
 def _spec(name: str = "probe.under.test") -> ProbeSpec:
     return ProbeSpec(name=name, asks="?", fn=lambda ctx: None)
+
+
+#: The probe-thread ceiling, read ONCE at import. The mutation in :data:`GUARDS`
+#: raises `health._MAX_PROBE_WORKERS`; a test that read it at call time would
+#: raise its own bar with it and stay green against a fan-out with no cap left.
+_PROBE_THREAD_CAP = health._MAX_PROBE_WORKERS
 
 
 # =========================================================================== #
@@ -649,6 +656,105 @@ class ProbesRunConcurrently(unittest.TestCase):
         self.assertEqual(reports[1].state, UNKNOWN)
         self.assertIn("RuntimeError", reports[1].headline)
 
+    def test_a_worker_that_dies_outside_the_probe_reaches_the_caller(self):
+        """`_run` catches what the PROBE raises. This is everything else.
+
+        MEASURED before the fix, with `_coerce` made to raise on one probe of
+        three: `assess` returned `[Report, None, Report]`, the RuntimeError
+        went to `threading.excepthook` on stderr where no HTTP caller looks,
+        and the caller died in `verdict` on `'NoneType' object has no attribute
+        'state'` -- a 500 naming nothing. The exception has to arrive on the
+        caller's thread, with its own traceback, or the evidence is gone.
+        """
+        real_coerce = health._coerce
+
+        def broken_coerce(spec, value, seconds):
+            if spec.name == "p.1":
+                raise RuntimeError("a bug in the row builder")
+            return real_coerce(spec, value, seconds)
+
+        specs = [ProbeSpec(name=f"p.{i}", asks="?",
+                           fn=lambda ctx, i=i: health.working(
+                               f"p.{i}", "ok", (measured("x", i),)))
+                 for i in range(3)]
+        # NOT `assertRaises`: it hands back the exception with
+        # `.with_traceback(None)` to avoid a reference cycle, and the traceback
+        # is half of what is being asserted here.
+        try:
+            with mock.patch.object(health, "PROBES", specs):
+                with mock.patch.object(health, "_coerce", broken_coerce):
+                    health.assess()
+        except RuntimeError as exc:
+            raised, tb = exc, "".join(traceback.format_tb(exc.__traceback__))
+        else:
+            self.fail("assess() returned a board built from a dead worker")
+        self.assertIn("a bug in the row builder", str(raised))
+        self.assertIn("broken_coerce", tb,
+                      f"the re-raise lost the frame that names the bug:\n{tb}")
+        self.assertIn("_fan_out", tb,
+                      f"the exception did not come back through the join:\n{tb}")
+
+    def test_the_fan_out_returns_reports_or_raises_but_never_a_hole(self):
+        """The type half of the same defect: `-> list[Report]` has to be true.
+
+        `assess` is annotated `-> list[Report]` and used to be able to return a
+        list containing `None`. Either every element is a Report or the caller
+        gets no list at all.
+        """
+        def ok(i):
+            return health.working(f"n.{i}", "ok", (measured("x", i),))
+
+        def half_broken(i):
+            if i == 1:
+                raise RuntimeError("the worker fell over past the probe")
+            return ok(i)
+
+        with self.assertRaises(RuntimeError) as caught:
+            health._fan_out(half_broken, [0, 1, 2])
+        self.assertIn("fell over past the probe", str(caught.exception))
+
+        out = health._fan_out(ok, [0, 1, 2])
+        self.assertEqual([type(r) for r in out], [Report] * 3, out)
+
+    def test_the_fan_out_does_not_start_a_thread_per_probe_without_limit(self):
+        """A registry that grows to hundreds must not start hundreds of threads.
+
+        MEASURED 2026-09-11 with the ceiling removed: 200 probes started 200
+        live `health-probe` threads. The cap was written into the first
+        concurrent version and left with the `ThreadPoolExecutor`; this is what
+        stops it leaving again unnoticed. The ceiling is read from the module
+        at import so that raising it cannot also raise the bar this asserts.
+        """
+        n = _PROBE_THREAD_CAP * 4
+        peak = [0]
+        done = threading.Event()
+
+        def watch():
+            while not done.is_set():
+                peak[0] = max(peak[0], sum(
+                    1 for t in threading.enumerate()
+                    if t.name.startswith("health-probe")))
+                time.sleep(0.005)
+
+        def slow(i):
+            time.sleep(0.05)
+            return health.working(f"many.{i}", "ok", (measured("x", i),))
+
+        watcher = threading.Thread(target=watch, daemon=True)
+        watcher.start()
+        try:
+            out = health._fan_out(slow, list(range(n)))
+        finally:
+            done.set()
+            watcher.join(self.RENDEZVOUS_S)
+
+        self.assertEqual(len(out), n, "the queued probes were not all run")
+        self.assertLessEqual(
+            peak[0], _PROBE_THREAD_CAP,
+            f"{n} probes started {peak[0]} threads against a cap of "
+            f"{_PROBE_THREAD_CAP}")
+        self.assertGreater(peak[0], 1, "nothing ran concurrently at all")
+
     def test_a_single_probe_read_still_answers(self):
         """`?only=` narrows to one probe; it must not need a rendezvous."""
         specs = [ProbeSpec(name="solo.probe", asks="?",
@@ -867,8 +973,12 @@ class ProbesRunConcurrently(unittest.TestCase):
         `ThreadPoolExecutor` workers are non-daemon AND it registers an atexit
         hook that joins them, so `shutdown(wait=False, cancel_futures=True)`
         only moves the same wait to interpreter shutdown. Daemon threads are
-        what make abandoning a probe possible at all -- safe here only because
-        `ProbesDoNotMutate` proves the probes do not write.
+        what make abandoning a probe possible at all.
+
+        WHAT MAKES THAT SAFE IS NOT PROVEN HERE, and `_fan_out`'s docstring now
+        says so in full: `ProbesDoNotMutate` covers two of the twenty probes,
+        the other eighteen are read-only by inspection, and no test in this
+        repo abandons a probe mid-flight and then inspects the tree.
         """
         seen = []
 
@@ -1071,6 +1181,32 @@ def _joining_fan_out(fn, items):
         return list(pool.map(fn, items))
 
 
+def _holed_fan_out(fn, items):
+    """The fan-out with its worker catch removed: a `None` per dead worker.
+
+    Verbatim the shape that shipped on 2026-09-10. A worker that raises past
+    `fn` -- in the row builder, in the wait ledger -- dies in
+    `threading.excepthook` and leaves `None` in the results, which `assess`
+    then returns as if it were a report. THE STRAY TRACEBACK this prints on
+    stderr while the mutation runs IS the defect: that is the only place the
+    real exception ever went.
+    """
+    results = [None] * len(items)
+
+    def worker(i, item):
+        results[i] = fn(item)
+
+    threads = [threading.Thread(target=worker, args=(i, item), daemon=True,
+                                name=f"health-probe-{i}")
+               for i, item in enumerate(items)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        while t.is_alive():
+            t.join(health._JOIN_POLL_S)
+    return results
+
+
 def _counting_observers(module, repo_root):
     """`production_importers` without the observer exclusion."""
     saved = health._OBSERVERS
@@ -1206,6 +1342,20 @@ GUARDS = [
      ["ProbesRunConcurrently."
       "test_an_interrupt_on_the_joining_thread_ends_the_read_at_once",
       "ProbesRunConcurrently.test_the_fan_out_threads_are_daemons"]),
+
+    ("fan_out.a_dead_worker_is_not_a_hole",
+     "the worker's exception capture, i.e. a dead worker leaves None in the board",
+     lambda: mock.patch.object(health, "_fan_out", _holed_fan_out),
+     ["ProbesRunConcurrently."
+      "test_a_worker_that_dies_outside_the_probe_reaches_the_caller",
+      "ProbesRunConcurrently."
+      "test_the_fan_out_returns_reports_or_raises_but_never_a_hole"]),
+
+    ("fan_out.thread_ceiling",
+     "the cap on how many probe threads one read may start at once",
+     lambda: mock.patch.object(health, "_MAX_PROBE_WORKERS", 10_000),
+     ["ProbesRunConcurrently."
+      "test_the_fan_out_does_not_start_a_thread_per_probe_without_limit"]),
 
     ("status.json_exits_zero",
      "the --json exit-0 contract the VS Code extension depends on",

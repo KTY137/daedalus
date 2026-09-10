@@ -75,14 +75,17 @@ export function costText(seconds: number | null | undefined): string {
 }
 
 /**
- * What the whole board of WORK cost, summed from the rows that reported a cost.
+ * The board's summed probe time, from the rows that reported one.
  *
- * THIS IS NOT THE WAIT, AND SINCE 2026-09-10 IT NEVER WILL BE AGAIN. The
- * backend runs its probes concurrently, so the sum is how much work happened
- * and `wall_seconds` is how long the caller stood there. Measured on the
- * owner's machine that day: 8.3s summed, 2.2s waited. The serial version made
- * those the same number, which is the only reason this function was ever
- * allowed to stand in for the latency.
+ * AN UPPER BOUND ON THE WORK -- NOT THE WAIT, AND NOT A DURATION. The backend
+ * runs its probes concurrently, so every row also carries the contention the
+ * other probes cost it: measured on the owner's machine, the same twenty
+ * probes summed 8% higher together than one at a time on 2026-09-10 and 18% on
+ * 2026-09-11. `wall_seconds` is how long the caller stood there -- 8.3s summed
+ * against 2.2s waited that first day. The serial version made those the same
+ * number, which is the only reason this function was ever allowed to stand in
+ * for the latency; the panel labels it "Prüfzeit summiert" and never as how
+ * much work happened or how long it took.
  */
 export function totalCost(subsystems: Array<{ seconds?: number | null }>): number {
   return subsystems.reduce(

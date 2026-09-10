@@ -79,7 +79,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections import namedtuple
+from collections import deque, namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -344,6 +344,21 @@ class RunState:
     answer and records its wait, which :func:`assess` subtracts before the row
     is written. There is no module-level state left to clear, which is also the
     end of two concurrent requests clobbering each other's cache.
+
+    AND THE WINNER IS CHARGED EVERYTHING, INCLUDING THE WORK IT DID FOR THE
+    OTHERS. Somebody has to carry the shared walk, and it is whoever reached
+    `once` first -- so `route.latent` and `wiring.islands` hand the tree walk
+    back and forth between runs. MEASURED 2026-09-11, three consecutive live
+    reads of this tree, nothing changed but who won the race:
+
+        route.latent 0.70s / wiring.islands 0.34s
+        route.latent 0.16s / wiring.islands 0.99s
+        route.latent 0.70s / wiring.islands 0.36s
+
+    So a row is that probe's own elapsed time PLUS any shared work it happened
+    to produce for others, and the same probe's row across two runs is not
+    comparing like with like. The alternative -- splitting the shared cost
+    across its beneficiaries -- would be a number nobody measured.
     """
 
     def __init__(self) -> None:
@@ -358,6 +373,15 @@ class RunState:
 
         The lock is held only while claiming the cell, never across ``produce``
         -- an unreachable bench must not stop the source walk from starting.
+
+        A FAILURE IS CACHED TOO, AND NOT RETRIED. When ``produce`` raises, the
+        exception is stored in the cell and every later asker re-raises that
+        same object, so "one dial per run" also means ONE FAILURE PER RUN: a
+        bench that was unreachable for the first bench probe is reported
+        unreachable to the second without a second attempt. That is the point
+        -- retrying here would put the 9s timeout back, once per asker -- but
+        it does mean a transient failure taints every row that shares the key,
+        and only the NEXT run can disagree with it.
         """
         with self._lock:
             cell = self._cells.get(key)
@@ -478,6 +502,67 @@ def _coerce(spec: ProbeSpec, value: Any, seconds: float) -> Report:
 #: becomes a KeyboardInterrupt -- see :func:`_fan_out`.
 _JOIN_POLL_S = 0.05
 
+#: Ceiling on the probe fan-out. The probes are all I/O -- a refused TCP
+#: connect, a `git` subprocess, an ssh round trip, a tree walk -- so threads are
+#: the right shape and the GIL is not the constraint. The cap exists so a
+#: registry that grows to hundreds of probes cannot spawn hundreds of threads:
+#: MEASURED 2026-09-11 with it removed, 200 probes started 200 live threads.
+#: Twenty probes never reach it, so it changes nothing about today's read; above
+#: it a worker takes the next probe off the queue when it finishes one. Safe
+#: because a probe waiting in :meth:`RunState.once` can only ever be waiting on
+#: a probe that is ALREADY RUNNING -- the producer is whoever claimed the cell
+#: first -- so a queued item can never be the thing a running worker waits for.
+_MAX_PROBE_WORKERS = 32
+
+
+class _Slot:
+    """One worker's answer, or the reason there is none. Never a hole.
+
+    THE HOLE WAS REAL, AND THIS CLASS IS WHY IT CANNOT COME BACK. `_fan_out`
+    used to pre-fill its results with ``None`` and catch nothing outside `fn`,
+    so a worker that died anywhere else -- in the row builder, in the wait
+    ledger -- left ``None`` in the board. MEASURED 2026-09-11 with `_coerce`
+    made to raise on one probe of three:
+
+        Exception in thread health-probe-1: RuntimeError: a bug in the row ...
+        REPORTS: [Report(name='p.0', ...), None, Report(name='p.2', ...)]
+        verdict RAISED: AttributeError 'NoneType' object has no attribute 'state'
+
+    The real exception went to `threading.excepthook` on stderr, where no HTTP
+    caller ever looks, and the caller died on an AttributeError that named
+    nothing. `GET /api/health` turned that into
+
+        500 {"ok": false, "error": "the health surface itself failed:
+             AttributeError: 'NoneType' object has no attribute 'state'"}
+
+    -- a message about a missing attribute, from a handler whose comment
+    promises to say WHICH thing failed. With the exception carried back
+    instead, the same route now reports the type and message of the actual
+    bug. A loud failure had been turned into a quiet one, which is the exact
+    defect class the rest of this file exists to refuse.
+
+    So the slot carries the exception too, and :meth:`take` turns it back into
+    a raise on the joining thread. `assess` is annotated ``-> list[Report]``;
+    this is what makes that a guarantee rather than a promise, because the only
+    two ways out of `take` are a Report or a raise.
+    """
+
+    __slots__ = ("report", "error")
+
+    def __init__(self) -> None:
+        self.report: Report | None = None
+        self.error: BaseException | None = None
+
+    def take(self, index: int) -> Report:
+        """The answer, or the worker's exception raised on THIS thread."""
+        if self.error is not None:
+            raise self.error
+        if self.report is None:
+            raise RuntimeError(
+                f"probe worker {index} recorded neither a report nor an "
+                f"exception -- the fan-out is broken, not the probe")
+        return self.report
+
 
 def _fan_out(fn: Callable[[Any], Report], items: Sequence[Any]) -> list[Report]:
     """Run ``fn`` over ``items`` on daemon threads; results in input order.
@@ -508,25 +593,78 @@ def _fan_out(fn: Callable[[Any], Report], items: Sequence[Any]) -> list[Report]:
     Daemon threads plus a polled join are why: the poll returns the main thread
     to the bytecode loop every 50ms, which is where a pending signal becomes
     KeyboardInterrupt, and abandoned daemon threads do not hold the process
-    open. The probes are read-only -- ``ProbesDoNotMutate`` proves it -- so
-    abandoning one mid-flight loses a measurement, never a write. A
-    caller that CATCHES the KeyboardInterrupt and carries on inherits those
-    threads until the process ends; nothing in this repo does that.
+    open. A caller that CATCHES the KeyboardInterrupt and carries on inherits
+    those threads until the process ends; nothing in this repo does that.
+
+    WHAT ABANDONING A PROBE COSTS, stated as precisely as the evidence allows,
+    because it is the justification for abandoning one at all. It loses a
+    MEASUREMENT rather than a write: the module header sets out why nothing
+    here writes (ledger opened ``read_only=True``, sqlite ``mode=ro``,
+    existence tested before anything is constructed), and
+    ``ProbesDoNotMutate`` TESTS that for TWO of the twenty probes -- four tests
+    over the spine ledger and the vector index, each asserting the probe
+    neither wrote nor created what it inspected. The other eighteen are
+    read-only by inspection, not by test, and NO test in this repo covers a
+    probe ABANDONED mid-flight, which is the case this paragraph is about. The
+    broader check that has actually been run is coarser and is all that can
+    honestly be claimed: the tree stayed `git status`-clean across the suite
+    and repeated live reads (2026-09-10, re-checked 2026-09-11).
+
+    AND ITS CHILDREN OUTLIVE IT. Abandoning a probe does not kill the `git` or
+    `ssh` process it is blocked on; those run to their own timeouts (15s git,
+    9s ssh) and can outlive the read that started them. A console Ctrl-C
+    reaches them anyway, because the console delivers it to every process in
+    the group -- but a PROGRAMMATIC interrupt (the joining thread raising,
+    `signal.raise_signal`) does not, so an in-process abort leaves those
+    children orphaned until they time out.
+
+    A WORKER'S OWN EXCEPTION COMES BACK OUT HERE, on the joining thread, with
+    its traceback intact -- see :class:`_Slot` for the hole this replaced.
+    Re-raising was chosen over writing an `unknown` row for the dead item:
+    everything the PROBE can raise is already caught one level down in
+    `assess`, so an exception arriving here is a bug in this module's own row
+    building, not in the subsystem, and a row reading "the probe itself raised"
+    would blame the wrong thing while nineteen good rows made the board look
+    answerable. A read that cannot be built has to fail loudly. When several
+    workers hit the same builder bug, the first in registry order is raised and
+    the count is noted on it.
     """
-    results: list[Any] = [None] * len(items)
+    slots = [_Slot() for _ in items]
+    pending = deque(range(len(items)))       # popleft() is documented atomic
 
-    def worker(i: int, item: Any) -> None:
-        results[i] = fn(item)
+    def worker() -> None:
+        while True:
+            try:
+                index = pending.popleft()
+            except IndexError:               # the queue is drained; go home
+                return
+            slot = slots[index]
+            try:
+                slot.report = fn(items[index])
+            except BaseException as exc:     # noqa: BLE001 -- see _Slot
+                # EVERYTHING the worker does, not just `fn`: anything that
+                # escapes here dies in `threading.excepthook` and leaves a hole
+                # in the board that the caller reads as a probe.
+                slot.error = exc
 
-    threads = [threading.Thread(target=worker, args=(i, item), daemon=True,
+    threads = [threading.Thread(target=worker, daemon=True,
                                 name=f"health-probe-{i}")
-               for i, item in enumerate(items)]
+               for i in range(min(len(items), _MAX_PROBE_WORKERS))]
     for t in threads:
         t.start()
     for t in threads:
         while t.is_alive():
             t.join(_JOIN_POLL_S)
-    return results
+
+    failed = [i for i, slot in enumerate(slots) if slot.error is not None]
+    if len(failed) > 1:
+        # `add_note` is 3.11+ and CI still runs 3.10, where the count is simply
+        # absent rather than wrong. Never lose the fact that there were more.
+        note = getattr(slots[failed[0]].error, "add_note", None)
+        if note is not None:
+            note(f"{len(failed)} of {len(items)} probe workers failed; only "
+                 f"the first is raised (items {failed})")
+    return [slot.take(i) for i, slot in enumerate(slots)]
 
 
 def assess(only: str | None = None, *, repo_root: str | Path | None = None,
@@ -649,11 +787,23 @@ def to_payload(reports: Sequence[Report], *,
 
     ``wall_seconds`` IS NOT THE SUM OF ``subsystems[].seconds`` and must not be
     derived from it. Since the probes run concurrently (see :func:`assess`) the
-    sum is the WORK -- measured 2026-09-10, ~8.3s of it -- while the wait was
-    ~2.2s. A reader that adds the rows up and calls the total "how long this
-    took" would now be off by 4x, so the wait is reported separately by the
-    caller that actually held the stopwatch. ``None`` means exactly that: this
-    caller did not time the read. It is never a guess and never the sum.
+    sum is an UPPER BOUND ON THE WORK -- measured 2026-09-10, ~8.3s of it --
+    while the wait was ~2.2s. A reader that adds the rows up and calls the
+    total "how long this took" would now be off by 4x, so the wait is reported
+    separately by the caller that actually held the stopwatch. ``None`` means
+    exactly that: this caller did not time the read. It is never a guess and
+    never the sum.
+
+    UPPER BOUND, NOT "THE WORK", AND THE GAP IS MEASURED. Every row still
+    carries the scheduler and GIL contention the other probes cost it;
+    :func:`assess` subtracts only a wait on ANOTHER probe's shared work, never
+    contention, because contention is real elapsed time in a real concurrent
+    run. Both measurements of it on this box: 7.86s of summed rows carrying
+    0.61s of contention, about 8% (2026-09-10); and the same twenty probes
+    summing 6.25-6.36s run one at a time against 7.42-7.59s run together, about
+    18% (2026-09-11). So the sum reads as the work to within a contention term
+    seen between 8% and 18% -- and it is still not a duration. ``wall_seconds``
+    is the only duration on this payload.
     """
     return {
         "schema": 1,
