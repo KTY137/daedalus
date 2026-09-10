@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import cProfile
 import importlib
+from dataclasses import replace
 
 import pytest
 
@@ -56,6 +58,61 @@ def test_probe_maps_one_digest_delta_without_new_authority() -> None:
         "trusted_constructor_added": False,
     }
     assert report["claim_boundaries"]["performance_superiority"] is False
+
+
+def test_selected_signature_prunes_unrequested_same_plane_edges_before_hashing() -> None:
+    nodes = 10
+    imports_forest = _BASE._forest(
+        nodes=nodes,
+        row_width=2,
+        revision=_BASE.DELTA_REVISION,
+        add_delta=False,
+    )
+    unrelated_edges = tuple(
+        _BASE.ForestEdge(
+            _BASE._node_id(index),
+            _BASE._node_id((index + 3) % nodes),
+            "references",
+            True,
+            evidence=(f"probe.references.{index}",),
+        )
+        for index in range(nodes)
+    )
+    forest = replace(imports_forest, edges=imports_forest.edges + unrelated_edges)
+    snapshot = _BASE._snapshot(forest, revision=_BASE.DELTA_REVISION)
+
+    def compile_with(signatures):
+        profiler = cProfile.Profile()
+        profiler.enable()
+        try:
+            compiled = _PROBE.compile_relation_blocks(
+                forest,
+                snapshot,
+                _PROBE.BooleanSemiring(),
+                signatures=signatures,
+                include_verified_bindings=False,
+            )
+        finally:
+            profiler.disable()
+        metric = _BASE._direct_callee_metrics(
+            tuple(profiler.getstats()),
+            caller_code=_PROBE.compile_relation_blocks.__code__,
+            callee_codes=(_BASE._relation_compiler.canonical_sha.__code__,),
+        )
+        return compiled, int(metric["calls"])
+
+    selected, selected_hashes = compile_with((_BASE.SIGNATURE,))
+    discovered, discovered_hashes = compile_with(None)
+
+    assert selected.semantic_fact_count == len(imports_forest.edges)
+    assert len(selected.blocks) == 1
+    assert selected.blocks[0][1].signature == _BASE.SIGNATURE
+    assert selected_hashes == len(imports_forest.edges)
+
+    assert discovered.semantic_fact_count == len(forest.edges)
+    assert len(discovered.blocks) == 2
+    assert discovered_hashes == len(forest.edges)
+    assert selected_hashes < discovered_hashes
 
 
 def test_changed_digest_locator_fails_closed_when_digest_is_not_in_forest() -> None:
