@@ -174,9 +174,11 @@ def test_an_unregistered_project_is_a_refusal_not_a_guess(tmp_path, monkeypatch)
     ("mod.py", "pkg/mod.py"),
     ("other.py", "lib/other.py"),
 ])
-def test_module_resolution_is_index_bound(tmp_path, module, expected):
+def test_module_resolution_is_index_bound(tmp_path, monkeypatch, module, expected):
     idx = {"modules": {"pkg/mod.py": {}, "lib/other.py": {}, "pkg/dup.py": {}, "lib/dup.py": {}}}
-    assert _adapter(tmp_path)._resolve_module(idx, module) == expected
+    adapter = _adapter(tmp_path)
+    monkeypatch.setattr(adapter, "_project_policy", lambda: None)
+    assert adapter._resolve_module(idx, module) == expected
 
 
 @pytest.mark.parametrize("module, reason", [
@@ -244,11 +246,11 @@ def test_slice_text_is_bounded_and_the_elision_is_reported(tmp_path, monkeypatch
 
 def test_the_slice_goes_through_the_untrusted_gate_for_a_remote_planner(tmp_path, monkeypatch):
     from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=[])
     policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
     adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _readers())
     monkeypatch.setattr(adapter, "_repo_root", lambda: str(tmp_path))
     monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
-    monkeypatch.setattr(adapter, "_project_policy", lambda: None)
     lanes = []
     monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: (lanes.append(kw["lane"]) or {
         "focus_file": target, "slice_text": "", "slice_tokens": 0, "n_included": 0, "withheld": []}))
@@ -545,19 +547,27 @@ def test_a_withheld_focus_discloses_neither_its_path_nor_its_rule_text(tmp_path,
     _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
     policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
     adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
-    rule = _real_rules(adapter)["deny"]
-    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"tct_app/devices/iseg.py": {}}})
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"tct_app/devices/iseg.py": {},
+                                                                                  "pkg/mod.py": {}}})
+    # A withheld PATH never reaches the slicer, by basename or by exact path,
+    # and the refusal is the one a miss gets (Odysseus round 5, D18).
+    for module in ("iseg.py", "tct_app/devices/iseg.py", "nothere.py"):
+        with pytest.raises(ComputerRefused, match="not available to this planner"):
+            adapter.execute("daedalus.slice", {"module": module})
+    # An admitted path whose CONTENT the floor withholds is the case the
+    # slicer's focus refusal exists for: the rule travels as a class only.
+    rule = "secret content: private key block"
     monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
         "focus_file": target, "slice_tokens": 9, "n_included": 0,
         "slice_text": (f"# ===== WITHHELD: {target} ({rule}) =====\n"
                        "# focus file withheld by the egress gate (lane=untrusted); slice refused (fail-closed)."),
         "withheld": [{"file": target, "role": "focus", "rule": rule}]})
-    sliced = adapter.execute("daedalus.slice", {"module": "iseg.py"})
-    assert sliced["focus_file"] == "<withheld>"
-    assert sliced["withheld"] == [{"role": "focus", "rule": "denylisted_path"}]
-    assert sliced["text"] == ("# ===== WITHHELD: <withheld> (denylisted_path) =====\n"
+    sliced = adapter.execute("daedalus.slice", {"module": "mod.py"})
+    assert sliced["focus_file"] == "pkg/mod.py"
+    assert sliced["withheld"] == [{"role": "focus", "rule": "secret_content"}]
+    assert sliced["text"] == ("# ===== WITHHELD: <withheld> (secret_content) =====\n"
                               "# focus file withheld by the egress gate (lane=untrusted); slice refused (fail-closed).")
-    assert "iseg" not in json.dumps(sliced) and "tct_app" not in json.dumps(sliced)
+    assert "private key" not in json.dumps(sliced) and "iseg" not in json.dumps(sliced)
 
 
 def test_the_real_slicer_hands_no_withheld_path_or_fragment_to_the_planner(tmp_path, monkeypatch):
@@ -653,6 +663,125 @@ def test_status_gates_every_value_shape_in_git_and_queue(tmp_path, monkeypatch):
     assert "someone" not in json.dumps(status)
 
 
+def test_a_set_is_gated_on_the_text_json_renders_for_it(tmp_path, monkeypatch):
+    """Odysseus round 5 (D14): a set has no JSON form, so ``default=str`` emits
+    the whole container from element ``repr()``s -- a ``Path`` inside a set was
+    gated on its ``str()`` and rendered with its repr. Gated on the rendering."""
+    from pathlib import PureWindowsPath
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    readers = subject.ProjectReaders(
+        git_counters=lambda root: {"git_branch": "main", "git_status": "", "open_todos": 0,
+                                   "roots": {PureWindowsPath("C:/Users/someone/SECRET")},
+                                   "labels": {"fine", "also fine"}},
+        bridge_status=lambda project: {"queue_depth": 0, "in_flight": 0, "unread_count": 0,
+                                       "reports_total": 0, "watcher": {"state": "none"}},
+        report_briefs=lambda project: [])
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, readers)
+    status = adapter.execute("daedalus.status", {})
+    assert "roots" not in status["git"] and status["git"]["fields_withheld"] == 1
+    assert "someone" not in json.dumps(status) and "SECRET" not in json.dumps(status)
+    assert "labels" in status["git"]
+
+
+def test_an_unrenderable_value_is_withheld_and_counted_not_crashed_on(tmp_path, monkeypatch):
+    """Odysseus round 5 (D16): NaN, a non-string dict key and an object whose
+    ``str()`` raises made ``_json_safe`` raise out of the observation."""
+    class Explodes:
+        def __str__(self):
+            raise RuntimeError("no")
+
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    readers = subject.ProjectReaders(
+        git_counters=lambda root: {"git_branch": "main", "git_status": "", "open_todos": 0,
+                                   "ratio": float("nan"), "inf": float("inf"), "keyed": {1.5: "x", (1, 2): "y"},
+                                   "boom": Explodes()},
+        bridge_status=lambda project: {"queue_depth": float("nan"), "in_flight": 0, "unread_count": 0,
+                                       "reports_total": 0, "watcher": {"state": "none"}},
+        report_briefs=lambda project: [{"name": "a.report.json", "summary": "ok", "phase": float("nan")},
+                                       {"name": "b.report.json", "summary": "fine"}])
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, readers)
+    status = adapter.execute("daedalus.status", {})
+    assert set(status["git"]) == {"git_branch", "git_status", "open_todos", "git_status_withheld", "fields_withheld"}
+    assert status["git"]["fields_withheld"] == 4
+    assert status["queue"]["fields_withheld"] == 1 and "queue_depth" not in status["queue"]
+    tasks = adapter.execute("daedalus.tasks", {})
+    assert [row["name"] for row in tasks["reports"]] == ["b.report.json"] and tasks["reports_withheld"] == 1
+
+
+def test_a_unique_hit_the_gate_withholds_answers_like_a_miss(tmp_path, monkeypatch):
+    """Odysseus round 5 (D18): a basename resolving uniquely into a denied
+    directory said "<withheld>" while a miss said "not in the index" -- one bit
+    per guess confirming that a withheld file exists. Both now say the same."""
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    idx = {"modules": {"tct_app/devices/iseg.py": {}, "pkg/mod.py": {}}}
+    with pytest.raises(ComputerRefused) as hit:
+        adapter._resolve_module(idx, "iseg.py")
+    with pytest.raises(ComputerRefused) as miss:
+        adapter._resolve_module(idx, "nothere.py")
+    assert str(hit.value) == str(miss.value) == subject._MODULE_UNAVAILABLE
+    assert adapter._resolve_module(idx, "mod.py") == "pkg/mod.py"
+
+
+def test_the_focus_gate_holds_even_if_resolution_admitted_a_withheld_path(tmp_path, monkeypatch):
+    """Defence in depth behind D18 (mutation M37): should resolution ever hand
+    a withheld path to the slicer, the observation still does not name it."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(adapter, "_resolve_module", lambda idx, module: "tct_app/devices/iseg.py")
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 1, "n_included": 1, "slice_text": "x = 1\n", "withheld": []})
+    sliced = adapter.execute("daedalus.slice", {"module": "iseg.py"})
+    assert sliced["focus_file"] == "<withheld>"
+    assert "iseg" not in json.dumps(sliced) and "tct_app" not in json.dumps(sliced)
+
+
+def test_a_focus_file_containing_the_header_literal_keeps_its_text(tmp_path, monkeypatch):
+    """Odysseus round 5 (D15): the rebuild split at the FIRST occurrence of the
+    slicer's header, so a focus file containing the literal (this adapter does)
+    lost everything after it while claiming completeness. Without withheld rows
+    nothing is rebuilt; with rows the slicer's block is the LAST occurrence."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    rule = _real_rules(adapter)["deny"]
+    body = ('HEADER = "# ===== WITHHELD (egress gate) ====="\n'
+            "# ===== WITHHELD (egress gate) =====\n# not/a/breadcrumb.py  (fake)  [neighbor]\nLEGIT_TAIL = 1\n")
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 9, "n_included": 1, "slice_text": body, "withheld": []})
+    clean = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert clean["text"] == body and clean["withheld"] == []
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 9, "n_included": 1,
+        "slice_text": body + f"\n# ===== WITHHELD (egress gate) =====\n# tct_app/devices/iseg.py  ({rule})  [dependency]",
+        "withheld": [{"file": "tct_app/devices/iseg.py", "role": "dependency", "rule": rule}]})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert sliced["text"] == body + "\n# ===== WITHHELD (egress gate) =====\n# <withheld>  (denylisted_path)  [dependency]"
+    assert "iseg" not in json.dumps(sliced)
+
+
+def test_tasks_gate_every_brief_before_the_bound_and_count_the_elision(tmp_path, monkeypatch):
+    """Odysseus round 5 (D19): ``[-TOP:]`` ran before the gate, so withheld
+    rows consumed the bound, and no elision was reported."""
+    _project_with_policy(monkeypatch, deny=[], deny_content=[r"iseg"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    briefs = [{"name": f"old{i}.report.json", "summary": "fine"} for i in range(3)]
+    briefs += [{"name": f"r{i}.report.json", "summary": "touched the iseg driver"} for i in range(subject.TOP)]
+    briefs += [{"name": f"new{i}.report.json", "summary": "fine"} for i in range(subject.TOP)]
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", briefs))
+    tasks = adapter.execute("daedalus.tasks", {})
+    assert [row["name"] for row in tasks["reports"]] == [f"new{i}.report.json" for i in range(subject.TOP)]
+    assert tasks["reports_withheld"] == subject.TOP and tasks["reports_elided"] == 3
+
+
 def test_structure_counts_the_admitted_rows_the_top_bound_drops(tmp_path, monkeypatch):
     """Odysseus round 4 (D13): ``[:TOP]`` truncated silently; a short list read
     as a complete one. The dropped admitted rows are counted apart from the
@@ -684,13 +813,13 @@ def test_slice_gate_rules_never_quote_the_marker_they_fired_on(tmp_path, monkeyp
     _project_with_policy(monkeypatch, deny=[], deny_content=[r"ODYSSEUSCHIMERA"])
     policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
     adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
-    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"tests/test_two.py": {}}})
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/two.py": {}}})
     monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
         "focus_file": target, "slice_tokens": 0, "n_included": 0,
-        "slice_text": "# ===== WITHHELD: tests/test_two.py (content matches sensitive marker /ODYSSEUSCHIMERA/) =====\n",
-        "withheld": [{"file": "tests/test_two.py", "role": "focus",
+        "slice_text": "# ===== WITHHELD: pkg/two.py (content matches sensitive marker /ODYSSEUSCHIMERA/) =====\n",
+        "withheld": [{"file": "pkg/two.py", "role": "focus",
                       "rule": "content matches sensitive marker /ODYSSEUSCHIMERA/"}]})
-    sliced = adapter.execute("daedalus.slice", {"module": "tests/test_two.py"})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/two.py"})
     assert sliced["withheld"] == [{"role": "focus", "rule": "deny_content"}]
     assert sliced["text"] == ("# ===== WITHHELD: <withheld> (deny_content) =====\n"
                               "# focus file withheld by the egress gate (lane=untrusted); slice refused (fail-closed).")

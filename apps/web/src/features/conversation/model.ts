@@ -687,7 +687,7 @@ export function offerSubject(action: unknown, fallbackProject: string): OfferSub
   const plannerProvider = plannerRec ? str(plannerRec.provider) : '';
   const plannerModel = plannerRec ? str(plannerRec.model) : '';
   const planner = plannerProvider
-    ? `${plannerProvider}${plannerModel ? ` (${plannerModel})` : ''}${plannerRec?.remote_context === true ? ' · Beobachtungen verlassen den Rechner' : ''}`
+    ? `${plannerProvider}${plannerModel ? ` (${plannerModel})` : ''}${plannerRec?.leaves_machine === true ? ' · Beobachtungen verlassen den Rechner' : ''}`
     : undefined;
   const tools = Array.isArray(args.tools) ? args.tools.filter((t): t is string => typeof t === 'string') : undefined;
   return {

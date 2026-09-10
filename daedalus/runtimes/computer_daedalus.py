@@ -87,14 +87,30 @@ _TRUSTED_PLANNERS = frozenset({"claude_code_cli"})
 _LOCAL_PLANNERS = frozenset({"ollama_http", "ollama"})
 
 
-def planner_host(policy: ComputerPolicy) -> str | None:
+def planner_host_for(provider: object) -> str | None:
     """The address a LOCAL planner connects to -- the raw ``OLLAMA_HOST`` value,
     exactly as ``shell._local_lane`` passes it, so the predicates own the wire
     grammar (``[::1]`` included). ``None`` for every other planner."""
-    if policy.planner_provider in _LOCAL_PLANNERS:
+    if provider in _LOCAL_PLANNERS:
         from daedalus.providers.ollama import DEFAULT_HOST
         return os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     return None
+
+
+def planner_host(policy: ComputerPolicy) -> str | None:
+    return planner_host_for(policy.planner_provider)
+
+
+def planner_leaves_machine_for(provider: object) -> bool:
+    """:func:`planner_leaves_machine` for a bare provider name -- the status
+    line, the mission report and the chat offer only know the name (Cerberus
+    round 5: those three surfaces derived "Kontext hat den Rechner verlassen"
+    from the consent flag, so a tailnet Ollama read *nein*)."""
+    host = planner_host_for(provider)
+    if host is None:
+        return True
+    from daedalus.sensitivity import is_loopback_host
+    return not is_loopback_host(host)
 
 
 def planner_lane(policy: ComputerPolicy) -> str:
@@ -125,11 +141,7 @@ def planner_leaves_machine(policy: ComputerPolicy) -> bool:
     and the grant then said "nothing leaves this machine" while packets crossed
     the tunnel. ``sensitivity.is_loopback_host`` cannot be widened by any
     declaration; a remote vendor planner always leaves."""
-    host = planner_host(policy)
-    if host is None:
-        return True
-    from daedalus.sensitivity import is_loopback_host
-    return not is_loopback_host(host)
+    return planner_leaves_machine_for(policy.planner_provider)
 
 
 def _looks_like_host_path(value: str) -> bool:
@@ -176,6 +188,8 @@ def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
 
 
+_MODULE_UNAVAILABLE = ("module is not available to this planner: not in the project's index or withheld by "
+                       "the egress gate; name an indexed source file")
 #: The slicer's withheld block header; the block is kept LAST in the slice
 #: text and every line after it is a per-file breadcrumb ``# <file>  (<rule>)
 #: [<role>]`` (structcore/slice.py). Both name what the project withholds, so
@@ -204,24 +218,48 @@ def _rule_class(rule: object) -> str:
     return "egress_rule"
 
 
+class _Unrenderable(Exception):
+    """A value ``_json_safe`` cannot serialise (NaN, a non-string dict key, an
+    object whose ``str()`` raises): withheld and counted, never a crash out of
+    the observation (Odysseus round 5, D16)."""
+
+
 def _strings_in(value: Any) -> list[str]:
-    """Every string a value hands on once ``_json_safe`` serialises it: nested
-    lists, tuples, sets, dict KEYS and values, bytes, and the ``str()`` of any
-    other object -- a ``Path``, an exception -- because ``default=str`` renders
-    exactly that. Odysseus round 4 (D4/D10/D11): the round-3 flattener knew str,
-    list, tuple and Mapping values; a set, a Path and a dict key carried a host
-    path past it."""
+    """Every string a value hands on once ``_json_safe`` serialises it.
+
+    The value is RENDERED first, exactly as ``_json_safe`` renders it, and the
+    strings are read off the rendering: a set has no JSON form, so
+    ``default=str`` emits the whole container as one text built from element
+    ``repr()``s -- gating the elements' ``str()`` (round 4) missed a ``Path``
+    whose repr carries the host path (Odysseus round 5, D14). What is gated is
+    now byte-for-byte what leaves. Bytes are decoded first (``default=str``
+    would render ``b'…'`` -- the decoded text is a superset of it).
+    """
+    try:
+        rendered = json.loads(json.dumps(_decoded(value), ensure_ascii=False, default=str, allow_nan=False))
+    except Exception as exc:  # noqa: BLE001 - ``default=str`` runs foreign __str__ code; any failure withholds
+        raise _Unrenderable(f"{type(exc).__name__}: {exc}"[:200]) from exc
+    return _rendered_strings(rendered)
+
+
+def _decoded(value: Any) -> Any:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    if isinstance(value, Mapping):
+        return {key: _decoded(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_decoded(item) for item in value]
+    return value
+
+
+def _rendered_strings(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value] if value else []
-    if isinstance(value, bytes):
-        return _strings_in(value.decode("utf-8", "replace"))
-    if isinstance(value, Mapping):
-        return [text for key, item in value.items() for text in _strings_in(key) + _strings_in(item)]
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return [text for item in value for text in _strings_in(item)]
-    if value is None or isinstance(value, (bool, int, float)):
-        return []
-    return _strings_in(str(value))
+    if isinstance(value, dict):
+        return [text for key, item in value.items() for text in _rendered_strings(key) + _rendered_strings(item)]
+    if isinstance(value, list):
+        return [text for item in value for text in _rendered_strings(item)]
+    return []
 
 
 def _bounded_text(value: object, limit: int = MAX_TEXT_CHARS) -> tuple[str, bool]:
@@ -351,8 +389,12 @@ class DaedalusObservation:
             # EVERY string that will be handed on is gated, not only the named
             # text keys: a kept field outside ``text_keys`` (``phase`` on a task
             # brief) carried a host path to the planner (Odysseus round 2, D1).
-            handed_on = [text for key, value in projected.items() if key not in path_keys
-                         for text in _strings_in(value)]
+            try:
+                handed_on = [text for key, value in projected.items() if key not in path_keys
+                             for text in _strings_in(value)]
+            except _Unrenderable:
+                withheld += 1
+                continue
             named = [str(row[key]) for key in text_keys if isinstance(row.get(key), str) and row.get(key)]
             text = " ".join(dict.fromkeys(named + handed_on))
             if not paths and not text:
@@ -450,9 +492,13 @@ class DaedalusObservation:
 
     def _admit_value(self, key: str, value: Any) -> bool:
         """A scalar or container is admitted only if every string it would hand
-        on passes the shape check and the project's gate."""
-        return all(not _looks_like_host_path(text) and self._admit(f"{key}.txt", text)
-                   for text in _strings_in(value))
+        on passes the shape check and the project's gate; a value the
+        observation could not render is withheld the same way (D16)."""
+        try:
+            texts = _strings_in(value)
+        except _Unrenderable:
+            return False
+        return all(not _looks_like_host_path(text) and self._admit(f"{key}.txt", text) for text in texts)
 
     def _structure(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
@@ -513,9 +559,17 @@ class DaedalusObservation:
         token = module.strip().replace("\\", "/")
         modules = idx.get("modules", {})
         if token in modules:
+            if not self._admit(token, ""):
+                raise ComputerRefused(_MODULE_UNAVAILABLE)
             return token
         hits = sorted(m for m in modules if m == token or m.endswith("/" + token))
         if len(hits) == 1:
+            # A unique hit the gate withholds answers exactly like a miss: a
+            # basename must not confirm that a withheld file exists (Odysseus
+            # round 5, D18). The ambiguity branch below still counts, which is
+            # the same disclosure ``*_withheld`` makes everywhere.
+            if not self._admit(hits[0], ""):
+                raise ComputerRefused(_MODULE_UNAVAILABLE)
             return hits[0]
         if len(hits) > 1:
             # The refusal text reaches the planner's history like any result
@@ -532,7 +586,7 @@ class DaedalusObservation:
             raise ComputerRefused(
                 f"module is ambiguous ({len(hits)} indexed candidates, all withheld by the egress gate); "
                 "name a fuller repository-relative path")
-        raise ComputerRefused("module is not in the project's index; name an indexed source file")
+        raise ComputerRefused(_MODULE_UNAVAILABLE)
 
     def _slice(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
@@ -562,12 +616,14 @@ class DaedalusObservation:
             text = (f"# ===== WITHHELD: <withheld> ({shown[0]['rule']}) =====\n"
                     f"# focus file withheld by the egress gate (lane={lane}); slice refused (fail-closed).")
             elided = False
-        elif _WITHHELD_HEADER in text:
+        elif rows and _WITHHELD_HEADER in text:
             # The slicer keeps its withheld block LAST: everything after the
             # header is a per-file breadcrumb naming the file and the rule.
             # Rebuilt from the gated rows; only a CONTEXT TRIMMED marker (counts
-            # only) is carried over from the original tail.
-            head, tail = text.split(_WITHHELD_HEADER, 1)
+            # only) is carried over from the original tail. The LAST occurrence
+            # is the slicer's; a focus file that itself contains the literal
+            # (this module does) keeps its text (Odysseus round 5, D15).
+            head, tail = text.rsplit(_WITHHELD_HEADER, 1)
             trimmed = [line.rstrip("\r") for line in tail.splitlines() if line.startswith(_TRIMMED_MARKER)]
             text = (head + _WITHHELD_HEADER
                     + "".join(f"\n# <withheld>  ({row['rule']})  [{row['role']}]" for row in shown)
@@ -609,9 +665,12 @@ class DaedalusObservation:
         # import cycle (see ProjectReaders), so this observation stays with the
         # file-bridge reports. The chat's ``/computer tasks`` remains the door to
         # mission history.
-        briefs = list(self._readers.report_briefs(self._project))[-TOP:]
+        briefs = list(self._readers.report_briefs(self._project))
         reports, withheld = self._admit_rows(
             briefs, (), ("summary", "name", "agent", "provider", "lane", "project"),
             keep_keys=("name", "status", "lane", "project", "agent", "provider", "phase", "summary"))
-        return {"reports": reports, "reports_withheld": withheld,
+        # Gate first, bound after (the most recent TOP admitted rows), and say
+        # how many admitted rows the bound dropped (Odysseus round 5, D19).
+        return {"reports": reports[-TOP:], "reports_withheld": withheld,
+                "reports_elided": max(0, len(reports) - TOP),
                 "computer_missions": "use /computer tasks in the chat"}

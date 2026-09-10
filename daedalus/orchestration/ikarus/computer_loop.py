@@ -554,9 +554,8 @@ def _computer_events_admitted(
     # G1-IKARUS-33: provenance of the proposing model. The policy digest binds these
     # values already; the report states them so a reader sees which planner ran and
     # whether observations left the machine (measure-09 ran Codex over remote context).
-    planner_facts = {"provider": capabilities.get("planner_provider"),
-                     "model": capabilities.get("planner_model"),
-                     "remote_context": capabilities.get("allow_remote_context") is True}
+    planner_facts = _planner_facts(capabilities.get("planner_provider"), capabilities.get("planner_model"),
+                                   capabilities.get("allow_remote_context") is True)
     # G1-IKARUS-42: the provider's context window is an external constraint the loop cannot
     # widen (plan 4.1); it is estimated for the local route and reported, never claimed away.
     planner_window = _planner_context_tokens(capabilities)
@@ -1023,9 +1022,15 @@ def summary_tokens_absent_from_observations(report: Mapping[str, Any]) -> dict[s
 
 
 def _planner_line(planner: Mapping[str, Any]) -> str:
-    """The one sentence that names the proposing model and whether context left the machine."""
+    """The one sentence that names the proposing model and whether context left the machine.
+
+    Cerberus round 5: "verlassen" is PHYSICS (``leaves_machine``, from the
+    planner's host), never the consent flag ``remote_context`` -- a tailnet
+    Ollama configured without the flag read *nein* here while slices crossed
+    the tunnel. A retained report from before the field says *unbekannt*.
+    """
     model = f" ({planner['model']})" if planner.get("model") else ""
-    left = "ja" if planner.get("remote_context") is True else "nein"
+    left = {True: "ja", False: "nein"}.get(planner.get("leaves_machine"), "unbekannt")
     return f"Planner: {planner.get('provider')}{model} · Kontext hat den Rechner verlassen: {left}"
 
 
@@ -1061,9 +1066,13 @@ def _egress_filter_sentence(trusted: bool) -> str:
             "Secret-Floor.")
 
 
-def _planner_lane_of(configuration: Mapping[str, Any]) -> str:
-    """The lane the stored configuration's planner gets, from the one predicate the adapter uses."""
-    return _planner_egress_of(configuration)[0]
+def _planner_facts(provider: Any, model: Any, remote_context: bool) -> dict[str, Any]:
+    """The planner provenance a report, the status line and the chat offer
+    carry: name, model, the consent flag AND the physical fact whether the
+    planner's host is this machine (``leaves_machine``)."""
+    from ...runtimes.computer_daedalus import planner_leaves_machine_for
+    return {"provider": provider, "model": model, "remote_context": remote_context,
+            "leaves_machine": planner_leaves_machine_for(provider)}
 
 
 def _planner_egress_of(configuration: Mapping[str, Any]) -> tuple[str, str | None, bool]:
@@ -1091,8 +1100,12 @@ def _egress_destination_sentence(leaves: bool, trusted: bool, host: str | None) 
 
 def _daedalus_tools_egress_warning(provider: str, *, trusted: bool, host: str | None = None) -> str:
     if host is not None:
+        from ...sensitivity import is_loopback_host
+        # The declaration clause defends itself (Cerberus round 5, low): a
+        # trusted LOOPBACK host was never declared, only a trusted remote one.
+        declared = trusted and not is_loopback_host(host)
         where = (f"Der konfigurierte Planner `{provider}` läuft auf `{host}`, nicht auf diesem Rechner"
-                 + (" — einem Host, den du in DAEDALUS_TRUSTED_HOSTS als vertraut erklärt hast" if trusted else "")
+                 + (" — einem Host, den du in DAEDALUS_TRUSTED_HOSTS als vertraut erklärt hast" if declared else "")
                  + ". Mit den Daedalus-Werkzeugen gehen "
                  f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt dorthin.")
     else:
@@ -1355,7 +1368,7 @@ def conversation_events(project: str | None, message: str, *,
             current, digest = caps.get("configuration"), caps.get("policy_sha256")
             if not isinstance(current, dict) or not digest:
                 raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
-            facts = {"provider": provider, "model": model, "remote_context": remote}
+            facts = _planner_facts(provider, model, remote)
             if remote and not confirm:
                 yield "final", core.envelope(
                     project, intent="computer", shell="hand", provider_used="deterministic",
@@ -1489,9 +1502,9 @@ def conversation_events(project: str | None, message: str, *,
                         summary += f"\n\n{key.replace('_', ' ')}: {caps[key]}"
             configuration = caps.get("configuration")
             if isinstance(configuration, dict) and "planner_provider" in configuration:
-                summary += "\n\n" + _planner_line({"provider": configuration.get("planner_provider"),
-                                                   "model": configuration.get("planner_model"),
-                                                   "remote_context": configuration.get("allow_remote_context") is True})
+                summary += "\n\n" + _planner_line(_planner_facts(
+                    configuration.get("planner_provider"), configuration.get("planner_model"),
+                    configuration.get("allow_remote_context") is True))
             if caps.get("configuration") and caps.get("policy_sha256"):
                 editable = {"expected_policy_sha256": caps["policy_sha256"], "policy": caps["configuration"]}
                 summary += ("\n\nCurrent configuration. Edit this complete JSON and submit it after `/computer configure `.\n\n```json\n"

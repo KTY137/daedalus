@@ -73,7 +73,7 @@ dieselben freigegebenen Aufruf- und Zeitbudgets wie die eigentliche Aufgabe.
 Bei wiederholt unveränderten Beobachtungen meldet er Stillstand. Ein abgelehntes
 Werkzeug oder eine unklare Wirkung wird nicht automatisch wiederholt.
 
-Der Bericht jeder Mission nennt den Planner, der die Schritte vorgeschlagen hat, und ob die Beobachtungen den Rechner verlassen haben (`Planner: … · Kontext hat den Rechner verlassen: ja|nein`); dieselben Angaben stehen in `/computer task` und `/computer tasks`. Ein entfernter Planner (`planner_provider` mit `allow_remote_context: true`) ist eine ausdrückliche Owner-Konfiguration; die Zeile macht sie nachträglich sichtbar und ersetzt keine Freigabe.
+Der Bericht jeder Mission nennt den Planner, der die Schritte vorgeschlagen hat, und ob die Beobachtungen den Rechner verlassen haben (`Planner: … · Kontext hat den Rechner verlassen: ja|nein|unbekannt`); dieselben Angaben stehen in `/computer status`, `/computer task` und `/computer tasks`, und das Chat-Angebot trägt denselben Zusatz. „Verlassen“ ist eine Frage der Physik — der Host des Planners ist dieser Rechner oder nicht (`leaves_machine`, aus `OLLAMA_HOST` für ein lokales Ollama, immer *ja* für einen Anbieter-Planner) — und wird nicht aus dem Konsens-Flag `allow_remote_context` abgeleitet; das Flag steht als `remote_context` daneben. Ein Bericht, der vor diesem Feld entstand, sagt *unbekannt*. Ein entfernter Planner (`planner_provider` mit `allow_remote_context: true`) ist eine ausdrückliche Owner-Konfiguration; die Zeile macht sie nachträglich sichtbar und ersetzt keine Freigabe.
 
 Der Planner wird mit `/computer planner <ollama_http|codex_cli|claude_code_cli|deepseek> [Modell]`
 gewählt. Ein entfernter Anbieter wird erst nach einer sichtbaren Warnung und der

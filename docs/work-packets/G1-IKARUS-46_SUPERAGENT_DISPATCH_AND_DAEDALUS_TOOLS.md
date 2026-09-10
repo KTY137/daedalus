@@ -240,7 +240,16 @@ values only), M35 (the ambiguity refusal lists raw paths), M36 (leaving the
 machine decided by the lane), M37 (`focus_file` ungated), M38 (the flattener
 drops sets, keys and objects), M39 (the TOP bound truncates silently), M40
 (the withheld block keeps the slicer's breadcrumbs); M5, M30, M32 and M33
-re-anchored on the moved lines — **40 applied**; result recorded in
+re-anchored on the moved lines — **40 applied, 40 caught** (restored tree
+green, 196 passed in the packet suites).
+
+After review round 5 (`mutation-table-8.txt`, the loop suite added to the
+driver): plus M41 (the report line follows the consent flag again), M42 (a
+local planner never leaves, whatever its host), M43 (the offer sentence
+follows the consent flag again), M44 (an exact withheld path confirms its
+existence), M45 (tasks bounded before the gate), M46 (the rebuild splits at
+the first header), M47 (an unrenderable value is admitted); M6, M34, M38 and
+M40 re-anchored — **47 applied**; result recorded in
 `docs/evidence/G1-IKARUS-46/acceptance.json` (`mutation_table`).
 
 ### Live measurement
@@ -469,6 +478,43 @@ mutation spot-check. All repaired in the fifth commit:
 | D12 (low) | the scrub regexes were format-fragile: a file name with a space or a CRLF line left the breadcrumb and the focus line unscrubbed | no regex over file names any more: the block is rebuilt from the rows | the slice test above carries a CRLF line and a name with a space |
 | D13 (low) | `[:TOP]` truncated silently; `*_withheld` counted refusals only | `*_elided` counts beside every `*_withheld` | `test_structure_counts_the_admitted_rows_the_top_bound_drops`; M39 |
 | nit | dead store `remote` in the enable branch | removed | — |
+
+**Cerberus round 5** (`b29105af`, frozen copy): verdict `needs_fix`, no
+CRITICAL. H4 RESOLVED (unique basename into a denied directory, ambiguous,
+path-shaped: no path, no directory, no rule text on any field); the `remote`
+nit RESOLVED; rule classes: all eight rule-string productions of
+`secret_floor_rule`, `_path_is_sensitive`, `classify_data` and
+`slice_egress_rule` map to a class, the `egress_rule` fallback is unreachable
+today and withholds the whole text if it ever fires; authority confirmed
+unwidened. H3 PARTIAL: the grant/warning/disable sentences are true, but the
+SAME claim survived on two other surfaces — `_planner_line` ("Kontext hat den
+Rechner verlassen") in `/computer status` and every mission report, and the
+chat offer's "(Beobachtungen verlassen den Rechner)", both derived from the
+consent flag `allow_remote_context`, so a tailnet Ollama configured without
+the flag read *nein*. Two lows: `_planner_lane_of` dead;
+`_daedalus_tools_egress_warning` printed the declaration clause on `trusted`
+alone. One pre-existing medium it named and did not charge to this packet: an
+ADMITTED focus body is emitted verbatim, so its own `import` line may name a
+withheld module — `slice_egress_rule`'s file granularity, identical on the
+Voice path.
+
+**Odysseus round 5** (same snapshot): D9/D6, D12 and H3 RESOLVED (40 rule
+strings enumerated off the real tables, none reaching the fallback; real
+index + real slicer clean; 11 hosts × 2 declarations, no host with
+`leaves=False` on a non-loopback address, IPv4-mapped IPv6 and the eight-zero
+form correctly loopback); mutation spot-check: all four guards die. Four new
+items, all repaired in the sixth commit together with the Cerberus residue:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| H3 residue (high) | status line, mission report and chat offer derived "verlassen" from the consent flag | `_planner_facts` carries `leaves_machine` from `planner_leaves_machine_for(provider)` beside `remote_context`; `_planner_line` prints *ja/nein* from physics and *unbekannt* for a retained report without the field; the cockpit contract and offer line follow `leaves_machine` | `test_the_report_line_is_physics_not_the_consent_flag`, updated provenance tests, `conversation.spec.ts`; mutations M41, M42, M43 |
+| low | `_planner_lane_of` dead | removed | — |
+| low | the declaration clause on `trusted` alone | printed only for a trusted NON-loopback host | (warning text) |
+| D14 (major, latent) | `_strings_in` gated set ELEMENTS on `str()` while `json.dumps(default=str)` renders a set as one text from element `repr()`s — a `Path` in a set carried the host path on the trusted lane | the value is RENDERED first, exactly as `_json_safe` renders it, and the strings are read off the rendering: what is gated is byte-for-byte what leaves | `test_a_set_is_gated_on_the_text_json_renders_for_it`; M38 |
+| D16 (minor) | NaN/inf, a non-string dict key or an object whose `str()` raises made `_json_safe` raise out of the observation | an unrenderable value is withheld and counted (`_Unrenderable`), in `_admit_value` and `_admit_rows` | `test_an_unrenderable_value_is_withheld_and_counted_not_crashed_on`; M47 |
+| D18 (minor, side channel) | a basename resolving UNIQUELY into a denied directory said `<withheld>` while a miss said "not in the index": one bit per guess confirming a withheld file exists; the exact-path branch the same | a unique or exact hit the gate withholds answers exactly like a miss (`_MODULE_UNAVAILABLE`); the ambiguity branch still counts, which is the disclosure every `*_withheld` makes | `test_a_unique_hit_the_gate_withholds_answers_like_a_miss`, the withheld-focus test rewritten; M44 |
+| D15 (minor, honesty) | a focus file containing the literal header (this adapter does) was split at its own occurrence: text silently dropped while `text_elided` said false | the rebuild runs only when the slicer reported withheld rows and splits at the LAST occurrence, which is the slicer's | `test_a_focus_file_containing_the_header_literal_keeps_its_text`; M46 |
+| D19 (trivial) | `_tasks` bounded before the gate and reported no elision | gate every brief, bound after, `reports_elided` | `test_tasks_gate_every_brief_before_the_bound_and_count_the_elision`; M45 |
 
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file

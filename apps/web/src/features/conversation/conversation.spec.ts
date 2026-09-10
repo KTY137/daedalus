@@ -531,7 +531,7 @@ export function runConversationSpec(): ConversationSpecResult[] {
     args: {
       project: 'atlas', objective: 'verbessere den Parser', lane: 'computer',
       message: '/computer run verbessere den Parser',
-      planner: { provider: 'claude_code_cli', model: 'sonnet', remote_context: true },
+      planner: { provider: 'claude_code_cli', model: 'sonnet', remote_context: true, leaves_machine: true },
       tools: ['daedalus.status', 'daedalus.slice', 7]
     }
   };

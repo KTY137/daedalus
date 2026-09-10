@@ -721,10 +721,11 @@ def _computer_hand(project: str) -> dict | None:
     if caps.get("enabled") is not True:
         return None
     tools = [tool.get("name") for tool in caps.get("tools", []) if isinstance(tool, dict)]
+    from .computer_loop import _planner_facts
+
     return {
-        "planner": {"provider": caps.get("planner_provider"),
-                    "model": caps.get("planner_model"),
-                    "remote_context": caps.get("allow_remote_context") is True},
+        "planner": _planner_facts(caps.get("planner_provider"), caps.get("planner_model"),
+                                  caps.get("allow_remote_context") is True),
         "tools": [name for name in tools if isinstance(name, str)],
         "workspace": caps.get("workspace"),
         "policy_sha256": caps.get("policy_sha256"),
@@ -776,7 +777,7 @@ def _computer_offer(project: str, objective: str, act: ActDecision | None,
         reply = (
             f"Ich kann das als Computer-Auftrag im Daedalus-Loop ausführen: „{objective[:140]}“. "
             f"Planner: {planner_line}"
-            f"{' (Beobachtungen verlassen den Rechner)' if planner.get('remote_context') else ''}. "
+            f"{' (Beobachtungen verlassen den Rechner)' if planner.get('leaves_machine') is True else ''}. "
             f"Werkzeuge: {tools}. Erst dein Klick oder ein „ja“ startet den Lauf; jeder Schritt wird "
             "beobachtet, belegt und hier gezeigt. Ein Abschluss des Planners ist ein Vorschlag, kein Beweis."
         )
@@ -784,7 +785,7 @@ def _computer_offer(project: str, objective: str, act: ActDecision | None,
         reply = (
             f"I can run this as a computer task in the Daedalus loop: “{objective[:140]}”. "
             f"Planner: {planner_line}"
-            f"{' (observations leave this machine)' if planner.get('remote_context') else ''}. "
+            f"{' (observations leave this machine)' if planner.get('leaves_machine') is True else ''}. "
             f"Tools: {tools}. Only your click or a “yes” starts the run; every step is observed, "
             "evidenced and shown here. The planner's finish is a proposal, not proof."
         )

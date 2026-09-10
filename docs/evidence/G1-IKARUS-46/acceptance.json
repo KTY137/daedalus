@@ -9,10 +9,11 @@
     "cockpit": "tsc --noEmit clean; node src/app/run-spec.mjs 620/620",
     "packet, neighbouring and pin suites, final tree after review round 2": "453 passed, 4 skipped, 103 subtests (same sixteen suites)",
     "packet, neighbouring and pin suites, final tree after review round 3": "476 passed, 4 skipped, 103 subtests (same sixteen suites) after the s02 kernel row was re-pinned",
-    "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 4": "646 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite)"
+    "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 4": "646 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite)",
+    "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 5": "654 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite); cockpit tsc --noEmit clean, 620/620 specs"
   },
-  "final_pins": "SCC census 520 modules / 2095 edges / 14 components / max 19 / component digest unchanged; work-packet registry 528 tracked files, packet G1-IKARUS-46 post_index; s02 kernel row re-pinned on the final adapter (7150 functions, 47512 type-name sites, annotation-only 94.46 %, full resolver 94.35 %, marginal_functions 8, marginal_pp 0.1119, verified share 90.14 %); imports graph",
-  "mutation_table": "round 1: 14/14 (mutation-table.txt); after review round 1: 24/24 (mutation-table-2.txt); after review round 2: 29/29 caught (mutation-table-4.txt); after review round 3: 33 applied, 33 caught (mutation-table-6.txt; M32 re-run alone after its anchor moved); after review round 4: 40 applied, 40 caught (mutation-table-7.txt)",
+  "final_pins": "SCC census 520 modules / 2095 edges / 14 components / max 19 / component digest unchanged; work-packet registry 528 tracked files, packet G1-IKARUS-46 post_index; s02 kernel row re-pinned on the final adapter (7154 functions, 47526 type-name sites, annotation-only 94.46 %, full resolver 94.35 %, marginal_functions 8, marginal_pp 0.1118, verified share 90.14 %); imports graph",
+  "mutation_table": "round 1: 14/14 (mutation-table.txt); after review round 1: 24/24 (mutation-table-2.txt); after review round 2: 29/29 caught (mutation-table-4.txt); after review round 3: 33 applied, 33 caught (mutation-table-6.txt; M32 re-run alone after its anchor moved); after review round 4: 40 applied, 40 caught (mutation-table-7.txt); after review round 5: 47 applied, 47 caught (mutation-table-8.txt; loop suite added to the driver)",
   "byte_pins": "the four -text modules (runtimes/computer.py, ikarus/shell.py, ikarus/act.py, ikarus/computer_loop.py) carry 0 CR bytes in the follow-up commit; 002c0683 had stored them as CRLF (Odysseus defect 6)",
   "live_run_ledger_rows": {
     "run3": [
@@ -184,22 +185,24 @@
     "mutation-table.txt": "5eadd2cb9164fcbba2e18bcea035ad4e0efb9491ea91b3e7d76b6547b33edfab",
     "mutation-table-2.txt": "6f0b73ca7cf2ba86ab0ccb6109794d4df37982a4274392065dc03cf3a6e1ef67",
     "mutation-table-4.txt": "983164f03d969f5146ec290242b7cfd6141d081ff6bf6e879bd72f80265c58e8",
-    "mutate.py.txt": "d87e899d2cc218458dd0c63cb2102318852c37a43dc88d5806c78c15c7075d94",
-    "s02-g1-ikarus-46-corpora-a.json.gz": "c222ebca668878724f29a5e0e20f53f62aaa7cb8e2983a1bd0597bf2bc13f914",
-    "s02-g1-ikarus-46-corpora-b.json.gz": "33b0cdd787df3b2f89238d5b1969681026a2fcd4e57e51c34f87124acff66d1d",
+    "mutate.py.txt": "7adc5b4e61fe0bbc2c8e4b74d844acb4fc646a2ab102b91c6c0a9f471650e013",
+    "s02-g1-ikarus-46-corpora-a.json.gz": "45a924067d6782806743d0c71f9bd44d004fc3640087633b652ab9e6e97abf7e",
+    "s02-g1-ikarus-46-corpora-b.json.gz": "6e231f522b9b74363bae706efd7d402c97be20daae2c3247d3d82967b4719e5e",
     "live-offer.json": "5659e2d1fef742e08aecc0224203cc250c5671966b04f353ef19825141f312ff",
     "live-run-1-codex-blocked.json": "77d5f18f06a2eb587b0cfff24b7b3d57f0a22f25b31a27d938240a8b61f4dcbd",
     "live-run-2-claude-budget-refused.json": "c1d9e2159eaadfbd7d2e4e11d36666e3f9d4b1d3bedd2d3575ff94cda534146c",
     "live-run-3-claude.json": "6b025285eaeb7784124cde4354b2d26e798d6b1b378cfcae76abaa1a0b90904e",
     "live-run-4-claude-gated.json": "43351ff209bdb78988491428280b939f7162be582c750bc5a75d12febe8137f7",
     "mutation-table-6.txt": "90a71dd56555216d4370f7585f430a972dca289c2e566f34092f8e2b87c88d33",
-    "mutation-table-7.txt": "b90f89e98b4c712a9740672de9817a89145ad8db874d735e1829ad1cdc12a43c"
+    "mutation-table-7.txt": "b90f89e98b4c712a9740672de9817a89145ad8db874d735e1829ad1cdc12a43c",
+    "mutation-table-8.txt": "037afbbfc851f6e029d69fb55fe4e4858a596991ba8a7fbcc76ce5a5dc6ad4a1"
   },
   "review_rounds": {
     "1 (002c0683)": "Cerberus block (2 CRITICAL, 3 MAJOR, 4 minor); Odysseus 6 defects — all repaired in 96e190d2",
     "2 (96e190d2)": "Cerberus needs_fix, no CRITICAL (N1 high + N2-N8 low); Odysseus D1-D3 residuals — all repaired in the third commit",
     "3 (35c6484e)": "Cerberus block (C1 high: egress by provider name, not host; H1/H2 medium; two low); Odysseus D1-D3 resolved, D4-D8 new — all repaired in the fourth commit",
-    "4 (a90b61a6)": "Cerberus needs_fix, block lifted, no CRITICAL (H3 high: an owner-declared trusted tailnet host was told nothing leaves; H4 high: the ambiguity refusal enumerated raw indexed paths); Odysseus D5/D8 resolved, D7 narrowed (encoded spellings accepted as residue), D9/D10 high, D11 medium, D12/D13 low — all repaired in the fifth commit"
+    "4 (a90b61a6)": "Cerberus needs_fix, block lifted, no CRITICAL (H3 high: an owner-declared trusted tailnet host was told nothing leaves; H4 high: the ambiguity refusal enumerated raw indexed paths); Odysseus D5/D8 resolved, D7 narrowed (encoded spellings accepted as residue), D9/D10 high, D11 medium, D12/D13 low — all repaired in the fifth commit",
+    "5 (b29105af)": "Cerberus needs_fix, no CRITICAL (H4 resolved; H3 residue high: status line, mission report and chat offer derived 'verlassen' from the consent flag; two lows); Odysseus D9/D12/H3 resolved, D14 major latent (set rendering), D15/D16/D18/D19 minor — all repaired in the sixth commit"
   },
   "byte_pins_worktree_cr_bytes": {
     "daedalus/runtimes/computer.py": 0,

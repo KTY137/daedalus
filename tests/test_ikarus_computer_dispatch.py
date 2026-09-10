@@ -54,7 +54,7 @@ def tearDownModule():
 
 PROJECT = "sunny_garden"
 OBJ = "verbessere den Parser"
-HAND = {"planner": {"provider": "claude_code_cli", "model": "sonnet", "remote_context": True},
+HAND = {"planner": {"provider": "claude_code_cli", "model": "sonnet", "remote_context": True, "leaves_machine": True},
         "tools": ["daedalus.status", "daedalus.slice", "file.read"],
         "workspace": "W", "policy_sha256": "e" * 64, "max_steps": 16, "timeout_s": 300}
 
@@ -308,7 +308,8 @@ class ComputerHandTest(unittest.TestCase):
             hand = ikarus_os._computer_hand(PROJECT)
         self.assertEqual(seen, [PROJECT])
         self.assertEqual(hand["tools"], ["daedalus.status", "file.read"])
-        self.assertEqual(hand["planner"], {"provider": "codex_cli", "model": None, "remote_context": True})
+        self.assertEqual(hand["planner"], {"provider": "codex_cli", "model": None, "remote_context": True,
+                                           "leaves_machine": True})
 
 
 class OfferTest(unittest.TestCase):
@@ -338,6 +339,19 @@ class OfferTest(unittest.TestCase):
         self.assertIn("verlassen den Rechner", res["assistant"])
         self.assertIn("`daedalus.status`", res["assistant"])
         self.assertIn("kein Beweis", res["assistant"])
+
+    def test_the_offer_egress_note_is_physics_not_the_consent_flag(self):
+        """Cerberus round 5 (H3 residue): the offer appended "(Beobachtungen
+        verlassen den Rechner)" from the consent flag; a tailnet Ollama without
+        the flag read as staying home. The note follows ``leaves_machine``."""
+        leaves = {**HAND, "planner": {"provider": "ollama_http", "model": None,
+                                      "remote_context": False, "leaves_machine": True}}
+        stays = {**HAND, "planner": {"provider": "ollama_http", "model": None,
+                                     "remote_context": True, "leaves_machine": False}}
+        self.assertIn("verlassen den Rechner", self._offer(hand=leaves)["assistant"])
+        self.assertNotIn("verlassen den Rechner", self._offer(hand=stays)["assistant"])
+        self.assertIn("leave this machine", self._offer("improve the parser", hand=leaves)["assistant"])
+        self.assertNotIn("leave this machine", self._offer("improve the parser", hand=stays)["assistant"])
 
     def test_the_english_offer_reads_in_english(self):
         res = self._offer("improve the parser")

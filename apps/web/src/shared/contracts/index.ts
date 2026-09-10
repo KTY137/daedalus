@@ -294,7 +294,14 @@ export type IkarusAskAction =
         objective: string;
         lane: 'computer';
         message: string;
-        planner?: { provider?: string | null; model?: string | null; remote_context?: boolean };
+        planner?: {
+          provider?: string | null;
+          model?: string | null;
+          /** consent flag of the policy (allow_remote_context) */
+          remote_context?: boolean;
+          /** physics: the planner's host is not this machine (G1-IKARUS-46, Cerberus round 5) */
+          leaves_machine?: boolean;
+        };
         tools?: string[];
       };
       requires_confirmation: boolean;

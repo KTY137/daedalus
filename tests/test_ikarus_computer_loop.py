@@ -691,21 +691,43 @@ def test_report_and_mission_artifact_carry_the_planner_provenance(isolated):
     root, ledger = isolated
     result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger,
                                     propose=planner(READ, DONE), mission_id="planner-local")
-    assert result["planner"] == {"provider": "ollama_http", "model": None, "remote_context": False}
+    local = {"provider": "ollama_http", "model": None, "remote_context": False, "leaves_machine": False}
+    assert result["planner"] == local
     artifacts = (root / "control" / "ikarus-computer-artifacts").glob("*.json")
     mission_artifact = next(json.loads(path.read_text()) for path in artifacts if '"repository_input"' in path.read_text())
-    assert mission_artifact["planner"] == {"provider": "ollama_http", "model": None, "remote_context": False}
+    assert mission_artifact["planner"] == local
 
 
 def test_remote_planner_is_named_in_the_report_the_chat_and_the_history(isolated):
     root, ledger = isolated
     result = loop.run_computer_task(root, "Read fixture", service=RemoteService(), ledger=ledger,
                                     propose=planner(READ, DONE), mission_id="planner-remote")
-    assert result["planner"] == {"provider": "codex_cli", "model": "gpt-6-astra", "remote_context": True}
+    assert result["planner"] == {"provider": "codex_cli", "model": "gpt-6-astra", "remote_context": True,
+                                 "leaves_machine": True}
     text = loop._chat_report(result)
     assert "Planner: codex_cli (gpt-6-astra)" in text
     assert "Kontext hat den Rechner verlassen: ja" in text
-    assert "verlassen: nein" in loop._chat_report({**result, "planner": {"provider": "ollama_http", "model": None, "remote_context": False}})
+    assert "verlassen: nein" in loop._chat_report({**result, "planner": {
+        "provider": "ollama_http", "model": None, "remote_context": False, "leaves_machine": False}})
+    # A report retained before the field existed cannot claim either way.
+    assert "verlassen: unbekannt" in loop._chat_report({**result, "planner": {
+        "provider": "ollama_http", "model": None, "remote_context": False}})
+
+
+def test_the_report_line_is_physics_not_the_consent_flag(monkeypatch):
+    """Cerberus round 5 (H3 residue): a tailnet Ollama configured WITHOUT
+    allow_remote_context read "Kontext hat den Rechner verlassen: nein" in the
+    status line, every mission report and the chat offer while slices crossed
+    the tunnel; with DAEDALUS_TRUSTED_HOSTS declared the same. The line now
+    follows the host, and the consent flag is reported beside it."""
+    monkeypatch.setenv("OLLAMA_HOST", "http://100.119.126.9:11434")
+    monkeypatch.setenv("DAEDALUS_TRUSTED_HOSTS", "100.119.126.9")
+    facts = loop._planner_facts("ollama_http", None, False)
+    assert facts == {"provider": "ollama_http", "model": None, "remote_context": False, "leaves_machine": True}
+    assert loop._planner_line(facts).endswith("verlassen: ja")
+    monkeypatch.setenv("OLLAMA_HOST", "http://[::1]:11434")
+    assert loop._planner_facts("ollama_http", None, True)["leaves_machine"] is False
+    assert loop._planner_facts("claude_code_cli", "sonnet", True)["leaves_machine"] is True
 
 
 def test_a_report_without_planner_facts_still_renders(isolated):
