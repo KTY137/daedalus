@@ -306,20 +306,40 @@ export function Conversation({
   const pinToNewest = useCallback(() => {
     const el = scroller.current;
     if (!el) return;
+    // `:last-of-type` would have meant "the last <article>", which is only the
+    // last turn for as long as turns are the only article children. One added
+    // element and the pin stops, silently and with nothing failing.
+    const turnEls = el.querySelectorAll(':scope > .turn');
+    const last = turnEls[turnEls.length - 1];
     // No turn means the empty state, which is an invitation and not a
     // transcript tail -- the layout effect below puts that at the top, and a
     // pin that ran here would drag the heading out of a 390 px viewport.
-    const last = el.querySelector(':scope > .turn:last-of-type');
     if (!last) return;
-    // Order matters. `scrollIntoView` first, because it makes Chromium render
-    // the newest turn even when conversation.css had skipped it; until then
-    // its height is a placeholder and the extent below it is a guess. The
-    // assignment second, because `block: 'end'` aligns the turn's own bottom
-    // EDGE and stops ~19 px above the scrollport's, which is not "at the end
-    // of the conversation" (tests/ide.spec.ts asserts a gap of <= 2 px). With
-    // the last turn measured, `scrollHeight` is exact from there down and the
-    // browser clamps the assignment to the true maximum.
-    last.scrollIntoView({ block: 'end', inline: 'nearest' });
+    /*
+     * MOVE THIS BOX AND NOTHING ABOVE IT.
+     *
+     * `last.scrollIntoView(...)` was the obvious call and the wrong one: it
+     * walks the whole ancestor scroll chain. Two ancestors here are
+     * programmatically scrollable -- `.cockpit-body.talk` (shell.css, and
+     * `overflow: hidden` under the tablet breakpoint in responsive.css) and
+     * `.cockpit` itself (shell.css, `overflow: hidden`, so no scrollbar the
+     * reader could drag back). `onScroll` is bound to this scroller only, so
+     * `pinned` would stay true while every streamed delta scrolled the shell
+     * further out from under the reader, with no way to stop it.
+     *
+     * The offset is the same arithmetic `block: 'end'` performs, applied to
+     * one element. It also does not need the newest turn to have been
+     * rendered: conversation.css skips off-screen turns, and a skipped turn
+     * still has a placeholder box, so this lands close and the ResizeObserver
+     * below re-pins exactly once the real height arrives.
+     */
+    const gap = last.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom;
+    if (gap) el.scrollTop += gap;
+    // The element's own bottom EDGE sits ~19 px above the scrollport's, which
+    // is not "at the end of the conversation" (tests/ide.spec.ts asserts a gap
+    // of <= 2 px). With the newest turn in view its height is real, the extent
+    // from there down is exact, and the browser clamps this to the true
+    // maximum.
     el.scrollTop = el.scrollHeight;
   }, []);
 

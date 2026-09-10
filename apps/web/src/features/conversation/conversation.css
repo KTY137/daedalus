@@ -190,6 +190,20 @@
 .turn { display: grid; }
 .turn-body { display: grid; gap: var(--u2); justify-items: start; }
 .turn-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+/*
+ * A link inside an answer is the one control in a turn that still relied on
+ * `.cockpit :focus-visible` (shell.css), which paints a 2px outline at a 2px
+ * offset -- 4px OUTSIDE the border box. Since `content-visibility: auto` above
+ * implies `contain: paint`, and `.turn-body`'s rows sit flush on the turn's
+ * edges (`justify-items: start`, no padding), a keyboard reader tabbing to it
+ * lost part of the indicator: measured reach 4px against 0px of room.
+ * Same inset treatment as `.cite` below, which already had it.
+ */
+.turn-text a:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
 .turn-text > p { margin: 0; white-space: pre-wrap; }
 .turn-text > p + p { margin-top: 0.7em; }
 
