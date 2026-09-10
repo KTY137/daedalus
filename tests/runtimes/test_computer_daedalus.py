@@ -953,7 +953,32 @@ def test_a_diverged_withheld_block_is_dropped_even_when_the_text_was_bounded(tmp
     assert sliced["text_elided"] is True  # the bound fired: this is the excepted path
     assert "iseg" not in payload and "denylisted path fragment" not in payload
     assert "x = 1" in sliced["text"] and "y = 2" in sliced["text"]  # ordinary slice text survives
-    assert sliced["withheld_count"] == 1 and "unreadable withheld line" in sliced["text"]
+    assert sliced["withheld_count"] == 1 and sliced["text_block_lines_dropped"] == 2
+    assert "shaped like a withheld block" in sliced["text"]
+    # Cerberus round 12 (F-2): the round-11 filter matched the bare WORD, so
+    # ordinary source lines of a truncated slice were deleted and counted as
+    # withheld. Reachable today: a focus file over the bound leaves the
+    # slicer's own block cut off, and 75 tracked modules use the word.
+    prose = ("# The withheld rows name the FILES the gate refused\n"
+             "value = compute(withheld_count)  # withheld here is a variable\n"
+             "#### WITHHELD BLOCK v2 ####\n"
+             "# tct_app/devices/iseg.py  (denylisted path fragment)  [context]\n"
+             "tail = 1\n" + "z = 3\n" * 40000)
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": prose, "withheld": [row]})
+    kept = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})["text"]
+    assert "The withheld rows name the FILES" in kept and "withheld here is a variable" in kept
+    assert "iseg" not in kept and "WITHHELD BLOCK v2" not in kept and "tail = 1" in kept
+    # A slicer that renames only its BANNER leaves bare breadcrumbs in the head
+    # (M71 survived the round-12 table: no test covered one without a banner).
+    bare = ("head = 0\n"
+            "# tct_app/devices/iseg.py  (denylisted path fragment)  [context]\n"
+            "keep = 1\n" + "z = 3\n" * 40000)
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": bare, "withheld": [row]})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert "iseg" not in json.dumps(sliced) and "head = 0" in sliced["text"] and "keep = 1" in sliced["text"]
+    assert sliced["text_block_lines_dropped"] == 1
 
 
 def test_a_withheld_block_under_a_diverged_header_never_travels(tmp_path, monkeypatch):
@@ -975,9 +1000,19 @@ def test_a_withheld_block_under_a_diverged_header_never_travels(tmp_path, monkey
     sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
     payload = json.dumps(sliced)
     assert "iseg" not in payload and "denylisted path fragment" not in payload
-    assert "x = 1" in sliced["text"]  # ordinary slice text is not collateral
-    assert sliced["withheld_count"] == 1 and "unreadable withheld line" in sliced["text"]
-    assert subject._WITHHELD_HEADER in sliced["text"]  # the gated block is there instead
+    assert "x = 1" not in sliced["text"] and "fail-closed" in sliced["text"]
+    assert sliced["withheld_count"] == 1 and subject._WITHHELD_HEADER in sliced["text"]
+    # Cerberus round 12 (F-1): round 11 replaced this fail-closed branch with a
+    # keyword filter, and these three spellings walked through it carrying the
+    # file name and the project's own deny fragment.
+    for divergent in (
+            "x = 1\n# excluded: tct_app/devices/iseg.py -- denylisted path fragment 'tct_app/devices/'",
+            "x = 1\n# tct_app/devices/iseg.py\n#   rule: denylisted path fragment 'tct_app/devices/'",
+            "x = 1\n#### ZURUECKGEHALTEN ####\n# redacted file: tct_app/devices/iseg.py, denylisted path fragment"):
+        monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, _d=divergent, **kw: {
+            "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": _d, "withheld": [row]})
+        out = json.dumps(adapter.execute("daedalus.slice", {"module": "pkg/mod.py"}))
+        assert "iseg" not in out and "denylisted path fragment" not in out and "ZURUECK" not in out
 
 
 def test_a_failure_while_consuming_a_payload_is_a_class_only_refusal(tmp_path, monkeypatch):

@@ -190,12 +190,18 @@ _EMBEDDED_HOST_PATH = re.compile(
 )
 
 
-#: A line that talks about withholding, in ANY spelling, and the shape of the
-#: slicer's per-file breadcrumb. Used only when the pinned header is absent:
-#: such a line is the slicer's own record of what it refused, so it never
-#: travels (Cerberus round 11, F-A).
-_WITHHELD_MARKER = re.compile(r"withheld", re.IGNORECASE)
-_BREADCRUMB = re.compile(r"^\s*#\s*\S+\s*\(.*\)\s*(\[[^\]]*\])?\s*$")
+#: The SHAPE of a withheld block: a banner comment whose first word after the
+#: comment markers and any rule characters is "withheld", the comment lines
+#: under it, and a per-file breadcrumb naming a file, a rule in parentheses and
+#: a ROLE in brackets. Used on ONE narrow path (see ``_slice``): a text the
+#: adapter's own bound truncated, which therefore cannot contain the slicer's
+#: own block unless that block diverged from the pinned spelling AND sat in the
+#: head. Matching the bare word instead deleted ordinary source lines -- this
+#: adapter, the slicer and 75 other tracked modules talk about withholding --
+#: and counted them as withheld (Cerberus round 12, F-2).
+_WITHHELD_BANNER = re.compile(r"^\s*#+[\s=*#~<>|-]*withheld\b", re.IGNORECASE)
+_BREADCRUMB = re.compile(r"^\s*#\s*\S+\s+\(.*\)\s+\[[^\]]*\]\s*$")
+_COMMENT_LINE = re.compile(r"^\s*#")
 
 
 def _mentions_host_path(text: str) -> bool:
@@ -839,6 +845,7 @@ class DaedalusObservation:
             # a measurement of the payload (Cerberus round 10, F3).
             rows = [{"role": "unknown", "rule": "egress_rule"}]
         shown = rows[:TOP]
+        block_lines = 0
         rebuilt = ("".join(f"\n# <withheld>  ({row['rule']})  [{row['role']}]" for row in shown)
                    + (f"\n# ... {len(rows) - len(shown)} more withheld" if len(rows) > len(shown) else ""))
         if any(row["role"] == "focus" for row in rows):
@@ -858,25 +865,42 @@ class DaedalusObservation:
             trimmed = [line.rstrip("\r") for line in tail.splitlines() if line.startswith(_TRIMMED_MARKER)]
             text = (head + _WITHHELD_HEADER + rebuilt
                     + "".join("\n" + line for line in trimmed))
+        elif rows and not elided:
+            # Files were withheld, the text was NOT bounded, and it carries no
+            # block this rebuild knows: the slicer's header spelling diverged
+            # from the one pinned here, so ANY of its lines may be a breadcrumb
+            # in a spelling no pattern here recognises. Round 11 tried a keyword
+            # filter and three of the reviewer's spellings walked through it
+            # carrying the withheld file name and the project's own deny
+            # fragment (Cerberus round 12, F-1). The text answers like a
+            # withheld hit instead (fail-closed).
+            text = (_WITHHELD_HEADER + rebuilt
+                    + "\n# slice text withheld: the withheld block could not be rebuilt (fail-closed).")
         elif rows:
-            # Files were withheld and the text carries no block this rebuild
-            # knows: this adapter's bound cut it off, or the slicer's header
-            # spelling diverged from the one pinned here. Round 10 excepted the
-            # bounded case on the assumption that truncation takes the
-            # breadcrumbs with it -- it does not, because a divergent block
-            # need not be last (Cerberus round 11, F-A: the file name, the
-            # project's own deny fragment and the rule text all travelled).
-            # One rule for both: every withheld-looking line is dropped and
-            # counted, and the gated block is appended.
-            kept, dropped = [], 0
+            # Files were withheld and this adapter's own bound cut the end off,
+            # which is where the slicer keeps its block. A block in the HEAD is
+            # therefore a divergent one (Cerberus round 11, F-A: a divergent
+            # block need not be last, so truncation does not take it with it).
+            # Only the SHAPE of a block is dropped here, and the count says what
+            # it counted -- lines matching that shape, not files the gate
+            # refused. Withholding the whole text on this path would throw away
+            # every long slice that has any withheld file at all.
+            kept, block_lines, in_block = [], 0, False
             for line in text.splitlines():
-                if _WITHHELD_MARKER.search(line) or _BREADCRUMB.match(line):
-                    dropped += 1
+                if _WITHHELD_BANNER.match(line):
+                    in_block, block_lines = True, block_lines + 1
+                    continue
+                if in_block and _COMMENT_LINE.match(line):
+                    block_lines += 1  # the banner's own comment block, to the first line of code
+                    continue
+                in_block = False
+                if _BREADCRUMB.match(line):
+                    block_lines += 1
                     continue
                 kept.append(line)
-            elided = elided or bool(dropped)
             text = ("\n".join(kept).rstrip("\n") + "\n" + _WITHHELD_HEADER + rebuilt
-                    + (f"\n# ... {dropped} unreadable withheld line(s) dropped" if dropped else ""))
+                    + (f"\n# ... {block_lines} line(s) shaped like a withheld block were dropped from the head"
+                       if block_lines else ""))
         # The resolved focus path is disclosed only if the gate admits it: a
         # basename resolves to its full indexed path, which on the untrusted
         # lane may be exactly the directory the project withholds (Cerberus
@@ -891,6 +915,9 @@ class DaedalusObservation:
         text, redacted = _redact_host_paths(text)
         return {"focus_file": focus, "lane": lane, **counters, "fields_withheld": counters_withheld,
                 "withheld": shown, "withheld_count": len(rows),
+                # Separate from ``text_elided``: the bound is one cause, the
+                # block-shape filter another (Cerberus round 12, F-2).
+                "text_block_lines_dropped": block_lines,
                 "withheld_elided": max(0, len(rows) - TOP),
                 "text": text, "text_elided": elided, "text_host_paths_redacted": redacted}
 

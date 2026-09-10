@@ -358,6 +358,26 @@ MORE, none redacting less. Cerberus's ten reported inputs are clean, including
 both producer-reachable ones. Mutation table 13: 67 guards applied, 67 caught,
 restored tree green.
 
+## Review round 12 (2026-09-10, `42e43737`)
+
+**Cerberus: `approve`, blocking false.** Both mediums were introduced by the
+round-11 repair, which is the lesson of this round: a repair is a change and
+has to be measured like one.
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| F-1 (medium, introduced) | round 11 replaced a fail-closed branch with a keyword filter. Three divergent spellings the reviewer wrote walked through it carrying the withheld file name and the project's own deny fragment; at the previous commit they carried nothing | the UNBOUNDED diverged case is fail-closed again: the text answers like a withheld hit. A keyword filter is not a boundary | `test_a_withheld_block_under_a_diverged_header_never_travels` (all three spellings); M70 |
+| F-2 (medium, introduced, reachable today) | the filter matched the bare WORD, and a focus file over the text bound leaves the slicer's own block cut off — so ordinary source lines were deleted and counted as withheld. Measured by the reviewer on `daedalus/council/vendors.py` (7 lines) and `daedalus/eval/harness.py` (12) | the filter runs ONLY where the bound truncated the text, matches the SHAPE of a block (a banner comment, its comment lines, breadcrumbs carrying a role), and the count says what it counted. Re-measured on five real modules: 0 lines dropped, against 7/13/2/13/18 under the round-11 rule | `test_a_diverged_withheld_block_is_dropped_even_when_the_text_was_bounded`; M69, M71 |
+| F-3 (low) | the round-11 wording said the ordinary slice text survives | true only where it lacks the word; the row above says what the rule is | this document |
+| F-4 (low, pre-existing, not this packet's) | a Mapping row's `role` travels raw; not producer-reachable, the slicer's vocabulary is closed | recorded for a follow-up packet | — |
+
+**Measured this round.** Seventeen suites 690 passed, 4 skipped, 153 subtests;
+mutation table 15: 71 guards, 71 caught (M71 survived the first pass as an
+untested guard, got its pin and was re-run: caught — the annotated lines are in
+the table); s02 kernel row unchanged (7161 functions, 47562 type-name sites).
+`text_block_lines_dropped` is a separate counter, so the bound's flag no longer
+carries two meanings.
+
 ## Review round 11 (2026-09-10, `c2100e1e`)
 
 **Cerberus: `approve`, blocking false — nothing blocks the PR.** All four
