@@ -17,13 +17,15 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
         profile_repeats=2,
     )
 
-    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/3"
+    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/4"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert "compile_relation_blocks" in report["measurement_contract"]
     assert "No production delta path" in report["measurement_contract"]
     assert "direct compiler callees" in report["measurement_contract"]
+    assert "aggregate Forest binding digest" in report["measurement_contract"]
+    assert "Fourfold subject digest" in report["measurement_contract"]
 
     case = report["case"]
     assert case["base_forest_edges"] == 24
@@ -52,9 +54,13 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
     assert attribution["non_block_compiler_residual_cumulative_ms_median"] >= 0.0
     assert attribution["observed_same_plane_edge_admission_cumulative_ms_median"] >= 0.0
     assert attribution["fact_aggregation_direct_cumulative_ms_median"] >= 0.0
+    assert attribution["identity_binding_digest_cumulative_ms_median"] >= 0.0
     assert (
         attribution[
             "remaining_non_block_after_observed_edge_and_fact_cumulative_ms_median"
+        ]
+        >= attribution[
+            "remaining_non_block_after_observed_edge_fact_and_identity_cumulative_ms_median"
         ]
         >= 0.0
     )
@@ -64,12 +70,19 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
     assert metrics["typed_block_post_init"]["calls"] == 1
     assert metrics["fact_aggregation"]["calls"] == 25
     assert metrics["forest_partition_validation"]["calls"] == 1
+    assert metrics["forest_binding_digest"]["calls"] == 1
+    assert metrics["fourfold_subject_digest"]["calls"] == 1
     assert metrics["edge_signature_construction"]["calls"] == 0
     assert metrics["edge_wire_materialization"]["calls"] == 25
     assert metrics["retained_relation_digest"]["calls"] == 25
     assert metrics["fact_aggregation_direct"]["calls"] == 25
+    assert (
+        attribution["identity_binding_digest_fraction_of_profiled_compiler_cumulative"]
+        >= 0.0
+    )
     assert "conservative lower bound" in attribution["interpretation"]
     assert "zero direct per-edge" in attribution["interpretation"]
+    assert "one-call identity work" in attribution["interpretation"]
     assert "not a pure edge-scan wall" in attribution["interpretation"]
 
     assert report["fail_closed"]["partial_endpoint_plane"] == "refused"
