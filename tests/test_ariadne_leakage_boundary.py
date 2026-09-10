@@ -9,6 +9,9 @@ discipline the ignored-root refusal already has.
 """
 from __future__ import annotations
 
+import importlib
+from pathlib import Path
+
 import pytest
 
 import daedalus.ariadne.campaign as module
@@ -41,6 +44,17 @@ PROTECTED = (
     "tests/test_ariadne_leakage_boundary.py",
     "DAEDALUS/SPINE/ledger.py",
     "Docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    # G1-ARIADNE-13: the boundary covered `campaign.py` and not the code that
+    # ENFORCES it. Each of these answered UNPROTECTED before this packet.
+    "daedalus/runtimes/computer_ariadne.py",
+    "daedalus/runtimes/computer.py",
+    "daedalus/orchestration/ikarus/computer_schedule.py",
+    "daedalus/kairos/gated_writes.py",
+    "daedalus/config.py",
+    "tests/kernel/test_sealed_promotion.py",
+    "tests/runtimes/test_computer_ariadne.py",
+    "tests/test_ikarus_computer_loop_ariadne.py",
+    "tests/test_ikarus_computer_schedule_autonomy.py",
 )
 
 ADMITTED = (
@@ -52,6 +66,19 @@ ADMITTED = (
     "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md",
     "tests/test_eval.py",
     "README.md",
+    # The widening must stay narrow. These are ordinary self-Renovation
+    # subjects and a prefix that swallowed them would make the strand useless:
+    # `daedalus/runtimes/computer.py` must not take its siblings with it, and
+    # `daedalus/config.py` must not take the package.
+    "daedalus/runtimes/computer_files.py",
+    "daedalus/runtimes/computer_desktop.py",
+    "daedalus/runtimes/computer_daedalus.py",
+    "daedalus/orchestration/ikarus/computer_loop.py",
+    "daedalus/orchestration/loop.py",
+    "daedalus/kairos/scheduler.py",
+    "daedalus/health.py",
+    "tests/test_health_surface.py",
+    "tests/runtimes/test_computer_files.py",
 )
 
 
@@ -120,3 +147,71 @@ def test_the_tuple_covers_every_class_the_plan_names() -> None:
         "daedalus/ariadne/campaign.py",
     ):
         assert needle in joined
+
+
+#: What each newly protected module HOLDS. The boundary is expressed as paths,
+#: so a refactor that moves one of these callables or constants would silently
+#: un-protect it while every path test stayed green. Binding the assertion to
+#: the symbol makes the move turn this red instead (G1-ARIADNE-13).
+LOAD_BEARING = (
+    ("daedalus.kairos.gated_writes", "promote_candidates",
+     "the callable that promotes a candidate into the checkout"),
+    ("daedalus.config", "DEFAULT_WRITE_WAVE_POLICY",
+     "the constant that makes the write wave policy 'never' by default"),
+    ("daedalus.config", "WRITE_WAVE_POLICY_LEVELS",
+     "the closed set that has no level except 'never'"),
+    ("daedalus.orchestration.ikarus.computer_schedule", "_repeat_permission",
+     "the gate deciding whether a recurring campaign series continues"),
+    ("daedalus.runtimes.computer", "ComputerService._admit_release_capability",
+     "the fence that admits the campaign tool at all"),
+    ("daedalus.ariadne.campaign", "SELF_RENOVATION_PROTECTED_PREFIXES",
+     "this boundary itself"),
+)
+
+
+@pytest.mark.parametrize("module_name,symbol,what", LOAD_BEARING)
+def test_the_module_defining_each_load_bearing_name_is_protected(
+    module_name, symbol, what
+) -> None:
+    """Ask the interpreter where the name lives, then require that file to be
+    behind the boundary.
+
+    Before G1-ARIADNE-13 four of these six answered UNPROTECTED, so a
+    self-Renovation candidate could NOMINATE an edit to the callable that
+    promotes, to the constant that forbids writing, to the gate that continues
+    a series, and to the fence that admits its own tool. Promotion still
+    required an owner approval -- this was defence in depth, not a breach --
+    but a candidate one approval away from removing its own door is not a
+    boundary anyone should rely on while campaigns run unattended."""
+
+    imported = importlib.import_module(module_name)
+    holder = imported
+    for part in symbol.split("."):
+        assert hasattr(holder, part), (
+            f"{module_name}.{symbol} moved or was renamed: {what}")
+        holder = getattr(holder, part)
+    source = Path(imported.__file__).resolve()
+    repo_root = Path(module.__file__).resolve().parents[2]
+    relative = source.relative_to(repo_root).as_posix()
+    named = protected_prefix_for(relative)
+    assert named is not None, (
+        f"{relative} holds {symbol} ({what}) and is NOT behind the leakage "
+        f"boundary. Either add a prefix covering it, or say in the packet why "
+        f"a candidate may nominate a change to it.")
+
+
+def test_the_boundary_covers_its_own_enforcement_not_only_its_definition() -> None:
+    """The measurement that produced this packet, kept as a test.
+
+    `daedalus/ariadne/campaign.py` DEFINES the boundary; these enforce it. A
+    boundary that protects its definition and not its enforcement protects a
+    document."""
+
+    for relative in (
+        "daedalus/runtimes/computer_ariadne.py",
+        "daedalus/runtimes/computer.py",
+        "daedalus/orchestration/ikarus/computer_schedule.py",
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/config.py",
+    ):
+        assert protected_prefix_for(relative) is not None, relative

@@ -868,6 +868,27 @@ def _base_tree_binding(
 #: (``daedalus/kernel/promotion`` covers ``promotion.py``, ``promotion_*.py``).
 #: The tuple is unconditional: a foreign repository that happens to carry an
 #: ``AGENTS.md`` is refused the same way, which is the safe direction.
+#: Plan section 8.1 names the spine, kernel policy enforcement, the plan, the
+#: amendment chain, `AGENTS.md` and "tests of its own evaluator". This list is
+#: STRICTER than that text, which section 0 permits: for effects the stricter
+#: mechanical policy wins, and the plan is a floor for protection rather than a
+#: ceiling.
+#:
+#: The five `daedalus/` entries below were added after a measurement found that
+#: the boundary covered `campaign.py` but NOT the code that enforces it: a
+#: self-Renovation candidate could nominate an edit to its own tool door, to
+#: the gate that decides whether a recurring series continues, to the module
+#: where `promote_candidates` lives, and to the constant that says the write
+#: wave policy is "never". Promotion still required an owner approval, so this
+#: was defence in depth rather than a breach -- but a candidate that can
+#: nominate a change to its own door is one approval away from a candidate
+#: without one, and that is the wrong thing to be relying on when campaigns run
+#: unattended.
+#:
+#: Protection is by FILE where the risk is a specific constant or callable, and
+#: by DIRECTORY where the whole thing is boundary machinery. The cost is real
+#: and stated: self-Renovation can no longer propose an improvement to any of
+#: these, so improving them stays human work.
 SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     "daedalus/spine/",
     "daedalus/kernel/policy/",
@@ -875,12 +896,31 @@ SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     "daedalus/kernel/approvals.py",
     "daedalus/kernel/contracts/",
     "daedalus/ariadne/campaign.py",
+    # The door that enforces this boundary, and the fence that admits the tool.
+    "daedalus/runtimes/computer_ariadne.py",
+    "daedalus/runtimes/computer.py",
+    # `_repeat_permission`: whether a recurring campaign series continues.
+    "daedalus/orchestration/ikarus/computer_schedule.py",
+    # `promote_candidates` itself. `daedalus/kernel/promotion` covered the
+    # contracts and missed the callable.
+    "daedalus/kairos/gated_writes.py",
+    # WRITE_WAVE_POLICY_LEVELS = ("never",) and DEFAULT_WRITE_WAVE_POLICY.
+    "daedalus/config.py",
     "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
     "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
     "AGENTS.md",
     "CLAUDE.md",
     ".agentenv/",
+    # "tests of its own evaluator" (section 8.1). `tests/test_ariadne` covered
+    # four files and missed every other suite that guards this boundary.
     "tests/test_ariadne",
+    "tests/test_ikarus_computer_loop_ariadne.py",
+    "tests/test_ikarus_computer_schedule",
+    "tests/runtimes/test_computer_ariadne.py",
+    # The kernel's own suites: `daedalus/kernel/policy/`, `promotion*`,
+    # `approvals.py` and `contracts/` are protected, so a candidate must not
+    # reach the tests that prove they work either.
+    "tests/kernel/",
 )
 
 
