@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
-from dataclasses import asdict
+import tarfile
+from dataclasses import asdict, dataclass
+from xml.etree import ElementTree
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -103,6 +108,328 @@ _EVALUATOR_OBSERVATION_KEYS = (
 _INTERPRETER_PROVENANCE_KEYS = frozenset(
     {"implementation", "version", "platform", "binary_sha256"}
 )
+#: The test-command evaluator (G1-IKARUS-48). The exact-match evaluator above
+#: proves that an edit landed; it says nothing about whether the project still
+#: works, which is why no receipt written by it may be called self-improvement.
+TEST_EVALUATOR_OBSERVATION_SCHEMA = "daedalus-ariadne-test-evaluator-observation/1"
+_TEST_OBSERVATION_KEYS = (
+    "schema", "variant_id", "seed", "evaluator_sha256", "passed", "returncode",
+    "output", "output_sha256", "candidate_tree_sha256", "containment", "interpreter",
+    "command_sha256", "timed_out", "workspace_files", "workspace_bytes", "report",
+    "workspace_removed", "child_environment", "child_network", "verdict_is_self_reported",
+)
+#: Only this interpreter token may open a test command. It is replaced by the
+#: interpreter the campaign resolved, so an argv can never name a binary path.
+_TEST_ARGV_INTERPRETER = "python"
+MAX_TEST_ARGV = 32
+MAX_TEST_ARG_CHARS = 200
+MAX_TEST_TIMEOUT_S = 900
+#: The command's output is NOT retained. Measured 2026-09-10 (Cerberus round 1):
+#: the child inherits the operator's environment, so a candidate that prints it
+#: put a live API key into the retained observation. A digest and the report
+#: counts say what happened; the output itself stays in the gate's scratch.
+MAX_TEST_OUTPUT_CHARS = 0
+#: The report the campaign appends to every test command, inside the workspace.
+#: An exit code cannot distinguish "the tests passed" from "no test ran"; the
+#: proven attack switched the suite off and passed (Cerberus round 1, CRITICAL 2).
+TEST_REPORT_RELATIVE = "daedalus-ariadne-report.xml"
+#: The report is hostile input to the orchestrator, so it is bounded before it
+#: is parsed at all.
+MAX_TEST_REPORT_BYTES = 4 * 1024 * 1024
+#: Seconds allowed per arm for building the evaluation workspace, on top of the
+#: command's own timeout. Measured on this repository: 4.5-5 s for 6371 files.
+WORKSPACE_BUILD_ALLOWANCE_S = 60
+#: Files that CONFIGURE a test session rather than being tested by it. A
+#: candidate that owns one of these owns the verdict, whatever the test files
+#: say, so they are refused as targets for the whole class -- the same shape as
+#: SELF_RENOVATION_PROTECTED_PREFIXES, by name at any depth.
+SESSION_CONTROL_NAMES = frozenset({
+    "conftest.py", "pytest.ini", "pyproject.toml", "setup.cfg", "setup.py",
+    "tox.ini", "sitecustomize.py", "usercustomize.py", "conftest.pyi",
+})
+SESSION_CONTROL_SUFFIXES = (".pth",)
+#: A workspace built from one revision of an ordinary repository. Measured on
+#: this repository 2026-09-10: 6371 files, 284 MiB, 4.5 s.
+MAX_WORKSPACE_FILES = 50_000
+MAX_WORKSPACE_BYTES = 2 * 1024 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class TestCommandEvaluator:
+    """A frozen, caller-declared test command.
+
+    What this is, precisely, and what it is not:
+
+    1. the candidate cannot pick its judge -- ``argv`` and ``timeout_s`` come
+       from the caller, are frozen into the ``ExperimentSpec`` before any arm
+       runs, and their digest is part of the campaign's identity;
+    2. the candidate cannot rewrite the TEST FILES or the session configuration
+       -- the workspace is the pinned revision with exactly one file
+       overwritten, a target under ``test_roots`` is refused, and so is one
+       named in :data:`SESSION_CONTROL_NAMES`. It is NOT true that the
+       overwritten file cannot influence the run: it must be a file the suite
+       exercises, or the negative control could never fail. That is the point
+       of the arm, and it is also the hole a `conftest.py` target opened
+       (Cerberus round 1);
+    3. an exit code is not a verdict -- the campaign appends its own JUnit
+       report and requires that tests actually EXECUTED, and that the repair arm
+       executed exactly as many as the baseline, because a candidate that
+       switched the suite off exited zero and was nominated, and a candidate
+       that forged a report claiming 41 tests was nominated too;
+    4. a judge that cannot tell the difference is reported -- the negative
+       control arm must FAIL, and when it passes the campaign nominates nothing
+       and says the suite is blind to this file.
+
+    NOT PROOF AGAINST A HOSTILE GENERATOR, and this is the sharpest limit of
+    the whole design. The target file must be one the suite imports, so the
+    candidate's code runs inside the judging process. Everything the harness
+    reads back afterwards -- the exit code, the output, the JUnit report in the
+    workspace -- is produced by that process, and the workspace has to stay
+    writable or pytest could not write the report at all. A candidate that
+    executes code at import can therefore write a report and exit zero.
+    Equality with the baseline's executed count closes the demonstrated attack
+    and the "more but weaker" class, but a forger that counts the suite itself
+    and reports that number is not caught. The verdict is a SELF-REPORT, every
+    observation says so in ``verdict_is_self_reported``, and the structural fix
+    -- observing the run from outside the child -- is a separate packet. What
+    stands between a forged verdict and the repository is unchanged: nomination
+    is not promotion, and promotion needs a one-use owner approval.
+
+    NOT a sandbox claim. The child runs in the existing contained gate, whose
+    environment is a DENYLIST, not an allowlist, and which has no network fence.
+    Measured 2026-09-10: a candidate that prints its environment sees the
+    operator's provider keys, and a socket to a public address connects. The
+    approval secret is scrubbed; nothing else is. This evaluator therefore does
+    not retain the command's output, and the receipt states the reach rather
+    than implying a fence.
+    """
+
+    argv: tuple[str, ...]
+    timeout_s: int = 120
+    test_roots: tuple[str, ...] = ("tests/",)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": "test-command-v1",
+            "argv": list(self.argv),
+            "timeout_s": self.timeout_s,
+            "test_roots": list(self.test_roots),
+        }
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
+
+def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
+    """Every refusal here happens before the repository is observed."""
+
+    if not isinstance(value, TestCommandEvaluator):
+        raise AriadneCampaignError("evaluator must be a TestCommandEvaluator")
+    argv = value.argv
+    if (not isinstance(argv, tuple) or not 1 <= len(argv) <= MAX_TEST_ARGV
+            or any(type(item) is not str for item in argv)):
+        raise AriadneCampaignError(
+            f"evaluator argv must be 1-{MAX_TEST_ARGV} text arguments")
+    if argv[0] != _TEST_ARGV_INTERPRETER:
+        # The lease grants tools=("python",) and the campaign substitutes the
+        # interpreter it resolved, so an argv can never name a binary path.
+        raise AriadneCampaignError(
+            f"evaluator argv must start with '{_TEST_ARGV_INTERPRETER}'")
+    for item in argv:
+        if not item or len(item) > MAX_TEST_ARG_CHARS or "\x00" in item:
+            raise AriadneCampaignError("evaluator argv entries must be short, non-empty text")
+    # No working directory: the kernel's command gate requires ``gate_cwd='.'``
+    # and runs at the workspace root, so offering one would be a promise the
+    # kernel refuses. The argv carries the selection instead.
+    if (isinstance(value.timeout_s, bool) or not isinstance(value.timeout_s, int)
+            or not 1 <= value.timeout_s <= MAX_TEST_TIMEOUT_S):
+        raise AriadneCampaignError(
+            f"evaluator timeout_s must be an integer between 1 and {MAX_TEST_TIMEOUT_S}")
+    roots = value.test_roots
+    if not isinstance(roots, tuple) or not roots or any(type(r) is not str for r in roots):
+        raise AriadneCampaignError("evaluator test_roots must be non-empty text prefixes")
+    for root in roots:
+        _admit_workspace_relative(root.rstrip("/"), label="evaluator test root")
+    return value
+
+
+def _admit_workspace_relative(value: str, *, label: str) -> str:
+    """A path that stays inside the workspace, by the same lexical rule the
+    target path is held to. No absolute path, no traversal, no device name."""
+
+    if value.startswith("/") or value.startswith("\\") or ":" in value:
+        raise AriadneCampaignError(f"{label} must be relative to the workspace")
+    parts = [part for part in value.replace("\\", "/").split("/")]
+    if not parts or any(part in ("", ".", "..") for part in parts):
+        raise AriadneCampaignError(f"{label} must have no empty or relative segments")
+    for part in parts:
+        if part != part.strip() or part.endswith("."):
+            raise AriadneCampaignError(f"{label} has a segment the filesystem would rewrite")
+    return "/".join(parts)
+
+
+def _read_test_report(path: Path) -> dict[str, int]:
+    """The counts a JUnit report states, or a refusal.
+
+    This is the difference between "the command exited zero" and "the tests
+    ran and passed". The proven attack (Cerberus round 1) exited zero with
+    every item skipped.
+    """
+
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise AriadneCampaignError(
+            f"the test command wrote no report: {type(exc).__name__}"
+        ) from exc
+    if len(raw) > MAX_TEST_REPORT_BYTES:
+        raise AriadneCampaignError("the test report exceeds its bound")
+    # Hostile input: a candidate influenced the process that wrote this file.
+    # `ElementTree` does not resolve EXTERNAL entities, but it expands internal
+    # ones, which is the billion-laughs shape. The parser exposes no handler to
+    # assign, so the two constructs are refused textually before parsing --
+    # neither belongs in a JUnit report, and the alternative is a dependency
+    # (`defusedxml`) this repository does not have.
+    lowered = raw[:4096].lower()
+    if b"<!doctype" in lowered or b"<!entity" in raw.lower():
+        raise AriadneCampaignError(
+            "the test report declares a doctype or an XML entity"
+        )
+    try:
+        root_element = ElementTree.fromstring(raw)
+    except (ElementTree.ParseError, ValueError) as exc:
+        raise AriadneCampaignError(
+            f"the test report is not readable XML: {type(exc).__name__}"
+        ) from exc
+    suites = ([root_element] if root_element.tag == "testsuite"
+              else list(root_element.iter("testsuite")))
+    counts = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+    for suite in suites:
+        for key in counts:
+            try:
+                counts[key] += int(suite.get(key, "0") or 0)
+            except ValueError as exc:
+                raise AriadneCampaignError(
+                    "the test report has a non-numeric count"
+                ) from exc
+    counts["executed"] = max(0, counts["tests"] - counts["skipped"])
+    return counts
+
+
+def _remove_evaluation_workspace(workspace: Path) -> bool:
+    """Remove one arm's evaluation workspace. The receipt is the evidence."""
+
+    try:
+        shutil.rmtree(workspace, ignore_errors=False)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+
+
+def _campaign_lease_timeout_s(timeout_s: int, evaluator: "TestCommandEvaluator | None") -> int:
+    """How long the whole campaign may take: three arms plus their workspaces.
+
+    A workspace of this repository takes about 5 s to build, so the allowance is
+    three times the arm timeout plus a construction margin per arm.
+    """
+
+    per_arm = timeout_s if evaluator is None else evaluator.timeout_s
+    return int(per_arm * 3 + (0 if evaluator is None else 3 * WORKSPACE_BUILD_ALLOWANCE_S))
+
+
+def _refuse_target_inside_test_roots(target_path: str, test_roots: tuple[str, ...]) -> None:
+    """A candidate may not be a test when tests are the judge.
+
+    The workspace is the pinned revision with one file replaced, so a target
+    inside a test root would let the candidate rewrite the very assertions that
+    decide its verdict -- the plan's section 8.1 rule, applied to the project's
+    own suite rather than only to this evaluator's tests.
+    """
+
+    spelling = target_path.replace("\\", "/").strip("/").casefold()
+    for root in test_roots:
+        prefix = root.replace("\\", "/").strip("/").casefold()
+        if spelling == prefix or spelling.startswith(prefix + "/"):
+            raise AriadneCampaignError(
+                "target_path is inside a declared test root, and the tests are the "
+                f"evaluator for this campaign: {root}"
+            )
+    name = spelling.rsplit("/", 1)[-1]
+    if name in SESSION_CONTROL_NAMES or name.endswith(SESSION_CONTROL_SUFFIXES):
+        raise AriadneCampaignError(
+            "target_path configures the test session rather than being tested by it, "
+            f"so a candidate could decide its own verdict: {name}"
+        )
+
+
+def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
+    """Build an evaluation workspace from one Git revision, deterministically.
+
+    ``git archive`` reads the REVISION, never the working tree, so a dirty
+    checkout cannot leak into a trial, and the extraction is byte-identical
+    across runs (measured on this repository: two extractions, one digest).
+    Only regular files are written: a link in an archive is not source this
+    evaluator will read.
+    """
+
+    try:
+        archive = subprocess.run(
+            ["git", "-C", str(root), "archive", "--format=tar", revision],
+            capture_output=True, check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise AriadneCampaignError(
+            f"evaluation workspace could not be built from the pinned revision: {type(exc).__name__}"
+        ) from exc
+    into.mkdir(parents=True, exist_ok=True)
+    files = 0
+    total = 0
+    try:
+        seen: set[str] = set()
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r|") as tar:
+            for member in tar:
+                if member.isdir():
+                    continue
+                if not member.isfile():
+                    # A symlink, a device or a hard link cannot be represented
+                    # faithfully here, and skipping it silently made the
+                    # workspace differ from the revision while the count said
+                    # otherwise (Odysseus round 1: four tracked symlinks).
+                    raise AriadneCampaignError(
+                        "the pinned revision contains a member this workspace cannot "
+                        f"represent: {member.name}"
+                    )
+                relative = _admit_workspace_relative(member.name, label="archive member")
+                folded = relative.casefold()
+                if folded in seen:
+                    # Two names the filesystem folds together: one would silently
+                    # overwrite the other and the count would still say two.
+                    raise AriadneCampaignError(
+                        "the pinned revision contains two paths this filesystem folds "
+                        f"together: {relative}"
+                    )
+                seen.add(folded)
+                payload_stream = tar.extractfile(member)
+                if payload_stream is None:
+                    continue
+                payload = payload_stream.read()
+                files += 1
+                total += len(payload)
+                if files > MAX_WORKSPACE_FILES or total > MAX_WORKSPACE_BYTES:
+                    raise AriadneCampaignError("evaluation workspace exceeds its bounds")
+                target = into.joinpath(*relative.split("/"))
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(payload)
+    except tarfile.TarError as exc:
+        raise AriadneCampaignError(
+            f"evaluation workspace archive is unreadable: {type(exc).__name__}"
+        ) from exc
+    return files, total
+
+
 _CAMPAIGN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 MAX_REPAIR_FRAGMENT_BYTES = 1 * 1024 * 1024
 MAX_CAMPAIGN_FILE_BYTES = 16 * 1024 * 1024
@@ -552,6 +879,33 @@ def _require_bound_inner_terminal(
         )
 
 
+def _frozen_evaluator_of(store: SourceTreeStore, receipt: CampaignReceipt) -> str | None:
+    """The evaluator digest the ExperimentSpec froze, read from the spec itself.
+
+    The replay compared the observation's two evaluator fields against ONE value
+    taken from the evidence item, which made the comparison unable to fail
+    (Odysseus round 1, F1). The spec is a different artifact, so reading it is
+    what turns the comparison into a check.
+    """
+
+    try:
+        # The receipt's `experiment_spec_sha256` is the CONTRACT digest; the
+        # blob is addressed by its locator.
+        raw = store.read_bytes(receipt.experiment_spec_locator, max_bytes=MAX_CAMPAIGN_FILE_BYTES)
+    except Exception:  # noqa: BLE001 - a replay reads what it can; absence refuses below
+        return None
+    try:
+        payload = json.loads(raw.decode("ascii"))
+    except (ValueError, UnicodeDecodeError):
+        return None
+    frozen = payload.get("frozen_components")
+    if isinstance(frozen, dict) and isinstance(frozen.get("evaluator"), str):
+        return frozen["evaluator"]
+    # A spec this replay cannot read is a refusal, not a pass: returning the
+    # observation's own value would restore the tautology this exists to break.
+    return None
+
+
 def _require_campaign_inner_effect_terminals(
     store: SourceTreeStore,
     evidence_root: Path,
@@ -559,6 +913,10 @@ def _require_campaign_inner_effect_terminals(
 ) -> None:
     """Replay every controlled-repair Attempt and its exact inner lease chain."""
 
+    # Read from the ExperimentSpec, a different artifact than the evidence item:
+    # comparing the observation's two evaluator fields against one value made
+    # the check unable to fail (Odysseus round 1).
+    spec_frozen_evaluator = _frozen_evaluator_of(store, receipt)
     for trial in receipt.trials:
         if trial.receipt_profile != "controlled-repair-v1":
             continue
@@ -666,7 +1024,12 @@ def _require_campaign_inner_effect_terminals(
                 or observation.get("candidate_tree_sha256")
                 != trial.candidate_tree_sha256
                 or observation.get("attempt_contract_sha256") != attempt.digest
-                or observation.get("evaluator_sha256") != EVALUATOR_SHA256
+                # `spec_frozen_evaluator` is None when the spec cannot be read,
+                # and `None in (..., None)` would have passed anything carrying
+                # a null digest (Cerberus round 3, medium 1).
+                or observation.get("evaluator_sha256") not in (
+                    (EVALUATOR_SHA256,) if spec_frozen_evaluator is None
+                    else (EVALUATOR_SHA256, spec_frozen_evaluator))
                 or not isinstance(observation.get("error_type"), str)
                 or not observation.get("error_type")
                 or not isinstance(observation.get("error"), str)
@@ -676,6 +1039,57 @@ def _require_campaign_inner_effect_terminals(
             ):
                 raise AriadneCampaignError(
                     "controlled-repair error observation is not bound to its trial"
+                )
+        elif observation.get("schema") == TEST_EVALUATOR_OBSERVATION_SCHEMA:
+            output = observation.get("output")
+            passed = observation.get("passed")
+            interpreter = observation.get("interpreter")
+            details = dict(packet.items[0].details) if packet.items else {}
+            # The digest is cross-checked against the evidence item the
+            # orchestrator wrote, so a receipt cannot name its own judge.
+            declared = details.get("evaluator_sha256")
+            checks = (
+                ("keys", set(observation) == set(_TEST_OBSERVATION_KEYS)),
+                ("variant", observation.get("variant_id") == trial.variant_id),
+                ("seed", observation.get("seed") == trial.seed),
+                ("declared evaluator", isinstance(declared, str)),
+                ("evaluator digest", observation.get("evaluator_sha256") == declared),
+                # NOT the same source as `declared`: comparing both fields to
+                # one value made this check unable to fail (Odysseus round 1).
+                ("command digest", observation.get("command_sha256")
+                 == spec_frozen_evaluator),
+                ("candidate tree",
+                 observation.get("candidate_tree_sha256") == trial.candidate_tree_sha256),
+                ("passed flag", type(passed) is bool),
+                ("timed_out flag", type(observation.get("timed_out")) is bool),
+                ("returncode", isinstance(observation.get("returncode"), int)
+                 and not isinstance(observation.get("returncode"), bool)),
+                ("passing returncode", (observation.get("returncode") == 0) is bool(passed)),
+                ("counts are not negative", all(
+                    isinstance(value, int) and value >= 0
+                    for value in (observation.get("workspace_files"),
+                                  observation.get("workspace_bytes")))),
+                ("output text", isinstance(output, str)),
+                ("output withheld", output == ""),
+                ("output digest", isinstance(observation.get("output_sha256"), str)
+                 and len(observation.get("output_sha256", "")) == 64),
+                ("report counts", isinstance(observation.get("report"), dict)),
+                ("interpreter provenance", isinstance(interpreter, dict)
+                 and set(interpreter) == _INTERPRETER_PROVENANCE_KEYS
+                 and all(type(interpreter[key]) is str for key in interpreter)
+                 and len(interpreter["binary_sha256"]) == 64),
+                ("stated reach", observation.get("child_environment") == "inherited-except-denylist"
+                 and observation.get("child_network") == "unrestricted"
+                 and observation.get("verdict_is_self_reported") is True),
+                ("workspace files", isinstance(observation.get("workspace_files"), int)),
+                ("workspace bytes", isinstance(observation.get("workspace_bytes"), int)),
+                ("verdict", packet.items[0].verdict == ("passed" if passed else "failed")),
+            )
+            missing = [label for label, ok in checks if not ok]
+            if missing:
+                raise AriadneCampaignError(
+                    "controlled-repair test observation is not bound to its trial: "
+                    + ", ".join(missing)
                 )
         elif observation.get("schema") in _EVALUATOR_OBSERVATION_SCHEMAS:
             output = observation.get("output")
@@ -724,8 +1138,22 @@ def _require_campaign_inner_effect_terminals(
         )
 
 
+def _judge_labels(evaluator: "TestCommandEvaluator | None") -> tuple[str, str]:
+    """The evaluator digest and the metric name for THIS campaign's judge.
+
+    The failure and fault paths hardcoded the exact-match evaluator, so a failed
+    test-evaluator receipt named a judge that never ran (Cerberus round 1,
+    medium 2), and the failure path is where honesty matters most.
+    """
+
+    if evaluator is None:
+        return EVALUATOR_SHA256, "exact_match"
+    return evaluator.digest, "tests_pass"
+
+
 def _faulted_attempt_trial(
     *,
+    evaluator: "TestCommandEvaluator | None" = None,
     store: SourceTreeStore,
     ledger: AttemptLedger,
     attempt_begin: Any,
@@ -759,7 +1187,10 @@ def _faulted_attempt_trial(
         "seed": seed,
         "candidate_tree_sha256": candidate.ref.sha256,
         "attempt_contract_sha256": attempt.digest,
-        "evaluator_sha256": EVALUATOR_SHA256,
+        # The judge that actually ran. Naming the exact-match evaluator on a
+        # failed test-evaluator receipt is a lie told exactly where honesty
+        # matters most (Cerberus round 1, medium 2).
+        "evaluator_sha256": _judge_labels(evaluator)[0],
         "error_type": error_type,
         "error": error_message,
     }
@@ -875,7 +1306,7 @@ def _faulted_attempt_trial(
         graph_delta_sha256=None,
         evidence_packet_sha256=packet.digest,
         evidence_packet_locator=packet_ref.locator,
-        metrics={"exact_match": 0},
+        metrics={_judge_labels(evaluator)[1]: 0},
         usage=usage,
         negative_outcomes=("post-capture-error",),
         blockers=(blocker,),
@@ -891,6 +1322,7 @@ def _faulted_attempt_trial(
 
 def _complete_failed_campaign_receipt(
     *,
+    evaluator: "TestCommandEvaluator | None" = None,
     store: SourceTreeStore,
     ledger: AttemptLedger,
     campaign_begin: Any,
@@ -952,7 +1384,7 @@ def _complete_failed_campaign_receipt(
         campaign_contract_locator=contract_ref.locator,
         experiment_spec_sha256=spec.digest,
         experiment_spec_locator=spec_ref.locator,
-        metric_names=("exact_match",),
+        metric_names=(_judge_labels(evaluator)[1],),
         trials=tuple(trials),
         execution_order=tuple(trial.seed for trial in trials),
         outcome="failed",
@@ -1191,9 +1623,20 @@ def run_campaign(
     before: str,
     after: str,
     timeout_s: int = 30,
+    evaluator: TestCommandEvaluator | None = None,
 ) -> dict[str, Any]:
-    """Run baseline, negative control, and repair once under equal budgets."""
+    """Run baseline, negative control, and repair once under equal budgets.
+
+    ``evaluator`` selects the verdict source. The default is the frozen
+    exact-match evaluator, which proves an edit landed and nothing more. A
+    :class:`TestCommandEvaluator` instead runs the caller's frozen test command
+    against the pinned revision with one file replaced, and then the arms mean
+    something different: the baseline must PASS (otherwise the suite was already
+    red and nothing can be attributed) and the negative control must FAIL
+    (otherwise the suite cannot see this file at all).
+    """
     campaign_id = _campaign_id(campaign_id)
+    evaluator = None if evaluator is None else _admit_test_evaluator(evaluator)
     if isinstance(timeout_s, bool) or not isinstance(timeout_s, int) or timeout_s <= 0:
         raise AriadneCampaignError("timeout_s must be a positive integer")
     before, before_bytes = _repair_fragment(
@@ -1205,6 +1648,8 @@ def run_campaign(
     if before == after:
         raise AriadneCampaignError("repair must replace before with a different value")
     _admit_target_path(target_path)  # pure refusals first: no repository observed yet
+    if evaluator is not None:
+        _refuse_target_inside_test_roots(target_path, evaluator.test_roots)
     if len(source_revision) != 40 or any(c not in "0123456789abcdef" for c in source_revision):
         raise AriadneCampaignError("source_revision must be the exact lowercase 40-hex Git HEAD")
     try:
@@ -1260,7 +1705,11 @@ def run_campaign(
         "after_sha256": hashlib.sha256(after_bytes).hexdigest(),
         "expected_sha256": expected_sha,
         "negative_control_sha256": hashlib.sha256(negative_control).hexdigest(),
-        "evaluator_sha256": EVALUATOR_SHA256,
+        # The judge is part of the campaign's identity: without this, a replay
+        # of the same id and edit returned a receipt written under a DIFFERENT
+        # evaluator, and the permissive one's nomination answered the strict
+        # one's request (Cerberus round 1, high 1).
+        "evaluator_sha256": EVALUATOR_SHA256 if evaluator is None else evaluator.digest,
         "timeout_s": timeout_s,
         "repair_fragment_max_bytes": MAX_REPAIR_FRAGMENT_BYTES,
         "campaign_file_max_bytes": MAX_CAMPAIGN_FILE_BYTES,
@@ -1285,7 +1734,11 @@ def run_campaign(
         writable_paths=(relative,),
         tools=("python",),
         max_spend_usd=None,
-        timeout_s=timeout_s * 3,
+        # Three arms plus three workspace builds, under the timeout that
+        # actually governs an arm. The outer value governed the lease while the
+        # evaluator's governed the run, so an 11.4 s campaign completed under a
+        # 3 s declared lease and nothing noticed (Odysseus round 1).
+        timeout_s=_campaign_lease_timeout_s(timeout_s, evaluator),
         contained=True,
         containment_evidence="each arm is materialized from exact CAS below a checkout-external Attempt workspace",
         write_policy=Policy(write_allow=(relative,)),
@@ -1399,36 +1852,49 @@ def run_campaign(
             campaign_id=campaign_id, source_revision=source_revision,
             relative=relative, base_file_sha256=target_snapshot.source_sha256,
         )).encode("ascii"))
-        budget = ResourceBudget(max_wall_time_s=timeout_s, max_attempts=1)
+        evaluator_sha = EVALUATOR_SHA256 if evaluator is None else evaluator.digest
+        evaluator_wall_s = timeout_s if evaluator is None else evaluator.timeout_s
+        budget = ResourceBudget(max_wall_time_s=evaluator_wall_s, max_attempts=1)
         budget_sha = canonical_sha(asdict(budget))
         task_sha = operation_sha
         frozen = {
             "compiler": canonical_sha({"kind": "exact-text-replace-v1"}),
-            "evaluator": EVALUATOR_SHA256,
+            "evaluator": evaluator_sha,
             "fixture": expected_sha,
             "generator": canonical_sha({"arms": ["no-change", "negative-control", "repair"]}),
             "model": canonical_sha({"kind": "none-deterministic"}),
             "operator": canonical_sha({"kind": "bounded-text-replace-v1"}),
             "head_revision": head_receipt_sha,
         }
-        expires = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(timespec="microseconds")
+        # The spec must not expire while its own arms are still legal to run.
+        # The default path keeps the 15 minutes it always had; only a test
+        # evaluator, whose arms are genuinely longer, extends it.
+        expires = (
+            datetime.now(timezone.utc)
+            + timedelta(minutes=15)
+            + (timedelta(0) if evaluator is None
+               else timedelta(seconds=_campaign_lease_timeout_s(timeout_s, evaluator)))
+        ).isoformat(timespec="microseconds")
         spec_inputs = (task_sha, base.ref.sha256, head_receipt_sha, *frozen.values())
         spec = ExperimentSpec(
             campaign_id=campaign_id, source_revision=source_revision,
             objective=f"Replace one exact occurrence in {relative}",
             task_sha256s=(task_sha,), baseline_sha256s=(base.ref.sha256,),
             base_source_tree_sha256=base.ref.sha256, base_source_tree_locator=base.ref.locator,
-            seeds=(0, 1, 2), metrics=("exact_match",), operator_axis="repair_variant",
+            seeds=(0, 1, 2),
+            metrics=("exact_match",) if evaluator is None else ("tests_pass",),
+            operator_axis="repair_variant",
             seed_derivation="fixed ordered arms: 0 baseline, 1 negative control, 2 repair",
             selection_policy="best_passed_trial", attempts_per_seed=1,
-            metric_acceptance={"exact_match": 1}, gate_timeout_s=timeout_s,
+            metric_acceptance={"exact_match": 1} if evaluator is None else {"tests_pass": 1},
+            gate_timeout_s=evaluator_wall_s,
             frozen_components=frozen, writable_paths=(relative,), budget=budget,
             created_at=created, expires_at=expires,
             provenance=_prov("ariadne.controlled-repair.spec", source_revision, created, *spec_inputs, trace=campaign_id),
         )
         spec_ref = store_contract(store, spec)
         contract_at = _now()
-        contract_inputs = (spec.digest, task_sha, base.ref.sha256, EVALUATOR_SHA256, *frozen.values())
+        contract_inputs = (spec.digest, task_sha, base.ref.sha256, evaluator_sha, *frozen.values())
         contract = campaign_contract_for_spec(
             spec,
             provenance=_prov("ariadne.controlled-repair.contract", source_revision, contract_at, *contract_inputs, trace=campaign_id),
@@ -1466,10 +1932,21 @@ def run_campaign(
         )
         trials: list[CampaignTrialReceipt] = []
         evidence_by_key: dict[tuple[str, int], EvidencePacket] = {}
+        #: How many tests each arm actually EXECUTED, per the report it wrote.
+        executed_by_variant: dict[str, int] = {}
         arms = (("baseline", "baseline", 0), ("negative-control", "candidate", 1), ("repair", "candidate", 2))
         # Resolved once per campaign so every arm runs under the same
         # interpreter; the observation records its identity, never its path.
-        evaluator_interpreter = _evaluator_interpreter()
+        # The frozen evaluator is a stdlib-only payload and runs on the bare
+        # base interpreter. A TEST command needs the environment the suite is
+        # written against -- measured 2026-09-10: the base interpreter cannot
+        # import pytest. The kernel's own pytest gate makes the same choice
+        # (``pytest_gate_argv`` builds from ``sys.executable``). Either way the
+        # child is contained with a scrubbed environment, and the observation
+        # records which interpreter ran the arm.
+        evaluator_interpreter = (
+            _evaluator_interpreter() if evaluator is None else sys.executable
+        )
         interpreter_provenance = _interpreter_provenance(evaluator_interpreter)
         for variant, role, seed in arms:
             switch.checkpoint()
@@ -1480,8 +1957,11 @@ def run_campaign(
                 instruction=f"Ariadne controlled repair arm {variant}",
                 base_revision=source_revision,
                 target_paths=(relative,),
-                gate_argv=("python", "-I", "-c", EVALUATOR_SOURCE, relative, expected_sha),
-                gate_timeout_s=timeout_s,
+                gate_argv=(
+                    ("python", "-I", "-c", EVALUATOR_SOURCE, relative, expected_sha)
+                    if evaluator is None else evaluator.argv
+                ),
+                gate_timeout_s=evaluator_wall_s,
             )
             attempt_inputs = (task.digest, operation_sha, granted.policy_decision.digest)
             attempt = AttemptContract.from_task_spec(
@@ -1556,35 +2036,79 @@ def run_campaign(
                 max_total_bytes=MAX_CAMPAIGN_FILE_BYTES,
             )
             usage = ResourceUsage()
+            evaluation_workspace: Path | None = None
             try:
+                # NEGATIVE EVIDENCE, retained (Cerberus rounds 3 and 4).
+                # Round 3 moved this workspace into %TEMP% so the retained
+                # observations would not be a parent directory of the running
+                # arm. Round 4 measured that a contained arm finds this
+                # campaign's own baseline observation anyway, by walking DOWN
+                # from Path.home(): the control root is home-derived and the
+                # child needs no path to it. The move bought nothing and cost
+                # two true statements -- the arm ran outside the containment
+                # root this campaign declares and retains -- plus an unbounded
+                # temp leak. The workspace belongs where the lease says it is.
                 evaluation_workspace = (
                     workspace_parent
                     / "evaluations"
                     / f"{attempt.attempt_id}-{candidate.ref.sha256[:16]}"
                 )
-                materialized_candidate = store.materialize_tree(
-                    candidate.ref,
-                    evaluation_workspace,
-                    max_file_bytes=MAX_CAMPAIGN_FILE_BYTES,
-                    max_total_bytes=MAX_CAMPAIGN_FILE_BYTES,
-                )
-                if materialized_candidate != candidate.manifest:
-                    raise AriadneCampaignError(
-                        "fresh evaluator materialization differs from candidate CAS"
+                workspace_files = 0
+                workspace_bytes = 0
+                if evaluator is None:
+                    materialized_candidate = store.materialize_tree(
+                        candidate.ref,
+                        evaluation_workspace,
+                        max_file_bytes=MAX_CAMPAIGN_FILE_BYTES,
+                        max_total_bytes=MAX_CAMPAIGN_FILE_BYTES,
                     )
+                    if materialized_candidate != candidate.manifest:
+                        raise AriadneCampaignError(
+                            "fresh evaluator materialization differs from candidate CAS"
+                        )
+                    gate_argv = (
+                        evaluator_interpreter, "-I", "-S", "-c",
+                        EVALUATOR_SOURCE, relative, expected_sha,
+                    )
+                    gate_name = "ariadne-frozen-evaluator"
+                    gate_timeout = float(timeout_s)
+                else:
+                    # Tests are the judge, so the workspace is the pinned
+                    # REVISION with exactly one file replaced: every test the
+                    # command runs is the base revision's, and the candidate
+                    # cannot reach any other byte.
+                    workspace_files, workspace_bytes = _extract_revision(
+                        root, source_revision, evaluation_workspace
+                    )
+                    arm_bytes = (
+                        original_bytes if variant == "baseline"
+                        else negative_control if variant == "negative-control"
+                        else expected
+                    )
+                    if hashlib.sha256(arm_bytes).hexdigest() != candidate.manifest.entries[0].blob_sha256:
+                        raise AriadneCampaignError(
+                            "arm bytes differ from the captured candidate"
+                        )
+                    overlay = evaluation_workspace.joinpath(*relative.split("/"))
+                    if not overlay.is_file():
+                        raise AriadneCampaignError(
+                            "target is not a file at the pinned revision"
+                        )
+                    overlay.write_bytes(arm_bytes)
+                    # The campaign appends its OWN report flag, so the caller
+                    # cannot omit it and the candidate cannot choose where the
+                    # counts come from.
+                    gate_argv = (
+                        evaluator_interpreter, *evaluator.argv[1:],
+                        f"--junitxml={TEST_REPORT_RELATIVE}",
+                    )
+                    gate_name = "ariadne-test-evaluator"
+                    gate_timeout = float(evaluator.timeout_s)
                 result = command_gate(
-                    (
-                        evaluator_interpreter,
-                        "-I",
-                        "-S",
-                        "-c",
-                        EVALUATOR_SOURCE,
-                        relative,
-                        expected_sha,
-                    ),
-                    timeout_s=timeout_s,
+                    gate_argv,
+                    timeout_s=gate_timeout,
                     poll_s=0.05,
-                    name="ariadne-frozen-evaluator",
+                    name=gate_name,
                     executes_candidate=True,
                 )(
                     RunnerContext(
@@ -1599,36 +2123,109 @@ def run_campaign(
                 usage = ResourceUsage(
                     wall_time_ms=max(0, int(round(result.duration_s * 1000)))
                 )
+                workspace_removed = False
                 budget_violations = budget.violations(usage)
                 trial_passed = bool(result.passed) and not budget_violations
-                evaluator_value = _verify_frozen_evaluator_output(
-                    result,
-                    candidate,
-                    relative=relative,
-                    expected_sha256=expected_sha,
-                )
-                observation = {
-                    "schema": "daedalus-ariadne-evaluator-observation/2",
-                    "variant_id": variant,
-                    "seed": seed,
-                    "evaluator_sha256": EVALUATOR_SHA256,
-                    "passed": result.passed,
-                    "returncode": result.returncode,
-                    "output": result.output,
-                    "output_sha256": result.output_sha256,
-                    "candidate_tree_sha256": candidate.ref.sha256,
-                    "expected_sha256": evaluator_value["expected_sha256"],
-                    "observed_sha256": evaluator_value["observed_sha256"],
-                    "containment": (
-                        result.containment.summary() if result.containment else None
-                    ),
-                    "interpreter": interpreter_provenance,
-                }
+                report_counts: dict[str, int] = {}
+                if evaluator is not None:
+                    # An exit code cannot tell "the tests passed" from "no test
+                    # ran". A candidate that switched the suite off exited zero
+                    # (Cerberus round 1, CRITICAL 2), so the counts decide.
+                    try:
+                        report_counts = _read_test_report(
+                            evaluation_workspace / TEST_REPORT_RELATIVE
+                        )
+                    except AriadneCampaignError:
+                        report_counts = {"tests": 0, "failures": 0, "errors": 0,
+                                         "skipped": 0, "executed": 0}
+                    trial_passed = (
+                        trial_passed
+                        and report_counts["executed"] > 0
+                        and report_counts["failures"] == 0
+                        and report_counts["errors"] == 0
+                    )
+                    executed_by_variant[variant] = report_counts["executed"]
+                    # A tree of the pinned revision per arm is ~284 MiB on this
+                    # repository; three of them per campaign, retained forever,
+                    # is not evidence, it is disk (Cerberus round 1, high 3).
+                    # The receipt is the evidence, so the tree goes. The
+                    # `finally` below covers the paths this line cannot reach:
+                    # a fault between the extraction and here left the whole
+                    # revision on disk in every earlier revision of this packet
+                    # (Cerberus round 4).
+                    workspace_removed = _remove_evaluation_workspace(evaluation_workspace)
+                if evaluator is None:
+                    evaluator_value = _verify_frozen_evaluator_output(
+                        result,
+                        candidate,
+                        relative=relative,
+                        expected_sha256=expected_sha,
+                    )
+                    observation = {
+                        "schema": "daedalus-ariadne-evaluator-observation/2",
+                        "variant_id": variant,
+                        "seed": seed,
+                        "evaluator_sha256": EVALUATOR_SHA256,
+                        "passed": result.passed,
+                        "returncode": result.returncode,
+                        "output": result.output,
+                        "output_sha256": result.output_sha256,
+                        "candidate_tree_sha256": candidate.ref.sha256,
+                        "expected_sha256": evaluator_value["expected_sha256"],
+                        "observed_sha256": evaluator_value["observed_sha256"],
+                        "containment": (
+                            result.containment.summary() if result.containment else None
+                        ),
+                        "interpreter": interpreter_provenance,
+                    }
+                else:
+                    # The output is producer text and can name host paths, so
+                    # the evidence keeps a BOUNDED excerpt and the projection at
+                    # the tool door redacts what reaches a planner.
+                    raw_output = result.output or ""
+                    observation = {
+                        "schema": TEST_EVALUATOR_OBSERVATION_SCHEMA,
+                        "variant_id": variant,
+                        "seed": seed,
+                        "evaluator_sha256": evaluator_sha,
+                        "command_sha256": evaluator.digest,
+                        "passed": bool(trial_passed),
+                        "returncode": result.returncode,
+                        "timed_out": bool(getattr(result, "timed_out", False)),
+                        # The output itself is NOT retained: the child inherits
+                        # the operator's environment, and a candidate that
+                        # printed it put a live API key into CAS (Cerberus round
+                        # 1, CRITICAL 1). The digest still ties the receipt to
+                        # what the gate saw; the text stays in gate scratch.
+                        "output": "",
+                        "output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
+                        "report": dict(report_counts),
+                        "candidate_tree_sha256": candidate.ref.sha256,
+                        "workspace_files": workspace_files,
+                        "workspace_bytes": workspace_bytes,
+                        "workspace_removed": workspace_removed,
+                        # The counts come from a report written by a process
+                        # that ran candidate code, in a directory that process
+                        # can write. Nothing here is proof against a hostile
+                        # generator, and the receipt says so rather than letting
+                        # a reader assume otherwise (Cerberus round 2).
+                        "verdict_is_self_reported": True,
+                        # Stated, not implied: what the contained child could
+                        # reach. The gate's environment is a denylist and it has
+                        # no network fence, so a reader of this receipt is not
+                        # told a fence existed (Cerberus round 1, CRITICAL 1).
+                        "child_environment": "inherited-except-denylist",
+                        "child_network": "unrestricted",
+                        "containment": (
+                            result.containment.summary() if result.containment else None
+                        ),
+                        "interpreter": interpreter_provenance,
+                    }
                 observation_ref = store.put_bytes(
                     canonical_json(observation).encode("ascii")
                 )
                 item_prov = _prov(
-                    "ariadne.frozen-evaluator",
+                    "ariadne.frozen-evaluator" if evaluator is None else "ariadne.test-evaluator",
                     source_revision,
                     finished,
                     observation_ref.sha256,
@@ -1636,7 +2233,8 @@ def run_campaign(
                 )
                 item = EvidenceItem(
                     evidence_id=f"evidence-{attempt_id}",
-                    evaluator="ariadne-frozen-evaluator",
+                    evaluator=("ariadne-frozen-evaluator" if evaluator is None
+                               else "ariadne-test-command-evaluator"),
                     assurance="independent",
                     verdict="passed" if result.passed else "failed",
                     output_sha256=observation_ref.sha256,
@@ -1644,7 +2242,7 @@ def run_campaign(
                     collected_at=finished,
                     provenance=item_prov,
                     details={
-                        "evaluator_sha256": EVALUATOR_SHA256,
+                        "evaluator_sha256": evaluator_sha,
                         "configured_budget_sha256": budget_sha,
                     },
                 )
@@ -1699,6 +2297,7 @@ def run_campaign(
                 )
             except BaseException as arm_failure:
                 faulted_trial, terminal_error = _faulted_attempt_trial(
+                    evaluator=evaluator,
                     store=store,
                     ledger=ledger,
                     attempt_begin=attempt_begin,
@@ -1726,6 +2325,7 @@ def run_campaign(
                 if terminal_error is not None:
                     blocker = f"{blocker}; inner-terminal: {terminal_error}"
                 failed_receipt, failed_receipt_ref = _complete_failed_campaign_receipt(
+                    evaluator=evaluator,
                     store=store,
                     ledger=ledger,
                     campaign_begin=campaign_begin,
@@ -1784,12 +2384,35 @@ def run_campaign(
                     # still raise: those are faults the operator must see as such.
                     return failed_receipt.to_dict()
                 raise
+            finally:
+                # The ARM's try: a fault between building this workspace and
+                # removing it left the entire pinned revision on disk -- about
+                # 284 MiB for this repository -- in every earlier revision of
+                # this packet (Cerberus round 4). The receipt is the evidence.
+                if evaluation_workspace is not None:
+                    _remove_evaluation_workspace(evaluation_workspace)
             receipt_ref = store_contract(store, completion.receipt)
             negative_outcomes = []
             blockers = []
-            if not result.passed:
-                negative_outcomes.append("frozen-evaluator-rejected")
-                blockers.append("exact-match-failed")
+            if evaluator is None:
+                if not result.passed:
+                    negative_outcomes.append("frozen-evaluator-rejected")
+                    blockers.append("exact-match-failed")
+            elif not trial_passed:
+                negative_outcomes.append("test-command-failed")
+                if getattr(result, "timed_out", False):
+                    blockers.append("test-command-timed-out")
+                elif not result.passed:
+                    blockers.append("test-command-exit-nonzero")
+                elif report_counts.get("executed", 0) <= 0:
+                    # The command exited zero and ran nothing. This is the shape
+                    # the proven attack produced, so it gets its own name.
+                    blockers.append("test-command-executed-no-tests")
+                else:
+                    blockers.append(
+                        f"test-command-reported-failures: {report_counts.get('failures', 0)} "
+                        f"failures, {report_counts.get('errors', 0)} errors"
+                    )
             if budget_violations:
                 negative_outcomes.append("budget-exhausted")
                 blockers.extend(f"budget: {item}" for item in budget_violations)
@@ -1805,7 +2428,10 @@ def run_campaign(
                 candidate_source_bundle_sha256=None, candidate_snapshot_sha256=None,
                 candidate_snapshot_locator=None, graph_delta_sha256=None,
                 evidence_packet_sha256=packet.digest, evidence_packet_locator=packet_ref.locator,
-                metrics={"exact_match": 1 if result.passed else 0}, usage=usage,
+                metrics=(
+                    {"exact_match": 1 if result.passed else 0} if evaluator is None
+                    else {"tests_pass": 1 if result.passed else 0}
+                ), usage=usage,
                 negative_outcomes=tuple(negative_outcomes),
                 blockers=tuple(blockers),
                 started_at=started, finished_at=finished, variant_id=variant, arm_role=role,
@@ -1832,6 +2458,7 @@ def run_campaign(
                 trials.append(trial)
                 terminal_type, terminal_message = _bounded_failure(terminal_failure)
                 _failed_receipt, failed_receipt_ref = _complete_failed_campaign_receipt(
+                    evaluator=evaluator,
                     store=store,
                     ledger=ledger,
                     campaign_begin=campaign_begin,
@@ -1876,14 +2503,24 @@ def run_campaign(
                     "Campaign failure receipt is canonical but its inner Attempt "
                     "effect needs reconciliation"
                 ) from terminal_failure
+            finally:
+                # A fault between the extraction and the removal above left
+                # the entire pinned revision on disk -- about 284 MiB for
+                # this repository -- in every earlier revision of this
+                # packet (Cerberus round 4). The receipt is the evidence;
+                # the tree is not.
+                if evaluation_workspace is not None:
+                    _remove_evaluation_workspace(evaluation_workspace)
             active_attempt_begin = None
             active_inner = None
             active_inner_execution = None
             active_inner_start = None
+
             trials.append(trial)
             evidence_by_key[(variant, seed)] = packet
             if budget_violations:
                 receipt, receipt_ref = _complete_failed_campaign_receipt(
+                    evaluator=evaluator,
                     store=store,
                     ledger=ledger,
                     campaign_begin=campaign_begin,
@@ -1926,15 +2563,51 @@ def run_campaign(
         baseline_trial = trial_by_variant["baseline"]
         negative_trial = trial_by_variant["negative-control"]
         repair_trial = trial_by_variant["repair"]
-        if (
-            baseline_trial.status != "failed"
-            or negative_trial.status != "failed"
-            or repair_trial.status != "passed"
-        ):
-            raise AriadneCampaignError(
-                "controlled repair requires failed baseline and negative control "
-                "plus a passed repair"
-            )
+        if evaluator is None:
+            if (
+                baseline_trial.status != "failed"
+                or negative_trial.status != "failed"
+                or repair_trial.status != "passed"
+            ):
+                raise AriadneCampaignError(
+                    "controlled repair requires failed baseline and negative control "
+                    "plus a passed repair"
+                )
+        else:
+            # Under a test-running evaluator the arms mean something else, and
+            # each failure names WHICH property of the evidence is missing.
+            if baseline_trial.status != "passed":
+                raise AriadneCampaignError(
+                    "the test command already fails on the unmodified revision, so no "
+                    "verdict about this change can be attributed to it"
+                )
+            if negative_trial.status != "failed":
+                raise AriadneCampaignError(
+                    "the test command passes on the negative control, so the suite "
+                    "cannot see this file and a passing repair proves nothing"
+                )
+            if repair_trial.status != "passed":
+                raise AriadneCampaignError(
+                    "the repair does not pass the test command"
+                )
+            # The repair must pass THE SAME suite, not a suite of its own size.
+            # `>=` let a forged report inflate the count and win: the reviewer
+            # wrote a report claiming 41 tests where the baseline ran 1, and it
+            # was nominated (Cerberus round 2). Equality also closes the "more
+            # but weaker" class. It does NOT make the count unknowable to a
+            # forger: round 3 read the baseline's own retained observation from
+            # a parent directory of the arm, and counting the suite directly
+            # works too. The rule raises the cost of a forgery; it does not
+            # prevent one, and `verdict_is_self_reported` is the field that
+            # says so.
+            baseline_executed = executed_by_variant.get("baseline", 0)
+            repair_executed = executed_by_variant.get("repair", 0)
+            if repair_executed != baseline_executed:
+                raise AriadneCampaignError(
+                    "the repair arm executed a different number of tests than the "
+                    f"baseline ({repair_executed} against {baseline_executed}), so it "
+                    "did not pass the same suite"
+                )
         selected = repair_trial
         selected_packet = evidence_by_key[(selected.variant_id, selected.seed)]
         nomination_at = _now()
@@ -1947,7 +2620,15 @@ def run_campaign(
             evidence_packet_sha256=selected_packet.digest,
             evidence_locator=selected.evidence_packet_locator,
             policy_decision_sha256=granted.policy_decision.digest,
-            nomination_status="nominated", reasons=("passed frozen exact-match evaluator under equal configured budget",),
+            nomination_status="nominated",
+            reasons=(
+                ("passed frozen exact-match evaluator under equal configured budget",)
+                if evaluator is None else
+                ("SELF-REPORTED: the project's own test command reported a green baseline, "
+                 "a failing negative control and a passing repair executing the same number "
+                 "of tests, under equal configured budget. The command ran candidate code, "
+                 "so this verdict is the run's own report and not an independent measurement",)
+            ),
             provenance=_prov("ariadne.controlled-repair.nomination", source_revision, nomination_at, *nomination_inputs, trace=campaign_id),
         )
         nomination_ref = store_contract(store, nomination)
@@ -1983,7 +2664,8 @@ def run_campaign(
             campaign_id=campaign_id, source_revision=source_revision,
             campaign_contract_sha256=contract.digest, campaign_contract_locator=contract_ref.locator,
             experiment_spec_sha256=spec.digest, experiment_spec_locator=spec_ref.locator,
-            metric_names=("exact_match",), trials=tuple(trials), execution_order=(0, 1, 2),
+            metric_names=("exact_match",) if evaluator is None else ("tests_pass",),
+            trials=tuple(trials), execution_order=(0, 1, 2),
             outcome="nominated", selected_seed=selected.seed,
             candidate_tree_sha256=selected.candidate_tree_sha256,
             candidate_tree_locator=selected.candidate_tree_locator,
