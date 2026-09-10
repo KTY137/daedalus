@@ -110,8 +110,12 @@ function Subsystem({ subsystem }: { subsystem: HealthSubsystem }) {
             mean something. */}
         <span className="health-asks">{subsystem.asks}</span>
         <span className="health-headline">{subsystem.headline || 'Ohne Schlagzeile'}</span>
-        {/* What this probe cost. Four of the twenty account for most of a
-            ~10.6s read, and the panel gave no way to see which. */}
+        {/* What this probe cost. Four of the twenty account for most of the
+            work (measured 2026-09-10: picker.queue, embed.local,
+            hand.executor and wiring.islands are ~8s of a ~9.7s total), and
+            the panel gave no way to see which. Since they now run
+            concurrently this is the probe's cost, not its share of the wait
+            -- the wait is the separate figure in the footer. */}
         {costText(subsystem.seconds) && (
           <span className="health-cost">{costText(subsystem.seconds)}</span>
         )}
