@@ -275,6 +275,33 @@ def test_real_corpus_census_is_pinned_and_reported():
         the reason this update is safe: 31 tasks entered the corpus and not
         one entered a number.
 
+      MEASURED 2026-09-10, after G3-MINT-AUDIT promoted on a second witness:
+        - primary tier: 14 -> 49; census {'code': 24, 'type': 0, 'data': 16,
+          'knowledge': 9}; frozen digest MOVED (see the note at the assertion)
+        - 35 tasks left quarantine, none by recurrence. Every one carries
+          promoted_by="noise_audit": the threats MINT_CONFIRM_THRESHOLD's own
+          comment names were checked and found absent, 32 of them ruled out BY
+          CONSTRUCTION (their anchor file was added by the minting commit, so
+          there was nothing to reformat and nothing to rename within).
+        - COMPLETE SEPARATION IS BROKEN, which was the point. Before, every
+          non-code primary task came from one packaged fixture. Now data holds
+          14 agent_env + 2 fixture, and knowledge holds 7 agent_env + 2
+          fixture. Every plane spans more than one repository, so a plane
+          effect and an origin effect are no longer perfectly confounded.
+        - the promoted tasks discriminate: over the 35, bm25 means 0.209 and
+          separate_indices means 0.500 at budget 4000, with 14 and 17 distinct
+          score values and zero errors. They are graded tasks, not the
+          constants the fixture rows turned out to be.
+        - still quarantined: 11 Markdown/JSON tasks whose normalizer does not
+          exist yet (undecided is never promoted) and 2 whose target did not
+          exist at their own minted_at_sha (unverifiable provenance).
+
+      WHAT THE 2026-09-09 BLOCK BELOW GOT RIGHT AND WHAT TIME OVERTOOK: its
+      statement that the confound "persists AT THE TIER THAT FEEDS A HEADLINE
+      NUMBER" was true when written and is no longer. Its diagnosis of WHY --
+      that MINT_CONFIRM_THRESHOLD assumes label sets recur and they do not --
+      still stands, and is exactly why the second witness had to exist.
+
       WHAT THIS DOES NOT FIX, stated here so the next reader does not infer
       it: the primary tier's data and knowledge tasks are still the four
       artifact_parsed ones from the six-file fixture. The confound measured in
@@ -297,27 +324,38 @@ def test_real_corpus_census_is_pinned_and_reported():
     assert full_census == {"code": 27, "type": 0, "data": 17, "knowledge": 18}
 
     primary, n_excluded = filter_primary_tasks(tasks)
-    assert len(primary) == 14
-    assert n_excluded == 48
+    assert len(primary) == 49
+    assert n_excluded == 13
 
-    with pytest.warns(UserWarning, match=r"excluded 48 of 62"):
+    with pytest.warns(UserWarning, match=r"excluded 13 of 62"):
         fts = build_frozen_taskset(
             "gate3-real-corpus-20260906", tasks, REAL_CORPUS_COUNTING_RULE)
 
     assert isinstance(fts, FrozenTaskSet)
-    assert len(fts.task_ids) == 14
-    assert fts.label_plane_census == {"code": 10, "type": 0, "data": 2, "knowledge": 2}
+    assert len(fts.task_ids) == 49
+    assert fts.label_plane_census == {"code": 24, "type": 0, "data": 16, "knowledge": 9}
     assert fts.planes_present == ("code", "data", "knowledge")
 
     # Pinned digest: deterministic given the frozen name/counting-rule/corpus
     # triple above. Changes only if the corpus, the counting rule text, or
     # this test's chosen name changes.
-    # UNCHANGED after 31 tasks entered the corpus (2026-09-09). The digest is
-    # computed over the FROZEN set, and every minted task is quarantined, so
-    # the frozen triple is byte-identical. A digest that had moved here would
+    # MOVED, deliberately, 2026-09-10. On 2026-09-09 this digest was
+    # UNCHANGED after 31 tasks entered the corpus, because every one of them
+    # was quarantined -- and the note here said a digest that HAD moved would
     # mean a quarantined task had leaked into a scored set.
+    #
+    # It has moved now, and not by a leak. 35 tasks were promoted out of
+    # quarantine by an explicit second promotion witness (mint.promotion_
+    # witness -> "noise_audit"): every threat MINT_CONFIRM_THRESHOLD's own
+    # comment names was checked and found absent, 32 of them ruled out BY
+    # CONSTRUCTION because their anchor file was added by the minting commit.
+    # The recurrence witness remains unchanged and unused -- it has never fired
+    # once in 400 commits.
+    #
+    # The old digest is kept in this comment so the transition is auditable:
+    #   210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838
     assert fts.digest == (
-        "210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838")
+        "d1690bf57c7e5dfc7a59bc05cc0fa1452862c6029271f31ccf70fc307ba155f7")
 
     # THE HEADLINE FINDING, INVERTED BY MEASUREMENT (2026-09-09). It used to
     # read: a cross-plane comparison cannot be run today, and R3 refused. The
