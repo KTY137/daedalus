@@ -1,0 +1,3381 @@
+{
+  "arms": [
+    "best_of_n",
+    "bm25",
+    "code_only_graph",
+    "embeddings",
+    "local_mutation",
+    "random_search",
+    "separate_indices"
+  ],
+  "budgets": [
+    500,
+    2000,
+    4000,
+    16000
+  ],
+  "cells": [
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.36,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.24,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.32,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.6,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.16,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.16,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.16,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.88,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.88,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.88,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.88,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.16,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.16,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.2,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-134e2b9a641a"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.5555555555555556,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.3333333333333333,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.5555555555555556,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.6666666666666666,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.2222222222222222,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.3333333333333333,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.3333333333333333,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.5555555555555556,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.1111111111111111,
+      "task": "mint-commit-149db665eea1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-3e54d27d82c1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-4b4143aed595"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.2,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.12,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.24,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.6,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.04,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.08,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.12,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.16,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.36,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.36,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.36,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.36,
+      "task": "mint-commit-a172c1b0d460"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.05263157894736842,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.05263157894736842,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.05263157894736842,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.05263157894736842,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.10526315789473684,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.10526315789473684,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.10526315789473684,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.15789473684210525,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.21052631578947367,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.3684210526315789,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.6842105263157895,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.10526315789473684,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.10526315789473684,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.10526315789473684,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.05263157894736842,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.05263157894736842,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.21052631578947367,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.21052631578947367,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.15789473684210525,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.15789473684210525,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.15789473684210525,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.15789473684210525,
+      "task": "mint-commit-a47b2232b89e"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-a570c08309eb"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.375,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.875,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.375,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.375,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.375,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-commit-b5c01931e698"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "code",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-commit-e14668f8c779"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.2857142857142857,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.2857142857142857,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.14285714285714285,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.14285714285714285,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.14285714285714285,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.8571428571428571,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.8571428571428571,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.8571428571428571,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.8571428571428571,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.14285714285714285,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.7142857142857143,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.7142857142857143,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.875,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.875,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.875,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.875,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.625,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.625,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.125,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.625,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.625,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.5714285714285714,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.5714285714285714,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.5714285714285714,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.5714285714285714,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.14285714285714285,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.42857142857142855,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 0.42857142857142855,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "data",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.08333333333333333,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.08333333333333333,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.08333333333333333,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.08333333333333333,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.08333333333333333,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.08333333333333333,
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "best_of_n",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "bm25",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "bm25",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "bm25",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "bm25",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.25,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.25,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.25,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "embeddings",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.25,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "local_mutation",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 1.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "random_search",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.25,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "random_search",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.375,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "random_search",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.375,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "random_search",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.75,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 500,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 2000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 4000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.0,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "separate_indices",
+      "budget": 16000,
+      "plane": "knowledge",
+      "repo": "agent_env",
+      "score": 0.25,
+      "task": "mint-text-commit-ce1ade4dbb60"
+    }
+  ],
+  "expected_refusals": [
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "error": "target module 'configs/mutations/attempt-event-time-window.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "error": "target module 'configs/mutations/attempt-event-time-window.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "error": "target module 'configs/mutations/attempt-event-time-window.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "error": "target module 'configs/mutations/attempt-event-time-window.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-6f9dedbfb8d3"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "error": "target module 'configs/mutations/gate-report-v3.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "error": "target module 'configs/mutations/gate-report-v3.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "error": "target module 'configs/mutations/gate-report-v3.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "error": "target module 'configs/mutations/gate-report-v3.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-7ae747c9b370"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "error": "target module 'configs/mutations/provider-invocation-identity.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "error": "target module 'configs/mutations/provider-invocation-identity.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "error": "target module 'configs/mutations/provider-invocation-identity.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "error": "target module 'configs/mutations/provider-invocation-identity.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-8d352bd379f1"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "error": "target module 'configs/mutations/repository-tree.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "error": "target module 'configs/mutations/repository-tree.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "error": "target module 'configs/mutations/repository-tree.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "error": "target module 'configs/mutations/repository-tree.json' not found in code-plane graph",
+      "plane": "data",
+      "task": "mint-text-commit-91fec7147042"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "error": "target module 'docs/superpowers/specs/2026-08-25-continuous-daedalus-scheduler.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "error": "target module 'docs/superpowers/specs/2026-08-25-continuous-daedalus-scheduler.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "error": "target module 'docs/superpowers/specs/2026-08-25-continuous-daedalus-scheduler.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "error": "target module 'docs/superpowers/specs/2026-08-25-continuous-daedalus-scheduler.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-955a9a09327f"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 500,
+      "error": "target module 'docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 2000,
+      "error": "target module 'docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 4000,
+      "error": "target module 'docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-ce1ade4dbb60"
+    },
+    {
+      "arm": "code_only_graph",
+      "budget": 16000,
+      "error": "target module 'docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md' not found in code-plane graph",
+      "plane": "knowledge",
+      "task": "mint-text-commit-ce1ade4dbb60"
+    }
+  ],
+  "failures": [],
+  "instrument_digest": "1bc423f312432b23",
+  "n_tasks": 15,
+  "schema": "g3-task-answerability/1",
+  "seed": 0,
+  "selection": "minted-clean",
+  "summary_status": "ok",
+  "task_verdicts": {
+    "mint-commit-134e2b9a641a": "DISCRIMINATIVE",
+    "mint-commit-149db665eea1": "DISCRIMINATIVE",
+    "mint-commit-3e54d27d82c1": "DISCRIMINATIVE",
+    "mint-commit-4b4143aed595": "DISCRIMINATIVE",
+    "mint-commit-a172c1b0d460": "DISCRIMINATIVE",
+    "mint-commit-a47b2232b89e": "DISCRIMINATIVE",
+    "mint-commit-a570c08309eb": "DISCRIMINATIVE",
+    "mint-commit-b5c01931e698": "DISCRIMINATIVE",
+    "mint-commit-e14668f8c779": "DISCRIMINATIVE",
+    "mint-text-commit-6f9dedbfb8d3": "DISCRIMINATIVE",
+    "mint-text-commit-7ae747c9b370": "DISCRIMINATIVE",
+    "mint-text-commit-8d352bd379f1": "DISCRIMINATIVE",
+    "mint-text-commit-91fec7147042": "DISCRIMINATIVE",
+    "mint-text-commit-955a9a09327f": "DISCRIMINATIVE",
+    "mint-text-commit-ce1ade4dbb60": "DISCRIMINATIVE"
+  }
+}
