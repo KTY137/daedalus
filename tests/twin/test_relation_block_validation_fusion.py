@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import inspect
 
 import pytest
@@ -269,9 +270,68 @@ def test_constructor_uses_row_spans_without_generic_any_or_per_entry_row_state()
     assert "if previous_column >= item:" not in source
 
 
-def test_from_indexed_sorts_validated_keys_without_materializing_item_pairs() -> None:
+def test_from_indexed_reuses_canonical_exact_dict_without_sorting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows, columns = _axes()
+    entries = {(0, 0): True, (0, 2): True, (1, 1): True}
+    real_sorted = builtins.sorted
+
+    def guarded_sorted(iterable: object, *args: object, **kwargs: object) -> object:
+        if iterable is entries:
+            raise AssertionError("canonical exact dict must not be sorted")
+        return real_sorted(iterable, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(builtins, "sorted", guarded_sorted)
+    block = TypedRelationBlock._from_indexed(
+        _subject(),
+        RelationSignature("code", "declares", "type"),
+        rows,
+        columns,
+        entries,
+        BooleanSemiring(),
+    )
+
+    assert block.row_offsets == (0, 2, 3)
+    assert block.column_indices == (0, 2, 1)
+    assert block.values == (True, True, True)
+
+
+def test_from_indexed_sorts_out_of_order_exact_dict_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows, columns = _axes()
+    entries = {(1, 1): True, (0, 2): True, (0, 0): True}
+    real_sorted = builtins.sorted
+    sorted_calls = 0
+
+    def recording_sorted(iterable: object, *args: object, **kwargs: object) -> object:
+        nonlocal sorted_calls
+        if iterable is entries:
+            sorted_calls += 1
+        return real_sorted(iterable, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(builtins, "sorted", recording_sorted)
+    block = TypedRelationBlock._from_indexed(
+        _subject(),
+        RelationSignature("code", "declares", "type"),
+        rows,
+        columns,
+        entries,
+        BooleanSemiring(),
+    )
+
+    assert sorted_calls == 1
+    assert block.row_offsets == (0, 2, 3)
+    assert block.column_indices == (0, 2, 1)
+    assert block.values == (True, True, True)
+
+
+def test_from_indexed_reuses_validated_key_order_without_item_pair_copy() -> None:
     source = inspect.getsource(TypedRelationBlock._from_indexed)
     assert "list(entries.items())" not in source
     assert "for row, column in entries:" in source
-    assert "ordered = sorted(entries)" in source
+    assert "keys_are_canonical = type(entries) is dict" in source
+    assert "ordered_keys = entries if keys_are_canonical else sorted(entries)" in source
+    assert "ordered = sorted(entries)" not in source
     assert "values.append(entries[key])" in source
