@@ -19,9 +19,21 @@ a quiet edit to this one.
 
 Minted tasks land with ``"tier": "quarantine"`` and
 ``"label_provenance": "independent_diff"`` and are barred from any go/no-go
-recall number until ``confirm_task`` has been called on them
-``MINT_CONFIRM_THRESHOLD`` times -- see that constant's docstring for the
-rationale. Aggregation/enforcement of the tier gate is the eval harness's job
+recall number until a PROMOTION WITNESS exists for them. There are two, and
+``promotion_witness`` returns which one applies rather than a bare boolean:
+
+  ``recurrence``  -- ``confirmations >= MINT_CONFIRM_THRESHOLD``, the original
+                     rule, unchanged in meaning.
+  ``noise_audit`` -- every threat that constant's comment NAMES, checked and
+                     found absent (``audit_noise_threats``).
+
+The second exists because the first never fires. That comment predicts the
+threshold stays "low enough to actually accumulate ... instead of never
+firing"; measured 2026-09-10, zero confirmations across 400 first-parent
+commits and all 48 stored tasks. Recurrence was only ever a proxy for "the
+named threats are absent", so the threats are now checked directly -- as a
+SEPARATE witness, never by incrementing ``confirmations``, because a count
+whose entries mean two different things is a count of nothing. Aggregation/enforcement of the tier gate is the eval harness's job
 (a sibling module owns harness.py/report.py); this module only stamps the
 fields honestly.
 
@@ -207,6 +219,17 @@ _GIT_TIMEOUT = 30.0
 # -- see ``load_minted_tasks``.
 DEFAULT_MINT_STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minted_tasks.json")
 
+# The repository's OWN corpus file, resolved from this module's location and
+# deliberately NOT the same name as the constant above. They hold the same
+# value at import, but ``DEFAULT_MINT_STORE_PATH`` is routinely monkeypatched
+# to a tmp file by tests that mint against throwaway fixtures -- so gating the
+# portability refusal on it would fire on exactly those legitimate callers
+# (measured: it broke ``test_mint_commit_cli_then_all_tasks_picks_it_up_via_
+# default_path``, which mints from a temp repo that HAS no portable label).
+# This constant tracks the real committed file, which is the only artifact the
+# refusal is protecting.
+_COMMITTED_STORE_PATH = os.path.normcase(os.path.realpath(DEFAULT_MINT_STORE_PATH))
+
 
 def _git(repo_root, *args: str) -> str | None:
     """Run git in ``repo_root``; stdout on success, ``None`` on ANY failure
@@ -229,9 +252,14 @@ def _git(repo_root, *args: str) -> str | None:
 def _is_linked_worktree(repo_root) -> bool:
     """True if ``repo_root`` is a git LINKED WORKTREE, not a primary checkout.
 
-    A minted task stores ``repo`` as an ABSOLUTE PATH (see ``_mint_from_diffs``)
-    and the mint store is append-only, so that path has to stay resolvable for
-    the whole life of the corpus. A linked worktree is by construction
+    A minted task USED TO store ``repo`` as an absolute path, and the mint
+    store is append-only, so that path had to stay resolvable for the whole
+    life of the corpus -- which it did not: 17 stored tasks ended up pinned to
+    a checkout on another machine. Since 2026-09-09 the stored value is a
+    portable label (``_portable_repo_label``), so the failure this guard
+    describes is now caught at the store boundary too. The guard stays: minting
+    from a worktree that is about to be deleted is still worth refusing at the
+    source. A linked worktree is by construction
     temporary: ``daedalus.spine.attempt`` creates one per candidate and deletes
     it in a ``finally:``. Minting from one therefore writes a task that can
     NEVER be evaluated again -- ``daedalus.eval.tasks.resolve_task_repo`` takes
@@ -312,6 +340,55 @@ def _short_hash(*parts: object) -> str:
         h.update(repr(p).encode("utf-8"))
         h.update(b"\x00")
     return h.hexdigest()[:12]
+
+
+def _portable_repo_label(repo_root) -> str:
+    """Turn a minting root into a reference ``tasks.resolve_task_repo`` can
+    resolve on ANY machine -- not only the one that happened to mint.
+
+    THE DEFECT THIS EXISTS TO PREVENT, measured 2026-09-09. Both mint sites
+    used to write ``str(Path(repo_root).resolve())``, an absolute host path,
+    straight into ``minted_tasks.json`` -- a file that is COMMITTED. The store
+    then held 17 tasks pinned to ``C:/Users/nukei/Desktop/agent_env``, a
+    checkout on a different machine that does not exist here, so
+    ``resolve_task_repo`` raised on every one of them; and 31 more pinned to a
+    throwaway git worktree, which resolved only for as long as the process
+    happened to be running inside it. A task corpus that names one developer's
+    filesystem is not a frozen public task set, and Gate 3's freeze obligation
+    is exactly that it be one.
+
+    The labels are the ones ``resolve_task_repo`` already understands, so this
+    adds no second naming scheme (plan §5). ``agent_env`` in particular is
+    derived from the harness's own location, which is the point: it means "the
+    checkout this code is running from", so a self-minted task follows the
+    repository to any machine or worktree instead of pointing back at ours.
+
+    An unrecognized root (a test's temp fixture) is returned unchanged rather
+    than guessed at. Persisting one is refused separately, by
+    ``_refuse_nonportable_repos`` at the store boundary -- minting one in
+    memory is legitimate, writing one into the committed corpus is not.
+    """
+    # ``from .tasks import ...`` and NOT ``from . import tasks``: the latter
+    # scores an edge to the PACKAGE ``daedalus.eval`` as well as to the
+    # submodule, and that package edge closes a cycle -- it grew the existing
+    # ``daedalus.eval`` strongly-connected component from 4 members to 5.
+    # tests/contracts/test_import_scc_hierarchy.py caught it via the component
+    # digest. Importing the submodule directly is one edge, mint -> tasks, and
+    # joins no component.
+    from .tasks import AGENT_ENV_ROOT, FOURFOLD_WIKI_FIXTURE, SUNNY_GARDEN_FIXTURE
+
+    resolved = Path(repo_root).resolve()
+    for label, root in (("agent_env", AGENT_ENV_ROOT),
+                        ("sunny_garden", SUNNY_GARDEN_FIXTURE),
+                        ("fourfold_wiki_app", FOURFOLD_WIKI_FIXTURE)):
+        if not root:
+            continue
+        try:
+            if Path(root).resolve() == resolved:
+                return label
+        except OSError:
+            continue
+    return str(resolved).replace("\\", "/")
 
 
 # Ceiling on must_include -- see _mint_from_diffs for the ranking/drop rule.
@@ -563,7 +640,7 @@ def _mint_from_diffs(
 
     task = {
         "id": f"mint-{source}-{_short_hash(target, tuple(kept))}",
-        "repo": str(Path(repo_root).resolve()).replace("\\", "/"),
+        "repo": _portable_repo_label(repo_root),
         "target": target,
         "must_include": kept,
         "must_include_dropped": dropped,
@@ -863,7 +940,7 @@ def _mint_from_text_diffs(
     kept = ranked[:MUST_INCLUDE_CAP]
     task = {
         "id": "mint-text-%s-%s" % (source, _short_hash(anchor, tuple(kept))),
-        "repo": str(Path(repo_root).resolve()).replace("\\", "/"),
+        "repo": _portable_repo_label(repo_root),
         "target": anchor,
         "must_include": kept,
         "must_include_dropped": len(ranked) - len(kept),
@@ -949,12 +1026,362 @@ def load_minted_tasks(path: str | None = None) -> list[dict]:
     return sorted(data.get("tasks", []), key=lambda t: t["id"])
 
 
+#: Bumped when a threat check changes meaning, so a stored audit can never be
+#: read as if it had been produced by today's rules. An audit without a version
+#: is not trusted.
+NOISE_AUDIT_VERSION = 1
+
+#: Path fragments that mark a generated artifact (threat T3). Deliberately
+#: literal and small, mirroring the discipline of ``separate_indices``'s
+#: extension sets: auditable from one place, no globbing, no content sniffing.
+_GENERATED_PATH_MARKERS = ("dist/", "build/", "node_modules/", ".min.",
+                           "generated", "_pb2", "runs/", "lock")
+
+
+def _structural_dump(src: str) -> str | None:
+    """Python source reduced to structure: AST with docstrings dropped.
+
+    Two sources with the same dump differ only in formatting, comments and
+    docstrings -- exactly threat T1's "reformat-only touch that happens to
+    shift a docstring". Returns ``None`` when the source does not parse, which
+    is reported as undecided rather than guessed at.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError, RecursionError):
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef, ast.Module)):
+            body = getattr(node, "body", None)
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                node.body = body[1:] or [ast.Pass()]
+    try:
+        return ast.dump(tree, annotate_fields=False)
+    except RecursionError:
+        return None
+
+
+def _changed_paths_with_status(repo_root, sha: str) -> list[tuple[str, str]] | None:
+    """``[(status, path)]`` for one commit, WITH rename and copy detection.
+
+    ``--find-copies-harder`` is the whole point. Without it git reports a
+    byte-identical copy of an existing file as a plain add, so an audit that
+    trusts "added" concludes a file has no prior version while one sits in the
+    parent tree under another name. That is exactly how a pure packaging move
+    -- 56 of 57 label sources reported ``C100`` -- passed this audit with the
+    strongest verdict in its vocabulary.
+    """
+    out = _git(repo_root, "show", "--name-status", "--format=",
+               "-M40%", "-C40%", "--find-copies-harder", sha)
+    if out is None:
+        return None
+    rows: list[tuple[str, str]] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        # C/R rows carry source and destination; the destination is what the
+        # commit now contains, and what a label could be taken from.
+        path = parts[-1].strip()
+        if path:
+            rows.append((parts[0].strip(), path))
+    return rows
+
+
+def _label_source_rows(repo_root, sha: str, anchor: str):
+    """Files a mint could have taken labels from: everything the commit touched
+    EXCEPT the anchor.
+
+    Both mint paths exclude the anchor from ``must_include`` deliberately
+    (``_mint_from_diffs``: "never the anchor's own"; ``_mint_from_text_diffs``:
+    ``cross_file -= with_labels[anchor]``). Auditing the anchor inspects the one
+    file in the commit that supplied NONE of the gold labels -- a correct
+    statement about the wrong file, harmless right up until it is not.
+    """
+    rows = _changed_paths_with_status(repo_root, sha)
+    if rows is None:
+        return None
+    return [(st, p) for st, p in rows if p != anchor]
+
+
+def audit_noise_threats(task: dict, repo_root) -> dict:
+    """Check the three threats ``MINT_CONFIRM_THRESHOLD``'s comment names.
+
+    WHY THIS EXISTS. That comment justifies the threshold by naming exactly
+    three ways a single mint could be noise -- T1 a reformat-only touch that
+    shifts a docstring, T2 a rename that round-trips to byte-identical source
+    under a new name, T3 a generated-file regen -- and then predicts the
+    threshold stays "low enough to actually accumulate ... instead of never
+    firing". Measured 2026-09-10: ZERO confirmations across 400 first-parent
+    commits and all 48 stored tasks. The prediction is false; the gate never
+    opens, so it never admits a task and never validates one either.
+
+    Recurrence was only ever a PROXY for "these three are absent". This checks
+    them directly. See docs/G3_THE_QUARANTINE_GATE_CANNOT_OPEN_20260910.md.
+
+    WHAT IT DOES NOT COVER, stated because it is the whole limit of the
+    argument: the three NAMED threats, and nothing else. Recurrence in
+    principle also guards against threats nobody wrote down; in practice it
+    fires never, so it guards nothing. But "the named threats are absent" is a
+    strictly smaller claim than "this label is safe", and a caller must not
+    round one to the other. That is why the result is recorded as its own
+    witness kind rather than incrementing ``confirmations``: a stored
+    confirmation count whose entries mean two different things is a count of
+    nothing.
+
+    Verdict vocabulary, per threat:
+      ``impossible`` -- ruled out by construction, not by inspection
+      ``clean``      -- checked and absent
+      ``fired``      -- the threat is present; the task is noise
+      ``undecided``  -- cannot be checked here; never silently treated as clean
+    """
+    sha = task.get("minted_at_sha")
+    rel = (task.get("target") or "").split("::", 1)[0]
+    out = {"version": NOISE_AUDIT_VERSION, "minted_at_sha": sha}
+
+    # T3 is decidable from the path alone, always, and independently of git.
+    low = rel.lower()
+    out["t3_generated"] = "fired" if any(m in low for m in _GENERATED_PATH_MARKERS) else "clean"
+
+    if not sha or not rel:
+        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
+        # A fired T3 decides the verdict even here: a generated artifact is
+        # noise whatever its provenance turns out to be, and letting an
+        # undecidable T1 outrank it would quietly downgrade a KNOWN threat to
+        # an unknown one.
+        out["verdict"] = "fired" if out["t3_generated"] == "fired" else "undecided"
+        return out
+
+    after = _show(repo_root, sha, rel)
+    if after is None:
+        # The target did not exist at the revision the task claims to come
+        # from. Measured on two stored tasks whose paths are post-relocation
+        # while their SHAs predate the commits that created them. The labels
+        # may be fine; the PROVENANCE cannot be checked, and an entry whose
+        # provenance cannot be checked must not sit indistinguishable from one
+        # whose can.
+        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
+        out["verdict"] = ("fired" if out["t3_generated"] == "fired"
+                          else "unverifiable_provenance")
+        return out
+
+    parent = _resolve_sha(repo_root, f"{sha}^")
+
+    # THE FILES THAT ACTUALLY SUPPLY THE LABELS -- not the anchor, which by
+    # construction supplies none of them. Auditing the anchor was a correct
+    # statement about the wrong file.
+    sources = _label_source_rows(repo_root, sha, rel)
+    if not sources:
+        out["t1_cosmetic"] = out["t2_rename_roundtrip"] = "undecided"
+        out["verdict"] = ("fired" if out["t3_generated"] == "fired"
+                          else "undecided")
+        return out
+
+    # T3 over the label sources as well as the anchor: a commit whose anchor is
+    # a hand-written doc and whose labels come from dist/ is a generated-file
+    # regen wearing a clean path.
+    if any(any(m in path.lower() for m in _GENERATED_PATH_MARKERS)
+           for _st, path in sources):
+        out["t3_generated"] = "fired"
+
+    # T2, FIRST AND CHEAPEST: a label source that git reports as a copy or a
+    # rename already existed in the parent tree under another name. Its symbols
+    # are not new, whatever the path suggests. This is "a rename that
+    # round-trips to byte-identical source under a new name" at FILE
+    # granularity, and it is what the previous version of this audit missed --
+    # it passed a pure packaging move, 56 of whose 57 label sources were C100.
+    copied = [p for st, p in sources if st and st[0] in ("C", "R")]
+    if copied:
+        # ATTRIBUTED, not blanket. A large commit often carries one renamed
+        # file that supplied none of the gold labels, and firing the whole task
+        # on its presence would discard good tasks to look strict. A label is
+        # blamed on a copy only when it actually occurs in that copy's content
+        # at the mint revision.
+        labels = [str(x) for x in (task.get("must_include") or ())]
+        blamed = []
+        for path in copied:
+            body = _show(repo_root, sha, path)
+            if body is None:
+                continue
+            blamed += [lab for lab in labels if lab and lab in body]
+        if blamed:
+            out["t2_rename_roundtrip"] = "fired"
+            out["t1_cosmetic"] = "clean"
+            out["t2_blamed_labels"] = sorted(set(blamed))[:10]
+            out["verdict"] = "fired"
+            return out
+
+    verdicts_t1: set[str] = set()
+    verdicts_t2: set[str] = set()
+    for st, path in sources:
+        if st.startswith("A"):
+            # Genuinely new content -- not a copy, since copy detection ran
+            # above and would have reported C. Nothing existed to reformat or
+            # to rename within.
+            verdicts_t1.add("impossible")
+            verdicts_t2.add("impossible")
+            continue
+        if not path.endswith(".py"):
+            # Markdown and JSON need their own normalizer. Not built here, and
+            # reported as undecided rather than assumed clean.
+            verdicts_t1.add("undecided")
+            verdicts_t2.add("undecided")
+            continue
+        src_after = _show(repo_root, sha, path)
+        src_before = _show(repo_root, parent, path) if parent else None
+        if src_after is None or src_before is None:
+            verdicts_t1.add("undecided")
+            verdicts_t2.add("undecided")
+            continue
+        da, db = _structural_dump(src_after), _structural_dump(src_before)
+        if da is None or db is None:
+            verdicts_t1.add("undecided")
+            verdicts_t2.add("undecided")
+            continue
+        verdicts_t1.add("fired" if (da == db and src_after != src_before) else "clean")
+        verdicts_t2.add(_audit_rename_roundtrip(task, src_before, src_after))
+
+    def _worst(vs: set[str]) -> str:
+        # Precedence is deliberate: a threat seen ANYWHERE among the label
+        # sources decides, and an undecidable source outranks a clean one.
+        # Aggregating the other way would let one clean file vouch for a
+        # commit's worth of files nobody checked.
+        for level in ("fired", "undecided", "clean", "impossible"):
+            if level in vs:
+                return level
+        return "undecided"
+
+    out["t1_cosmetic"] = _worst(verdicts_t1)
+    out["t2_rename_roundtrip"] = _worst(verdicts_t2)
+
+    decided = [out["t1_cosmetic"], out["t2_rename_roundtrip"], out["t3_generated"]]
+    if "fired" in decided:
+        out["verdict"] = "fired"
+    elif "undecided" in decided:
+        out["verdict"] = "undecided"
+    else:
+        out["verdict"] = "clean"
+    return out
+
+
+def _audit_rename_roundtrip(task: dict, before: str, after: str) -> str:
+    """T2: is a minted label just an old symbol wearing a new name?"""
+    import ast
+
+    def bodies(src):
+        try:
+            tree = ast.parse(src)
+        except (SyntaxError, ValueError, RecursionError):
+            return None
+        found = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                stripped = ast.parse("pass")
+                stripped.body = list(node.body)
+                dumped = _structural_dump(ast.unparse(stripped))
+                if dumped is not None:
+                    found[node.name] = dumped
+        return found
+
+    old, new = bodies(before), bodies(after)
+    if old is None or new is None:
+        return "undecided"
+    old_shapes = {v: k for k, v in old.items()}
+    for label in task.get("must_include") or ():
+        shape = new.get(label)
+        if shape is None:
+            continue
+        twin = old_shapes.get(shape)
+        if twin is not None and twin != label:
+            return "fired"
+    return "clean"
+
+
+def promotion_witness(task: dict) -> str | None:
+    """Which evidence, if any, entitles ``task`` to leave quarantine.
+
+    Two witnesses, deliberately NOT merged into one counter:
+
+    ``recurrence``   -- ``confirmations >= MINT_CONFIRM_THRESHOLD``, the
+                        original rule, unchanged in meaning.
+    ``noise_audit``  -- every named threat checked and absent, at the current
+                        ``NOISE_AUDIT_VERSION``.
+
+    The kind is returned rather than a bare boolean so a consumer can filter to
+    one. A comparison that wants only the older, broader witness can still
+    have it; what it cannot do is read a mixed population as homogeneous.
+    """
+    if int(task.get("confirmations") or 0) >= MINT_CONFIRM_THRESHOLD:
+        return "recurrence"
+    audit = task.get("noise_audit")
+    if (isinstance(audit, dict)
+            and audit.get("version") == NOISE_AUDIT_VERSION
+            and audit.get("verdict") == "clean"):
+        return "noise_audit"
+    return None
+
+
+def _refuse_nonportable_repos(tasks: list[dict]) -> None:
+    """Refuse to write a task whose ``repo`` is an absolute host path into the
+    repository's OWN committed corpus.
+
+    This is the boundary the 2026-09-09 defect crossed. Minting a task against
+    a temp fixture is fine and tests do it; what is not fine is that value
+    reaching ``minted_tasks.json``, which is committed, shared, and supposed to
+    be a frozen public task set. An absolute path survives exactly one machine:
+    the store shipped 17 tasks pinned to ``C:/Users/nukei/...`` that raised on
+    every resolution attempt here, and 31 pinned to a disposable worktree.
+
+    SCOPE, stated rather than implied: this fires only when writing
+    ``DEFAULT_MINT_STORE_PATH``. A caller writing its own scratch store at some
+    other path is not policed, because no mechanism here can tell which files a
+    repository commits, and pretending otherwise would advertise a guarantee
+    this does not have. It covers the whole of the surface where the defect
+    actually occurred, which is one file.
+    """
+    from .tasks import resolve_task_repo
+
+    bad = []
+    for task in tasks:
+        repo = task.get("repo")
+        if not isinstance(repo, str):
+            continue
+        # An ALLOWLIST, not a path-shape test. The first version rejected
+        # ``os.path.isabs`` only, which let ``../../nukei/Desktop/agent_env``
+        # through untouched -- just as unportable, and not absolute. Asking
+        # "does this resolve as a declared label" refuses both, and refuses
+        # anything else unportable nobody has thought of yet.
+        if os.path.isabs(repo) or os.sep in repo or "/" in repo:
+            bad.append(repo)
+            continue
+        try:
+            resolve_task_repo(repo)
+        except Exception:
+            bad.append(repo)
+    bad = sorted(set(bad))
+    if bad:
+        raise ValueError(
+            "refusing to persist %d task repo reference(s) that are not a "
+            "portable label: %s. Use a label resolve_task_repo understands "
+            "(agent_env / sunny_garden / fourfold_wiki_app / a registered "
+            "project) -- see _portable_repo_label. A corpus that names one "
+            "machine's filesystem is not reproducible on any other."
+            % (len(bad), ", ".join(repr(b) for b in bad)))
+
+
 def save_minted_tasks(tasks: list[dict], path: str | None = None) -> str:
     """Overwrite the mint store with exactly ``tasks``. Deterministic
     formatting (sorted keys, sorted by id) so the diff is meaningful in
     review -- same contract as ``harness.write_baseline``. Returns the path
     written."""
     p = path or DEFAULT_MINT_STORE_PATH
+    if os.path.normcase(os.path.realpath(p)) == _COMMITTED_STORE_PATH:
+        _refuse_nonportable_repos(tasks)
     ordered = sorted(tasks, key=lambda t: t["id"])
     with open(p, "w", encoding="utf-8") as fh:
         json.dump({"schema": 1, "tasks": ordered}, fh, indent=2, sort_keys=True)

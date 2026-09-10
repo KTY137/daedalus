@@ -1,0 +1,343 @@
+{
+  "failures": [],
+  "margin": 0.02,
+  "n": {
+    "agent_env": 6,
+    "sunny_garden": 4
+  },
+  "primary_rung": 4000,
+  "primary_verdict": "REPO_IDENTITY_MATTERS_AT_ALL",
+  "resamples": 10000,
+  "rungs": {
+    "1000": {
+      "aggregate": "REPO_IDENTITY_MATTERS_AT_ALL",
+      "arms": {
+        "bm25": {
+          "ci95": [
+            -0.9444444444444444,
+            -0.33333333333333337
+          ],
+          "delta": -0.6666666666666667,
+          "mean_left": 0.3333333333333333,
+          "mean_right": 1.0,
+          "reading": "REPO_IDENTITY_MATTERS",
+          "scores": {
+            "agent_env": [
+              0.0,
+              0.3333333333333333,
+              0.0,
+              0.6666666666666666,
+              1.0,
+              0.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "code_only_graph": {
+          "ci95": [
+            -0.5555555555555556,
+            0.0
+          ],
+          "delta": -0.2222222222222222,
+          "mean_left": 0.7777777777777778,
+          "mean_right": 1.0,
+          "reading": "UNINFORMATIVE",
+          "scores": {
+            "agent_env": [
+              0.0,
+              0.6666666666666666,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "embeddings": {
+          "ci95": [
+            -1.0,
+            -1.0
+          ],
+          "delta": -1.0,
+          "mean_left": 0.0,
+          "mean_right": 1.0,
+          "reading": "REPO_IDENTITY_MATTERS",
+          "scores": {
+            "agent_env": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "separate_indices": {
+          "ci95": [
+            -0.16666666666666663,
+            0.0
+          ],
+          "delta": -0.05555555555555547,
+          "mean_left": 0.9444444444444445,
+          "mean_right": 1.0,
+          "reading": "UNINFORMATIVE",
+          "scores": {
+            "agent_env": [
+              1.0,
+              1.0,
+              1.0,
+              0.6666666666666666,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      }
+    },
+    "16000": {
+      "aggregate": "REPO_IDENTITY_MATTERS_AT_ALL",
+      "arms": {
+        "bm25": {
+          "ci95": [
+            -0.44444444444444453,
+            0.0
+          ],
+          "delta": -0.2222222222222222,
+          "mean_left": 0.7777777777777778,
+          "mean_right": 1.0,
+          "reading": "UNINFORMATIVE",
+          "scores": {
+            "agent_env": [
+              1.0,
+              0.3333333333333333,
+              0.3333333333333333,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "code_only_graph": {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "mean_left": 1.0,
+          "mean_right": 1.0,
+          "reading": "DEGENERATE",
+          "scores": {
+            "agent_env": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "embeddings": {
+          "ci95": [
+            -1.0,
+            -0.6111111111111112
+          ],
+          "delta": -0.8333333333333334,
+          "mean_left": 0.16666666666666666,
+          "mean_right": 1.0,
+          "reading": "REPO_IDENTITY_MATTERS",
+          "scores": {
+            "agent_env": [
+              0.0,
+              0.0,
+              0.0,
+              0.6666666666666666,
+              0.3333333333333333,
+              0.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "separate_indices": {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "mean_left": 1.0,
+          "mean_right": 1.0,
+          "reading": "DEGENERATE",
+          "scores": {
+            "agent_env": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      }
+    },
+    "4000": {
+      "aggregate": "REPO_IDENTITY_MATTERS_AT_ALL",
+      "arms": {
+        "bm25": {
+          "ci95": [
+            -0.6666666666666667,
+            -0.05555555555555547
+          ],
+          "delta": -0.33333333333333337,
+          "mean_left": 0.6666666666666666,
+          "mean_right": 1.0,
+          "reading": "REPO_IDENTITY_MATTERS",
+          "scores": {
+            "agent_env": [
+              0.6666666666666666,
+              0.3333333333333333,
+              0.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "code_only_graph": {
+          "ci95": [
+            -0.5555555555555556,
+            0.0
+          ],
+          "delta": -0.2222222222222222,
+          "mean_left": 0.7777777777777778,
+          "mean_right": 1.0,
+          "reading": "UNINFORMATIVE",
+          "scores": {
+            "agent_env": [
+              0.0,
+              0.6666666666666666,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "embeddings": {
+          "ci95": [
+            -1.0,
+            -1.0
+          ],
+          "delta": -1.0,
+          "mean_left": 0.0,
+          "mean_right": 1.0,
+          "reading": "REPO_IDENTITY_MATTERS",
+          "scores": {
+            "agent_env": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "separate_indices": {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "mean_left": 1.0,
+          "mean_right": 1.0,
+          "reading": "DEGENERATE",
+          "scores": {
+            "agent_env": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "sunny_garden": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      }
+    }
+  },
+  "rungs_agree": true,
+  "schema": "g3-origin-effect/1",
+  "seed": 20260818
+}

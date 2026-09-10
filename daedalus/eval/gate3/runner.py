@@ -49,11 +49,13 @@ existing ``Arm`` protocol, not a change to it.
 from __future__ import annotations
 
 import subprocess
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 from .contracts import FreezeError, RunManifest, SeedPolicy, TrialResult, require_equal_budgets
+from .coverage import require_plane_coverage
 from .protocols import Arm, SealedEvaluator, Task, run_trial
 
 STATUS_COMPLETE = "complete"
@@ -149,10 +151,14 @@ def run_comparison(
        against post-construction mutation of the budgets mapping, see module
        docstring.
     2. Sort arms by name (deterministic output order).
-    3. Resolve each arm's budget and seed list, refusing (``FreezeError``,
+    3. ``require_plane_coverage`` -- refuse a task set carrying a plane NO arm
+       present can retrieve (R3's other half; see ``coverage.py``). A partial
+       coverage, where some arm covers every needed plane but others do not,
+       is warned rather than refused.
+    4. Resolve each arm's budget and seed list, refusing (``FreezeError``,
        before anything runs) an arm with no declared budget or a stochastic
        arm under too few seeds.
-    4. Build the full ``(arm, task, seed)`` plan.
+    5. Build the full ``(arm, task, seed)`` plan.
 
     Then run the plan in order. Each cell gets a FRESH ``SealedEvaluator``
     from ``evaluator_factory()`` -- never shared across trials, so an
@@ -173,6 +179,29 @@ def run_comparison(
     ordered_arms = sorted(arms, key=lambda a: a.name)
     if not ordered_arms:
         raise FreezeError("run_comparison was given no arms to run")
+
+    # R3's OTHER HALF. ``FrozenTaskSet.require_cross_plane`` refuses a task set
+    # whose gold labels all sit in one plane; it cannot see arms at all, so it
+    # happily admits a set whose labels span three planes that no arm present
+    # can retrieve. That is the same structurally-impossible comparison, and
+    # its zeros are indistinguishable in the results table from zeros earned by
+    # looking and missing. Refused here, before a single trial runs.
+    coverage_report = require_plane_coverage(
+        ordered_arms, manifest.task_set.planes_present)
+    if coverage_report.partial:
+        # Admissible, but not silently. These are the (arm, plane) cells where
+        # a 0.00 will be arithmetic rather than measurement, and a reader who
+        # cannot tell them apart will read "tried and failed" off a table that
+        # means "never looked". Warned rather than refused, because a
+        # single-plane baseline losing on another plane IS the measurement it
+        # exists to provide -- same shape as build_frozen_taskset warning about
+        # the tasks it excluded rather than dropping them quietly.
+        warnings.warn(
+            "plane coverage is partial: "
+            + ", ".join(f"{arm} cannot retrieve {plane}"
+                        for arm, plane in coverage_report.partial)
+            + ". Scores in those cells are 0.00 by construction.",
+            UserWarning, stacklevel=2)
 
     plan: list[tuple[Arm, Task, int]] = []
     for arm in ordered_arms:

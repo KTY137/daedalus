@@ -262,22 +262,80 @@ def test_real_corpus_census_is_pinned_and_reported():
         by the product harness as plane-unindexed rather than scored, so
         admitting the set is a corpus fact, not a claim that any arm can
         score them.
+
+    MEASURED 2026-09-09, after G3-MINT-TEXT-01 minted the repository's own
+    text (packet: docs/work-packets/G3-MINT-TEXT-01_NON_CODE_TASK_MINTING.md):
+      - all_tasks() total: 62 (14 hand-authored + 48 persisted mint tasks:
+        17 independent_diff and 31 independent_text_diff, all quarantine)
+      - full census: {'code': 27, 'type': 0, 'data': 17, 'knowledge': 18}
+      - primary-tier subset: UNCHANGED at 14, census UNCHANGED at
+        {'code': 10, 'type': 0, 'data': 2, 'knowledge': 2}
+      - the frozen digest is BYTE-IDENTICAL, because every one of the 31 new
+        tasks is quarantined. That is the tier gate doing its job, and it is
+        the reason this update is safe: 31 tasks entered the corpus and not
+        one entered a number.
+
+      MEASURED 2026-09-10, then REVERTED the same day (see the retraction
+      below and the digest note at the assertion). What follows describes a
+      promotion that no longer stands:
+        - primary tier: 14 -> 49; census {'code': 24, 'type': 0, 'data': 16,
+          'knowledge': 9}; frozen digest MOVED (see the note at the assertion)
+        - 35 tasks left quarantine, none by recurrence. Every one carries
+          promoted_by="noise_audit": the threats MINT_CONFIRM_THRESHOLD's own
+          comment names were checked and found absent, 32 of them ruled out BY
+          CONSTRUCTION (their anchor file was added by the minting commit, so
+          there was nothing to reformat and nothing to rename within).
+        - COMPLETE SEPARATION IS BROKEN, which was the point. Before, every
+          non-code primary task came from one packaged fixture. Now data holds
+          14 agent_env + 2 fixture, and knowledge holds 7 agent_env + 2
+          fixture. Every plane spans more than one repository, so a plane
+          effect and an origin effect are no longer perfectly confounded.
+        - RETRACTED 2026-09-10, same day. This block claimed the promoted
+          tasks "discriminate: bm25 0.209 and separate_indices 0.500 at budget
+          4000 ... two arms separated by 0.29". An independent pass could not
+          reproduce it from any routing: measured 0.243 and 0.265, a separation
+          of 0.022, with separate_indices off by ~1.9x. I kept no instrument
+          and no receipt, so the only record of the original pair was this
+          sentence -- the unverifiable-claim defect AGENTS.md names, in the
+          sentence that justified the promotion. It also found 7 of the 35
+          constant across 11 arm x budget configurations, so "the opposite of
+          the constant rows they join" was false for those seven.
+        - still quarantined: 11 Markdown/JSON tasks whose normalizer does not
+          exist yet (undecided is never promoted) and 2 whose target did not
+          exist at their own minted_at_sha (unverifiable provenance).
+
+      WHAT THE 2026-09-09 BLOCK BELOW GOT RIGHT AND WHAT TIME OVERTOOK: its
+      statement that the confound "persists AT THE TIER THAT FEEDS A HEADLINE
+      NUMBER" was true when written and is no longer. Its diagnosis of WHY --
+      that MINT_CONFIRM_THRESHOLD assumes label sets recur and they do not --
+      still stands, and is exactly why the second witness had to exist.
+
+      WHAT THIS DOES NOT FIX, stated here so the next reader does not infer
+      it: the primary tier's data and knowledge tasks are still the four
+      artifact_parsed ones from the six-file fixture. The confound measured in
+      docs/G3_CORPUS_IS_TWO_POPULATIONS_20260909.md -- code tasks from the
+      real repository against non-code tasks from a toy -- is unchanged AT THE
+      TIER THAT FEEDS A HEADLINE NUMBER. The repository-derived replacements
+      exist now, but none can be promoted: minting produced ZERO
+      confirmations, because no two of 400 commits yielded the same
+      must_include set. MINT_CONFIRM_THRESHOLD assumes label sets recur; for
+      Markdown headings and JSON keys they essentially do not.
     """
     tasks = all_tasks()
-    assert len(tasks) == 31, (
+    assert len(tasks) == 62, (
         "the real task corpus size changed since this test was pinned -- "
         "update this test deliberately, do not just bump the number")
 
     # Full corpus (including quarantine), for transparency about what exists
     # even though it is not in the frozen set.
     full_census = census(tasks)
-    assert full_census == {"code": 27, "type": 0, "data": 2, "knowledge": 2}
+    assert full_census == {"code": 27, "type": 0, "data": 17, "knowledge": 18}
 
     primary, n_excluded = filter_primary_tasks(tasks)
     assert len(primary) == 14
-    assert n_excluded == 17
+    assert n_excluded == 48
 
-    with pytest.warns(UserWarning, match=r"excluded 17 of 31"):
+    with pytest.warns(UserWarning, match=r"excluded 48 of 62"):
         fts = build_frozen_taskset(
             "gate3-real-corpus-20260906", tasks, REAL_CORPUS_COUNTING_RULE)
 
@@ -289,8 +347,29 @@ def test_real_corpus_census_is_pinned_and_reported():
     # Pinned digest: deterministic given the frozen name/counting-rule/corpus
     # triple above. Changes only if the corpus, the counting rule text, or
     # this test's chosen name changes.
+    # MOVED to d1690bf5... on 2026-09-10 when 35 tasks were promoted on a
+    # noise-audit witness, and MOVED BACK the same day when that witness was
+    # refuted: an independent pass showed a byte-identical COPY is reported by
+    # git as an add, so "the anchor file was added, therefore T1/T2 are
+    # impossible" does not hold -- and one promoted task was a pure packaging
+    # move whose labels were recoverable from the copies' pre-images. The
+    # promotion is reverted; the audits are retained as evidence.
+    #
+    # MOVED AGAIN, 2026-09-10, for a different and better reason: the digest
+    # now covers task CONTENT (target, gold labels, mint provenance) and not
+    # only ids and a census. The same adversarial pass showed the old one stayed
+    # byte-identical when every ``must_include`` in the set was rewritten -- so
+    # the "the digest moved, therefore the transition is auditable" argument in
+    # the reverted promotion was resting on an instrument that could not see the
+    # thing it was being cited about.
+    #
+    #   210e117e...  ids + census only, 2026-09-06 .. 2026-09-10
+    #   e1445754...  ids + census + content, from 2026-09-10
+    #
+    # The membership of the frozen set is UNCHANGED across that move: still the
+    # same 14 primary tasks. Only the instrument got sharper.
     assert fts.digest == (
-        "210e117ebac63df18eacd51ac7954df7c9084e8ba8f4aac86c65d77902056838")
+        "e1445754d65bbd0d3787163da37f03a078ba7b2637ee99c0a1670c7d73969a46")
 
     # THE HEADLINE FINDING, INVERTED BY MEASUREMENT (2026-09-09). It used to
     # read: a cross-plane comparison cannot be run today, and R3 refused. The

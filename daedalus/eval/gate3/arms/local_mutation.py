@@ -71,7 +71,7 @@ import random
 import time
 from typing import Sequence
 
-from daedalus.eval.harness import _repo_chunks
+from daedalus.eval.harness import _RETRIEVABLE_PLANES, _repo_chunks
 # count_tokens is reached through the module rather than imported by name:
 # harness does not DEFINE it -- it imports it from daedalus.structcore.tokens
 # inside a try/except with a chars/4 fallback, so a from-import re-exports
@@ -94,6 +94,14 @@ class LocalMutationArm:
 
     name = "local_mutation"
     stochastic = True
+    #: Repaired 2026-09-10 (G3-ARM-PLANE-01): this arm now requests
+    #: ``planes=_RETRIEVABLE_PLANES`` instead of inheriting the code-only
+    #: default, so it retrieves data and knowledge documents as well. Declared
+    #: here so ``gate3.coverage`` can admit a cross-plane comparison, and
+    #: checked against behaviour by
+    #: ``test_real_arm_declarations_match_what_they_retrieve`` rather than
+    #: trusted.
+    retrieved_planes = ("code", "data", "knowledge")
 
     def run(self, task: Task, budget: ArmBudget, evaluator: SealedEvaluator,
             seed: int) -> ArmOutcome:
@@ -113,7 +121,7 @@ class LocalMutationArm:
     def _run(self, task: Task, budget: ArmBudget, evaluator: SealedEvaluator,
               seed: int) -> ArmOutcome:
         rng = random.Random(seed)  # never the global random module
-        chunks: Sequence[tuple[str, str]] = _repo_chunks(task.repo_root)
+        chunks: Sequence[tuple[str, str]] = _repo_chunks(task.repo_root, planes=_RETRIEVABLE_PLANES)
         n = len(chunks)
         calls_before = evaluator.calls
         t0 = time.perf_counter()

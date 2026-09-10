@@ -170,6 +170,17 @@ class SeparateIndicesArm:
 
     name: str = "separate_indices"
     stochastic: bool = False
+    #: Measured, not assumed. This arm buckets every file into a plane
+    #: (``plane_documents``) and searches the index for ``task.label_plane``.
+    #: On the packaged four-plane fixture it returns data and knowledge
+    #: documents and scores 1.00 on all four non-code primary tasks at budget
+    #: 4000, where ``bm25`` and ``embeddings`` score 0.00.
+    #:
+    #: ``type`` is IMPLEMENTED (``_TYPE_EXTENSIONS``) and deliberately NOT
+    #: claimed: no available fixture holds a type document, so the declaration
+    #: could not be checked against behaviour. An unevidenced declaration is
+    #: precisely what ``gate3.coverage`` must not be allowed to trust.
+    retrieved_planes: tuple[str, ...] = ("code", "data", "knowledge")
 
     def run(self, task: Task, budget: ArmBudget, evaluator: SealedEvaluator,
             seed: int) -> ArmOutcome:

@@ -17,16 +17,17 @@ Classification: `EXPERIMENT` (read-only measurement) + one test repair.
 
 Re-measured today against `daedalus.eval.harness.all_tasks()`:
 
-| | then | now |
-| --- | --- | --- |
-| tasks | 27 | **31** |
-| census | code=27, type=0, data=0, knowledge=0 | **code=27, type=0, data=2, knowledge=2** |
-| planes present | `("code",)` | **`("code", "data", "knowledge")`** |
-| `require_cross_plane()` | REFUSES | **PASSES** |
+| | 2026-09-06 baseline | 2026-09-09 initial | 2026-09-09 later |
+| --- | --- | --- | --- |
+| tasks | 27 | **31** | **62** |
+| census | code=27, type=0, data=0, knowledge=0 | code=27, type=0, data=2, knowledge=2 | **code=27, type=0, data=17, knowledge=18** |
+| planes present | `("code",)` | `("code", "data", "knowledge")` | **`("code", "data", "knowledge")`** |
+| primary tier | 10 | 14 | **14 (unchanged)** |
+| primary census | code=10, type=0, data=0, knowledge=0 | code=10, type=0, data=2, knowledge=2 | **code=10, type=0, data=2, knowledge=2 (unchanged)** |
+| `require_cross_plane()` | REFUSES | **PASSES** | **PASSES** |
 
 Verified by building the frozen task set and calling the method, on both the
-full corpus and the primary tier (14 tasks: code=10, data=2, knowledge=2).
-Both pass.
+full corpus and the primary tier. The 14-task primary tier remained stable; 48 new quarantine-tier tasks landed in the later run (31 `independent_text_diff` + 17 `independent_diff`).
 
 **The corpus gained two data-plane and two knowledge-plane tasks.** That is
 corpus work someone did, exactly as §F1 said was needed. It has nothing to do

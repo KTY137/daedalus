@@ -19,11 +19,25 @@ never the defect, which documents to include was. This arm therefore retrieves
 over EXACTLY the document universe ``daedalus.eval.harness._repo_chunks``
 already defines for arm C of the existing A/B/C comparison: one chunk per
 extractable function/class unit, or the whole file when nothing is
-extractable, walked over every source file under the task's repo root (minus
-the harness's own build/VCS ignore list). This module adds NO further filter --
-no de-duplication, no relevance pre-screen, no plane restriction, no exclusion
-list of its own. If a future change filters the corpus for this arm, that is a
-defect against this docstring's stated invariant, not an optimization.
+extractable, walked over every file under the task's repo root that the
+harness can retrieve (minus its own build/VCS ignore list). This module adds NO
+further filter -- no de-duplication, no relevance pre-screen, no plane
+restriction, no exclusion list of its own. If a future change filters the
+corpus for this arm, that is a defect against this docstring's stated
+invariant, not an optimization.
+
+    THIS PARAGRAPH WAS FALSE FROM THE DAY IT WAS WRITTEN, and the way it was
+    false is the point. The invariant said "no plane restriction"; the call was
+    ``_repo_chunks(task.repo_root)``, and that function's default is
+    ``planes=("code",)`` -- a plane restriction, inherited rather than added.
+    Every non-code task scored 0.00 by arithmetic: the document holding the
+    answer was never a candidate. The paragraph above even names the lesson it
+    was breaking -- s07's corpus filter, where "the formula was never the
+    defect, which documents to include was".
+    A filter you inherit from a default is still a filter. Repaired
+    2026-09-10 (G3-ARM-PLANE-01) by passing ``planes=_RETRIEVABLE_PLANES``
+    explicitly; measured effect on the primary tier at budget 4000:
+    data 0.000 -> 1.000, knowledge 0.000 -> 1.000, code unchanged at 0.800.
 
 BUDGET (packet rule R1): the arm receives ``budget.max_tokens`` as its full,
 undivided retrieval budget -- passed straight through to
@@ -78,12 +92,20 @@ class BM25Arm:
 
     name: str = "bm25"
     stochastic: bool = False
+    #: Repaired 2026-09-10 (G3-ARM-PLANE-01): this arm now requests
+    #: ``planes=_RETRIEVABLE_PLANES`` instead of inheriting the code-only
+    #: default, so it retrieves data and knowledge documents as well. Declared
+    #: here so ``gate3.coverage`` can admit a cross-plane comparison, and
+    #: checked against behaviour by
+    #: ``test_real_arm_declarations_match_what_they_retrieve`` rather than
+    #: trusted.
+    retrieved_planes = ("code", "data", "knowledge")
 
     def run(self, task: Task, budget: ArmBudget, evaluator: SealedEvaluator,
             seed: int) -> ArmOutcome:
         del seed  # deterministic arm; accepted only to satisfy the Arm protocol
         try:
-            chunks = harness._repo_chunks(task.repo_root)
+            chunks = harness._repo_chunks(task.repo_root, planes=harness._RETRIEVABLE_PLANES)
             query = (task.question or "").strip() or harness._target_query(task.target)
             budget_tokens = budget.max_tokens if budget.max_tokens is not None else math.inf
             retrieval = harness._bm25_context(chunks, query, budget_tokens=budget_tokens)

@@ -211,7 +211,9 @@ CURRENT_COMPONENTS_SHA256 = (
 # The component count (14), the maximum component size (19) and the component
 # digest asserted below are all unchanged, which is the claim that matters:
 # the four are a layered chain hanging off the supervisor, not a new cycle.
-CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain staged
+# 519 -> 520: daedalus/eval/gate3/coverage.py, the plane-coverage admission
+# check (R3's other half). One added module, no deletion, joins no component.
+CENSUS_MODULES = 520  # re-measured 2026-09-09, +gate3.coverage
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -520,7 +522,31 @@ CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain stag
 # the one new supervisor edge to ``...claude_attempt_handoff``, which is
 # function-local inside ``run()`` but counted because the graph is built from
 # the AST.
-CENSUS_EDGES = 2081  # re-measured 2026-09-09 with the ikarus Claude chain staged
+# minted-corpus portability fix: 2081 -> 2082, exactly one added edge,
+# daedalus.eval.mint -> daedalus.eval.tasks, from the function-local import in
+# ``_portable_repo_label`` (counted because the graph is built from the AST).
+# There is no return edge: tasks.py does not import mint.
+#
+# THIS PIN CAUGHT A REAL DEFECT, recorded because the first attempt looked
+# harmless. That version wrote ``from . import tasks as _tasks``, which scores
+# TWO edges -- the submodule AND the package ``daedalus.eval`` -- and the
+# package edge closed a cycle, growing the existing ``daedalus.eval``
+# component from 4 members to 5. The count, the component count (14) and the
+# max size (19) were all unchanged; only the component DIGEST moved, which is
+# the assertion that failed. Had this file pinned counts alone, mint would have
+# joined a strongly-connected component silently. ``from .tasks import ...``
+# takes the submodule edge without the package edge and joins no component.
+# 2082 -> 2084: gate3.coverage -> gate3.contracts (the new module's only
+# import) and gate3.runner -> gate3.coverage (run_comparison calls
+# require_plane_coverage before any trial). Component count (14), max size
+# (19) and the component digest are unchanged.
+#
+# HOW THIS WAS MISSED ONCE, recorded because the trap is silent: this graph
+# is built from `git ls-files -- daedalus`, so a NEW module is invisible to
+# it until staged. Running the suite after creating coverage.py but before
+# `git add` gave a clean 498-passed green; the same suite went red the
+# moment the file was committed. Stage first, then measure.
+CENSUS_EDGES = 2084  # re-measured 2026-09-09, +gate3.coverage and its caller
 
 
 def _module_name(path: str) -> str:

@@ -1,0 +1,221 @@
+# Pre-registration — how much of a cross-plane difference at Gate 3's primary tier is just corpus origin?
+
+Status: FROZEN before measurement, 2026-09-09
+Classification: EXPERIMENT (Gate-3 prework; active delivery gate is 1)
+Packet: G3-ORIGIN-EFFECT-01
+Instrument: `daedalus.eval.gate3` arms + `runner.run_comparison` (first end-to-end drive)
+
+**Cross-reference:** This pre-registration's measurement of corpus origin is motivated by `docs/G3_CORPUS_IS_TWO_POPULATIONS_20260909.md`, which identifies two populations and documents their mismatch. The structural fact in section 1 below (complete separation) is the updated finding that supersedes the softer "confound" framing in that earlier document. This run is designed to bound the magnitude of the origin effect but not to license any cross-plane claim, which is impossible under complete separation.
+
+This document is written and committed **before** the run. Nothing below is
+adjusted afterwards. The result goes in a separate file that cites this one.
+
+## 1. The structural fact, established by counting and NOT under test here
+
+Measured 2026-09-09 on `packet/g3-mint-corpus` (`_probe_origin.py`, read-only),
+over the 14 primary-tier tasks of `daedalus.eval.harness.all_tasks()`:
+
+| origin | code | type | data | knowledge | n |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| fixture (six-file `garden/` + `wiki/` + `schemas/` tree) | 4 | 0 | 2 | 2 | 8 |
+| real (this repository) | 6 | 0 | 0 | 0 | 6 |
+
+Two things follow immediately, by counting alone:
+
+1. **Complete separation.** Every non-code primary task is fixture-derived;
+   every repository-derived primary task is code. For the data and knowledge
+   planes, origin is not merely correlated with plane — it is *constant*.
+2. **No adjustment exists.** Under complete separation there is no residual
+   variation with which to separate a plane effect from an origin effect. This
+   is stronger than the confound recorded in
+   `G3_CORPUS_IS_TWO_POPULATIONS_20260909.md`, which described the two
+   populations but did not establish that the separation is total.
+
+`docs/G3_CORPUS_IS_TWO_POPULATIONS_20260909.md` should be read as superseded on
+this point.
+
+**Therefore: no outcome of the run specified below can license a cross-plane
+claim at the primary tier.** Complete separation is a fact about the corpus,
+not a hypothesis this run tests. This run does exactly one thing: it bounds
+*how large* the origin effect is, on the one plane where origin is identifiable.
+
+## 2. Why the code plane is the only place this is measurable
+
+The code plane is the only plane holding tasks of *both* origins (4 fixture,
+6 real). So it is the only place where origin can vary while plane is held
+constant. Everywhere else, asking the question is impossible.
+
+## 3. Statistic
+
+For each arm `A`:
+
+    delta_A = mean(score | code, real) - mean(score | code, fixture)
+              n=6                        n=4
+
+`score` is the sealed evaluator's score for the arm's retrieval on that task
+(`SealedEvaluator.score`), as returned by `run_trial`. The arms never see
+`must_include` (plan §4 invariant 3).
+
+Uncertainty: percentile bootstrap, **stratified within each origin group**
+(resample the 6 and the 4 independently), **10,000 resamples**, **seed
+20260818** — the s10 convention already adopted in this session's
+pre-registrations, so this run is not free to pick a friendlier resample count.
+
+Equivalence margin: **±0.02**, the adopted s10 margin.
+
+## 4. Arms
+
+The four arms that are deterministic (`stochastic = False`) and require no
+network, no API key, and no paid call:
+
+- `bm25`
+- `code_only_graph`
+- `embeddings`
+- `separate_indices`
+
+Deterministic ⇒ one seed each; seed variance is not a term in this design.
+The six stochastic arms are excluded because their seed variance at n=6/n=4
+would swamp the quantity of interest; excluding them is a scope decision, not
+a result, and they are not run and then dropped.
+
+## 5. Reading table — frozen, per arm
+
+Exhaustive and mutually exclusive. Evaluated in this order; the first match wins.
+
+| # | Condition | Reads |
+| --- | --- | --- |
+| 1 | every trial in **both** groups returns the identical score (zero variance overall), or all scores are at floor 0.0, or all at ceiling 1.0 | **DEGENERATE** — the arm distinguishes nothing here; the comparison is vacuous for this arm and says nothing about origin |
+| 2 | CI95 for `delta_A` lies entirely outside `[-0.02, +0.02]` | **ORIGIN_EFFECT_LARGE** |
+| 3 | CI95 for `delta_A` lies entirely inside `[-0.02, +0.02]` | **ORIGIN_EFFECT_NEGLIGIBLE** |
+| 4 | otherwise (CI overlaps the margin boundary) | **UNINFORMATIVE** — at n=6 vs n=4 this is the *expected* reading, and it is a real outcome, not a failed run |
+
+## 6. Reading table — frozen, aggregate
+
+| # | Condition | Verdict |
+| --- | --- | --- |
+| 1 | every arm reads DEGENERATE | **INSTRUMENT_VACUOUS** — the finding is about the arms, not about origin; nothing is learned about the corpus and the run must not be reported as if it were |
+| 2 | at least one non-degenerate arm reads ORIGIN_EFFECT_LARGE | **CROSS_PLANE_UNSUPPORTED_STRONG** — with plane held constant, origin alone moves the score past the equivalence margin on at least one instrument. Since origin is perfectly nested inside plane for non-code, a cross-plane difference at this tier is not attributable to plane |
+| 3 | every non-degenerate arm reads ORIGIN_EFFECT_NEGLIGIBLE | **ORIGIN_BOUNDED_SMALL** — the origin effect is bounded below the margin on every instrument tested. Complete separation still forbids the cross-plane claim (§1); this outcome downgrades severity, it does not grant permission |
+| 4 | otherwise (some UNINFORMATIVE, no LARGE) | **UNBOUNDED** — the available data cannot bound the origin effect in either direction. The cross-plane claim is unsupported for want of evidence, which is distinct from refuted |
+
+## 7. Stated prior, recorded so it cannot be retro-fitted
+
+I expect **CROSS_PLANE_UNSUPPORTED_STRONG, with fixture scoring above real
+(`delta_A` negative)**.
+
+Mechanism: every one of these arms retrieves over the *task's own repo root*
+(`bm25`'s docstring pins this explicitly to `harness._repo_chunks` walked from
+the task root). The fixture root holds six files; this repository holds
+thousands. At a fixed retrieval budget, precision on a six-document corpus
+should be far higher than on a several-thousand-document one. If that is what
+the numbers show, the "code vs non-code" contrast at the primary tier is
+substantially a "hard corpus vs easy corpus" contrast.
+
+If the run instead reads ORIGIN_BOUNDED_SMALL, my first suspicion is the
+instrument, not the corpus — specifically scores pinned at floor — and reading
+table §5 row 1 exists to catch exactly that before it is reported as a
+substantive null.
+
+## 8. What this run is not
+
+- Not a Gate-3 baseline result. Gate 3's baseline obligation requires the full
+  arm set, frozen public tasks, and a sealed evaluator; this is a two-group
+  contrast inside one plane.
+- Not evidence about plane-conditioned retrieval. Six independent negatives on
+  that question already exist and are unaffected either way.
+- Not a promotion of anything out of quarantine.
+
+---
+
+## AMENDMENT 1 — the design above does not measure what §2 claims it does
+
+Appended 2026-09-09, **after** freezing and **before** any measurement. Nothing
+above is edited; commit `9a8e6a24` is what was frozen. This section exists
+because the flaw was found in the gap between the two, which is the only point
+at which recording it costs nothing.
+
+### What I missed
+
+Sections 1–2 speak of two origins, "fixture" and "real". That came from a probe
+that classified origin by *whether the target path resolves in this checkout* —
+my own heuristic. But tasks carry an authoritative `repo` label, and reading it
+gives **three** repositories, not two:
+
+| repo | code | type | data | knowledge | n |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `agent_env` (this repository) | 6 | 0 | 0 | 0 | 6 |
+| `sunny_garden` (packaged code-plane fixture) | 4 | 0 | 0 | 0 | 4 |
+| `fourfold_wiki_app` (packaged four-plane fixture) | 0 | 0 | 2 | 2 | 4 |
+
+Complete separation (§1) survives this correction intact — it is if anything
+sharper, since each repository contributes to exactly one plane group. But the
+contrast §3 specifies is `agent_env` vs `sunny_garden`, and **every non-code
+task lives in `fourfold_wiki_app`, which appears in neither arm of it.**
+
+So the planned run cannot bound the origin effect that the cross-plane
+comparison actually suffers from. It bounds a different repo-to-repo effect
+between two repositories that both contribute only code tasks.
+
+### Is the effect identifiable another way? No.
+
+`fourfold_wiki_app` holds no code task at any tier, so there is no within-repo
+contrast available there. It is a packaged fixture directory, not a git
+repository, so nothing can be minted from its history. With the present corpus
+the quantity is **not identifiable at all**.
+
+### What the run is re-scoped to measure
+
+Not "the origin effect", but the strictly weaker:
+
+> Does repository identity, with plane held constant, move these arms' scores
+> past the ±0.02 equivalence margin *at all*?
+
+The reading tables in §5 and §6 are unchanged as arithmetic. Their *names* are
+re-scoped: read `ORIGIN_EFFECT_LARGE` as `REPO_IDENTITY_MATTERS`, and the
+aggregate `CROSS_PLANE_UNSUPPORTED_STRONG` as `REPO_IDENTITY_MATTERS_AT_ALL`.
+
+The step from "repo identity moves scores between `agent_env` and
+`sunny_garden`" to "therefore `fourfold_wiki_app` is not exchangeable with
+`agent_env` either" is an **inference, not a measurement**, and must be labelled
+as one wherever the result is reported. It is a plausible inference — three
+unrelated corpora of very different sizes — and it is not evidence.
+
+§1's conclusion is untouched by all of this: the cross-plane claim at the
+primary tier is barred by complete separation, which is established by counting
+and needs no run at all.
+
+---
+
+## AMENDMENT 2 — the frozen design never named a token budget
+
+Appended 2026-09-09, still **before** any measurement.
+
+§3 and §4 specify the statistic, the arms, the resampling and the margin, and
+say nothing about `ArmBudget.max_tokens`. That is a live degree of freedom, and
+a particularly bad one to leave open here: §7's stated mechanism is *precision
+at a fixed retrieval budget on a small versus a large corpus*, so the budget is
+not an incidental knob, it is the quantity the prior is about. Choosing it after
+seeing scores would let me select the rung that best matched my own prediction.
+
+There is no existing constant to inherit. `daedalus.eval.harness` sets its BM25
+arm's budget per task, to the token count the semantic slice actually used
+(`budget_c = max(tokens_a, 1)`), which is not expressible as the single
+per-arm `ArmBudget` that `run_arm_over_tasks` takes.
+
+So, declared now:
+
+- **Budget ladder: 1000, 4000, 16000 `max_tokens`.** Every arm receives the
+  same value at each rung (`require_equal_budgets` enforces this).
+- **The primary reading is the 4000 rung.** The other two are sensitivity.
+- **All three rungs are reported**, whatever they show, in one table. A rung is
+  not dropped for being inconvenient or uninteresting.
+- The reading tables of §5/§6 are applied to the 4000 rung. If the three rungs
+  disagree in verdict, that disagreement is itself reported as the finding, and
+  the 4000 verdict is not presented as though the others agreed with it.
+
+The round values are frankly arbitrary — they are a decade-ish span, chosen to
+bracket plausible context sizes, not derived from anything. Their arbitrariness
+is the reason all three are reported rather than one.
+
+Iron Plan: EXPERIMENT
+Iron Gate: 1

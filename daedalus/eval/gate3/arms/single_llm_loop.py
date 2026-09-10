@@ -132,6 +132,14 @@ class SingleLlmLoopArm:
 
     name: str = "single_llm_loop"
     stochastic: bool = True
+    #: Repaired 2026-09-10 (G3-ARM-PLANE-01): this arm now requests
+    #: ``planes=_RETRIEVABLE_PLANES`` instead of inheriting the code-only
+    #: default, so it retrieves data and knowledge documents as well. Declared
+    #: here so ``gate3.coverage`` can admit a cross-plane comparison, and
+    #: checked against behaviour by
+    #: ``test_real_arm_declarations_match_what_they_retrieve`` rather than
+    #: trusted.
+    retrieved_planes = ("code", "data", "knowledge")
 
     def run(self, task: Task, budget: ArmBudget, evaluator: SealedEvaluator,
             seed: int) -> ArmOutcome:
@@ -156,7 +164,7 @@ class SingleLlmLoopArm:
             )
 
         try:
-            chunks = harness._repo_chunks(task.repo_root)
+            chunks = harness._repo_chunks(task.repo_root, planes=harness._RETRIEVABLE_PLANES)
         except OSError as exc:
             return ArmOutcome(error=f"OSError reading {task.repo_root!r}: {exc}")
         if not chunks:

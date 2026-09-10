@@ -421,3 +421,48 @@ def test_digest_actually_depends_on_every_top_level_field_of_manifest():
     assert _manifest(plan_digest="0" * 64).digest != base.digest
     assert _manifest(environment=_environment(cpu="arm64")).digest != base.digest
     assert _manifest(seed_policy=SeedPolicy(seeds=(9,), deterministic=True)).digest != base.digest
+
+
+def test_digest_moves_when_gold_labels_change_not_only_when_ids_do():
+    """S6 from the 2026-09-10 adversarial pass, pinned.
+
+    The digest hashed name / task_ids / counting_rule / census only. Rewriting
+    the ``must_include`` of every task in the set left it BYTE-IDENTICAL, as did
+    rewriting every ``minted_at_sha``. A "frozen" task set that cannot notice
+    its own gold labels changing does not support the claim its name makes --
+    and the commit that moved this digest cited its movement as proof the
+    transition was auditable.
+    """
+    from daedalus.eval.gate3.contracts import canonical_digest
+
+    ids = ("t1", "t2")
+    census = {"code": 2, "type": 0, "data": 0, "knowledge": 0}
+    same_ids_old_labels = FrozenTaskSet(
+        name="n", task_ids=ids, counting_rule="r", label_plane_census=census,
+        content_digest=canonical_digest([{"id": "t1", "must_include": ["a"]},
+                                         {"id": "t2", "must_include": ["b"]}]))
+    same_ids_new_labels = FrozenTaskSet(
+        name="n", task_ids=ids, counting_rule="r", label_plane_census=census,
+        content_digest=canonical_digest([{"id": "t1", "must_include": ["ZZZ"]},
+                                         {"id": "t2", "must_include": ["b"]}]))
+    assert same_ids_old_labels.digest != same_ids_new_labels.digest, (
+        "identical ids and census, one changed gold label, same digest -- the "
+        "set is not frozen against its own content")
+
+
+def test_an_absent_content_digest_is_visible_rather_than_equivalent():
+    """``None`` must not be silently equal to "content unchanged".
+
+    A set built without content coverage is a genuinely different artifact from
+    one built with it, and a reader comparing two digests has to be able to
+    tell. Recording ``None`` in the hashed dict is what makes that true.
+    """
+    ids = ("t1",)
+    census = {"code": 1, "type": 0, "data": 0, "knowledge": 0}
+    without = FrozenTaskSet(name="n", task_ids=ids, counting_rule="r",
+                            label_plane_census=census)
+    with_content = FrozenTaskSet(name="n", task_ids=ids, counting_rule="r",
+                                 label_plane_census=census,
+                                 content_digest="deadbeef")
+    assert without.content_digest is None
+    assert without.digest != with_content.digest

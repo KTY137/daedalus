@@ -92,6 +92,20 @@ class FrozenTaskSet:
     task_ids: tuple[str, ...]
     counting_rule: str
     label_plane_census: Mapping[str, int]
+    #: Digest of the tasks' identity-bearing CONTENT -- target, gold labels and
+    #: mint provenance -- not just their ids.
+    #:
+    #: Measured 2026-09-10, and the reason this field exists: the digest below
+    #: hashed name/ids/counting_rule/census only, so rewriting the
+    #: ``must_include`` of every task in the set, or every ``minted_at_sha``,
+    #: left it BYTE-IDENTICAL. A "frozen" task set that does not notice its own
+    #: gold labels changing cannot support the claim its name makes.
+    #:
+    #: ``None`` is permitted and is NOT silently equal to "no change": it is
+    #: recorded in the digest as ``None``, so a set built without content
+    #: coverage is visibly a different set from one with it, rather than
+    #: quietly indistinguishable. ``build_frozen_taskset`` always supplies it.
+    content_digest: str | None = None
 
     def __post_init__(self) -> None:
         # Freeze the sequence FIRST, before anything validates it. The
@@ -138,6 +152,7 @@ class FrozenTaskSet:
             "task_ids": list(self.task_ids),
             "counting_rule": self.counting_rule,
             "label_plane_census": dict(self.label_plane_census),
+            "content_digest": self.content_digest,
         })
 
     @property
