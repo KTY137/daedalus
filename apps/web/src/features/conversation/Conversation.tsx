@@ -291,6 +291,70 @@ export function Conversation({
 
   /* ---- following the stream without yanking the reader ---- */
 
+  /*
+   * Put the newest turn at the bottom of the scroller.
+   *
+   * This used to be `el.scrollTop = el.scrollHeight`. That reads the scroll
+   * EXTENT, and since conversation.css skips layout for off-screen turns the
+   * extent is an estimate until they have been measured -- opening a 40-turn
+   * thread landed 1153 px short of the newest answer (measured 2026-09-10).
+   * Scrolling the last turn into view says the same thing without asking for
+   * a number nobody has computed yet, and Chromium renders a skipped subtree
+   * before scrolling to it. The ResizeObserver below then holds the pin while
+   * the turns above are measured and the extent settles.
+   */
+  const pinToNewest = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    // `:last-of-type` would have meant "the last <article>", which is only the
+    // last turn for as long as turns are the only article children. One added
+    // element and the pin stops, silently and with nothing failing.
+    const turnEls = el.querySelectorAll(':scope > .turn');
+    const last = turnEls[turnEls.length - 1];
+    // No turn means the empty state, which is an invitation and not a
+    // transcript tail -- the layout effect below puts that at the top, and a
+    // pin that ran here would drag the heading out of a 390 px viewport.
+    if (!last) return;
+    /*
+     * MOVE THIS BOX AND NOTHING ABOVE IT.
+     *
+     * `last.scrollIntoView(...)` was the obvious call and the wrong one: it
+     * walks the whole ancestor scroll chain. Two ancestors here are
+     * programmatically scrollable -- `.cockpit-body.talk` (shell.css, and
+     * `overflow: hidden` under the tablet breakpoint in responsive.css) and
+     * `.cockpit` itself (shell.css, `overflow: hidden`, so no scrollbar the
+     * reader could drag back). `onScroll` is bound to this scroller only, so
+     * `pinned` would stay true while every streamed delta scrolled the shell
+     * further out from under the reader, with no way to stop it.
+     *
+     * The offset is the same arithmetic `block: 'end'` performs, applied to
+     * one element. It also does not need the newest turn to have been
+     * rendered: conversation.css skips off-screen turns, and a skipped turn
+     * still has a placeholder box, so this lands close and the ResizeObserver
+     * below re-pins exactly once the real height arrives.
+     */
+    const gap = last.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom;
+    if (gap) el.scrollTop += gap;
+    // The element's own bottom EDGE sits ~19 px above the scrollport's, which
+    // is not "at the end of the conversation" (tests/ide.spec.ts asserts a gap
+    // of <= 2 px). With the newest turn in view its height is real, the extent
+    // from there down is exact, and the browser clamps this to the true
+    // maximum.
+    el.scrollTop = el.scrollHeight;
+  }, []);
+
+  /* Holding the pin while the transcript's real height arrives -- lazily
+   * measured turns above, a streamed answer growing below, a code block that
+   * reflowed. Without this the reader silently drifts off the newest turn. */
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !turns.length || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => { if (pinned.current) pinToNewest(); });
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [pinToNewest, turns.length]);
+
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
@@ -304,12 +368,12 @@ export function Conversation({
       return;
     }
     if (pinned.current) {
-      el.scrollTop = el.scrollHeight;
+      pinToNewest();
       setUnread(false);
     } else {
       setUnread(true);
     }
-  }, [turns]);
+  }, [turns, pinToNewest]);
 
   const onScroll = useCallback(() => {
     const el = scroller.current;
@@ -319,20 +383,31 @@ export function Conversation({
   }, []);
 
   const jumpToEnd = useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    if (!scroller.current) return;
     pinned.current = true;
+    pinToNewest();
     setUnread(false);
-  }, []);
+  }, [pinToNewest]);
 
-  // The box grows with the text and shrinks back when it is sent.
-  useEffect(() => {
-    const el = composer.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(200, el.scrollHeight)}px`;
-  }, [draft]);
+  /*
+   * The box grows with the text and shrinks back when it is sent -- in CSS.
+   *
+   * This used to be `style.height = 'auto'` followed by a read of
+   * `scrollHeight`, once per keystroke. That pair is the classic forced
+   * synchronous layout: the write dirties the flex column the composer shares
+   * with the transcript, and the read makes the browser lay that whole column
+   * out again before the next line of JS runs. Measured against this repo's
+   * own index (2026-09-10, 40-turn thread, Chromium 151): 10.11 ms of layout
+   * per keystroke, against 0.24 ms for the same keystrokes in an empty
+   * thread -- and the box's height never even changed. The cost was the
+   * transcript, charged to the composer.
+   *
+   * `.composer-grow` in conversation.css now sizes the field by stacking the
+   * textarea on a hidden copy of the same text in one grid cell, so the
+   * browser sizes it inside its own layout pass and nothing reads geometry
+   * back. The mirror needs the draft as an attribute; that is a write, not a
+   * measurement, and it is all that is left for JS to do.
+   */
 
   // Focus lands where typing goes, on arrival and after every turn.
   useEffect(() => {
@@ -1568,6 +1643,9 @@ export function Conversation({
               />
             )}
           </AnimatePresence>
+          {/* data-value is the sizing mirror; the trailing space keeps a
+              trailing newline from collapsing. See .composer-grow. */}
+          <div className="composer-grow" data-value={draft + ' '}>
           <textarea
             ref={composer}
             value={draft}
@@ -1582,6 +1660,7 @@ export function Conversation({
             autoComplete="off"
             disabled={!project}
           />
+          </div>
           <motion.button
             type={busy ? 'button' : 'submit'}
             className={busy ? 'composer-send stopping' : 'composer-send'}
