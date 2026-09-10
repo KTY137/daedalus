@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 
 import pytest
 
@@ -9,7 +10,7 @@ from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
 from daedalus.twin import relation_compiler
 from daedalus.twin.contracts import FourfoldSnapshot, PlaneSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
-from daedalus.twin.relation_blocks import RelationSignature, TypedAxis
+from daedalus.twin.relation_blocks import RelationSignature, TypedAxis, TypedRelationBlock
 from daedalus.twin.relation_compiler import compile_relation_blocks, relation_block_name
 from daedalus.twin.semiring import BooleanSemiring
 
@@ -213,4 +214,57 @@ def test_compiler_reuses_validated_partition_map_for_canonical_indices(
     ]
     assert tuple(compiled.block_map[relation_block_name(signature)].iter_entries()) == (
         ("src/api.py", "src/worker.py", True),
+    )
+
+
+def test_compiler_releases_consumed_staging_before_csr_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest, snapshot = _fixture()
+    imports = RelationSignature("code", "imports", "code")
+    declares = RelationSignature("code", "declares", "type")
+    original_from_indexed = TypedRelationBlock._from_indexed.__func__
+    observed_signatures: list[RelationSignature] = []
+    remaining_fact_counts: list[int] = []
+
+    def inspecting_from_indexed(
+        cls: type[TypedRelationBlock[object]],
+        *args: object,
+        **kwargs: object,
+    ) -> TypedRelationBlock[object]:
+        signature = args[1]
+        assert isinstance(signature, RelationSignature)
+        frame = inspect.currentframe()
+        assert frame is not None and frame.f_back is not None
+        compiler_locals = frame.f_back.f_locals
+        assert compiler_locals["edge_records"] == []
+        assert compiler_locals["binding_records_by_key"] == {}
+        facts = compiler_locals["facts"]
+        assert isinstance(facts, dict)
+        assert signature not in facts
+        observed_signatures.append(signature)
+        remaining_fact_counts.append(len(facts))
+        return original_from_indexed(cls, *args, **kwargs)  # type: ignore[arg-type, return-value]
+
+    monkeypatch.setattr(
+        TypedRelationBlock,
+        "_from_indexed",
+        classmethod(inspecting_from_indexed),
+    )
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(imports, declares),
+    )
+
+    assert observed_signatures == [declares, imports]
+    assert remaining_fact_counts == [1, 0]
+    assert compiled.semantic_fact_count == 2
+    assert tuple(compiled.block_map[relation_block_name(imports)].iter_entries()) == (
+        ("src/api.py", "src/worker.py", True),
+    )
+    assert tuple(compiled.block_map[relation_block_name(declares)].iter_entries()) == (
+        ("src/worker.py", "type:Event", True),
     )
