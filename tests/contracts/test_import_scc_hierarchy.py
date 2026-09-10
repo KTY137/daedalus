@@ -520,7 +520,7 @@ CENSUS_MODULES = 521  # re-measured 2026-09-10 (G1-IKARUS-47): +daedalus.runtime
 # the one new supervisor edge to ``...claude_attempt_handoff``, which is
 # function-local inside ``run()`` but counted because the graph is built from
 # the AST.
-CENSUS_EDGES = 2104  # re-measured 2026-09-10 (G1-IKARUS-47): +9 edges (computer_ariadne, the loop's runner), components and their digest unchanged
+CENSUS_EDGES = 2105  # re-measured 2026-09-10 (G1-IKARUS-47 on packet 46's final tree): +10 edges (computer_ariadne, the loop's runner, web_api registration), components and their digest unchanged
 
 
 def _module_name(path: str) -> str:

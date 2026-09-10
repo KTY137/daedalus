@@ -1040,8 +1040,9 @@ _ARIADNE_GRANT_FACTS_DE = (
     "Das Werkzeug übergibt eine vom Planner vorgeschlagene, begrenzte Reparatur (Zieldatei, exakter Vorher-Text, "
     "Nachher-Text) an die kanonische Ariadne-Kampagne (`daedalus.ariadne.run_campaign`, dieselbe Funktion wie die "
     "CLI- und HTTP-Tür): drei Arme (Baseline, Negativkontrolle, Reparatur) mit gleichem Budget in einem "
-    "Arbeitsbereich außerhalb des Checkouts unter dem Control-Root des Projekts; der Projektbaum wird nie "
-    "beschrieben; das Ergebnis ist eine Nominierung mit Hashes, die nie angewendet wird — anwenden bleibt "
+    "Arbeitsbereich außerhalb des Checkouts unter dem Control-Root des Projekts; der versionierte Projektbaum "
+    "wird nie beschrieben (die Kampagne trägt sich nur in die kanonische Spine des Projekts unter `runs/spine/` "
+    "ein, Invariante 1); das Ergebnis ist eine Nominierung mit Hashes, die nie angewendet wird — anwenden bleibt "
     "deine versiegelte Entscheidung (Invariante 5). Der Evaluator ist der eingefrorene Exakt-Vergleich aus "
     "G1-SELF-01: eine Nominierung beweist Isolation, Provenienz, Budgetgleichheit und Nichtanwendung, nicht "
     "dass die Änderung besser ist. Pfade innerhalb der Leakage-Grenze (Spine, Kernel-Policy, Plan, "
@@ -1251,10 +1252,17 @@ _CAMPAIGN_RUNNER_FACTORY: Any = None
 
 
 def register_campaign_runner(factory: Any) -> None:
-    """Register the factory that builds the campaign runner (composition roots only)."""
+    """Register the factory that builds the campaign runner (composition roots only).
+
+    First registration wins: a second, DIFFERENT factory is refused instead of
+    silently replacing the one the composition root installed (Cerberus round
+    1 of G1-IKARUS-47, minor). ``None`` unregisters explicitly.
+    """
     global _CAMPAIGN_RUNNER_FACTORY
     if factory is not None and not callable(factory):
         raise ComputerLoopRefused("campaign runner factory must be callable")
+    if factory is not None and _CAMPAIGN_RUNNER_FACTORY is not None and _CAMPAIGN_RUNNER_FACTORY is not factory:
+        raise ComputerLoopRefused("a campaign runner factory is already registered; unregister it first")
     _CAMPAIGN_RUNNER_FACTORY = factory
 
 
@@ -1330,7 +1338,7 @@ def conversation_events(project: str | None, message: str, *,
                 raise ComputerLoopRefused("Use /computer run <objective>")
             yield from _run_objective(project, root, objective, cancelled)
             return
-        if verb.casefold() in {"enable", "disable"} and argument.split()[:1] == ["ariadne"]:
+        if verb.casefold() in {"enable", "disable"} and [w.casefold() for w in argument.split()[:1]] == ["ariadne"]:
             # G1-IKARUS-47: grant or revoke the campaign door. Its own one-use
             # confirmation: once granted, model-authored edits are EXECUTED by
             # the frozen evaluator in an isolated workspace under the subject's
@@ -1358,6 +1366,17 @@ def conversation_events(project: str | None, message: str, *,
                     assistant=_ARIADNE_GRANT_WARNING_DE + "\n\nNichts wurde geändert.",
                     computer={"ariadne_tools_change": "confirmation_required",
                               "expected_policy_sha256": digest})
+                return
+            present = any(tool in ARIADNE_TOOLS for tool in current.get("tools", []))
+            if enabling == present:
+                # A no-op says so (Odysseus round 1, D7): nothing is written and
+                # nothing is claimed.
+                summary = ("`daedalus.ariadne_campaign` ist bereits freigegeben; nichts wurde geändert."
+                           if enabling else "`daedalus.ariadne_campaign` ist nicht freigegeben; nichts wurde geändert.")
+                yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
+                                             assistant=summary,
+                                             computer={"policy_sha256": digest, "ariadne_tools": present,
+                                                       "ariadne_tools_change": "unchanged"})
                 return
             tools = [tool for tool in current.get("tools", []) if tool not in ARIADNE_TOOLS]
             if enabling:

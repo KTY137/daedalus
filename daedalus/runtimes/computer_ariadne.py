@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -45,15 +46,51 @@ MAX_FRAGMENT_CHARS = 200_000
 TIMEOUT_MIN_S = 1
 TIMEOUT_MAX_S = 120
 TIMEOUT_DEFAULT_S = 30
-_CAMPAIGN_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
+#: The campaign's own rule (``campaign._CAMPAIGN_ID_RE``): first character
+#: alphanumeric, then up to 63 of ``[A-Za-z0-9._-]`` (Odysseus round 1, D3: a
+#: looser rule here let ``.hidden`` reach the runner and be refused there).
+_CAMPAIGN_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+_WINDOWS_RESERVED = frozenset({"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)),
+                               *(f"lpt{i}" for i in range(1, 10))})
+TRIALS_SHOWN = 8
+LIST_SHOWN = 10
 #: The roots the campaign itself refuses, from the one definition
 #: (``kernel.source_trees``), so the refusal happens BEFORE the runner is
 #: entered and cannot drift from the campaign's.
 _IGNORED_ROOTS = frozenset(item.casefold() for item in MANDATORY_IGNORED_ROOTS)
 
 
+_MESSAGE_WITHHELD = "<message withheld: host path>"
+
+
+def _safe_failure_text(exc: BaseException) -> str:
+    """``ClassName: message`` -- but the message only if it names no host path.
+
+    Refusal and failure texts reach the planner's history like any result
+    (Cerberus round 1 of this packet, CRITICAL 1: ``git rev-parse`` and the
+    campaign's own ``repo_root is unavailable or unsafe: [WinError 2] …`` carried
+    the subject's absolute path). The campaign's clean texts ("before text must
+    occur exactly once", "linked git worktree") stay useful.
+    """
+    message = str(exc)[:1200]
+    if not message:
+        return type(exc).__name__
+    if _mentions_host_path(message) or _looks_like_host_path(message):
+        return f"{type(exc).__name__}: {_MESSAGE_WITHHELD}"
+    return f"{type(exc).__name__}: {message}"
+
+
+def _listed(value: Any) -> list[Any]:
+    return list(value) if isinstance(value, (list, tuple)) else []
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(ch in "0123456789abcdef" for ch in value)
+
+
 class _PreRunRefusal(ComputerRefused):
-    """Raised before the runner was entered: provably no effect."""
+    """Raised before the runner was entered: provably no CAMPAIGN effect (the
+    computer lease and its evidence are written and settled as cancelled)."""
 
     effect_state = "none"
 
@@ -86,6 +123,8 @@ class CampaignRunner:
 class AriadneCampaignTool:
     def __init__(self, policy: ComputerPolicy, project: str, checkpoint: Callable[[], None],
                  authority_root: Path, runner: CampaignRunner) -> None:
+        if not isinstance(runner, CampaignRunner):
+            raise ComputerRefused("campaign runner has the wrong type")
         self._policy = policy
         self._project = project
         self._checkpoint = checkpoint
@@ -103,18 +142,36 @@ class AriadneCampaignTool:
             config = load_project(self._project)
             root = resolve_repo_root(config.get("repo_root"), self._project)
         except Exception as exc:  # noqa: BLE001 - every registry failure is a refusal, never a guess
-            raise _PreRunRefusal(f"registered project is unavailable: {type(exc).__name__}: {exc}") from exc
+            raise _PreRunRefusal(f"registered project is unavailable: {type(exc).__name__}") from exc
         if not isinstance(root, str) or not root:
             raise _PreRunRefusal("registered project has no repository root")
         return root
 
     def _admit_target_path(self, value: object) -> str:
+        """Lexical admission of the requested path -- the spelling, not the file.
+
+        Every segment is held to the kernel's own path rule (no ``..``, no
+        ``.``, no empty segment, no trailing dot or space, no ``:``, no
+        Windows-invalid character, no device name): Odysseus round 1 of this
+        packet drove ``daedalus/spine./killswitch.py`` (Windows strips the dot)
+        and ``./daedalus/spine/x.py`` past a check that looked at the string
+        only. The resolved FILE is checked again in :meth:`_admit_target_file`.
+        """
         if not isinstance(value, str) or not value.strip() or len(value) > MAX_TARGET_PATH_CHARS or "\x00" in value:
             raise _PreRunRefusal("target_path must be a bounded repository-relative path")
         relative = value.strip().replace("\\", "/")
-        if _looks_like_host_path(relative) or relative.startswith("/") or ".." in relative.split("/"):
+        if _looks_like_host_path(relative) or relative.startswith("/"):
             raise _PreRunRefusal("target_path must be repository-relative, without '..' or an absolute prefix")
-        if relative.split("/", 1)[0].casefold() in _IGNORED_ROOTS:
+        segments = relative.split("/")
+        for segment in segments:
+            if segment in ("", ".", ".."):
+                raise _PreRunRefusal("target_path must be repository-relative, without '..' or an absolute prefix")
+            if segment.rstrip(" .") != segment or ":" in segment or any(
+                    ord(ch) < 32 or ch in '<>"|?*' for ch in segment):
+                raise _PreRunRefusal("target_path segment has a spelling the subject filesystem would rewrite")
+            if segment.split(".", 1)[0].casefold() in _WINDOWS_RESERVED:
+                raise _PreRunRefusal("target_path names a Windows device")
+        if segments[0].casefold() in _IGNORED_ROOTS:
             raise _PreRunRefusal("target_path must not enter a mandatory ignored root")
         protected = self._runner.protected_prefix_for(relative)
         if protected is not None:
@@ -122,6 +179,40 @@ class AriadneCampaignTool:
                 "target_path is inside the self-Renovation leakage boundary (master plan section 8.1): "
                 f"{protected}")
         return relative
+
+    def _admit_target_file(self, repo_root: str, relative: str) -> None:
+        """The requested path must denote the same regular file once RESOLVED.
+
+        Odysseus round 1 of this packet (D1, high): a directory junction inside
+        the subject (``shortcut`` -> ``daedalus/spine``) is not a symlink for
+        ``S_ISLNK``, so ``shortcut/killswitch.py`` passed every string check and
+        the campaign nominated a change to a protected file. The real path is
+        resolved (junctions and symlinks included), must stay inside the
+        resolved subject, must spell the very path that was requested, and is
+        held to the leakage boundary again. Reads only; no effect.
+        """
+        subject = Path(repo_root)
+        try:
+            real_root = Path(os.path.realpath(subject))
+            candidate = subject.joinpath(*relative.split("/"))
+            real = Path(os.path.realpath(candidate))
+            resolved = real.relative_to(real_root).as_posix()
+        except (OSError, ValueError) as exc:
+            raise _PreRunRefusal(f"target_path does not resolve inside the subject: {type(exc).__name__}") from exc
+        if resolved.casefold() != relative.casefold():
+            raise _PreRunRefusal("target_path resolves through a link, junction or a rewritten spelling")
+        protected = self._runner.protected_prefix_for(resolved)
+        if protected is not None:
+            raise _PreRunRefusal(
+                "target_path is inside the self-Renovation leakage boundary (master plan section 8.1): "
+                f"{protected}")
+        try:
+            info = os.lstat(candidate)
+        except OSError as exc:
+            raise _PreRunRefusal(f"target_path is not a regular file in the subject: {type(exc).__name__}") from exc
+        import stat
+        if not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise _PreRunRefusal("target_path is not a regular file in the subject")
 
     @staticmethod
     def _fragment(value: object, label: str, *, allow_empty: bool) -> str:
@@ -167,10 +258,11 @@ class AriadneCampaignTool:
         campaign_id = self._campaign_id(arguments.get("campaign_id"), operation)
         repo_root = self._repo_root()
         self._checkpoint()
+        self._admit_target_file(repo_root, relative)
         try:
             source_revision = self._runner.head_revision(repo_root)
         except Exception as exc:  # noqa: BLE001 - a HEAD that cannot be read is a refusal before any effect
-            raise _PreRunRefusal(f"subject HEAD is unavailable: {type(exc).__name__}: {exc}") from exc
+            raise _PreRunRefusal(f"subject HEAD is unavailable: {_safe_failure_text(exc)}") from exc
         if not isinstance(source_revision, str) or len(source_revision) != 40 or any(
                 ch not in "0123456789abcdef" for ch in source_revision):
             raise _PreRunRefusal("subject HEAD must be the exact lowercase 40-hex revision")
@@ -183,7 +275,7 @@ class AriadneCampaignTool:
                 repo_root=repo_root, source_revision=source_revision, campaign_id=campaign_id,
                 target_path=relative, before=before, after=after, timeout_s=timeout_s)
         except Exception as exc:  # noqa: BLE001 - classified by name, surfaced, never swallowed
-            raise _CampaignFailure(f"{type(exc).__name__}: {exc}"[:1200]) from exc
+            raise _CampaignFailure(_safe_failure_text(exc)) from exc
         if not isinstance(receipt, Mapping):
             raise _CampaignFailure("campaign runner returned no receipt")
         return self._project_receipt(receipt, relative, campaign_id, source_revision)
@@ -198,26 +290,49 @@ class AriadneCampaignTool:
         target path is echoed only if the lane's gate admits it -- the planner
         named it, but a retained mission report is read by more than the
         planner.
+
+        The receipt is rendered ONCE (``default=str``); its digest is taken over
+        that text and the projection is built from the PARSED rendering, so no
+        value is stringified a second time on the way out (Odysseus round 1 of
+        this packet, D6).
         """
+        try:
+            receipt_text = json.dumps(receipt, sort_keys=True, ensure_ascii=False, default=str, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise _CampaignFailure(f"campaign receipt is not renderable: {type(exc).__name__}") from exc
+        receipt_sha256 = hashlib.sha256(receipt_text.encode("utf-8")).hexdigest()
+        data: Mapping[str, Any] = json.loads(receipt_text)
         trials = []
-        for trial in receipt.get("trials") or ():
-            if not isinstance(trial, Mapping):
-                continue
+        all_trials = [t for t in (data.get("trials") or ()) if isinstance(t, Mapping)] \
+            if isinstance(data.get("trials"), (list, tuple)) else []
+        for trial in all_trials[:TRIALS_SHOWN]:
             usage_raw = trial.get("usage")
             usage: Mapping[str, Any] = usage_raw if isinstance(usage_raw, Mapping) else {}
             trials.append({
                 "variant_id": str(trial.get("variant_id", "")),
                 "status": str(trial.get("status", "")),
                 "wall_time_ms": usage.get("wall_time_ms"),
-                "negative_outcomes": [str(x) for x in (trial.get("negative_outcomes") or ())],
-                "blockers": [str(x) for x in (trial.get("blockers") or ())],
+                "negative_outcomes": [str(x) for x in _listed(trial.get("negative_outcomes"))][:LIST_SHOWN],
+                "blockers": [str(x) for x in _listed(trial.get("blockers"))][:LIST_SHOWN],
             })
-        equality_raw = receipt.get("budget_equality")
+        equality_raw = data.get("budget_equality")
         equality: Mapping[str, Any] = equality_raw if isinstance(equality_raw, Mapping) else {}
-        receipt_sha256 = hashlib.sha256(
-            json.dumps(receipt, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
-        outcome = str(receipt.get("outcome", ""))
+        outcome = str(data.get("outcome", ""))
         target = relative if self._admit_path(relative) else "<withheld>"
+        negative = [str(x) for x in _listed(data.get("negative_outcomes"))]
+        candidate_sha = data.get("candidate_tree_sha256")
+        nomination_sha = data.get("nomination_receipt_sha256")
+        # The postcondition is BACKED (Odysseus round 1, D4): a nomination, two
+        # well-formed digests, and the campaign's evidence directory for this
+        # campaign id present under the subject's control root.
+        from daedalus.spine.killswitch import control_root
+        evidence_dir = control_root(Path(self._repo_root())) / "ariadne" / "effect-evidence" / campaign_id
+        try:
+            evidence_present = evidence_dir.is_dir() and any(evidence_dir.rglob("*"))
+        except OSError:
+            evidence_present = False
+        verified = (outcome == "nominated" and _is_sha256(candidate_sha) and _is_sha256(nomination_sha)
+                    and evidence_present)
         result = {
             "schema": RESULT_SCHEMA,
             "kind": "campaign",
@@ -227,30 +342,41 @@ class AriadneCampaignTool:
             "campaign_id": campaign_id,
             "source_revision": source_revision,
             "target_path": target,
-            "selected_variant_id": receipt.get("selected_variant_id"),
-            "selected_seed": receipt.get("selected_seed"),
-            "selection_mode": receipt.get("selection_mode"),
+            "selected_variant_id": data.get("selected_variant_id"),
+            "selected_seed": data.get("selected_seed"),
+            "selection_mode": data.get("selection_mode"),
             "trials": trials,
+            "trials_elided": max(0, len(all_trials) - TRIALS_SHOWN),
             "budget_equality": {key: equality.get(key) for key in
                                 ("configured_equal", "realized_usage_recorded", "within_budget")},
-            "negative_outcomes": [str(x) for x in (receipt.get("negative_outcomes") or ())],
-            "candidate_tree_sha256": receipt.get("candidate_tree_sha256"),
-            "nomination_receipt_sha256": receipt.get("nomination_receipt_sha256"),
+            "negative_outcomes": negative[:LIST_SHOWN],
+            "negative_outcomes_elided": max(0, len(negative) - LIST_SHOWN),
+            "candidate_tree_sha256": candidate_sha if _is_sha256(candidate_sha) else None,
+            "nomination_receipt_sha256": nomination_sha if _is_sha256(nomination_sha) else None,
             "campaign_receipt_sha256": receipt_sha256,
             "evaluator": EVALUATOR_LABEL,
             "applied": False,
             "host_mutation": True,
-            "postcondition_verified": outcome == "nominated" and bool(receipt.get("nomination_receipt_sha256")),
+            "postcondition_verified": verified,
+            "evidence_present": evidence_present,
             "note": ("nominated candidates are content-addressed evidence under the subject's control root; "
                      "nothing was applied to any checkout, and the frozen exact-match evaluator proves the "
                      "machinery, not improvement"),
         }
-        rendered = json.dumps(result, ensure_ascii=False, default=str)
-        if _mentions_host_path(rendered):
+        # Rendered ONCE; the gate reads the rendering and the rendering is what
+        # is returned (Odysseus round 1, D6; the G1-IKARUS-46 doctrine). A value
+        # that cannot be rendered is a failure, not a crash.
+        try:
+            rendered_text = json.dumps(result, ensure_ascii=False, default=str, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise _CampaignFailure(f"campaign projection is not renderable: {type(exc).__name__}") from exc
+        if _mentions_host_path(rendered_text) or _looks_like_host_path(rendered_text):
             raise _CampaignFailure("campaign projection carried a host path; withheld")
-        return json.loads(json.dumps(result, ensure_ascii=False, default=str, allow_nan=False))
+        return json.loads(rendered_text)
 
     def _admit_path(self, relative: str) -> bool:
+        """The lane's gate on the target path echo (a retained report is read
+        by more than the planner)."""
         from daedalus.foundation.projects import load_project
         from daedalus.sensitivity import load_policy, slice_egress_rule
         try:

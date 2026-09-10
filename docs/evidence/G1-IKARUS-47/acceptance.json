@@ -3,9 +3,12 @@
   "measured_on": "2026-09-10",
   "base_revision": "b29105affb32fdc1f20624e20de1bf4074488786",
   "suites": {
-    "packet and neighbouring suites plus census, registry and s02 pins": "726 passed, 6 skipped, 49 subtests (seventeen suites on the tree rebased onto 233b463e: packet, neighbouring, ariadne, census, registry, imports graph, s02, host predicate)"
+    "packet and neighbouring suites plus census, registry and s02 pins": "752 passed, 6 skipped, 49 subtests (seventeen suites on the tree rebased onto 378b7f25: packet, neighbouring, ariadne, census, registry, imports graph, s02, host predicate)"
   },
-  "mutation_table": "19 guards: 18/19 caught in the first pass, M14 (execution admits the tool without a runner) survived as a guard masked by the dispatch refusal behind it, got a pre-lease pin and was re-run alone: caught (mutation-table-1.txt)",
+  "mutation_table": "table 1 (19 guards): 18 caught, M14 survived as a guard masked by the dispatch refusal, pinned and re-run: caught. table 2 (23 guards, after Cerberus round 1): 23/23. table 3 (29 guards, after Odysseus round 1): 27 caught; M1 (masked by the resolved-file check) got an ordering pin, M14 now removes both runner checks; re-run: caught (mutation-table-3.txt)",
+  "review_rounds": {
+    "1 (70eeb25e)": "Cerberus block (CRITICAL 1 error texts carried the exception message with host paths; MAJOR 2 grant text vs the spine write; minor last-wins registration); Odysseus D1 high (a directory junction inside the subject defeated the leakage boundary end to end: the campaign nominated a change to daedalus/spine/killswitch.py), D2 medium-high (trailing-dot spelling), D3 medium (misclassified effect states), D4 medium (unbacked postcondition), D5 = CRITICAL 1, D6-D9 low -- all repaired in the second commit; the same junction hole in the campaign's own CLI/HTTP doors recorded for G1-ARIADNE-11"
+  },
   "live_runs": {
     "1": "Claude planner, plain clone subject: daedalus.slice ok, then the KERNEL refused the campaign step: ComputerPolicy.admit applied the workspace path rule to `before`/`after` by key name (image paths for vision.changes, text for the campaign) -> 'path must remain relative to the computer workspace'. Repaired with per-tool path-argument keys; retained as negative evidence. 2 planner calls, $0.20.",
     "2": "same objective after the repair: slice -> daedalus.ariadne_campaign -> outcome nominated (campaign ikarus-9f205ae3e05ee82b5715ffe4, target daedalus/build.py, three arms failed/failed/passed, budget equality true), 3 planner calls, 53.9 s, ~$0.33; subject clone untouched (see subject_state).",
@@ -121,13 +124,15 @@
   },
   "files": {
     "mutation-table-1.txt": "6a6a5828105ca3b0648335593459da3e9438c2312a3a04621f9eacbc03e164ea",
-    "mutate47.py.txt": "88e7b1948241f56ed5cf30b9595c8e778822c3ab0f60c0345588df935753fee8",
+    "mutation-table-2.txt": "e8c9b587abb6016fc560ca11c2eb9834bdefcd543b493fe71f4fb5ec20d9eba6",
+    "mutation-table-3.txt": "ec73b2157ff6077172176482c5c798e6f3bcbd7405e5cccbd2e1d5e7aef703b0",
+    "mutate47.py.txt": "7c95111e92704f555a111624a84762ad3c252829c838b8af51f25de57812a92e",
     "live-setup.json": "a731cb5ea25394ebb420441143c6f44abaebe6f40556da29fd9bb42f62b47252",
     "live-run-1-kernel-path-rule-refused.json": "a22caf35c47de05f034958fe8d3f2be9d3d5dd952b5db2690de5f5fce6e29a8e",
     "live-run-2-nominated.json": "69ff570491355af0132271ef28dcb2c64862050d9cf0f8f4a54cc29e872b1013",
     "live-run-3-leakage-boundary-refused.json": "892b31e63b5e8241ea87a83e40d81b073b9a6fad3d1bcc1bfd7bfb0c3ff8a519",
-    "s02-g1-ikarus-47-corpora-a.json.gz": "c7c74cafe1389df6e7f00f6431555fc7d7cc9ec3a8c95f3dde870bfb5d2d602f",
-    "s02-g1-ikarus-47-corpora-b.json.gz": "0405c4ef1246f00fc9cde7da8679abc3c98a4b09bd46a9bce507af241bb790c1"
+    "s02-g1-ikarus-47-corpora-a.json.gz": "25c8ff67d5255d08df7d4fd07f535e86c973db3a5e6f83668f914053be0f29d8",
+    "s02-g1-ikarus-47-corpora-b.json.gz": "44d7273e78e7a4a8dea4c0fbe2058847b754c41e1303e6b80d26c12083ff3bb0"
   },
   "not_claimed": "self-improvement: the campaign's evaluator is the frozen exact-match evaluator; a nomination proves isolation, provenance, budget equality and non-application, not improvement (G1-IKARUS-48)."
 }

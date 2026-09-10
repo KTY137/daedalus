@@ -272,6 +272,10 @@ class ComputerService:
             raise ComputerRefused(_NO_PROJECT_REFUSAL)
         if tool in ARIADNE_TOOLS and self._campaign_runner is None:
             raise ComputerRefused(_NO_RUNNER_REFUSAL)
+        if tool in ARIADNE_TOOLS:
+            from daedalus.runtimes.computer_ariadne import CampaignRunner
+            if not isinstance(self._campaign_runner, CampaignRunner):
+                raise ComputerRefused("campaign runner has the wrong type")
         if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
             if self._desktop is None:
                 raise ComputerRefused("a current policy-scoped desktop observation is required")

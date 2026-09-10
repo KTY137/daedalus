@@ -182,6 +182,49 @@ ledger runs/jarvis-47/scratch-ledger-47.json, Claude planner]`
 
 Total live spend on the scratch ledger: $0.60 (12 rows, worst-case reserve $3.00 per Claude call, settled $0.07–0.12).
 
+## Review round 1 (2026-09-10, `70eeb25e`)
+
+**Cerberus: `block`.** CRITICAL 1 — the adapter's refusal and failure texts
+interpolated the exception message (`git rev-parse` stderr, the campaign's
+`repo_root is unavailable or unsafe: [WinError 2] … 'C:\…'`, the registry
+error) and that text reaches the planner's history through `outcome["error"]`;
+MAJOR 2 — the grant text said "der Projektbaum wird nie beschrieben" while the
+campaign records itself in the subject's canonical spine under `runs/spine/`;
+minor — runner re-registration was last-wins. Cleared: trust surface, admission
+before effect (18 spellings), the kernel path rule (no tool loses a key),
+projection egress, grant compare-and-replace, registry fail-closed, invariants.
+
+**Odysseus** (executed probes, real campaigns on scratch subjects):
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D1 (high) | a directory JUNCTION inside the subject (`shortcut` → `daedalus/spine`) is not `S_ISLNK`; `shortcut/killswitch.py` passed every string check and the campaign NOMINATED a change to a protected file (nothing applied — invariant 5 held; §8.1 bypassed) | `_admit_target_file`: the real path is resolved (junctions and symlinks included), must stay inside the resolved subject, must spell the very path requested, is held to the leakage boundary again, and must be a regular file — reads only, before the runner | `test_a_junction_inside_the_subject_cannot_reach_the_leakage_boundary` (Windows), `test_a_missing_or_non_regular_target_is_refused_before_the_runner`; M24 |
+| D2 (medium-high) | `daedalus/spine./killswitch.py` (Windows strips the trailing dot) passed the adapter's and the campaign's string checks; the campaign read and materialized the protected file before failing for another reason; only the kernel path rule stopped it in production | every segment is held to the kernel's lexical rule here (no trailing dot/space, no `:`, no Windows-invalid character, no device name, no `.`/empty segment); plus the resolved-path check above | the parametrized pre-run refusals; M25 |
+| D3 (medium) | `./daedalus/spine/x.py`, `daedalus/./spine/x.py` and a looser `campaign_id` rule reached the runner and were refused there — misclassified `uncertain`; a missing target likewise | refused lexically before the runner; the campaign's own `campaign_id` rule; a missing or non-regular target is a pre-run refusal | same; `test_every_pre_run_refusal_precedes_the_runner` |
+| D4 (medium) | `postcondition_verified` was true for any receipt saying "nominated" | backed: two well-formed digests AND the campaign's evidence directory present under the subject's control root (`evidence_present` reported beside it) | `test_the_postcondition_is_backed_by_the_evidence_directory`; M26 |
+| D5 (medium) | = Cerberus CRITICAL 1 | `_safe_failure_text`: class name always, the message only if it names no host path; the registry refusal class-only | `test_failure_texts_keep_the_class_and_drop_a_message_that_names_a_host_path`; M20, M21 |
+| D6 (low) | the projection rendered three times and gated render two | the receipt is rendered ONCE; digest and projection come from that rendering | `test_the_projection_is_rendered_once_and_bounded`; M29 |
+| D7 (low) | a no-op grant/revoke claimed "applied" | `ariadne_tools_change: unchanged`, nothing written | `test_a_no_op_grant_or_revoke_says_so_and_writes_nothing`; M27 |
+| D8 (low) | `/computer enable Ariadne` fell through to the daedalus usage text | the subcommand token is case-folded | `test_the_subcommand_token_is_case_insensitive`; M28 |
+| D9 (low) | unbounded projection lists; no runner type check; NaN escaped as a bare `ValueError` | trials/lists bounded with `*_elided`; `CampaignRunner` type checked at admission and construction; an unrenderable receipt is a `_CampaignFailure` | `test_the_projection_is_rendered_once_and_bounded`, `test_a_runner_of_the_wrong_type_is_refused` |
+| MAJOR 2 | grant text | "der versionierte Projektbaum wird nie beschrieben (… kanonische Spine … `runs/spine/`, Invariante 1)" | `EnableAriadneTest`; M23 |
+| minor | last-wins registration | first wins; a different factory is refused; `None` unregisters | `test_a_process_without_a_registered_runner_reports_the_tool_unavailable`; M22 |
+
+**Narrowed claims, stated honestly.** "Refused before any effect" means before
+any CAMPAIGN effect: every refusal raised inside the adapter happens under the
+computer lease, whose evidence records are written and then settled as
+cancelled (nine files); only a pre-lease refusal (no runner, unknown tool)
+leaves nothing. A live service keeps the runner it was constructed with after
+`register_campaign_runner(None)`; the registry is a composition-root binding,
+not a per-call lookup.
+
+**Finding for another owner (not this packet's to fix).** The campaign's own
+doors (`daedalus ariadne`, `POST /api/ariadne`) share D1 and D2: `_admit_target_path`
+in `daedalus/ariadne/campaign.py` tests the requested string, and
+`read_repository_source` refuses `S_ISLNK` only, so a junction or a trailing
+dot reaches a protected file there too. Recorded on the coordination board
+as a proposed G1-ARIADNE-11; this packet closes the hole at its own door.
+
 ## Evidence, expected failures and review
 
 `docs/evidence/G1-IKARUS-47/acceptance.json` with suites, mutation table,

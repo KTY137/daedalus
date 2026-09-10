@@ -146,9 +146,11 @@ class EnableAriadneTest(unittest.TestCase):
         self.assertEqual(configured, [])
         text = final["assistant"]
         for fact in ("confirm-campaigns", "eingefrorene Exakt-Vergleich", "nicht", "nie angewendet",
-                     "Control-Root", "Leakage-Grenze", "Nichts wurde geändert"):
+                     "Control-Root", "Leakage-Grenze", "Nichts wurde geändert",
+                     "versionierte Projektbaum", "kanonische Spine des Projekts unter `runs/spine/`"):
             self.assertIn(fact, text)
         self.assertNotIn("verbessert sich selbst", text)
+        self.assertNotIn("der Projektbaum wird nie beschrieben", text)
 
     def test_enable_with_the_confirmation_adds_the_tool_through_compare_and_replace(self):
         final, configured = self._run("/computer enable ariadne confirm-campaigns")
@@ -167,6 +169,25 @@ class EnableAriadneTest(unittest.TestCase):
         self.assertFalse(final["computer"]["ariadne_tools"])
         self.assertEqual(configured[0][0]["tools"], ["file.read"])
 
+    def test_a_no_op_grant_or_revoke_says_so_and_writes_nothing(self):
+        """Odysseus round 1 (D7): a repeated grant claimed "freigegeben" and a
+        revoke of an absent tool claimed "removed" while nothing changed."""
+        final, configured = self._run("/computer enable ariadne confirm-campaigns",
+                                      tools=("file.read", "daedalus.ariadne_campaign"))
+        self.assertEqual(final["computer"]["ariadne_tools_change"], "unchanged")
+        self.assertIn("bereits freigegeben", final["assistant"])
+        self.assertEqual(configured, [])
+        final, configured = self._run("/computer disable ariadne")
+        self.assertEqual(final["computer"]["ariadne_tools_change"], "unchanged")
+        self.assertIn("nicht freigegeben", final["assistant"])
+        self.assertEqual(configured, [])
+
+    def test_the_subcommand_token_is_case_insensitive(self):
+        """D8: ``/computer enable Ariadne`` answered with the daedalus usage text."""
+        final, configured = self._run("/computer enable Ariadne")
+        self.assertEqual(final["computer"]["ariadne_tools_change"], "confirmation_required")
+        self.assertEqual(configured, [])
+
     def test_any_other_argument_is_refused(self):
         for message in ("/computer enable ariadne now", "/computer enable ariadne confirm-remote",
                         "/computer disable ariadne confirm-campaigns extra"):
@@ -182,6 +203,11 @@ class EnableAriadneTest(unittest.TestCase):
             self.assertIsNone(loop.campaign_runner())
         with mock.patch.object(loop, "_CAMPAIGN_RUNNER_FACTORY", lambda: "runner"):
             self.assertEqual(loop.campaign_runner(), "runner")
+            # First registration wins; a different factory is refused, not swapped in.
+            with self.assertRaises(loop.ComputerLoopRefused):
+                loop.register_campaign_runner(lambda: "other")
+            loop.register_campaign_runner(None)
+            self.assertIsNone(loop.campaign_runner())
         with self.assertRaises(loop.ComputerLoopRefused):
             loop.register_campaign_runner(42)
         self.assertEqual(computer._NO_RUNNER_REFUSAL,

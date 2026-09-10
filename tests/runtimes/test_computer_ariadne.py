@@ -86,7 +86,7 @@ def _receipt(outcome="nominated"):
         "campaign_id": "ikarus-x", "source_revision": "a" * 40, "outcome": outcome,
         "selected_seed": 2, "selected_variant_id": "repair", "selection_mode": "best-passed-trial",
         "candidate_tree_sha256": "c" * 64, "candidate_tree_locator": f"{home}\\.daedalus\\control\\x\\cas\\c",
-        "nomination_receipt_sha256": "n" * 64, "nomination_receipt_locator": f"{home}/control/x/nom.json",
+        "nomination_receipt_sha256": "d" * 64, "nomination_receipt_locator": f"{home}/control/x/nom.json",
         "campaign_contract_locator": f"{home}/control/x/contract.json",
         "trials": [
             {"variant_id": "baseline", "status": "failed", "usage": {"wall_time_ms": 300},
@@ -104,7 +104,13 @@ def _receipt(outcome="nominated"):
     }
 
 
-def _tool(tmp_path, monkeypatch, runner, *, provider="claude_code_cli", repo_root="unused-root"):
+def _tool(tmp_path, monkeypatch, runner, *, provider="claude_code_cli", repo_root=None):
+    if repo_root is None:
+        root = tmp_path / "subject"
+        for rel in ("pkg/mod.py", "internal/roadmap.py"):
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text("return 1\n", encoding="utf-8")
+        repo_root = str(root)
     _project(monkeypatch, repo_root)
     policy = _policy(tmp_path, planner_provider=provider, allow_remote_context=True)
     return subject.AriadneCampaignTool(policy, "fixture", lambda: None, tmp_path, runner)
@@ -183,6 +189,17 @@ def test_the_leakage_boundary_is_refused_before_the_runner_is_called(tmp_path, m
     ({**ARGS, "target_path": "C:/Users/x/y.py"}, "repository-relative"),
     ({**ARGS, "target_path": "pkg/mod.py\x00"}, "bounded"),
     ({**ARGS, "target_path": "x" * 1001}, "bounded"),
+    # Odysseus round 1 (D2/D3): spellings the subject filesystem rewrites or the
+    # campaign refuses after the runner was entered are refused HERE, lexically.
+    ({**ARGS, "target_path": "daedalus/spine./killswitch.py"}, "spelling the subject filesystem would rewrite"),
+    ({**ARGS, "target_path": "daedalus/spine /x.py"}, "spelling"),
+    ({**ARGS, "target_path": "./daedalus/spine/x.py"}, "repository-relative"),
+    ({**ARGS, "target_path": "daedalus/./spine/x.py"}, "repository-relative"),
+    ({**ARGS, "target_path": "daedalus//spine/x.py"}, "repository-relative"),
+    ({**ARGS, "target_path": "pkg/con.py"}, "Windows device"),
+    ({**ARGS, "target_path": "pkg/a<b.py"}, "spelling"),
+    ({**ARGS, "campaign_id": ".hidden"}, "campaign_id"),
+    ({**ARGS, "campaign_id": "-x"}, "campaign_id"),
     ({**ARGS, "before": ""}, "before must be non-empty"),
     ({**ARGS, "after": "return 1"}, "different value"),
     ({**ARGS, "timeout_s": 0}, "timeout_s"),
@@ -196,6 +213,136 @@ def test_every_pre_run_refusal_precedes_the_runner(tmp_path, monkeypatch, argume
     with pytest.raises(ComputerRefused, match=reason) as refused:
         tool.execute(arguments)
     assert refused.value.effect_state == "none"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="directory junctions are a Windows construct")
+def test_a_junction_inside_the_subject_cannot_reach_the_leakage_boundary(tmp_path, monkeypatch):
+    """Odysseus round 1 (D1, high): ``shortcut`` -> ``daedalus/spine`` is a
+    junction, not a symlink, so ``shortcut/killswitch.py`` passed every string
+    check and the campaign nominated a change to a protected file. The
+    resolved path must spell the requested one and pass the boundary again."""
+    root = tmp_path / "subject"
+    (root / "daedalus" / "spine").mkdir(parents=True)
+    (root / "daedalus" / "spine" / "killswitch.py").write_text("SENTINEL = 1\n", encoding="utf-8")
+    (root / "pkg").mkdir()
+    (root / "pkg" / "mod.py").write_text("return 1\n", encoding="utf-8")
+    link = root / "shortcut"
+    proc = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(root / "daedalus" / "spine")],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    tool = _tool(tmp_path, monkeypatch, _never_runner(), repo_root=str(root))
+    with pytest.raises(ComputerRefused, match="link, junction or a rewritten spelling") as refused:
+        tool.execute({**ARGS, "target_path": "shortcut/killswitch.py"})
+    assert refused.value.effect_state == "none"
+    # A junction to an ADMITTED directory is refused the same way: the spelling
+    # must be the file's own.
+    other = root / "alias"
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(other), str(root / "pkg")], capture_output=True, check=True)
+    with pytest.raises(ComputerRefused, match="link, junction"):
+        tool.execute({**ARGS, "target_path": "alias/mod.py"})
+    # The plain path passes file admission: the next step, the HEAD read, is
+    # the never-runner's trap (surfaced as a pre-run refusal naming its class).
+    with pytest.raises(ComputerRefused, match="subject HEAD is unavailable: AssertionError"):
+        tool.execute({**ARGS, "target_path": "pkg/mod.py"})
+
+
+def test_a_missing_or_non_regular_target_is_refused_before_the_runner(tmp_path, monkeypatch):
+    """D3: a target the campaign would refuse after entering is refused here,
+    provably before any campaign effect."""
+    root = tmp_path / "subject"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "mod.py").write_text("return 1\n", encoding="utf-8")
+    tool = _tool(tmp_path, monkeypatch, _never_runner(), repo_root=str(root))
+    with pytest.raises(ComputerRefused, match="not a regular file") as refused:
+        tool.execute({**ARGS, "target_path": "pkg/absent.py"})
+    assert refused.value.effect_state == "none"
+    with pytest.raises(ComputerRefused, match="not a regular file"):
+        tool.execute({**ARGS, "target_path": "pkg"})
+    with pytest.raises(ComputerRefused, match="does not resolve inside the subject|not a regular file"):
+        tool.execute({**ARGS, "target_path": "pkg/mod.py/x"})
+
+
+def test_the_postcondition_is_backed_by_the_evidence_directory(tmp_path, monkeypatch):
+    """D4: ``postcondition_verified`` was true for any receipt saying "nominated".
+    It now requires two well-formed digests AND the campaign's evidence
+    directory under the subject's control root."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    monkeypatch.setenv("USERPROFILE", str(profile))
+    monkeypatch.setattr(killswitch, "OS_PROFILE_DIR", profile)
+    runner, _ = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+    result = tool.execute(dict(ARGS))
+    assert result["postcondition_verified"] is False and result["evidence_present"] is False
+    evidence = killswitch.control_root(Path(tool._repo_root())) / "ariadne" / "effect-evidence" / result["campaign_id"]
+    evidence.mkdir(parents=True)
+    (evidence / "lease-subject.json").write_text("{}", encoding="utf-8")
+    result = tool.execute(dict(ARGS))
+    assert result["postcondition_verified"] is True and result["evidence_present"] is True
+    fake = _receipt()
+    fake["nomination_receipt_sha256"] = "not-a-hash"
+    runner, _ = _runner(_Recorder(receipt=fake))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    result = tool.execute(dict(ARGS))
+    assert result["postcondition_verified"] is False and result["nomination_receipt_sha256"] is None
+
+
+def test_the_projection_is_rendered_once_and_bounded(tmp_path, monkeypatch):
+    """D6/D9: a stateful ``__str__`` in the receipt was gated on one rendering and
+    emitted on another; unbounded lists could make the projection megabytes."""
+    class Shifty:
+        def __init__(self):
+            self.calls = 0
+
+        def __str__(self):
+            self.calls += 1
+            return "benign-value" if self.calls == 1 else "C:\\Users\\victim\\leaked\\secret.txt"
+
+    receipt = _receipt()
+    receipt["selection_mode"] = Shifty()
+    receipt["negative_outcomes"] = [f"arm{i}:frozen-evaluator-rejected" for i in range(25)]
+    receipt["trials"] = receipt["trials"] * 5
+    runner, _ = _runner(_Recorder(receipt=receipt))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    result = tool.execute(dict(ARGS))
+    assert result["selection_mode"] == "benign-value" and "victim" not in json.dumps(result)
+    assert len(result["negative_outcomes"]) == subject.LIST_SHOWN and result["negative_outcomes_elided"] == 15
+    assert len(result["trials"]) == subject.TRIALS_SHOWN and result["trials_elided"] == 7
+    receipt = _receipt()
+    receipt["selected_seed"] = float("nan")
+    runner, _ = _runner(_Recorder(receipt=receipt))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    with pytest.raises(ComputerRefused, match="not renderable") as refused:
+        tool.execute(dict(ARGS))
+    assert refused.value.effect_state == "uncertain"
+
+
+def test_a_runner_of_the_wrong_type_is_refused(tmp_path, monkeypatch):
+    _project(monkeypatch, str(tmp_path / "subject"))
+    with pytest.raises(ComputerRefused, match="wrong type"):
+        subject.AriadneCampaignTool(_policy(tmp_path), "fixture", lambda: None, tmp_path, 42)  # type: ignore[arg-type]
+    service, _ = _service(tmp_path, monkeypatch, lambda **kw: None)  # a bare callable is not a CampaignRunner
+    outcome = service.execute(TOOL, dict(ARGS), mission_id="m", attempt_id="a1")
+    assert outcome["ok"] is False and "wrong type" in outcome["error"]
+
+
+def test_the_lexical_boundary_check_precedes_the_registry_read(tmp_path, monkeypatch):
+    """Mutation M1: the string-level boundary refusal is not redundant with the
+    resolved-file check -- it fires BEFORE the registry is consulted, so a
+    protected spelling is refused even for a project that cannot be resolved,
+    and no registry or filesystem read happens for it."""
+    from daedalus.foundation import projects
+    calls = []
+
+    def load(name):
+        calls.append(name)
+        raise KeyError("must not be consulted for a protected spelling")
+    monkeypatch.setattr(projects, "load_project", load)
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    tool = subject.AriadneCampaignTool(policy, "fixture", lambda: None, tmp_path, _never_runner())
+    with pytest.raises(ComputerRefused, match="leakage boundary"):
+        tool.execute({**ARGS, "target_path": "daedalus/spine/x.py"})
+    assert calls == []
 
 
 def test_an_unregistered_project_and_an_unreadable_head_refuse_before_the_runner(tmp_path, monkeypatch):
@@ -219,18 +366,19 @@ def test_an_unregistered_project_and_an_unreadable_head_refuse_before_the_runner
 # ----------------------------------------------------------------------------- A5/A6
 def test_the_projection_carries_verdicts_and_hashes_but_no_locator_path_or_after_text(tmp_path, monkeypatch):
     runner, recorder = _runner()
-    tool = _tool(tmp_path, monkeypatch, runner, repo_root=str(tmp_path / "subject"))
+    tool = _tool(tmp_path, monkeypatch, runner)
     result = tool.execute({**ARGS, "after": "return 'ODYSSEUSCHIMERA'"})
     assert recorder.calls == [{"repo_root": str(tmp_path / "subject"), "source_revision": "a" * 40,
                                "campaign_id": result["campaign_id"], "target_path": "pkg/mod.py",
                                "before": "return 1", "after": "return 'ODYSSEUSCHIMERA'", "timeout_s": 30}]
     assert result["outcome"] == "nominated" and result["applied"] is False
-    assert result["postcondition_verified"] is True and result["host_mutation"] is True
+    assert result["postcondition_verified"] is False  # no evidence directory under this control root
+    assert result["host_mutation"] is True
     assert result["target_path"] == "pkg/mod.py" and result["selected_variant_id"] == "repair"
     assert [t["status"] for t in result["trials"]] == ["failed", "failed", "passed"]
     assert result["trials"][0]["wall_time_ms"] == 300
     assert result["budget_equality"] == {"configured_equal": True, "realized_usage_recorded": True, "within_budget": True}
-    assert result["candidate_tree_sha256"] == "c" * 64 and result["nomination_receipt_sha256"] == "n" * 64
+    assert result["candidate_tree_sha256"] == "c" * 64 and result["nomination_receipt_sha256"] == "d" * 64
     assert result["evaluator"] == subject.EVALUATOR_LABEL
     dumped = json.dumps(result)
     for forbidden in ("locator", str(Path.home()), "ODYSSEUSCHIMERA", "control\\\\", "evidence_packet"):
@@ -267,6 +415,42 @@ def test_a_runner_failure_is_surfaced_with_its_class_and_marked_uncertain(tmp_pa
     assert refused.value.effect_state == "uncertain"
 
 
+def test_failure_texts_keep_the_class_and_drop_a_message_that_names_a_host_path(tmp_path, monkeypatch):
+    """Cerberus round 1 (CRITICAL 1): ``git rev-parse``'s stderr and the campaign's
+    ``repo_root is unavailable or unsafe: [WinError 2] … 'C:\\…'`` reached the
+    planner's history through the refusal text. The class stays; a message
+    naming a host path is withheld; a clean message stays useful."""
+    class AriadneRequestError(Exception):
+        pass
+    dirty = AriadneRequestError("repo_root is unavailable or unsafe: [WinError 2] The system cannot find the file: "
+                                "'C:\\Users\\victim\\AppData\\Local\\Temp\\no-such-subject'")
+    runner, _ = _runner(_Recorder(raise_with=dirty))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    with pytest.raises(ComputerRefused) as refused:
+        tool.execute(dict(ARGS))
+    assert str(refused.value) == f"AriadneRequestError: {subject._MESSAGE_WITHHELD}"
+    assert refused.value.effect_state == "uncertain"
+    from daedalus.ariadne.campaign import protected_prefix_for
+    head_dirty = subject.CampaignRunner(
+        run_campaign=lambda **kw: None,
+        head_revision=lambda root: (_ for _ in ()).throw(
+            RuntimeError("git rev-parse failed: fatal: cannot change to '/home/victim/no-such-subject'")),
+        protected_prefix_for=protected_prefix_for)
+    tool = _tool(tmp_path, monkeypatch, head_dirty)
+    with pytest.raises(ComputerRefused) as refused:
+        tool.execute(dict(ARGS))
+    assert str(refused.value) == f"subject HEAD is unavailable: RuntimeError: {subject._MESSAGE_WITHHELD}"
+    assert refused.value.effect_state == "none"
+    from daedalus.foundation import projects
+    monkeypatch.setattr(projects, "load_project",
+                        lambda name: (_ for _ in ()).throw(PermissionError(13, "denied", "C:\\Users\\victim\\p.json")))
+    tool = subject.AriadneCampaignTool(_policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True),
+                                       "fixture", lambda: None, tmp_path, _never_runner())
+    with pytest.raises(ComputerRefused) as refused:
+        tool.execute(dict(ARGS))
+    assert str(refused.value) == "registered project is unavailable: PermissionError"
+
+
 def _service(tmp_path, monkeypatch, runner):
     profile = tmp_path / "profile"
     profile.mkdir(exist_ok=True)
@@ -289,6 +473,8 @@ def test_the_service_keeps_the_lease_started_after_a_runner_failure_and_settles_
         tmp_path, monkeypatch):
     class AriadneCampaignError(Exception):
         pass
+    (tmp_path / "subject" / "pkg").mkdir(parents=True)
+    (tmp_path / "subject" / "pkg" / "mod.py").write_text("return 1\n", encoding="utf-8")
     _project(monkeypatch, str(tmp_path / "subject"))
     runner, _ = _runner(_Recorder(raise_with=AriadneCampaignError("effect lease denied")))
     service, authority = _service(tmp_path, monkeypatch, runner)
