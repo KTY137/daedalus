@@ -245,3 +245,39 @@ def test_stateless_authority_verification_revisits_each_retained_edge_payload() 
         >= relation_membership_digest["self_ms"]
         >= 0.0
     )
+
+
+def test_projection_subject_binds_one_direct_fourfold_digest_call() -> None:
+    """Reject a cache/API shortcut when the compiler has no duplicate digest call.
+
+    The compiler must bind its receipt subject to the exact Fourfold snapshot,
+    but this frozen path reaches the inherited canonical digest property only
+    once. A caller-supplied digest or Tensor-owned cache would therefore add a
+    second trust/retention surface rather than delete duplicate work inside the
+    existing compiler owner. This is call-scope evidence, not a latency claim.
+    """
+
+    forest = _PROBE._forest(
+        nodes=12,
+        row_width=2,
+        revision=_PROBE.DELTA_REVISION,
+        add_delta=True,
+    )
+    snapshot = _PROBE._snapshot(forest, revision=_PROBE.DELTA_REVISION)
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        compiled = _PROBE._compile(forest, snapshot)
+    finally:
+        profiler.disable()
+
+    digest_metric = _PROBE._direct_callee_metrics(
+        tuple(profiler.getstats()),
+        caller_code=_PROBE.compile_relation_blocks.__code__,
+        callee_codes=(_PROBE.FourfoldSnapshot.digest.fget.__code__,),
+    )
+
+    assert digest_metric["calls"] == 1
+    assert digest_metric["cumulative_ms"] >= digest_metric["self_ms"] >= 0.0
+    assert compiled.subject.source_fourfold_sha256 == snapshot.digest
