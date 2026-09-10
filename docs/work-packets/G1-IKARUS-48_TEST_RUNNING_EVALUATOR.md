@@ -139,7 +139,12 @@ No new entrypoint, no new event store, no change to containment.
 ## Contracts and behavior
 
 - `run_campaign(..., evaluator=...)` gains one frozen argument. Its default is
-  the existing exact-match evaluator, so no existing caller changes behavior.
+  the existing exact-match evaluator, so no existing caller changes its verdict,
+  its receipt or its identity. One behaviour does change on the default path,
+  and round 5 was right to call the original wording overbroad: the evaluation
+  workspace is now removed after every arm, where it previously persisted under
+  the control root. No in-tree consumer reads `workspaces/evaluations` outside
+  this module and its test.
 - The test evaluator is described by an immutable record: the argv tuple, the
   timeout, the declared test roots, and their digest. That digest replaces
   `EVALUATOR_SHA256` in the spec's frozen components for this mode. It carries
