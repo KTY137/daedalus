@@ -1029,13 +1029,28 @@ def _planner_line(planner: Mapping[str, Any]) -> str:
     return f"Planner: {planner.get('provider')}{model} · Kontext hat den Rechner verlassen: {left}"
 
 
+#: What the daedalus.* family sends to a planner; named in both consent texts
+#: (G1-IKARUS-46, Cerberus MAJOR 3: the earlier list was narrower than what travels).
+_DAEDALUS_OBSERVATIONS_DE = ("Git-Status-Pfade, Strukturübersicht, Doku-Referenzen, Aufgabenberichte und "
+                             "Codescheiben des registrierten Projekts, gefiltert durch dessen Egress-Policy")
+
+
 def _remote_planner_warning(provider: str, model: str | None) -> str:
     target = " ".join(part for part in (provider, model) if part)
     return (f"Planner `{provider}` ist ein entfernter Dienst: Beobachtungstexte dieser Missionen (Seiteninhalte, "
-            "Dateiinhalte, OCR-Text) verlassen dann den Rechner und gehen an den Anbieter. Die Secret-Floor prüft "
-            "jede Beobachtung vorher und blockiert die Mission bei einem Treffer; sie ersetzt keine Freigabe. "
+            f"Dateiinhalte, OCR-Text und, mit den Daedalus-Werkzeugen, {_DAEDALUS_OBSERVATIONS_DE}) verlassen "
+            "dann den Rechner und gehen an den Anbieter. Die Secret-Floor prüft jede Beobachtung vorher und "
+            "blockiert die Mission bei einem Treffer; sie ersetzt keine Freigabe. "
             f"Bestätige ausdrücklich mit `/computer planner {target} confirm-remote`. Die Bestätigung gilt nur "
             "für diesen einen Befehl und wird nicht gespeichert.")
+
+
+def _daedalus_tools_egress_warning(provider: str) -> str:
+    return (f"Der konfigurierte Planner `{provider}` ist ein entfernter Dienst. Mit den Daedalus-Werkzeugen gehen "
+            f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt an den Anbieter; die Secret-Floor und die Egress-Policy des "
+            "Projekts filtern jede Beobachtung vorher, ersetzen aber keine Freigabe. Bestätige ausdrücklich mit "
+            "`/computer enable daedalus confirm-remote`. Die Bestätigung gilt nur für diesen einen Befehl und wird "
+            "nicht gespeichert.")
 
 
 def _pid_alive(pid: Any) -> bool | None:
@@ -1196,26 +1211,53 @@ def conversation_events(project: str | None, message: str, *,
             from ...kernel.policy.computer import DAEDALUS_TOOLS
             from ...runtimes.computer import computer_status
             from ...interfaces.computer_configuration import configure_computer
-            if argument.strip().casefold() != "daedalus":
-                raise ComputerLoopRefused("Use /computer enable daedalus or /computer disable daedalus")
+            words = argument.split()
+            confirm = "confirm-remote" in words
+            words = [word for word in words if word != "confirm-remote"]
+            if [word.casefold() for word in words] != ["daedalus"]:
+                raise ComputerLoopRefused("Use /computer enable daedalus [confirm-remote] or /computer disable daedalus")
             caps = computer_status(root, project=project, project_readers=project_readers())
             current, digest = caps.get("configuration"), caps.get("policy_sha256")
             if not isinstance(current, dict) or not digest:
                 raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
+            enabling = verb.casefold() == "enable"
+            remote = current.get("allow_remote_context") is True
+            planner_name = str(current.get("planner_provider") or "?")
+            if enabling and remote and not confirm:
+                # Cerberus 2026-09-10 (CRITICAL 2 / MAJOR 3 / m-3): with a remote
+                # planner this grant widens egress -- the observations ARE the
+                # prompt -- so it needs the same transient confirmation as
+                # choosing the remote planner did, naming what leaves.
+                yield "final", core.envelope(
+                    project, intent="computer", shell="hand", provider_used="deterministic",
+                    assistant=_daedalus_tools_egress_warning(planner_name) + "\n\nNichts wurde geändert.",
+                    computer={"daedalus_tools_change": "confirmation_required", "planner": planner_name,
+                              "expected_policy_sha256": digest})
+                return
             tools = [tool for tool in current.get("tools", []) if tool not in DAEDALUS_TOOLS]
-            if verb.casefold() == "enable":
+            if enabling:
                 tools.extend(DAEDALUS_TOOLS)
             payload = dict(current)
             payload["tools"] = tools
             configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=digest)
             granted = ", ".join(f"`{tool}`" for tool in DAEDALUS_TOOLS)
-            summary = (f"Read-only Daedalus tools enabled for the registered project (Policy `{configured.get('policy_sha256')}`): {granted}. "
-                       "They observe the project; they cannot write, launch or send anything."
-                       if verb.casefold() == "enable" else
-                       f"Daedalus tools removed from the policy (Policy `{configured.get('policy_sha256')}`).")
+            if enabling:
+                summary = (
+                    f"Daedalus-Werkzeuge für das registrierte Projekt freigegeben (Policy `{configured.get('policy_sha256')}`): {granted}. "
+                    "Sie lesen Git-Status-Pfade, die Strukturübersicht, Doku-Referenzen, Aufgabenberichte und "
+                    "Codescheiben des Projekts und geben diese Beobachtungen als Prompt an den konfigurierten "
+                    f"Planner `{planner_name}` — "
+                    + ("sie verlassen damit den Rechner und gehen an den Anbieter."
+                       if remote else "er läuft auf diesem Rechner, nichts verlässt ihn.")
+                    + " Jede Beobachtung geht vorher durch die Egress-Policy des Projekts und die Secret-Floor; "
+                      "zurückgehaltene Zeilen werden gezählt. Auf dem Host schreiben, starten oder senden die Werkzeuge "
+                      "nichts (Index ohne Cache, nur lesende git-Befehle); jede Ausführung wird wie jedes Werkzeug geleast und belegt.")
+            else:
+                summary = f"Daedalus tools removed from the policy (Policy `{configured.get('policy_sha256')}`)."
             yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
                                          assistant=summary,
-                                         computer={**configured, "daedalus_tools": verb.casefold() == "enable"})
+                                         computer={**configured, "daedalus_tools": enabling,
+                                                   "daedalus_tools_change": "applied"})
             return
         if verb.casefold() in {"tasks", "task"}:
             from .computer_history import list_computer_tasks, computer_task

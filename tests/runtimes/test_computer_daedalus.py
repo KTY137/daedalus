@@ -259,8 +259,232 @@ def test_status_observation_drops_every_absolute_path_value_by_shape(scratch_rep
             "relative_note": "memory/todos.local.md", "open_todos": 0},
         bridge_status=real.bridge_status, report_briefs=real.report_briefs)
     result = _adapter(tmp_path, readers=readers).execute("daedalus.status", {})
-    assert set(result["git"]) == {"git_branch", "git_status", "relative_note", "open_todos"}
+    assert set(result["git"]) == {"git_branch", "git_status", "relative_note", "open_todos",
+                                  "git_status_withheld", "fields_withheld"}
+    assert result["git"]["fields_withheld"] == 3
     assert "someone" not in json.dumps(result)
+
+
+# --------------------------------------------------------------------------- #
+# the egress gate on every observation (Cerberus 2026-09-10, CRITICAL 1)       #
+# --------------------------------------------------------------------------- #
+def _project_with_policy(monkeypatch, deny, deny_content=()):
+    """A registry row whose policy denies ``deny`` paths and ``deny_content`` words."""
+    from daedalus.foundation import projects
+    config = {"name": "fixture", "repo_root": "unused",
+              "policy": {"deny": list(deny), "deny_content": list(deny_content),
+                         "allow": ["pkg/", "docs/", "lib/", ".md"]}}
+    monkeypatch.setattr(projects, "load_project", lambda name: config)
+    monkeypatch.setattr(projects, "resolve_repo_root", lambda repo_root, project: "unused")
+
+
+def _gated_readers(git_status: str, briefs: list) -> subject.ProjectReaders:
+    return subject.ProjectReaders(
+        git_counters=lambda root: {"git_branch": "main", "git_status": git_status, "open_todos": 0},
+        bridge_status=lambda project: {"queue_depth": 0, "in_flight": 0, "unread_count": 0,
+                                       "reports_total": 0, "watcher": {"state": "none"}},
+        report_briefs=lambda project: list(briefs))
+
+
+GIT_STATUS = " M pkg/mod.py\n?? configs/secrets/lab.yaml\n?? .env\nR  lib/old.py -> lib/new.py\n M tct_app/devices/iseg.py"
+BRIEFS = [{"name": "a.report.json", "summary": "renamed the parser", "project": "fixture"},
+          {"name": "b.report.json", "summary": "touched the iseg driver", "project": "fixture"},
+          {"name": "c.report.json", "summary": "wrote configs/secrets/lab.yaml", "project": "fixture"}]
+
+
+def test_status_lines_go_through_the_project_gate_on_the_untrusted_lane(tmp_path, monkeypatch):
+    _project_with_policy(monkeypatch, deny=["configs/secrets", "tct_app/devices/"], deny_content=[r"\biseg\b"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path,
+                                          _gated_readers(GIT_STATUS, BRIEFS))
+    git = adapter.execute("daedalus.status", {})["git"]
+    lines = git["git_status"].splitlines()
+    assert lines == [" M pkg/mod.py", "R  lib/old.py -> lib/new.py"], lines
+    assert git["git_status_withheld"] == 3  # secrets path, .env (floor), devices path
+    assert "iseg" not in json.dumps(git) and "secrets" not in json.dumps(git) and ".env" not in json.dumps(git)
+
+
+def test_status_lines_keep_the_project_paths_but_floor_secrets_on_the_trusted_lane(tmp_path, monkeypatch):
+    _project_with_policy(monkeypatch, deny=["configs/secrets"], deny_content=[r"\biseg\b"])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path,
+                                          _gated_readers(GIT_STATUS, BRIEFS))
+    git = adapter.execute("daedalus.status", {})["git"]
+    # the trusted lane applies only the unconditional secret floor: ``.env``
+    # and the secrets directory stay out, the project's own deny list does not apply
+    assert ".env" not in git["git_status"]
+    assert " M tct_app/devices/iseg.py" in git["git_status"]
+    assert git["git_status_withheld"] >= 1
+
+
+def test_task_reports_go_through_the_content_gate(tmp_path, monkeypatch):
+    _project_with_policy(monkeypatch, deny=["configs/secrets"], deny_content=[r"\biseg\b"])
+    policy = _policy(tmp_path, planner_provider="deepseek", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path,
+                                          _gated_readers(GIT_STATUS, BRIEFS))
+    tasks = adapter.execute("daedalus.tasks", {})
+    # the content gate is the project's deny_content markers (plus the floor);
+    # a summary that merely NAMES a path is text, not that path's bytes
+    assert [row["name"] for row in tasks["reports"]] == ["a.report.json", "c.report.json"]
+    assert tasks["reports_withheld"] == 1
+    assert "iseg" not in json.dumps(tasks)
+
+
+def test_structure_rows_go_through_the_path_gate(tmp_path, monkeypatch):
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"], deny_content=[r"\biseg\b"])
+    from daedalus.structcore import report as report_module
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path,
+                                          _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
+        "n_files": 3, "ignored": {"count": 0, "patterns": [], "source": "C:/abs/.daedalusignore"},
+        "languages": {"python": 3}, "totals": {"unit_clusters": 2},
+        "hotspots": [{"module": "pkg/mod.py", "score": 1.0}, {"module": "tct_app/devices/iseg.py", "score": 9.0}],
+        "clones": [{"name": "iseg", "count": 2, "loc": 4, "sites": [{"module": "pkg/mod.py", "line": 1}]},
+                   {"name": "helper", "count": 2, "loc": 4,
+                    "sites": [{"module": "pkg/mod.py", "line": 1}, {"module": "tct_app/devices/x.py", "line": 2}]}],
+        "fan_in": [{"module": "pkg/mod.py", "count": 3}, {"module": "tct_app/devices/x.py", "count": 1}]})
+    structure = adapter.execute("daedalus.structure", {})
+    assert [row["module"] for row in structure["hotspots"]] == ["pkg/mod.py"]
+    assert structure["hotspots_withheld"] == 1
+    assert [row["name"] for row in structure["clones"]] == ["helper"]
+    assert structure["clones"][0]["sites"] == [{"module": "pkg/mod.py", "line": 1}]
+    assert structure["clones"][0]["sites_withheld"] == 1
+    assert structure["clones_withheld"] == 1
+    assert [row["module"] for row in structure["fan_in"]] == ["pkg/mod.py"]
+    assert structure["fan_in_withheld"] == 1
+    assert "C:/abs" not in json.dumps(structure) and "iseg" not in json.dumps(structure)
+
+
+def test_docrefs_rows_go_through_the_gate_and_errors_are_a_count(tmp_path, monkeypatch):
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"], deny_content=[r"\biseg\b"])
+    from daedalus.spine import docrefs as docrefs_module
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path,
+                                          _gated_readers("", []))
+
+    class Report:
+        def to_dict(self):
+            return {"n_resolving": 5, "n_broken": 3, "n_skipped": 0, "files_scanned": 2,
+                    "broken": [{"doc_path": "docs/a.md", "line": 1, "raw": "pkg.mod.absent", "module_path": "pkg/mod.py", "symbol": "absent"},
+                               {"doc_path": "docs/a.md", "line": 2, "raw": "tct_app.devices.iseg.reset", "module_path": "tct_app/devices/iseg.py", "symbol": "reset"},
+                               {"doc_path": "docs/b.md", "line": 3, "raw": "iseg voltage", "module_path": "", "symbol": ""}],
+                    "errors": ["C:\\Users\\someone\\repo\\docs\\broken.md: PermissionError: denied"]}
+    monkeypatch.setattr(docrefs_module, "scan", lambda repo_root: Report())
+    result = adapter.execute("daedalus.docrefs", {})
+    assert [row["raw"] for row in result["broken"]] == ["pkg.mod.absent"]
+    assert result["broken_withheld"] == 2
+    assert result["errors_count"] == 1 and "errors" not in result
+    assert "someone" not in json.dumps(result) and "iseg" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("text, embedded", [
+    ("failed: PermissionError: 'C:\\Users\\x\\repo\\docs\\a.md'", True),
+    ("see /home/x/repo/docs", True), ("(/Users/x/y)", True), (r"\\server\share\x", True),
+    ("renamed the parser", False), ("ratio 1:2 and a/b", False), ("C:", False), ("x/etc/y", False),
+])
+def test_embedded_host_paths_are_detected(text, embedded):
+    assert subject._mentions_host_path(text) is embedded
+
+
+def test_a_task_summary_with_an_embedded_host_path_is_withheld(tmp_path, monkeypatch):
+    """Odysseus 2026-09-10 (defect 3): `report_brief` can carry an error text
+    that embeds the absolute project path; the whole-value shape check missed it."""
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    briefs = [{"name": "ok.report.json", "summary": "finished"},
+              {"name": "bad.report.json",
+               "summary": "PermissionError: [Errno 13] Permission denied: 'C:\\\\Users\\\\someone\\\\repo\\\\docs\\\\handoff.md'"}]
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", briefs))
+    tasks = adapter.execute("daedalus.tasks", {})
+    assert [row["name"] for row in tasks["reports"]] == ["ok.report.json"]
+    assert tasks["reports_withheld"] == 1
+    assert "someone" not in json.dumps(tasks)
+
+
+def test_the_real_adapter_through_the_real_lease_creates_no_cache_and_launches_no_pool(
+        scratch_repo, tmp_path, monkeypatch):
+    """Odysseus 2026-09-10 (defect 1): the service half used to substitute a
+    fake adapter, so the cache write under the profile was invisible. This
+    runs the REAL adapter under the REAL persisted lease: a fresh
+    DAEDALUS_CACHE_DIR must stay empty and the retained result must say
+    host_mutation False truthfully."""
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    monkeypatch.setenv("USERPROFILE", str(profile))
+    monkeypatch.setattr(killswitch, "OS_PROFILE_DIR", profile)
+    monkeypatch.delenv("DAEDALUS_KILLSWITCH", raising=False)
+    cache_dir = tmp_path / "structcore-cache"
+    monkeypatch.setenv("DAEDALUS_CACHE_DIR", str(cache_dir))
+    from daedalus.structcore import index as index_module
+    monkeypatch.setattr(index_module, "_INDEX_CACHE", {}, raising=False)
+    authority = tmp_path / "authority"
+    authority.mkdir()
+    workspace = tmp_path / "scratch"
+    workspace.mkdir()
+    policy = ComputerPolicy(workspace=workspace, tools=DAEDALUS_TOOLS, planner_provider="claude_code_cli",
+                            allow_remote_context=True)
+    path = policy_path(authority)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(policy.to_dict()), encoding="utf-8")
+    switch = killswitch.KillSwitch(repo_root=authority, sweep_managed=False)
+    assert switch.arm(note="real-adapter effect-freeness fixture").running
+    service = service_module.ComputerService(authority, project="fixture", project_readers=_readers())
+    for tool in ("daedalus.status", "daedalus.structure", "daedalus.slice", "daedalus.docrefs"):
+        args = {"module": "mod.py"} if tool == "daedalus.slice" else {}
+        outcome = service.execute(tool, args, mission_id="computer-real", attempt_id=f"attempt-{tool}")
+        assert outcome["ok"] is True, (tool, outcome)
+    assert not cache_dir.exists() or not any(cache_dir.rglob("*")), list(cache_dir.rglob("*"))
+    stored = [json.loads(p.read_text(encoding="utf-8")) for p in (service.control / "computer-artifacts").glob("*.json")]
+    results = [b for b in stored if b.get("schema") == "daedalus-computer-result/1"]
+    assert {b["tool"] for b in results} == {"daedalus.status", "daedalus.structure", "daedalus.slice", "daedalus.docrefs"}
+    assert all(b["host_mutation"] is False and b["filesystem_scope_kind"] == "project-registry-read-only" for b in results)
+    assert str(scratch_repo) not in json.dumps([b["result"] for b in results])
+
+
+def test_dispatch_refuses_the_family_directly_without_a_project_or_readers(configured):
+    """Odysseus 2026-09-10 (mutation M14): the `_dispatch` copies of the two
+    refusals are defense in depth behind admission; pinned directly."""
+    authority, _ = configured
+    with pytest.raises(ComputerRefused, match="no registered project"):
+        service_module.ComputerService(authority)._dispatch("daedalus.status", {})
+    with pytest.raises(ComputerRefused, match="project readers"):
+        service_module.ComputerService(authority, project="agent_env")._dispatch("daedalus.status", {})
+
+
+def test_the_index_is_built_effect_free(tmp_path, monkeypatch):
+    from daedalus.structcore import index as index_module
+    seen = {}
+
+    def fake_cached_index(repo_root, **kwargs):
+        seen.update(kwargs)
+        return {"modules": {}}
+    monkeypatch.setattr(index_module, "cached_index", fake_cached_index)
+    adapter = _adapter(tmp_path)
+    monkeypatch.setattr(adapter, "_repo_root", lambda: str(tmp_path))
+    adapter._cached_index(str(tmp_path))
+    assert seen == {"effect_free": True}
+
+
+def test_a_project_whose_policy_row_cannot_load_is_refused_not_generic(tmp_path, monkeypatch):
+    from daedalus.foundation import projects
+    monkeypatch.setattr(projects, "resolve_repo_root", lambda repo_root, project: str(tmp_path))
+
+    def broken(name):
+        raise projects.ProjectRegistryUnavailable("row unreadable")
+    monkeypatch.setattr(projects, "load_project", broken)
+    adapter = _adapter(tmp_path, readers=_gated_readers(" M x.py", []))
+    with pytest.raises(ComputerRefused, match="project policy is unavailable"):
+        adapter.execute("daedalus.status", {})
+
+
+def test_the_lane_is_derived_per_call_not_at_construction(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    adapter = _adapter(tmp_path)
+    assert adapter.lane == "trusted"
+    monkeypatch.setenv("OLLAMA_HOST", "http://bench.tailnet:11434")
+    assert adapter.lane == "untrusted"
 
 
 @pytest.mark.parametrize("value, absolute", [

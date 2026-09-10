@@ -482,14 +482,14 @@ def _ask_inner(project: str, message: str, provider: str | None = None,
             # THE ONLY DOOR TO THE HAND SHELL, and `act.allowed` is true on
             # every path that reaches it (see _route). `provider` is not passed:
             # the executor is the system's choice, not the request's.
-            run = _confirmed_computer_run(project, act)
+            run, reason = _confirmed_computer_run(project, act, conversation_id)
             if run is not None:
                 # G1-IKARUS-46: a confirmed offer runs through the SAME command
                 # route the cockpit's click and a typed `/computer run` take.
                 for event, payload in conversation_events(project, run):
                     if event == "final":
                         return payload
-            return _enqueue(project, act.objective or message, act=act)
+            return _enqueue(project, act.objective or message, act=act, note=reason)
         if act.suspected:
             # The Voice REPORTING what may_act said, not the Voice judging.
             return _act_offer(project, message, act)
@@ -732,15 +732,30 @@ def _computer_hand(project: str) -> dict | None:
     }
 
 
+#: Why a confirmation did not run and produced a fresh offer instead.
+_OFFER_NOTE_DE = {
+    "policy_changed": (" Die Computer-Policy hat sich seit dem Angebot geändert; Planner und "
+                       "Werkzeuge stehen oben neu. Bitte erneut bestätigen."),
+    "offer_not_computer": "",
+}
+_OFFER_NOTE_EN = {
+    "policy_changed": (" The computer policy changed since the offer; planner and tools above "
+                       "are re-read. Please confirm again."),
+    "offer_not_computer": "",
+}
+
+
 def _computer_offer(project: str, objective: str, act: ActDecision | None,
-                    computer: dict, *, german: bool) -> dict:
+                    computer: dict, *, german: bool, note: str = "") -> dict:
     """Propose the objective as a confirm-gated computer task.
 
     The action names the exact chat message the confirmation sends
     (``/computer run <objective>``): the cockpit's click and a typed "ja" both
     re-enter ``conversation_events`` through it, so the executor the offer
     describes is the one that runs. ``act_offer`` is stamped so the next
-    turn's bare affirmative can confirm THIS objective and nothing else.
+    turn's bare affirmative can confirm THIS objective and nothing else, and
+    it carries the policy digest the offer described: a confirmation runs
+    only against that digest (Odysseus 2026-09-10, defect 5).
     """
     from .computer_loop import run_command
 
@@ -773,29 +788,42 @@ def _computer_offer(project: str, objective: str, act: ActDecision | None,
             f"Tools: {tools}. Only your click or a “yes” starts the run; every step is observed, "
             "evidenced and shown here. The planner's finish is a proposal, not proof."
         )
+    reply += (_OFFER_NOTE_DE if german else _OFFER_NOTE_EN).get(note, "")
     extra = {"act": act.to_dict()} if act is not None else {}
     return core.envelope(
         project, intent="enqueue", shell=SHELL_HAND, assistant=reply, action=action,
         provider_used="deterministic", computer=dict(computer),
         act_offer={"objective": objective, "reason": "computer task offered",
-                   "signal": "computer_task"},
+                   "signal": "computer_task", "policy_sha256": computer.get("policy_sha256")},
         **extra)
 
 
-def _confirmed_computer_run(project: str, act: ActDecision | None) -> str | None:
-    """The ``/computer run`` message a confirmed act re-enters through, or None.
+def _confirmed_computer_run(project: str, act: ActDecision | None,
+                            conversation_id: str | None) -> tuple[str | None, str]:
+    """The ``/computer run`` message a confirmed act re-enters through, or None
+    plus the reason it must be offered again instead.
 
-    Only a CONFIRMATION (``act.confirmation_of``, i.e. a bare "ja" answering
-    the offer of the previous turn) and only while the loop is available for
-    the project; an unconfirmed imperative still gets an offer, never a run.
+    A run needs ALL of: a CONFIRMATION (``act.confirmation_of``, a bare "ja"
+    answering the previous turn); that previous turn's offer being a
+    ``computer_task`` offer -- a question's offer promised a confirm-gated
+    task, so its "ja" yields the task PROPOSAL, never a run (Odysseus
+    2026-09-10, defect 4); the loop still available; and the loop's policy
+    digest still the one the offer described (defect 5). Anything else falls
+    back to a fresh offer, which says why.
     """
     if act is None or not act.allowed or not act.confirmation_of:
-        return None
-    if _computer_hand(project) is None:
-        return None
+        return None, ""
+    offer = ikarus_act.pending_offer(_prior_turn(conversation_id))
+    if offer is None or offer.get("signal") != "computer_task":
+        return None, "offer_not_computer"
+    computer = _computer_hand(project)
+    if computer is None:
+        return None, "no_loop"
+    if offer.get("policy_sha256") != computer.get("policy_sha256"):
+        return None, "policy_changed"
     from .computer_loop import run_command
 
-    return run_command(act.confirmation_of)
+    return run_command(act.confirmation_of), "confirmed"
 
 
 def _hand_lane(project: str) -> str:
@@ -889,12 +917,15 @@ def _hand_block(state) -> dict:
     return {"state": state.state, "detail": state.detail, "host": state.host}
 
 
-def _enqueue(project: str, message: str, act: ActDecision | None = None) -> dict:
+def _enqueue(project: str, message: str, act: ActDecision | None = None, *,
+             note: str = "") -> dict:
     """Propose a confirm-gated task on the Hand's lane.
 
     Takes NO ``provider``: see the module docstring's provider fence. The
     executor for act-cleared work is the system's choice, and there is no
-    argument here through which a request could express one.
+    argument here through which a request could express one. ``note`` names
+    why a confirmation produced this offer instead of a run (see
+    :func:`_confirmed_computer_run`).
     """
     objective = message.strip()
     confirmed = bool(act is not None and act.confirmation_of)
@@ -906,7 +937,7 @@ def _enqueue(project: str, message: str, act: ActDecision | None = None) -> dict
     # stays the executor only while no loop is available, visibly.
     computer = _computer_hand(project)
     if computer is not None:
-        return _computer_offer(project, objective, act, computer, german=german)
+        return _computer_offer(project, objective, act, computer, german=german, note=note)
     # Local liveness is clearance only for a lane that forbids fallback. A
     # project-owned non-local lane must not be refused because Ollama is down.
     hand = _hand_state(probe=confirmed) if lane == "local_only" else None
@@ -1002,17 +1033,25 @@ def _act_offer(project: str, message: str, act: ActDecision) -> dict:
     objective = (act.objective or message).strip()
     lane = _hand_lane(project)
     german = _reply_in_german(objective)
+    # G1-IKARUS-46: name the executor a "ja" will PROPOSE (never run -- the
+    # confirmation of a question yields the task proposal with its own gate).
+    executor_de = ("einen bestätigungspflichtigen Computer-Auftrag im Daedalus-Loop"
+                   if _computer_hand(project) is not None
+                   else f"einen bestätigungspflichtigen Auftrag über {_lane_note(lane, german=True)}")
+    executor_en = ("a confirm-gated computer task in the Daedalus loop"
+                   if _computer_hand(project) is not None
+                   else f"a confirm-gated task through {_lane_note(lane, german=False)}")
     if german:
         reply = (
             "Das klingt nach einem Arbeitsauftrag, ist aber als Frage oder mehrdeutig "
             "formuliert. Deshalb habe ich nichts gestartet. Sag „ja“, dann mache ich "
-            f"daraus einen bestätigungspflichtigen Auftrag über {_lane_note(lane, german=True)}."
+            f"daraus {executor_de}."
         )
     else:
         reply = (
             "That sounds like a work request, but it is phrased as a question or remains "
-            "ambiguous, so I started nothing. Say “yes” and I will turn it into a "
-            f"confirm-gated task through {_lane_note(lane, german=False)}."
+            "ambiguous, so I started nothing. Say “yes” and I will turn it into "
+            f"{executor_en}."
         )
     return core.envelope(
         project, intent="chat", shell=SHELL_VOICE, assistant=reply,
@@ -3748,10 +3787,12 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     route = _route(intent, act)
 
     if route == "enqueue":
-        run = _confirmed_computer_run(project, act)
+        run, _reason = _confirmed_computer_run(project, act, conversation_id)
         if run is not None:
             # G1-IKARUS-46: a typed confirmation streams the loop's progress
             # exactly like `/computer run`; nothing is queued behind a click.
+            # A confirmation that cannot run falls through to ``ask`` below,
+            # which produces the fresh offer with its reason.
             yield from conversation_events(project, run, cancelled=computer_cancelled)
             return
 

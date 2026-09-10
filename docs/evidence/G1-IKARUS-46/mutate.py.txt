@@ -38,7 +38,7 @@ MUTATIONS = [
      "            provably_no_effect = (external_started and not dispatched and tool in DAEDALUS_TOOLS\n                                  and isinstance(exc, ComputerRefused))",
      "            provably_no_effect = False"),
     ("M8 the family is offered without a project", "daedalus/runtimes/computer.py",
-     "            if not reason and tool in DAEDALUS_TOOLS and self._project is None:\n                reason = _NO_PROJECT_REFUSAL",
+     "            if not reason and tool in DAEDALUS_TOOLS and (self._project is None or self._project_readers is None):\n                reason = _NO_PROJECT_REFUSAL if self._project is None else _NO_READERS_REFUSAL",
      "            pass"),
     ("M9 /computer run parses subcommands again", "daedalus/orchestration/ikarus/computer_loop.py",
      "        explicit_run = verb.casefold() == RUN_VERB",
@@ -52,11 +52,42 @@ MUTATIONS = [
      "        text, elided = _bounded_text(result.get(\"slice_text\", \"\"))",
      "        text, elided = str(result.get(\"slice_text\", \"\")), False"),
     ("M13 no act_offer on the computer offer (a typed ja stops confirming)", "daedalus/orchestration/ikarus/shell.py",
-     '        act_offer={"objective": objective, "reason": "computer task offered",\n                   "signal": "computer_task"},\n        **extra)',
+     '        act_offer={"objective": objective, "reason": "computer task offered",\n                   "signal": "computer_task", "policy_sha256": computer.get("policy_sha256")},\n        **extra)',
      '        **extra)'),
     ("M14 stream path queues instead of running", "daedalus/orchestration/ikarus/shell.py",
      "            yield from conversation_events(project, run, cancelled=computer_cancelled)\n            return\n\n    # Deterministic lanes",
      "            pass\n\n    # Deterministic lanes"),
+    # Cerberus 2026-09-10 repairs
+    ("M15 the path gate admits everything", "daedalus/runtimes/computer_daedalus.py",
+     "        return slice_egress_rule(path, text, lane=self.lane, policy=self._project_policy()) is None",
+     "        return True"),
+    ("M16 the text gate ignores deny_content", "daedalus/runtimes/computer_daedalus.py",
+     "            if any(pattern.search(text) for pattern in policy.deny_content):\n                return False",
+     "            pass"),
+    ("M17 the index is built with effects", "daedalus/runtimes/computer_daedalus.py",
+     "            self._index = cached_index(repo_root, effect_free=True)",
+     "            self._index = cached_index(repo_root)"),
+    ("M18 docrefs errors returned verbatim", "daedalus/runtimes/computer_daedalus.py",
+     '                "errors_count": len(payload.get("errors", []))}',
+     '                "errors": payload.get("errors", []), "errors_count": len(payload.get("errors", []))}'),
+    ("M19 enable with a remote planner needs no confirmation", "daedalus/orchestration/ikarus/computer_loop.py",
+     "            if enabling and remote and not confirm:",
+     "            if False:"),
+    ("M20 a project whose policy row fails gets the generic policy", "daedalus/runtimes/computer_daedalus.py",
+     '                raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}: {exc}") from exc',
+     '                config = None'),
+    ("M22 a question's offer confirms into a run", "daedalus/orchestration/ikarus/shell.py",
+     '    if offer is None or offer.get("signal") != "computer_task":\n        return None, "offer_not_computer"',
+     '    if offer is None:\n        return None, "offer_not_computer"'),
+    ("M23 the offer's policy digest is not bound to the run", "daedalus/orchestration/ikarus/shell.py",
+     '    if offer.get("policy_sha256") != computer.get("policy_sha256"):\n        return None, "policy_changed"',
+     '    pass'),
+    ("M24 embedded host paths pass the text gate", "daedalus/runtimes/computer_daedalus.py",
+     '    return bool(_EMBEDDED_HOST_PATH.search(text or ""))',
+     '    return False'),
+    ("M21 the lane is frozen at construction", "daedalus/runtimes/computer_daedalus.py",
+     "        return planner_lane(self._policy)\n\n    def _repo_root",
+     "        return getattr(self, '_frozen_lane', None) or object.__setattr__(self, '_frozen_lane', planner_lane(self._policy)) or self._frozen_lane\n\n    def _repo_root"),
 ]
 
 
@@ -70,15 +101,18 @@ def main() -> int:
     rows = []
     for label, rel, old, new in MUTATIONS:
         path = ROOT / rel
-        original = path.read_text(encoding="utf-8")
+        # BYTES, not text: ``write_text`` on Windows rewrites LF as CRLF and
+        # would move the byte-pinned modules (Odysseus 2026-09-10, defect 6).
+        original_bytes = path.read_bytes()
+        original = original_bytes.decode("utf-8")
         if original.count(old) != 1:
             rows.append((label, "NOT APPLIED (anchor not unique)", ""))
             continue
-        path.write_text(original.replace(old, new, 1), encoding="utf-8")
+        path.write_bytes(original.replace(old, new, 1).encode("utf-8"))
         try:
             code, out = run_suites()
         finally:
-            path.write_text(original, encoding="utf-8")
+            path.write_bytes(original_bytes)
         failed = sorted({line.split(" - ")[0].replace("FAILED ", "").strip()
                          for line in out.splitlines() if line.startswith("FAILED ") or line.startswith("ERROR ")})
         summary = [line for line in out.splitlines() if " passed" in line or " failed" in line or " error" in line]

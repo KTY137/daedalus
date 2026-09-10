@@ -15,28 +15,42 @@ Daedalus. These five observations close that gap without opening an effect:
                             resolver calls broken (``spine.docrefs``);
 * ``daedalus.tasks``      -- recent file-bridge reports of the project.
 
-Every observation is bounded, JSON-only and mutates nothing on the host: no
-write, no move, no launch, no network. The service records them with
-``host_mutation`` False and scope ``project-registry-read-only``. They read
-the REGISTERED project (``projects/<name>.json``) that the conversation
-selected; a session without a bound project cannot execute them, and an
-unknown project is a refusal, never a guess.
+WHAT THEY DO ON THE HOST. Nothing is written, moved, launched or sent by this
+module: the structcore index is built ``effect_free`` (no SQLite cache write
+or eviction under the profile, no process pool, no churn ``git log``), and
+the status reader runs the repository's read-only ``git branch`` / ``git
+status`` exactly as the dashboard does. The service records every result
+with ``host_mutation`` False and scope ``project-registry-read-only``.
 
-Egress is decided once, by :func:`planner_lane`, from the owner-configured
-planner: a loopback Ollama or the Claude CLI is the ``trusted`` lane (same
-answer the chat gives in ``shell._llm``); Codex and DeepSeek are
-``untrusted`` and receive the slice only through the project's default-deny
-allow-list. The unconditional secret floor runs in every lane inside
-``semantic_slice`` and again over every result in ``ComputerService.execute``.
+WHAT THEY SEND. Every observation is the planner's prompt, so with a remote
+planner it leaves the machine. That is why EVERY observation, not only the
+slice, passes the project's egress gate before it is returned: each path
+and each text fragment goes through ``sensitivity.slice_egress_rule`` on the
+planner's lane -- the unconditional secret floor on every lane, plus the
+project's default-deny allow-list and ``deny_content`` words (from
+``projects/<name>.json``) on the untrusted lane. Withheld rows are counted,
+never silently dropped. No absolute host path is returned by shape
+(``_looks_like_host_path``), and ``docrefs`` scanner errors are reported as a
+count only. Cerberus review of 2026-09-10 found the first draft gating the
+slice alone; this is the repair.
+
+The lane is decided per call by :func:`planner_lane` from the owner-configured
+planner: a loopback Ollama or the Claude CLI is ``trusted`` (the same answer
+the chat gives in ``shell._llm``); Codex and DeepSeek are ``untrusted``.
+``allow_remote_context`` never promotes a destination. The observations read
+the REGISTERED project (``projects/<name>.json``) that the conversation
+selected; a session without a bound project cannot execute them, an unknown
+project is a refusal, and a project whose policy row cannot be loaded is a
+refusal too -- never the generic policy.
 """
 from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-from typing import Any, Callable, Mapping
-
+import re
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, Iterable, Mapping
 
 from daedalus.kernel.policy.computer import ComputerPolicy, ComputerRefused, DAEDALUS_TOOLS
 
@@ -49,8 +63,8 @@ class ProjectReaders:
     (report briefs) already sit inside the repository's largest import cycle
     with ``runtimes.computer``; importing them here would pull this adapter
     into that cycle (MEASURED 2026-09-10 by the SCC census: 19 -> 21 modules).
-    The service, which is in the cycle already, supplies them; this module
-    names no orchestration, bridge or status module.
+    The orchestration layer, which is in the cycle already, supplies them;
+    this module names no orchestration, bridge or status module.
     """
 
     git_counters: Callable[[str], Mapping[str, Any]]
@@ -105,6 +119,18 @@ def _looks_like_host_path(value: str) -> bool:
     return bool(len(text) > 2 and text[1] == ":" and text[2] in "\\/") or text.startswith(("\\\\", "/"))
 
 
+#: An absolute host path EMBEDDED in longer text (an error message, a task
+#: summary): a drive spelling, a UNC prefix, or a POSIX home/system root.
+#: Odysseus 2026-09-10 (defect 3): the whole-value check above let
+#: ``"…: PermissionError: 'C:\\Users\\…'"`` through.
+_EMBEDDED_HOST_PATH = re.compile(
+    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\s\\]+\\|(?:^|[\s'\"(])/(?:home|Users|root|tmp|var|etc|mnt|opt|srv)/")
+
+
+def _mentions_host_path(text: str) -> bool:
+    return bool(_EMBEDDED_HOST_PATH.search(text or ""))
+
+
 def _bounded_text(value: object, limit: int = MAX_TEXT_CHARS) -> tuple[str, bool]:
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
     if len(text) > limit:
@@ -115,6 +141,15 @@ def _bounded_text(value: object, limit: int = MAX_TEXT_CHARS) -> tuple[str, bool
 def _json_safe(value: Any) -> Any:
     """Round-trip through JSON so the observation is exactly what is retained."""
     return json.loads(json.dumps(value, ensure_ascii=False, default=str, allow_nan=False))
+
+
+def _status_line_paths(line: str) -> list[str]:
+    """The path(s) named by one ``git status --short`` line (renames name two)."""
+    body = line[3:] if len(line) > 3 else line
+    body = body.strip()
+    if " -> " in body:
+        return [part.strip() for part in body.split(" -> ") if part.strip()]
+    return [body] if body else []
 
 
 class DaedalusObservation:
@@ -132,8 +167,8 @@ class DaedalusObservation:
         self._project = project.strip() if isinstance(project, str) else None
         self._checkpoint = checkpoint
         self._authority_root = Path(authority_root)
-        self._lane = planner_lane(policy)
         self._index: dict | None = None
+        self._egress_policy = None
 
     # ------------------------------------------------------------------ project
     @property
@@ -142,7 +177,9 @@ class DaedalusObservation:
 
     @property
     def lane(self) -> str:
-        return self._lane
+        """Re-derived on every read: an ``OLLAMA_HOST`` that stops being
+        loopback mid-task must not keep a stale ``trusted`` verdict (Cerberus m-2)."""
+        return planner_lane(self._policy)
 
     def _repo_root(self) -> str:
         if self._project is None:
@@ -154,19 +191,74 @@ class DaedalusObservation:
             raise ComputerRefused(f"project is not registered or unreadable: {type(exc).__name__}: {exc}") from exc
 
     def _project_policy(self):
-        from daedalus.foundation.projects import load_project
-        from daedalus.sensitivity import load_policy
-        try:
-            config = load_project(self._project or "")
-        except Exception:
-            config = None
-        return load_policy(config)
+        """The project's egress policy -- refused, never the generic one, when
+        the registry row cannot be read (Cerberus m-4)."""
+        if self._egress_policy is None:
+            from daedalus.foundation.projects import load_project
+            from daedalus.sensitivity import load_policy
+            try:
+                config = load_project(self._project or "")
+            except Exception as exc:
+                raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}: {exc}") from exc
+            self._egress_policy = load_policy(config)
+        return self._egress_policy
+
+    # ------------------------------------------------------------------ egress gate
+    def _admit(self, path: str, text: str = "") -> bool:
+        """May this path/text reach the planner on the current lane?
+
+        The Voice's own gate, ``sensitivity.slice_egress_rule``: the secret
+        floor on every lane; the project's default-deny allow-list and
+        ``deny_content`` words on the untrusted lane. Called per row, so one
+        withheld row is attributable and never poisons the observation.
+        """
+        from daedalus.sensitivity import slice_egress_rule
+        if _looks_like_host_path(path) or _mentions_host_path(text):
+            return False
+        return slice_egress_rule(path, text, lane=self.lane, policy=self._project_policy()) is None
+
+    def _admit_text(self, text: str) -> bool:
+        """May this path-less text (a clone name, a report summary) reach the planner?
+
+        The secret floor on every lane; on the untrusted lane additionally the
+        project's ``deny_content`` markers, exactly the content half of
+        ``sensitivity.classify_data`` (the allow-list half needs a path and
+        would refuse every synthetic name).
+        """
+        from daedalus.sensitivity import secret_floor_rule
+        if _mentions_host_path(text) or secret_floor_rule("observation.txt", text):
+            return False
+        if self.lane != "trusted":
+            policy = self._project_policy()
+            if any(pattern.search(text) for pattern in policy.deny_content):
+                return False
+        return True
+
+    def _admit_rows(self, rows: Iterable[Mapping[str, Any]], path_keys: tuple[str, ...],
+                    text_keys: tuple[str, ...] = ()) -> tuple[list[dict[str, Any]], int]:
+        """Keep the rows whose named paths and texts the gate admits; count the rest."""
+        kept: list[dict[str, Any]] = []
+        withheld = 0
+        for row in rows:
+            if not isinstance(row, Mapping):
+                withheld += 1
+                continue
+            paths = [str(row[key]) for key in path_keys if isinstance(row.get(key), str) and row.get(key)]
+            text = " ".join(str(row[key]) for key in text_keys if isinstance(row.get(key), str))
+            if (paths and not all(self._admit(path, text) for path in paths)) or (
+                    not paths and text and not self._admit_text(text)):
+                withheld += 1
+                continue
+            kept.append(dict(row))
+        return kept, withheld
 
     def _cached_index(self, repo_root: str) -> dict:
         if self._index is None:
             from daedalus.structcore.index import cached_index
             self._checkpoint()
-            self._index = cached_index(repo_root)
+            # effect_free: no persistent cache write or eviction under the
+            # profile, no process pool, no churn ``git log`` (Cerberus MAJOR 1).
+            self._index = cached_index(repo_root, effect_free=True)
             self._checkpoint()
         return self._index
 
@@ -188,6 +280,7 @@ class DaedalusObservation:
         result.setdefault("kind", "observation")
         result.setdefault("project", self._project)
         result.setdefault("host_mutation", False)
+        result.setdefault("lane", self.lane)
         return _json_safe(result)
 
     # ------------------------------------------------------------------ tools
@@ -205,26 +298,64 @@ class DaedalusObservation:
         # MEASURED 2026-09-10 (live run 3): ``collect_status`` also carries
         # ``todo_snapshot``, an absolute path; every absolute-path value is
         # dropped by shape, not by name, so a later counter cannot leak one.
-        return {"git": {k: v for k, v in git.items()
-                        if k != "repo_root" and not (isinstance(v, str) and _looks_like_host_path(v))},
-                "queue": queue, "registered": True}
+        observed: dict[str, Any] = {}
+        withheld_paths = 0
+        withheld_fields = 0
+        for key, value in git.items():
+            if key == "repo_root":
+                continue
+            if key == "git_status" and isinstance(value, str):
+                # Every line names a repository path: each goes through the
+                # project's gate (``?? .env`` is floored on every lane; a
+                # ``policy.deny`` path is withheld on the untrusted lane).
+                kept_lines = []
+                for line in value.splitlines():
+                    paths = _status_line_paths(line)
+                    if paths and all(self._admit(path, line) for path in paths):
+                        kept_lines.append(line)
+                    elif paths:
+                        withheld_paths += 1
+                observed[key] = "\n".join(kept_lines)
+                continue
+            if isinstance(value, str):
+                if _looks_like_host_path(value) or not self._admit(f"{key}.txt", value):
+                    withheld_fields += 1
+                    continue
+            observed[key] = value
+        observed["git_status_withheld"] = withheld_paths
+        observed["fields_withheld"] = withheld_fields
+        return {"git": observed, "queue": queue, "registered": True}
 
     def _structure(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
         from daedalus.structcore.report import structure_summary
         idx = self._cached_index(repo_root)
-        summary = structure_summary(idx, top_hotspots=TOP, top_clones=TOP, top_windows=0,
-                                    top_fanin=TOP, top_renamed=0, top_near=0,
+        summary = structure_summary(idx, top_hotspots=TOP * 2, top_clones=TOP * 2, top_windows=0,
+                                    top_fanin=TOP * 2, top_renamed=0, top_near=0,
                                     max_graph_nodes=0, max_graph_edges=0)
         ignored = summary.get("ignored") if isinstance(summary.get("ignored"), dict) else {}
+        hotspots, hotspots_withheld = self._admit_rows(summary.get("hotspots", []), ("module",))
+        fan_in, fan_in_withheld = self._admit_rows(summary.get("fan_in", []), ("module",))
+        clones: list[dict[str, Any]] = []
+        clones_withheld = 0
+        for row in summary.get("clones", []):
+            if not isinstance(row, Mapping) or not self._admit_text(str(row.get("name", ""))):
+                clones_withheld += 1
+                continue
+            sites, sites_withheld = self._admit_rows(row.get("sites", []), ("module",))
+            if not sites:
+                clones_withheld += 1
+                continue
+            clones.append({**dict(row), "sites": sites, "sites_withheld": sites_withheld})
         # ``ignored.source`` is the absolute path of the ignore file (MEASURED
         # 2026-09-10, live run 3): only the count and the patterns are observed.
         return {"n_files": summary.get("n_files"),
                 "ignored": {"count": ignored.get("count", 0), "patterns": list(ignored.get("patterns") or [])[:TOP]},
                 "languages": summary.get("languages"), "totals": summary.get("totals"),
-                "hotspots": summary.get("hotspots", [])[:TOP],
-                "clones": summary.get("clones", [])[:TOP],
-                "fan_in": summary.get("fan_in", [])[:TOP]}
+                "hotspots": hotspots[:TOP], "hotspots_withheld": hotspots_withheld,
+                "clones": clones[:TOP], "clones_withheld": clones_withheld,
+                "fan_in": fan_in[:TOP], "fan_in_withheld": fan_in_withheld,
+                "churn": "not measured (effect-free index)"}
 
     def _resolve_module(self, idx: dict, module: object) -> str:
         if not isinstance(module, str) or not module.strip() or len(module) > 1000 or "\x00" in module:
@@ -249,14 +380,16 @@ class DaedalusObservation:
         # all "not in the index".
         target = self._resolve_module(idx, arguments.get("module"))
         self._checkpoint()
-        result = semantic_slice(repo_root, target, idx=idx, lane=self._lane,
+        lane = self.lane
+        result = semantic_slice(repo_root, target, idx=idx, lane=lane,
                                 policy=self._project_policy(), max_tokens=SLICE_MAX_TOKENS)
         text, elided = _bounded_text(result.get("slice_text", ""))
         withheld = result.get("withheld") or []
-        return {"focus_file": result.get("focus_file"), "lane": self._lane,
+        rows = [dict(row) for row in withheld] if isinstance(withheld, list) else []
+        return {"focus_file": result.get("focus_file"), "lane": lane,
                 "slice_tokens": result.get("slice_tokens"), "n_included": result.get("n_included"),
                 "trimmed_count": result.get("trimmed_count", 0),
-                "withheld": [dict(row) for row in withheld][:TOP] if isinstance(withheld, list) else withheld,
+                "withheld": rows[:TOP], "withheld_elided": max(0, len(rows) - TOP),
                 "text": text, "text_elided": elided}
 
     def _docrefs(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -265,11 +398,15 @@ class DaedalusObservation:
         report = docrefs.scan(repo_root)
         self._checkpoint()
         payload = report.to_dict()
-        broken = payload.get("broken", [])
+        broken, withheld = self._admit_rows(payload.get("broken", []),
+                                            ("doc_path", "module_path"), ("raw", "symbol"))
+        # Scanner error strings carry the absolute path of the unreadable file
+        # (Cerberus MAJOR 2): only their number is observed.
         return {"n_resolving": payload.get("n_resolving"), "n_broken": payload.get("n_broken"),
                 "n_skipped": payload.get("n_skipped"), "files_scanned": payload.get("files_scanned"),
                 "broken": broken[:TOP], "broken_elided": max(0, len(broken) - TOP),
-                "errors": list(payload.get("errors", []))[:TOP]}
+                "broken_withheld": withheld,
+                "errors_count": len(payload.get("errors", []))}
 
     def _tasks(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         self._repo_root()  # a task list is still scoped to a registered project
@@ -279,4 +416,7 @@ class DaedalusObservation:
         # file-bridge reports. The chat's ``/computer tasks`` remains the door to
         # mission history.
         briefs = list(self._readers.report_briefs(self._project))[-TOP:]
-        return {"reports": briefs, "computer_missions": "use /computer tasks in the chat"}
+        reports, withheld = self._admit_rows(
+            briefs, (), ("summary", "name", "agent", "provider", "lane", "project"))
+        return {"reports": reports, "reports_withheld": withheld,
+                "computer_missions": "use /computer tasks in the chat"}

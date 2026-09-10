@@ -203,6 +203,21 @@ the restored tree is green (104 passed). Script and raw output retained in
 | M12 | slice text unbounded | `test_slice_text_is_bounded_and_the_elision_is_reported` |
 | M13 | no `act_offer` on the computer offer | `test_an_act_request_is_offered_as_a_computer_task` |
 | M14 | streaming confirmation queues instead of running | `test_the_streaming_confirmation_streams_the_loop_and_classifies_once` |
+| M15 | the path gate admits everything (review round 1) | `test_a_project_whose_policy_row_cannot_load…`, the status/structure/docrefs gate tests |
+| M16 | the text gate ignores `deny_content` | `test_structure_rows_go_through_the_path_gate`, `test_task_reports_go_through_the_content_gate` |
+| M17 | the index is built with effects | `test_the_index_is_built_effect_free` |
+| M18 | docrefs errors returned verbatim | `test_docrefs_rows_go_through_the_gate_and_errors_are_a_count` |
+| M19 | enable with a remote planner needs no confirmation | `test_enable_with_a_remote_planner_needs_a_transient_confirmation` |
+| M20 | an unreadable project row gets the generic policy | `test_a_project_whose_policy_row_cannot_load_is_refused_not_generic` |
+| M21 | the lane is frozen at construction | `test_the_lane_is_derived_per_call_not_at_construction` |
+| M22 | a question's offer confirms into a run | `test_a_question_s_offer_confirms_into_a_proposal_never_a_run` |
+| M23 | the offer's policy digest is not bound to the run | `test_a_confirmation_against_a_changed_policy_re_offers_instead_of_running` |
+| M24 | embedded host paths pass the text gate | `test_a_task_summary_with_an_embedded_host_path_is_withheld` |
+
+Second table (after review round 1, `docs/evidence/G1-IKARUS-46/mutation-table-2.txt`):
+24 applied, **24 caught**, restored tree green (140 passed in the four packet
+suites). The driver now restores bytes, not text, so it can no longer move
+the byte-pinned modules itself.
 
 ### Live measurement
 
@@ -232,6 +247,7 @@ in drei Sätzen zusammen, was als Nächstes verbessert werden sollte."*) through
 | 1 | `codex_cli` | `blocked` | 1 | 0 | 4.6 s | `codex.cmd exec` returned nothing: the owner's `~/.codex/config.toml` names `gpt-6-astra`, which codex-cli 0.152.0 refuses ("requires a newer version of Codex"); the ledger still booked the flat `openai_cli` worst case of $2.00 for a 4-second failure |
 | 2 | `claude_code_cli` | `blocked` | 1 | 0 | 0.08 s | the planner spawn was refused by the process guard: a medium-effort Claude call reserves $3.00 (= the flat worst case, since `1.00 × 3 ≥ 3.00`) and the scratch ledger already held $2.16 from run 1 and two accidental voice turns; nothing spawned |
 | 3 | `claude_code_cli` | **`completed`** | 5 | 3 | **64.5 s** | plan (2 steps) → `daedalus.status` → `daedalus.structure` → `daedalus.docrefs` → finish; every step `ok`, none withheld; `task_success_verified: False` as designed |
+| 4 (after the Cerberus repairs) | `claude_code_cli` | **`completed`** | 5 | 3 | **52.2 s** | same objective, same three observations, now each stamped `lane: trusted` and gated: `fan_in_withheld: 2` (two fan-in modules withheld by the secret floor on the trusted lane), `hotspots_withheld 0`, `clones_withheld 0`, `broken_withheld 0`, `errors_count 0`; settled $0.0696 / $0.0695 / $0.0742 / $0.0895 / $0.1072 = **$0.410**; the only absolute path left in the retained report is the loop's own `authority_root` field, which is not part of any observation or prompt (pre-existing loop shape) |
 
 Run 3 in numbers: prompt max 21 197 chars; ledger 5 × reserve $3.00 →
 settled $0.0696 / $0.0696 / $0.0816 / $0.1053 / $0.1121 = **$0.438** for the
@@ -280,6 +296,58 @@ s02 corpus probes). Expected failures, retained rather than tuned away:
   `C:/Program Files/Git/computer planner …` before it reached `ask()`; the
   repeat with `MSYS2_ARG_CONV_EXCL='*'` reached the command route. Both turns
   are on the scratch ledger, not the owner's.
+
+### Independent review round 1 (2026-09-10) and what it changed
+
+**Cerberus — verdict `block`** on commit `002c0683`, every finding accepted
+and repaired in the follow-up commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| CRITICAL 1 | only `daedalus.slice` went through the project's egress gate; `status` (the whole `git status --short`), `structure` (hotspot/clone/fan-in paths), `docrefs` and `tasks` reached an untrusted planner with `policy.deny` and `deny_content` never consulted, and the content-only secret floor never saw the observed paths | every observation now passes `sensitivity.slice_egress_rule` per row on the planner's lane (`_admit`, `_admit_rows`) and path-less texts pass the floor plus `deny_content` (`_admit_text`); withheld rows are counted | `test_status_lines_go_through_the_project_gate_on_the_untrusted_lane`, `…keep_the_project_paths_but_floor_secrets_on_the_trusted_lane`, `test_task_reports_go_through_the_content_gate`, `test_structure_rows_go_through_the_path_gate`, `test_docrefs_rows_go_through_the_gate_and_errors_are_a_count`; mutations M15/M16 |
+| CRITICAL 2 | the grant sentence "they cannot write, launch or send anything" was false | the reply names the observations, the planner and whether they leave the machine; with a remote planner the grant requires `/computer enable daedalus confirm-remote` after a warning that names what leaves | `test_enable_adds_the_family_through_compare_and_replace`, `test_enable_with_a_remote_planner_needs_a_transient_confirmation`; mutation M19 |
+| MAJOR 1 | `cached_index` wrote and evicted the SQLite cache under the profile, spawned a process pool and ran `git log` under a `host_mutation: False` receipt | the index is built `effect_free=True`; the docstring and the grant text say which read-only git commands run | `test_the_index_is_built_effect_free`; mutation M17 |
+| MAJOR 2 | `docrefs.errors` carried the absolute path of an unreadable doc file | only `errors_count` is observed | `test_docrefs_rows_go_through_the_gate_and_errors_are_a_count`; mutation M18 |
+| MAJOR 3 | the `confirm-remote` warning listed a narrower set than now travels | `_remote_planner_warning` names the Daedalus observations; the enable warning names them too | `test_the_remote_planner_warning_names_the_daedalus_observations` |
+| m-1 | `withheld` cut to 10 rows without a count | `withheld_elided` | (shape) |
+| m-2 | the lane was frozen at construction | `lane` is derived per call | `test_the_lane_is_derived_per_call_not_at_construction`; mutation M21 |
+| m-3 | `/computer enable daedalus` synthesized `owner_confirmed` from one message with a remote planner | see CRITICAL 2 | as above |
+| m-4 | an unreadable project row fell back to the generic policy | refused | `test_a_project_whose_policy_row_cannot_load_is_refused_not_generic`; mutation M20 |
+
+Cerberus also refuted, with evidence, seven worries that stand as evidence for
+the design: `allow_remote_context` is the master switch and never promotes a
+lane; the cockpit cannot compose its own run message; no unconfirmed
+imperative reaches `conversation_events`; `/computer run` cannot be re-parsed
+into a subcommand; no ledger or spend fact enters the observations; no
+credential *values* leave (the finding was reconnaissance-grade, which is why
+the gate now covers paths, not only bytes).
+
+**Odysseus — adversarial verification of `002c0683`** (re-executed against a
+pristine `git archive` copy because this worktree was being repaired
+mid-review). Six confirmed defects; 1–3 coincide with Cerberus and were
+repaired as above (Odysseus's probes `a1_effects.py`, `a12_egress_gate.py`
+re-run green on the repaired tree); 4–6 are this round's additions:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| 4 | a QUESTION's offer (`_act_offer`, "…ein bestätigungspflichtiger Auftrag…") is the only offer a bare "ja" could confirm, and that "ja" now RAN the loop with the question text as objective — the promised second gate was gone | `_confirmed_computer_run` runs only when the previous turn's offer carries `signal: computer_task`; a question's "ja" yields the `computer_task` PROPOSAL (panel, own gate); `_act_offer` names the computer loop when it is available | `test_a_question_s_offer_confirms_into_a_proposal_never_a_run`, `test_the_question_offer_names_the_computer_loop_when_it_is_available`; mutation M22 |
+| 5 | planner, tools and `policy_sha256` shown in the offer were not bound to the run: a policy change (`/computer planner …`, `/computer enable …`, the settings page) between offer and "ja" ran under the new policy | the offer's `act_offer` carries `policy_sha256`; a confirmation whose digest no longer matches the loop's re-offers with "Die Computer-Policy hat sich seit dem Angebot geändert" instead of running | `test_a_confirmation_against_a_changed_policy_re_offers_instead_of_running`; mutation M23 |
+| 6 | the commit stored four `-text` byte-pinned modules (`computer.py`, `shell.py`, `act.py`, `computer_loop.py`) with CRLF, moving `_SOURCE_REVISION`/`_SOURCE_SHA` for every computer lease with no code reason and making the review diff unreadable | LF bytes restored before the follow-up commit; `git show <commit>:<file> \| grep -c $'\r'` is 0 for all four (recorded in the acceptance record) | the `-text` pins in `.gitattributes`; `tests/test_byte_pin_eol_durability.py` does not see these two modules (its marker misses the frozen-executable ternary) — named here as a residual for the byte-pin packet, not fixed in this one |
+| 3′ | `daedalus.tasks` could carry a host path EMBEDDED in a report's error summary; the whole-value shape check missed it | `_mentions_host_path` (drive, UNC, POSIX home/system roots inside text) refuses the row in `_admit`/`_admit_text` | `test_embedded_host_paths_are_detected`, `test_a_task_summary_with_an_embedded_host_path_is_withheld`; mutation M24 |
+| (test gap) | the service half substituted a fake adapter, so no test observed the real adapter under the real lease | `test_the_real_adapter_through_the_real_lease_creates_no_cache_and_launches_no_pool` runs all four repository observations through `ComputerService.execute` with a fresh `DAEDALUS_CACHE_DIR` and asserts it stays empty | — |
+| (mutation survivors) | M1 import-time assertion not load-bearing (its subject is pinned by a test), M14 `_dispatch` refusals dead behind admission, M25 `/computer enable <other>` unpinned | M14 and M25 pinned directly (`test_dispatch_refuses_the_family_directly_without_a_project_or_readers`, the `enable` argument subtests); M1 left as a comment-grade assertion | — |
+
+Odysseus refuted, with 39 hostile argument shapes, junction planting,
+18-message reachability runs and a real control root: no `daedalus.slice`
+argument resolves outside the index; structcore does not descend a junction;
+no non-`/computer run` message can become executable in the cockpit; a "ja"
+cannot confirm across conversations, from a `queue_task` envelope, or a stale
+offer older than the previous turn; no unconfirmed imperative or question
+reaches `conversation_events`; `/computer enable daedalus` adds exactly the
+five names under the live digest and refuses a concurrent policy write. One
+residual it named and this packet leaves: `pending_offer` has no expiry — a
+"ja" is a confirmation as long as the offer is the immediately preceding
+turn, however old.
 
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file

@@ -112,16 +112,29 @@ Vergleich-und-Ersetzen-Konfiguration wie `/computer planner`, und ein frisches
 | `daedalus.docrefs` | Doku-Verweise auf Code-Symbole, die der eigene Resolver als kaputt meldet | nichts |
 | `daedalus.tasks` | jüngste Aufgabenberichte des Projekts aus der File-Bridge (Missionshistorie weiterhin über `/computer tasks`) | nichts |
 
-Die Lane für `daedalus.slice` folgt dem Planner: lokales Ollama (Loopback) und
-die Claude-CLI sind `trusted`, Codex und DeepSeek `untrusted` und erhalten die
-Scheibe nur durch die Default-Deny-Allow-Liste des Projekts; die Secret-Floor
-läuft in jeder Lane. Kein Repository-Pfad erreicht den Planner; ein Modulname
-wird nur innerhalb des Index aufgelöst. Eine Sitzung ohne registriertes
-Projekt (etwa ein geplanter Auftrag) meldet die Familie als nicht verfügbar
-und verweigert sie vor jeder Lease. Der Loop kann damit beobachten und
-vorschlagen; **verändern** kann er den Projektbaum weiterhin nicht — das ist
-der Gegenstand der Folgepakete (Ariadne-Kampagne als Werkzeug, `terminal.run`),
-siehe [G1-IKARUS-46](work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md).
+Diese Beobachtungen **sind** der Planner-Prompt: mit einem entfernten Planner
+verlassen sie den Rechner. Deshalb verlangt `/computer enable daedalus` bei
+einem entfernten Planner (`allow_remote_context: true`) dieselbe einmalige
+Bestätigung wie die Planner-Wahl (`/computer enable daedalus confirm-remote`),
+und jede der fünf Beobachtungen — nicht nur die Scheibe — geht Zeile für Zeile
+durch die Egress-Regel der Voice (`sensitivity.slice_egress_rule`): die
+Secret-Floor in jeder Lane (eine `?? .env`-Zeile fällt überall heraus), auf der
+untrusted Lane zusätzlich die Default-Deny-Allow-Liste und die
+`deny_content`-Wörter aus `projects/<name>.json`. Die Lane folgt dem Planner
+und wird pro Aufruf bestimmt: lokales Ollama (Loopback) und die Claude-CLI sind
+`trusted`, Codex und DeepSeek `untrusted`. Zurückgehaltene Zeilen werden
+gezählt (`git_status_withheld`, `hotspots_withheld`, `broken_withheld`, …),
+nie stumm verworfen; Fehlertexte des Doku-Scanners werden nur gezählt; kein
+absoluter Host-Pfad erreicht den Planner; ein Modulname wird nur innerhalb des
+Index aufgelöst; der Index wird ohne Cache-Schreibzugriff, Prozess-Pool und
+`git log` gebaut (`effect_free`). Eine Sitzung ohne registriertes Projekt
+(etwa ein geplanter Auftrag) meldet die Familie als nicht verfügbar und
+verweigert sie vor jeder Lease; ein Projekt, dessen Policy-Zeile nicht lesbar
+ist, wird verweigert statt mit der generischen Policy bedient. Der Loop kann
+damit beobachten und vorschlagen; **verändern** kann er den Projektbaum
+weiterhin nicht — das ist der Gegenstand der Folgepakete (Ariadne-Kampagne als
+Werkzeug, `terminal.run`), siehe
+[G1-IKARUS-46](work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md).
 
 ```text
 /computer queue Öffne die freigegebene Statusseite und lies den aktuellen Status.
