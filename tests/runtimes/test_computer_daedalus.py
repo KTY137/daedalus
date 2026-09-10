@@ -799,6 +799,60 @@ def test_absolute_host_paths_inside_the_slice_text_are_redacted_and_counted(tmp_
                               'UNC = "<host-path>"\n')
 
 
+def test_a_slash_after_any_non_path_character_is_a_host_path(tmp_path, monkeypatch):
+    """Odysseus round 8 (D29, major): the POSIX alternative accepted only a
+    fixed list of characters before the slash, so ``{/home/…``, ``|/home/…``,
+    ``*/home/…``, ``&/home/…`` and ``@/home/…`` were neither detected nor
+    redacted -- and passed the row gate on the untrusted lane."""
+    for text in ('f"{os.sep}/home/administrator/.ssh/known_hosts"', 'PIPE = "cat|/home/administrator/.bashrc"',
+                 'STAR = "*/home/administrator/x"', 'AMP = "&/home/victim/x"', 'AT = "@/home/victim/x"',
+                 'build failed {/home/administrator/.ssh/known_hosts}'):
+        assert subject._mentions_host_path(text), text
+        redacted, count = subject._redact_host_paths(text)
+        assert count >= 1 and "administrator" not in redacted and "victim" not in redacted, redacted
+    for clean in ("a/b/c.py", "50/50", "1:2", "http://", "and/or", "x = a // b"):
+        assert not subject._mentions_host_path(clean), clean
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    assert adapter._admit_text("build failed {/home/administrator/.ssh/known_hosts}") is False
+
+
+def test_a_quoted_path_with_spaces_is_redacted_to_its_closing_quote(tmp_path, monkeypatch):
+    """Odysseus round 8 (D28): the token stopped at the first space, so
+    ``C:\\Program Files\\LabIP\\Kowalski\\x`` leaked every later segment."""
+    text = ('WIN_SPACE = "C:\\Program Files\\LabIP\\Kowalski\\driver.py"\n'
+            "USER = 'C:\\Users\\First Last\\secret.key'\n"
+            'PLAIN = "relative/path.txt"; unquoted C:\\Program Files\\x tail\n')
+    redacted, count = subject._redact_host_paths(text)
+    assert "Kowalski" not in redacted and "First Last" not in redacted
+    assert redacted.startswith('WIN_SPACE = "<host-path>"\nUSER = \'<host-path>\'\nPLAIN = "relative/path.txt"; unquoted <host-path> Files')
+    assert count == 3
+
+
+def test_a_non_list_producer_field_is_withheld_not_crashed_on(tmp_path, monkeypatch):
+    """Odysseus round 8 (D30): ``sites=None`` or ``hotspots=5`` raised out of the
+    observation instead of being withheld."""
+    from daedalus.structcore import report as report_module
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
+        "n_files": 3, "languages": {}, "totals": {}, "hotspots": 5, "fan_in": None,
+        "clones": [{"name": "c", "language": "python", "count": 2, "loc": 7, "sites": None},
+                   {"name": "d", "language": "python", "count": 2, "loc": 7, "sites": [{"module": "pkg/a.py", "line": 1}]}],
+        "ignored": {"count": 0, "n_files_scanned": 3, "ignore_patterns": "not-a-list"}})
+    structure = adapter.execute("daedalus.structure", {})
+    assert structure["hotspots"] == [] and structure["hotspots_withheld"] == 1
+    assert structure["fan_in"] == [] and structure["fan_in_withheld"] == 1
+    assert [c["name"] for c in structure["clones"]] == ["d"] and structure["clones_withheld"] == 1
+    assert structure["ignored"]["ignore_patterns"] == []
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {"clones": 7, "ignored": {}})
+    structure = adapter.execute("daedalus.structure", {})
+    assert structure["clones"] == [] and structure["clones_withheld"] == 1
+
+
 def test_one_admitted_candidate_resolves_without_naming_ambiguity(tmp_path, monkeypatch):
     """Odysseus round 7 (D27): "ambiguous; name one of: pkg/mod.py" with ONE
     admitted name told the planner a withheld second exists."""

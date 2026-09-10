@@ -129,6 +129,19 @@ den Nachrichten-Anhang.
   Live-Lauf 1 deckte auf, dass die Kernel-Policy `before`/`after` per
   Schlüsselname als Pfade prüfte (Text mit Doppelpunkt verweigert) —
   per-Tool-Pfadargumente eingeführt; Live-Lauf 2 läuft.
+- Herzschlag: 2026-09-10 16:50 — #364: Runde 7 Cerberus `approve` bestätigt;
+  Odysseus D24–D27 (Clone-Zeilen roh kopiert, Registry-Verweigerung mit
+  Meldung, Host-Pfad im Scheibentext, Ein-Namen-Mehrdeutigkeit) in Commit 8
+  `09ff4586` geschlossen; 663 grün, Mutationstabelle 56/56; Runde 8
+  (kompakt) läuft, danach „ready“. Packet 47: PR #365 (Draft, Basis = Branch
+  von #364) mit Live-Lauf 2 **nominated** (Docstring in `daedalus/build.py`,
+  ≈ 0,33 $) und Live-Lauf 3 an der Leakage-Grenze verweigert; Cerberus
+  Runde 1 `block` (CRITICAL: Fehlertexte der Refusal-Zweige trugen die
+  Exception-Meldung samt Host-Pfad zum Planner; MAJOR: Freigabetext „der
+  Projektbaum wird nie beschrieben“ vs. Spine-Eintrag `runs/spine/`) — beides
+  repariert (Klassenname + Meldung nur ohne Host-Pfad; Satz präzisiert;
+  Runner-Registrierung first-wins), Odysseus Runde 1 läuft; danach Rebase auf
+  `09ff4586`, Runde 2.
 
 ### Lane `codex-desktop` — Desktop-Packaging (Codex, direkt im Primär-Checkout)
 
@@ -189,6 +202,24 @@ den Nachrichten-Anhang.
   wer schreibt, wartet oder friert ein.
 - Scratch-Ledger und Scratch-Spine pro Lauf (`DAEDALUS_BUDGET_LEDGER`,
   `DAEDALUS_SPINE_DB`), nie `runs/budget/ledger.json` des Owners (2026-09-08).
+
+## Befunde für andere Lanes (offen, datiert)
+
+- 2026-09-10 16:55 `claude-jarvis` → Owner der Ariadne-Kampagne (Vorschlag
+  **G1-ARIADNE-11**): Odysseus hat in der Review von G1-IKARUS-47 gemessen,
+  dass `daedalus/ariadne/campaign.py::_admit_target_path` nur den
+  angefragten STRING prüft und `gates/repository/tree.py::read_repository_source`
+  nur `S_ISLNK` verweigert. Eine Verzeichnis-**Junction** im Subjekt
+  (`shortcut` → `daedalus/spine`, `mklink /J`, ohne Privileg) führt
+  `shortcut/killswitch.py` an der Leakage-Grenze (Plan §8.1) vorbei; die
+  Kampagne hat den Kandidaten NOMINIERT (nichts angewendet). Ebenso liest
+  `daedalus/spine./killswitch.py` (Windows streift den Punkt) die geschützte
+  Datei in den Arbeitsbereich. G1-IKARUS-47 schließt beides an seiner eigenen
+  Tür (aufgelöster Realpfad muss dem angefragten entsprechen und die Grenze
+  erneut bestehen; Segmentregel). Die CLI-Tür `daedalus ariadne` und
+  `POST /api/ariadne` sind weiterhin betroffen. `daedalus/ariadne/` liegt
+  außerhalb des 47er-Scopes und innerhalb der Leakage-Grenze; Reparatur dort
+  braucht ein eigenes Packet.
 
 ## Abgeschlossen / verwaist
 

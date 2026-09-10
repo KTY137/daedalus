@@ -171,16 +171,19 @@ def _looks_like_host_path(value: str) -> bool:
 #: ``50/50`` has no leading separator and is not matched; a root-anchored
 #: markdown link (``](/docs/x.md)``) is, and lands in the withheld count.
 _EMBEDDED_HOST_PATH = re.compile(
-    r"[A-Za-z]:[\\/]"                           # drive, anywhere (``checkoutC:\`` included; Odysseus round 3)
+    r"[A-Za-z]:[\\/](?!/)"                      # drive, anywhere (``checkoutC:\``; not the ``p://`` of a URL scheme)
     r"|(?<![A-Za-z0-9])[A-Z]:[A-Za-z_.]"        # drive-relative (``C:temp\x``; Cerberus round 3)
     r"|\\\\[^\s\\]+"                            # UNC host, with or without a share
-    r"|(?<![A-Za-z0-9:])//[^\s/]+/"            # UNC, forward slashes
-    r"|\b[A-Za-z][A-Za-z0-9+.-]*://[^\s/]+/"    # any scheme'd host URL (file://, smb://, https://): a host is named
+    r"|(?<![A-Za-z0-9:_.\\/-])//[^\s/]+/"      # UNC, forward slashes
+    r"|\b[A-Za-z][A-Za-z0-9+.-]*://(?:[^\s/'\"<>()\[\]{},;|]+|(?=/))"  # any scheme'd URL with a host or a path (file:///, smb://, https://)
     r"|(?<![A-Za-z0-9])~[^\s/\\]*[\\/]"         # home shorthand, ``~/`` or ``~user/``
     r"|%[A-Za-z_][A-Za-z0-9_]*%[\\/]"           # expanded Windows environment root
     r"|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[\\/]"     # expanded POSIX environment root, ``$HOME/`` or ``${HOME}/``
     r"|\$env:[A-Za-z_][A-Za-z0-9_]*[\\/]"       # PowerShell environment root
-    r"|(?:^|[\s'\"(=<>\[,;:])/[^\s/\\'\"()<>\[\],;:]+(?=[\\/\s'\")\]>,;:]|$)"  # POSIX absolute path, any first segment
+    # POSIX absolute path, any first segment: the slash may follow ANY character
+    # that is not itself part of a path token (Odysseus round 8, D29: ``{``,
+    # ``|``, ``*``, ``&`` and ``@`` before the slash slipped past a fixed list).
+    r"|(?:^|(?<=[^A-Za-z0-9_.\\/-]))/[^\s/\\'\"()<>\[\]{},;:|*&@]+(?=[\\/\s'\")\]>}|,;:*&@]|$)"
 )
 
 
@@ -188,8 +191,9 @@ def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
 
 
-_PATH_TOKEN_END = frozenset(" \t\r\n'\"()<>[]{},;")
-_LEADING_DELIMITERS = _PATH_TOKEN_END | frozenset("=:")
+_PATH_TOKEN_END = frozenset(" \t\r\n'\"()<>[]{},;|*&")
+_LEADING_DELIMITERS = _PATH_TOKEN_END | frozenset("=:@")
+_QUOTES = frozenset("'\"")
 
 
 def _redact_host_paths(text: str) -> tuple[str, int]:
@@ -212,8 +216,21 @@ def _redact_host_paths(text: str) -> tuple[str, int]:
         if start < cursor:
             continue
         end = max(match.end(), start)
-        while end < len(text) and text[end] not in _PATH_TOKEN_END:
-            end += 1
+        # Inside a quoted string the token runs to the closing quote -- a path
+        # with a space (``C:\\Program Files\\…``, ``C:\\Users\\First Last\\…``)
+        # otherwise leaked its later segments (Odysseus round 8, D28).
+        quote = text[start - 1] if start > 0 and text[start - 1] in _QUOTES else None
+        if quote is not None:
+            close = text.find(quote, end)
+            newline = text.find("\n", end)
+            if close != -1 and (newline == -1 or close < newline):
+                end = close
+            else:
+                while end < len(text) and text[end] not in _PATH_TOKEN_END:
+                    end += 1
+        else:
+            while end < len(text) and text[end] not in _PATH_TOKEN_END:
+                end += 1
         out.append(text[cursor:start])
         out.append("<host-path>")
         cursor = end
@@ -430,6 +447,10 @@ class DaedalusObservation:
         """
         kept: list[dict[str, Any]] = []
         withheld = 0
+        if not isinstance(rows, (list, tuple)):
+            # A producer field that is not a list is withheld as one row, never
+            # iterated into a crash (Odysseus round 8, D30: ``sites=None``).
+            return kept, 1
         for row in rows:
             if not isinstance(row, Mapping):
                 withheld += 1
@@ -610,7 +631,10 @@ class DaedalusObservation:
                                                    keep_keys=("module", "count"))
         clones: list[dict[str, Any]] = []
         clones_withheld = 0
-        for row in summary.get("clones", []):
+        clone_rows = summary.get("clones", [])
+        if not isinstance(clone_rows, (list, tuple)):
+            clone_rows, clones_withheld = [], 1
+        for row in clone_rows:
             # The clone row is rendered ONCE and every string of that rendering
             # is gated -- ``count``/``loc`` included, which are counters only by
             # convention (Odysseus round 7, D24: the row was copied raw, so the
@@ -639,7 +663,8 @@ class DaedalusObservation:
         # Cerberus N7) are observed -- and the patterns name exactly the trees
         # a project wants withheld, so each one passes the text gate like any
         # other string (Cerberus round 3, H1).
-        patterns = [str(p) for p in (ignored.get("ignore_patterns") or [])]
+        raw_patterns = ignored.get("ignore_patterns") or []
+        patterns = [str(p) for p in raw_patterns] if isinstance(raw_patterns, (list, tuple)) else []
         admitted_patterns = [p for p in patterns if self._admit_text(p)]
         # ``*_withheld`` counts gate refusals; ``*_elided`` counts the admitted
         # rows the TOP bound drops, so a short list is never mistaken for a

@@ -12,10 +12,11 @@
     "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 4": "646 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite)",
     "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 5": "654 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite); cockpit tsc --noEmit clean, 620/620 specs",
     "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 6": "658 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite); cockpit tsc --noEmit clean, 620/620 specs",
-    "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 7": "663 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite); cockpit tsc --noEmit clean, 620/620 specs"
+    "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 7": "663 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite); cockpit tsc --noEmit clean, 620/620 specs",
+    "packet, neighbouring and pin suites plus tests/test_host_predicate.py, final tree after review round 8": "666 passed, 4 skipped, 103 subtests (the sixteen suites plus the host predicate suite); cockpit unchanged since 09ff4586 (tsc clean, 620/620 there)"
   },
   "final_pins": "SCC census 520 modules / 2095 edges / 14 components / max 19 / component digest unchanged; work-packet registry 528 tracked files, packet G1-IKARUS-46 post_index; s02 kernel row re-pinned on the final adapter (7160 functions, 47559 type-name sites, annotation-only 94.47 %, full resolver 94.36 %, marginal_functions 8, marginal_pp 0.1117, verified share 90.14 %); imports graph",
-  "mutation_table": "round 1: 14/14 (mutation-table.txt); after review round 1: 24/24 (mutation-table-2.txt); after review round 2: 29/29 caught (mutation-table-4.txt); after review round 3: 33 applied, 33 caught (mutation-table-6.txt; M32 re-run alone after its anchor moved); after review round 4: 40 applied, 40 caught (mutation-table-7.txt); after review round 5: 47 applied, 47 caught (mutation-table-8.txt; loop suite added to the driver); after review round 6: 51 applied, 51 caught (mutation-table-9.txt); after review round 7: 56 applied, 56 caught (mutation-table-10.txt)",
+  "mutation_table": "round 1: 14/14 (mutation-table.txt); after review round 1: 24/24 (mutation-table-2.txt); after review round 2: 29/29 caught (mutation-table-4.txt); after review round 3: 33 applied, 33 caught (mutation-table-6.txt; M32 re-run alone after its anchor moved); after review round 4: 40 applied, 40 caught (mutation-table-7.txt); after review round 5: 47 applied, 47 caught (mutation-table-8.txt; loop suite added to the driver); after review round 6: 51 applied, 51 caught (mutation-table-9.txt); after review round 7: 56 applied, 56 caught (mutation-table-10.txt); after review round 8: 59 applied, 59 caught (mutation-table-11.txt)",
   "byte_pins": "the four -text modules (runtimes/computer.py, ikarus/shell.py, ikarus/act.py, ikarus/computer_loop.py) carry 0 CR bytes in the follow-up commit; 002c0683 had stored them as CRLF (Odysseus defect 6)",
   "live_run_ledger_rows": {
     "run3": [
@@ -187,9 +188,9 @@
     "mutation-table.txt": "5eadd2cb9164fcbba2e18bcea035ad4e0efb9491ea91b3e7d76b6547b33edfab",
     "mutation-table-2.txt": "6f0b73ca7cf2ba86ab0ccb6109794d4df37982a4274392065dc03cf3a6e1ef67",
     "mutation-table-4.txt": "983164f03d969f5146ec290242b7cfd6141d081ff6bf6e879bd72f80265c58e8",
-    "mutate.py.txt": "3fcc129225a9ded27e0224b300ab75d4536539e8c1e77801849f49aeef085815",
-    "s02-g1-ikarus-46-corpora-a.json.gz": "93d1a6cf507941201d80b244f35089d85ba6f35c2f3fec7202921ef07635d217",
-    "s02-g1-ikarus-46-corpora-b.json.gz": "c24c6842c61ebfa999c9cf2928e90b71a8c64a5e6fe1cfa3664f4392c939f3dc",
+    "mutate.py.txt": "79dc265d6ebd1b1acbb953d1220ce5354d7671e150e20a4cd33c85fccb34eb7e",
+    "s02-g1-ikarus-46-corpora-a.json.gz": "add459af85705d9bc08070a29b1292d5af4b7c0476cfa111a0d3e6307ee3cb5f",
+    "s02-g1-ikarus-46-corpora-b.json.gz": "1682ed3822cadc0d6a6e7a7907718f248f28e3a83196052f9c94c66acb3d119c",
     "live-offer.json": "5659e2d1fef742e08aecc0224203cc250c5671966b04f353ef19825141f312ff",
     "live-run-1-codex-blocked.json": "77d5f18f06a2eb587b0cfff24b7b3d57f0a22f25b31a27d938240a8b61f4dcbd",
     "live-run-2-claude-budget-refused.json": "c1d9e2159eaadfbd7d2e4e11d36666e3f9d4b1d3bedd2d3575ff94cda534146c",
@@ -199,7 +200,8 @@
     "mutation-table-7.txt": "b90f89e98b4c712a9740672de9817a89145ad8db874d735e1829ad1cdc12a43c",
     "mutation-table-8.txt": "037afbbfc851f6e029d69fb55fe4e4858a596991ba8a7fbcc76ce5a5dc6ad4a1",
     "mutation-table-9.txt": "1b3365fd644d2e675aff2d389a5b57de763aa49923d85b402c59fe22c0bfe99c",
-    "mutation-table-10.txt": "b7f7230687b5c9344c948c62bb6ffa844d4427730ed7cf60de30a8cd184a65b8"
+    "mutation-table-10.txt": "b7f7230687b5c9344c948c62bb6ffa844d4427730ed7cf60de30a8cd184a65b8",
+    "mutation-table-11.txt": "9dff612a084c244b34d45d8dda5518f93b1b381f44db8afd8b0718301fb38f77"
   },
   "review_rounds": {
     "1 (002c0683)": "Cerberus block (2 CRITICAL, 3 MAJOR, 4 minor); Odysseus 6 defects — all repaired in 96e190d2",
@@ -208,7 +210,8 @@
     "4 (a90b61a6)": "Cerberus needs_fix, block lifted, no CRITICAL (H3 high: an owner-declared trusted tailnet host was told nothing leaves; H4 high: the ambiguity refusal enumerated raw indexed paths); Odysseus D5/D8 resolved, D7 narrowed (encoded spellings accepted as residue), D9/D10 high, D11 medium, D12/D13 low — all repaired in the fifth commit",
     "5 (b29105af)": "Cerberus needs_fix, no CRITICAL (H4 resolved; H3 residue high: status line, mission report and chat offer derived 'verlassen' from the consent flag; two lows); Odysseus D9/D12/H3 resolved, D14 major latent (set rendering), D15/D16/D18/D19 minor — all repaired in the sixth commit",
     "6 (ed71c8d1)": "Cerberus APPROVE (blocking false; two latent lows: the warning's first clause host-blind, a separate decode pass before gating; one pre-existing medium named for a separate packet: /computer planner decides its confirmation by provider name); Odysseus D15/D19 resolved, D14/D16/D18 partial with residues D20 low (rendered twice), D21 medium (reader faults escaped ungated), D22 low-medium (ambiguity count as existence oracle), D23 low (counters ungated) — all repaired in the seventh commit",
-    "7 (233b463e)": "Cerberus APPROVE confirmed (blocking false; three lows: producer-chosen row keys ungated without a projection, errors_count under-report for a dict/set, the registry refusals still interpolated the message); Odysseus D24 medium (clone rows copied raw: rendered twice, count/loc ungated), D25 medium (registry refusals leak the message), D26 low-medium (a host path inside the slice text left with it), D27 low (one admitted candidate announced as ambiguous reveals a withheld second) — all repaired in the eighth commit"
+    "7 (233b463e)": "Cerberus APPROVE confirmed (blocking false; three lows: producer-chosen row keys ungated without a projection, errors_count under-report for a dict/set, the registry refusals still interpolated the message); Odysseus D24 medium (clone rows copied raw: rendered twice, count/loc ungated), D25 medium (registry refusals leak the message), D26 low-medium (a host path inside the slice text left with it), D27 low (one admitted candidate announced as ambiguous reveals a withheld second) — all repaired in the eighth commit",
+    "8 (09ff4586)": "Cerberus APPROVE confirmed on the final tree (two accepted lows: a Windows path with spaces redacted to the space, division-with-space and public URLs over-redacted); Odysseus D24/D25/D27 resolved, D26 partial -> D28 moderate (paths with spaces leak later segments), D29 major (the POSIX detector missed a slash after {, |, *, &, @: undetected AND unredacted, passing the row gate), D30 minor (a non-list producer field crashed the observation) -- all repaired in the ninth commit"
   },
   "byte_pins_worktree_cr_bytes": {
     "daedalus/runtimes/computer.py": 0,
