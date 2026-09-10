@@ -461,7 +461,6 @@ class ProbesReportBadNews(unittest.TestCase):
             # the scanner did run and simply found no importer of the island.
             (pkg / "caller.py").write_text(
                 "from daedalus import os_shim\n", encoding="utf-8")
-            health._SOURCE_CACHE.pop(str(root.resolve()), None)
             with mock.patch.object(health, "CAPABILITY_MODULES",
                                    ("daedalus.lonely_capability",)):
                 rep = health._p_islands(Ctx(repo_root=root))
@@ -666,28 +665,224 @@ class ProbesRunConcurrently(unittest.TestCase):
     def test_the_bench_is_dialled_once_even_when_both_probes_start_together(self):
         """"one timeout, not two" survives the two probes becoming simultaneous.
 
-        The cache in `_ssh_bench_snapshot` used to be safe because the probes
-        were serial. Concurrently, a cache that only guards its own dict lets
-        both callers dial out and saves nothing -- so the second caller has to
-        WAIT for the first answer, which is what the lock is for.
+        NO SLEEP TO RACE ON. The first version of this stubbed the dial with
+        `time.sleep(0.25)` and hoped the second caller arrived inside that
+        window; on a loaded box it does not, and the test then passes for the
+        wrong reason. The stub now BLOCKS until released, so "the second caller
+        found the first one in flight" is arranged rather than hoped for.
         """
         calls = []
+        hold = threading.Event()
+        together = threading.Barrier(2, timeout=self.RENDEZVOUS_S)
 
-        def slow_ssh(host, script, timeout):
+        def blocking_ssh(host, script, timeout):
             calls.append(host)
-            time.sleep(0.25)
+            hold.wait(self.RENDEZVOUS_S)     # a waiter never reaches this
             return True, {"task": {"ok": False, "error": "stub"},
                           "crashes": {"ok": False, "error": "stub"}}
 
-        health._SSH_CACHE.clear()
-        with mock.patch.object(health, "_ssh_powershell", slow_ssh):
+        ctx = Ctx()                          # ONE run: the cache is run-scoped
+        stopwatch = {}
+
+        def call(_):
+            together.wait()                  # both enter the cache together
+            t0 = time.monotonic()
+            out = health._ssh_bench_snapshot(ctx)
+            stopwatch[threading.get_ident()] = time.monotonic() - t0
+            return out
+
+        with mock.patch.object(health, "_ssh_powershell", blocking_ssh):
             with ThreadPoolExecutor(max_workers=2) as pool:
-                out = list(pool.map(lambda _: health._ssh_bench_snapshot(Ctx()),
-                                    range(2)))
-        health._SSH_CACHE.clear()
+                futures = [pool.submit(call, i) for i in range(2)]
+                time.sleep(0.20)
+                # The winner is parked in the stub and the loser must be parked
+                # on its answer, so at this instant exactly one dial exists.
+                dialled_while_blocked = len(calls)
+                hold.set()
+                out = [f.result(timeout=self.RENDEZVOUS_S) for f in futures]
+
+        self.assertEqual(dialled_while_blocked, 1,
+                         f"{dialled_while_blocked} caller(s) dialled while the "
+                         f"first dial was still in flight")
         self.assertEqual(len(calls), 1,
                          f"the bench was dialled {len(calls)} time(s)")
         self.assertEqual(out[0], out[1])
+
+    def test_the_waiter_is_not_billed_for_the_dial_it_waited_on(self):
+        """ONE dial must not be reported as two probes' worth of work.
+
+        MEASURED before the fix, with a 3.0s stubbed dial: `sum(seconds)` came
+        to 6.04 against a `wall_seconds` of 3.01, because the probe that merely
+        waited carried the winner's 3.0s inside its own row. `HealthPanel`
+        prints that sum, so the figure the wall-clock split exists to keep
+        honest was itself inflated by exactly the waiting it excludes.
+        """
+        dial_s = 0.60
+
+        def slow_ssh(host, script, timeout):
+            time.sleep(dial_s)
+            return True, {"task": {"ok": False, "error": "stub"},
+                          "crashes": {"ok": False, "error": "stub"}}
+
+        def probe_fn(ctx):
+            health._ssh_bench_snapshot(ctx)
+            return health.working("bench.x", "asked", (measured("asked", 1),))
+
+        specs = [ProbeSpec(name=f"bench.{i}", asks="?", fn=probe_fn)
+                 for i in range(2)]
+        with mock.patch.object(health, "_ssh_powershell", slow_ssh):
+            with mock.patch.object(health, "PROBES", specs):
+                t0 = time.monotonic()
+                reports = health.assess()
+                wall = time.monotonic() - t0
+
+        billed = sum(r.seconds for r in reports)
+        self.assertLessEqual(
+            billed, wall + 0.25,
+            f"the board billed {billed:.2f}s of work inside a {wall:.2f}s read")
+        # And the waiter specifically: one row is ~0, not another whole dial.
+        self.assertLess(min(r.seconds for r in reports), dial_s / 2,
+                        f"rows were {[round(r.seconds, 3) for r in reports]}")
+
+    def test_the_tree_is_walked_once_per_run_however_many_probes_ask(self):
+        """`route.latent` and `wiring.islands` share one walk again.
+
+        Serially, the second probe found the first one's walk already cached.
+        Started together they both missed a cold module dict and both walked --
+        measured 1 walk -> 2 at one caller and 2 -> 4 at two, against a
+        docstring promising "read ONCE per run".
+        """
+        walks = []
+
+        def counting_walk(repo_root):
+            walks.append(str(repo_root))
+            time.sleep(0.05)
+            return [("x.py", "x.py", "")]
+
+        def asker(ctx):
+            health.run_sources(ctx)
+            return health.working("ask", "asked", (measured("asked", 1),))
+
+        specs = [ProbeSpec(name=f"ask.{i}", asks="?", fn=asker)
+                 for i in range(4)]
+        with mock.patch.object(health, "_production_sources", counting_walk):
+            with mock.patch.object(health, "PROBES", specs):
+                health.assess()
+        self.assertEqual(len(walks), 1,
+                         f"the tree was walked {len(walks)} time(s)")
+
+    def test_two_concurrent_assess_calls_do_not_clear_each_others_work(self):
+        """The scenario the threading HTTP server makes reachable on any poll.
+
+        The module dicts were cleared at the top of `assess`, OUTSIDE the lock
+        that guarded them: request B entering `assess` between request A's two
+        bench probes made A's second probe miss and dial again -- two 9s
+        timeouts inside one request. Run-scoped state cannot do that, so four
+        probes across two overlapping runs produce exactly two walks and two
+        dials, never one and never six.
+        """
+        walks, dials = [], []
+
+        def counting_walk(repo_root):
+            walks.append(str(repo_root))
+            time.sleep(0.05)
+            return [("x.py", "x.py", "")]
+
+        def counting_ssh(host, script, timeout):
+            dials.append(host)
+            time.sleep(0.05)
+            return True, {"task": {"ok": False, "error": "stub"},
+                          "crashes": {"ok": False, "error": "stub"}}
+
+        def asker(ctx):
+            health.run_sources(ctx)
+            health._ssh_bench_snapshot(ctx)
+            return health.working("ask", "asked", (measured("asked", 1),))
+
+        specs = [ProbeSpec(name=f"ask.{i}", asks="?", fn=asker)
+                 for i in range(3)]
+        start = threading.Barrier(2, timeout=self.RENDEZVOUS_S)
+
+        def one_request(_):
+            start.wait()          # the two runs really do overlap
+            return health.assess()
+
+        with mock.patch.object(health, "_production_sources", counting_walk):
+            with mock.patch.object(health, "_ssh_powershell", counting_ssh):
+                with mock.patch.object(health, "PROBES", specs):
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        boards = list(pool.map(one_request, range(2)))
+
+        self.assertEqual(len(walks), 2, f"{len(walks)} walk(s) for 2 runs")
+        self.assertEqual(len(dials), 2, f"{len(dials)} dial(s) for 2 runs")
+        for board in boards:
+            self.assertEqual([r.state for r in board], [WORKING] * 3)
+
+    def test_an_interrupt_on_the_joining_thread_ends_the_read_at_once(self):
+        """Ctrl-C during a 9s ssh must not be swallowed until the ssh returns.
+
+        `ThreadPoolExecutor`'s context manager calls `shutdown(wait=True)`, so
+        the interrupt could not leave `assess` until every probe finished --
+        MEASURED 2026-09-10, KeyboardInterrupt escaped a serial read in 0.32s
+        and a pooled one in 4.00s, and the ssh and git ceilings put the worst
+        case at 15s.
+
+        SIGINT is delivered to the main thread, which inside `_fan_out` is the
+        thread sitting in `Thread.join`; that join raising is exactly what a
+        Ctrl-C looks like from in here. The probes keep running -- they are
+        daemons, and the next test pins that -- so the requirement is that the
+        CALLER is released, not that the work stopped.
+        """
+        slow_s = 4.0
+        release = threading.Event()
+
+        def slow(_item):
+            release.wait(slow_s)
+            return health.working("slow", "done", (measured("x", 1),))
+
+        real_join = threading.Thread.join
+        fired = []
+
+        def join_once(self_thread, timeout=None):
+            if not fired:
+                fired.append(True)
+                raise KeyboardInterrupt("SIGINT during the poll")
+            return real_join(self_thread, timeout)
+
+        t0 = time.monotonic()
+        try:
+            with mock.patch.object(threading.Thread, "join", join_once):
+                with self.assertRaises(KeyboardInterrupt):
+                    health._fan_out(slow, [1, 2])
+            took = time.monotonic() - t0
+        finally:
+            release.set()
+        self.assertLess(took, slow_s / 2,
+                        f"the interrupt took {took:.2f}s to escape a "
+                        f"{slow_s:.1f}s read")
+
+    def test_the_fan_out_threads_are_daemons(self):
+        """The property that lets an interrupted read actually end.
+
+        `ThreadPoolExecutor` workers are non-daemon AND it registers an atexit
+        hook that joins them, so `shutdown(wait=False, cancel_futures=True)`
+        only moves the same wait to interpreter shutdown. Daemon threads are
+        what make abandoning a probe possible at all -- safe here only because
+        `ProbesDoNotMutate` proves the probes do not write.
+        """
+        seen = []
+
+        def note(ctx):
+            t = threading.current_thread()
+            seen.append((t.daemon, t.name))
+            return health.working("n", "ok", (measured("x", 1),))
+
+        specs = [ProbeSpec(name=f"n.{i}", asks="?", fn=note) for i in range(2)]
+        with mock.patch.object(health, "PROBES", specs):
+            health.assess()
+        self.assertEqual(len(seen), 2)
+        for daemon, name in seen:
+            self.assertTrue(daemon, f"{name} is not a daemon thread")
 
 
 # =========================================================================== #
@@ -837,32 +1032,43 @@ def _serial_assess(only=None, *, repo_root=None, probe_remote=False,
     """
     ctx = Ctx(repo_root=Path(repo_root).resolve() if repo_root else health.ROOT,
               probe_remote=probe_remote, deep=deep, timeout_s=timeout_s)
-    health._SOURCE_CACHE.clear()
-    health._SSH_CACHE.clear()
     out = []
     for spec in health.PROBES:
         if only and only not in spec.name:
             continue
-        t0 = time.time()
+        t0 = time.monotonic()
         try:
             value = spec.fn(ctx)
         except BaseException as exc:                     # noqa: BLE001
             if isinstance(exc, KeyboardInterrupt):
                 raise
             value = exc
-        out.append(health._coerce(spec, value, time.time() - t0))
+        out.append(health._coerce(spec, value, time.monotonic() - t0))
     return out
 
 
-def _unlocked_ssh_snapshot(ctx):
-    """`_ssh_bench_snapshot` with the lock removed -- the dict-only cache."""
-    if health.BENCH_SSH_HOST in health._SSH_CACHE:
-        return health._SSH_CACHE[health.BENCH_SSH_HOST]
-    result = health._ssh_powershell(health.BENCH_SSH_HOST,
-                                    health._BENCH_SNAPSHOT_SCRIPT,
-                                    health.BENCH_SSH_TIMEOUT_S)
-    health._SSH_CACHE[health.BENCH_SSH_HOST] = result
-    return result
+def _unshared_ssh_snapshot(ctx):
+    """`_ssh_bench_snapshot` without the run-scoped single flight.
+
+    Every caller dials for itself, and is billed for its own dial. That is the
+    state of affairs a plain dict produced once the two bench probes started at
+    the same moment -- the dict was always empty when both of them looked.
+    """
+    return health._ssh_powershell(health.BENCH_SSH_HOST,
+                                  health._BENCH_SNAPSHOT_SCRIPT,
+                                  health.BENCH_SSH_TIMEOUT_S)
+
+
+def _unshared_sources(ctx):
+    """`run_sources` without the single flight: every asker walks the tree."""
+    return health._production_sources(ctx.repo_root)
+
+
+def _joining_fan_out(fn, items):
+    """The `ThreadPoolExecutor` fan-out, whose exit joins every worker."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max(1, len(items))) as pool:
+        return list(pool.map(fn, items))
 
 
 def _counting_observers(module, repo_root):
@@ -977,12 +1183,29 @@ GUARDS = [
      lambda: mock.patch.object(health, "assess", _serial_assess),
      ["ProbesRunConcurrently.test_all_probes_are_in_flight_at_the_same_moment"]),
 
-    ("ssh_cache.second_caller_waits",
-     "the lock that stops both bench probes dialling out at once",
+    ("ssh_cache.single_flight_per_run",
+     "the run-scoped single flight: both bench probes dial, and both are billed",
      lambda: mock.patch.object(health, "_ssh_bench_snapshot",
-                               _unlocked_ssh_snapshot),
+                               _unshared_ssh_snapshot),
      ["ProbesRunConcurrently."
-      "test_the_bench_is_dialled_once_even_when_both_probes_start_together"]),
+      "test_the_bench_is_dialled_once_even_when_both_probes_start_together",
+      "ProbesRunConcurrently."
+      "test_the_waiter_is_not_billed_for_the_dial_it_waited_on",
+      "ProbesRunConcurrently."
+      "test_two_concurrent_assess_calls_do_not_clear_each_others_work"]),
+
+    ("source_cache.one_walk_per_run",
+     "the single flight over the tree walk, i.e. every asker walks it again",
+     lambda: mock.patch.object(health, "run_sources", _unshared_sources),
+     ["ProbesRunConcurrently."
+      "test_the_tree_is_walked_once_per_run_however_many_probes_ask"]),
+
+    ("fan_out.is_interruptible",
+     "the daemon-thread fan-out, i.e. the exit joins every probe again",
+     lambda: mock.patch.object(health, "_fan_out", _joining_fan_out),
+     ["ProbesRunConcurrently."
+      "test_an_interrupt_on_the_joining_thread_ends_the_read_at_once",
+      "ProbesRunConcurrently.test_the_fan_out_threads_are_daemons"]),
 
     ("status.json_exits_zero",
      "the --json exit-0 contract the VS Code extension depends on",

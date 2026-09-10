@@ -180,10 +180,14 @@ def main(argv: list[str] | None = None) -> int:
         print_counters(status)
         return 0
 
-    _t0 = time.time()
+    # MONOTONIC, not wall clock: a clock step mid-read would otherwise
+    # produce a negative duration, and the cockpit renders a negative
+    # `wall_seconds` as "nicht gemessen" -- which would report a bad
+    # clock as an untimed caller. Those are different facts.
+    _t0 = time.monotonic()
     reports = health.assess(args.only, repo_root=repo_root,
                             probe_remote=args.probe_remote, deep=args.deep)
-    wall = time.time() - _t0
+    wall = time.monotonic() - _t0
     code = health.verdict(reports)
 
     if args.json:

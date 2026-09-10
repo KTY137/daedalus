@@ -80,7 +80,6 @@ import time
 import urllib.error
 import urllib.request
 from collections import namedtuple
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -306,6 +305,94 @@ def probe(name: str, *, asks: str, required: bool = True):
     return deco
 
 
+class _Cell:
+    """One shared answer, and the gate the losers wait at."""
+
+    __slots__ = ("done", "value", "error")
+
+    def __init__(self) -> None:
+        self.done = threading.Event()
+        self.value: Any = None
+        self.error: BaseException | None = None
+
+
+class RunState:
+    """What the probes of ONE :func:`assess` run share, and nothing else.
+
+    THREE DEFECTS LIVED HERE, ALL OF THEM THE SAME MISTAKE. Until 2026-09-10
+    the two shared reads -- the bench ssh round trip and the product source
+    walk -- were module-level dicts cleared at the top of `assess`. That was
+    safe only while the probes ran one after another, and they no longer do:
+
+      1. THE CLEAR RACED THE LOCK. `assess` cleared the ssh dict OUTSIDE the
+         lock that guarded it, so a second request entering `assess` between
+         one bench probe and the other made the second one miss and dial
+         again: two 9s timeouts inside one request, reachable from any second
+         poll because the HTTP server is threading.
+      2. THE SOURCE CACHE STOPPED CACHING. `route.latent` and `wiring.islands`
+         used to run in sequence, so the second found the tree walk already
+         done. Started together they both miss a cold dict and both walk --
+         measured 1 walk -> 2 at one caller, 2 -> 4 at two, against a
+         docstring promising "read ONCE per run".
+      3. THE WAITER WAS BILLED FOR THE WINNER'S WORK. A probe blocked on the
+         other's in-flight dial carried that block time inside its own
+         `seconds`, so ONE 3.0s dial was reported twice: `sum(seconds)` 6.04
+         against a `wall_seconds` of 3.01.
+
+    So: run-scoped, single-flight, and the waiter is charged nothing. `once`
+    produces a key exactly once per run; every other caller blocks on the same
+    answer and records its wait, which :func:`assess` subtracts before the row
+    is written. There is no module-level state left to clear, which is also the
+    end of two concurrent requests clobbering each other's cache.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._cells: dict[str, _Cell] = {}
+        #: Per-probe-thread. `assess` resets it before each probe and reads it
+        #: after, on the same thread, so no second lock is needed.
+        self._waits = threading.local()
+
+    def once(self, key: str, produce: Callable[[], Any]) -> Any:
+        """Produce ``key`` once for this run; later callers wait for the answer.
+
+        The lock is held only while claiming the cell, never across ``produce``
+        -- an unreachable bench must not stop the source walk from starting.
+        """
+        with self._lock:
+            cell = self._cells.get(key)
+            mine = cell is None
+            if mine:
+                cell = self._cells[key] = _Cell()
+        if mine:
+            try:
+                cell.value = produce()
+            except BaseException as exc:        # noqa: BLE001
+                cell.error = exc
+            finally:
+                # ALWAYS, or every waiter blocks until the process dies.
+                cell.done.set()
+        else:
+            t0 = time.monotonic()
+            cell.done.wait()
+            self.charge_wait(time.monotonic() - t0)
+        if cell.error is not None:
+            raise cell.error
+        return cell.value
+
+    def begin_probe(self) -> None:
+        """Start this thread's wait ledger at zero (threads may be reused)."""
+        self._waits.blocked = 0.0
+
+    def charge_wait(self, seconds: float) -> None:
+        self._waits.blocked = (getattr(self._waits, "blocked", 0.0)
+                               + max(0.0, seconds))
+
+    def blocked(self) -> float:
+        """Seconds this thread spent waiting on work another probe was doing."""
+        return getattr(self._waits, "blocked", 0.0)
+
+
 @dataclass
 class Ctx:
     """What every probe is given. No probe reaches around this for a path."""
@@ -325,7 +412,14 @@ class Ctx:
     #: reports `present`, never `working`, so the default run still cannot
     #: claim anything it did not do.
     deep: bool = False
+    #: Wall clock, for ages against file mtimes. NEVER used for a duration --
+    #: those are `time.monotonic`, because a clock step during a probe would
+    #: otherwise produce a negative `seconds` that the cockpit renders as
+    #: "nicht gemessen", conflating a bad clock with an untimed caller.
     now: float = field(default_factory=time.time)
+    #: The single-flight caches and wait ledger for THIS run. Per-Ctx, so two
+    #: concurrent `assess` calls cannot clear each other's work.
+    run: RunState = field(default_factory=RunState)
 
 
 # --------------------------------------------------------------------------- #
@@ -379,11 +473,60 @@ def _coerce(spec: ProbeSpec, value: Any, seconds: float) -> Report:
     return rep
 
 
-#: Ceiling on the probe fan-out. The probes are all I/O -- a refused TCP
-#: connect, a `git` subprocess, an ssh round trip, a tree walk -- so threads
-#: are the right shape and the GIL is not the constraint. The cap exists so a
-#: registry that grows to hundreds of probes cannot spawn hundreds of threads.
-_MAX_PROBE_WORKERS = 32
+#: How long the joining thread sleeps between liveness checks. It exists so the
+#: MAIN thread keeps returning to the interpreter loop, where a pending SIGINT
+#: becomes a KeyboardInterrupt -- see :func:`_fan_out`.
+_JOIN_POLL_S = 0.05
+
+
+def _fan_out(fn: Callable[[Any], Report], items: Sequence[Any]) -> list[Report]:
+    """Run ``fn`` over ``items`` on daemon threads; results in input order.
+
+    DELIBERATELY NOT ``ThreadPoolExecutor``. Two things about it are wrong for
+    a surface that is also a CLI:
+
+      * its context manager calls ``shutdown(wait=True)`` on the way out, so a
+        Ctrl-C could not end the read until the slowest probe finished;
+      * its workers are non-daemon and it registers an atexit hook that joins
+        them, so ``shutdown(wait=False, cancel_futures=True)`` only moves the
+        same wait to interpreter shutdown.
+
+    MEASURED 2026-09-10 with a REAL signal -- CTRL_BREAK_EVENT sent to a child
+    process that pointed SIGBREAK at Python's own SIGINT handler -- while two
+    8s probes were in flight:
+
+        serial loop         interrupt escaped after 8.02s, process out at 7.30s
+        ThreadPoolExecutor  interrupt escaped after 8.00s, process out at 7.30s
+        daemon fan-out      interrupt escaped after 0.06s, process out at 0.06s
+
+    Note what that corrects: the SERIAL loop was never quick about this either.
+    It looks quick only when the interrupt lands BETWEEN probes; land it inside
+    a 9s ssh or a 15s git and it is stuck exactly as long. So this is not a
+    regression being repaired back to parity, it is the first version of this
+    surface that a Ctrl-C actually ends.
+
+    Daemon threads plus a polled join are why: the poll returns the main thread
+    to the bytecode loop every 50ms, which is where a pending signal becomes
+    KeyboardInterrupt, and abandoned daemon threads do not hold the process
+    open. The probes are read-only -- ``ProbesDoNotMutate`` proves it -- so
+    abandoning one mid-flight loses a measurement, never a write. A
+    caller that CATCHES the KeyboardInterrupt and carries on inherits those
+    threads until the process ends; nothing in this repo does that.
+    """
+    results: list[Any] = [None] * len(items)
+
+    def worker(i: int, item: Any) -> None:
+        results[i] = fn(item)
+
+    threads = [threading.Thread(target=worker, args=(i, item), daemon=True,
+                                name=f"health-probe-{i}")
+               for i, item in enumerate(items)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        while t.is_alive():
+            t.join(_JOIN_POLL_S)
+    return results
 
 
 def assess(only: str | None = None, *, repo_root: str | Path | None = None,
@@ -391,54 +534,56 @@ def assess(only: str | None = None, *, repo_root: str | Path | None = None,
            timeout_s: float = 6.0) -> list[Report]:
     """Run every selected probe and return their reports IN REGISTRY ORDER.
 
-    THE PROBES RUN CONCURRENTLY, and that is a wall-clock change only -- no
-    probe's answer depends on another's, none of them writes, and each one is
-    still timed around its own call, so `seconds` keeps meaning "what this
-    probe cost" rather than "where it sat in a queue".
+    THE PROBES RUN CONCURRENTLY. No probe's answer depends on another's and
+    none of them writes, so this is a wall-clock change: MEASURED 2026-09-10 on
+    the owner's machine, a shallow twenty-probe read went from 6.27-6.54s to
+    2.36-2.37s, and no probe's state differed between the two.
 
-    MEASURED 2026-09-10 on the owner's machine, shallow read, twenty probes:
-    the serial loop this replaces summed to 6.24s of wall clock and the
-    endpoint took 6.23s, because the sum WAS the wall clock. Two of those
-    probes (`embed.local` 2.05s, `hand.executor` 2.12s) are the same dead
-    local Ollama host answered twice in a row, and a refused TCP connect costs
-    ~2.04s on this box regardless of the port. Serially that is 4.1s of
-    nothing; concurrently it is 2.1s of nothing, and the run is bounded by its
-    slowest single probe instead of by their sum.
+    Why there was so much to win: two probes (`embed.local`, `hand.executor`)
+    ask the same dead local Ollama host one after the other, and a refused TCP
+    connect costs ~2.04s on that box whatever the port -- 4.1s of serial
+    waiting for nothing. `picker.queue` spends another ~1.5s walking the tree.
 
-    The seconds a caller sees therefore no longer add up to the wall clock,
-    which is the honest reporting: they never described the wait, they
-    described the work, and only the serial loop made those the same number.
+    ``seconds`` IS THE PROBE'S OWN ELAPSED TIME, MINUS ANY WAIT IT SPENT ON
+    WORK ANOTHER PROBE WAS ALREADY DOING (see :class:`RunState`). Without that
+    subtraction one 3.0s bench dial was billed to both bench probes and the
+    board reported 6.04s of work inside a 3.01s read. What the subtraction does
+    NOT remove is scheduler and GIL contention between probes that genuinely
+    ran at the same time; that is real elapsed time in a real concurrent run,
+    and inventing a "true" figure for it would be the fabrication this module
+    exists to refuse. So the sum of the rows is an upper bound on the work and
+    is NOT the wait -- the wait is reported on its own by whoever timed the
+    call, and :func:`to_payload` refuses to derive one from the other.
     """
     ctx = Ctx(repo_root=Path(repo_root).resolve() if repo_root else ROOT,
               probe_remote=probe_remote, deep=deep, timeout_s=timeout_s)
-    _SOURCE_CACHE.clear()
-    _SSH_CACHE.clear()
     specs = [s for s in PROBES if not (only and only not in s.name)]
     if not specs:
         return []
 
-    def _run(spec: ProbeSpec) -> Report:
-        t0 = time.time()
+    def _run(spec: ProbeSpec, *, interruptible: bool) -> Report:
+        ctx.run.begin_probe()
+        t0 = time.monotonic()
         try:
             value: Any = spec.fn(ctx)
         except BaseException as exc:            # noqa: BLE001 - see _coerce
-            # Ctrl-C aborts the read; it is not a probe result. Raised from a
-            # worker this surfaces out of `pool.map` in the caller, which is
-            # the same thing the serial loop did.
-            if isinstance(exc, KeyboardInterrupt):
+            # Ctrl-C is an abort, not a probe result -- but SIGINT is delivered
+            # to the MAIN thread only, so this branch is live exactly on the
+            # inline single-probe path below and DEAD in a worker. Saying which
+            # beats a comment claiming the fan-out re-raises it, which it never
+            # could.
+            if interruptible and isinstance(exc, KeyboardInterrupt):
                 raise
             value = exc
-        return _coerce(spec, value, time.time() - t0)
+        elapsed = time.monotonic() - t0 - ctx.run.blocked()
+        return _coerce(spec, value, max(0.0, elapsed))
 
     if len(specs) == 1:
         # One probe is the `?only=` path and every unit test that swaps PROBES
-        # for a single fake. Keep it on the calling thread so a probe that
-        # raises KeyboardInterrupt still interrupts, and so nothing about the
-        # single-probe path depends on a pool.
-        return [_run(specs[0])]
-    with ThreadPoolExecutor(max_workers=min(len(specs), _MAX_PROBE_WORKERS),
-                            thread_name_prefix="health-probe") as pool:
-        return list(pool.map(_run, specs))
+        # for a single fake. Keep it on the calling thread: no thread to
+        # abandon, and Ctrl-C still aborts rather than becoming an `unknown`.
+        return [_run(specs[0], interruptible=True)]
+    return _fan_out(lambda spec: _run(spec, interruptible=False), specs)
 
 
 def verdict(reports: Sequence[Report]) -> int:
@@ -952,9 +1097,9 @@ def _embed_probe(ctx: Ctx, name: str, host: str, *, exercise: bool,
     try:
         from .memory.embeddings import OllamaEmbeddingBackend
         backend = OllamaEmbeddingBackend(host, timeout=ctx.embed_timeout_s)
-        t0 = time.time()
+        t0 = time.monotonic()
         vectors = backend.embed([PROBE_TEXT], model=EMBED_MODEL)
-        took = time.time() - t0
+        took = time.monotonic() - t0
     except Exception as exc:                     # noqa: BLE001
         return degraded(name,
                         f"{EMBED_MODEL} is pulled on {host} but the product's "
@@ -1139,15 +1284,11 @@ def _p_bench_residency(ctx: Ctx) -> Report:
 # timeout, a missing client, or a remote exception all mean "this machine
 # could not ask", which is a different fact from "the answer is no".
 #
-# ONE ssh round trip serves both probes; they are cached per :func:`assess`
-# run (:data:`_SSH_CACHE`) so an unreachable bench costs one timeout, not two.
-_SSH_CACHE: dict[str, tuple[bool, Any]] = {}
-#: Held across the round trip, not just across the dict access. The two bench
-#: probes now start at the same moment (see :func:`assess`), so a lock that
-#: only guarded the dict would let both of them dial out and the cache would
-#: save nothing -- "one timeout, not two" has to mean the second caller WAITS
-#: for the first answer.
-_SSH_CACHE_LOCK = threading.Lock()
+# ONE ssh round trip serves both probes, through the run-scoped single flight
+# in :class:`RunState`, so an unreachable bench costs one timeout and not two.
+#: The key both bench probes claim. Naming the host keeps two runs against
+#: different benches from sharing an answer.
+_SSH_KEY = "ssh.bench:"
 
 
 def _ps_quote(value: str) -> str:
@@ -1294,14 +1435,19 @@ function Get-CrashFacts {
 
 
 def _ssh_bench_snapshot(ctx: Ctx) -> tuple[bool, Any]:
-    """The one ssh round trip both bench probes below need, cached per run."""
-    with _SSH_CACHE_LOCK:
-        if BENCH_SSH_HOST in _SSH_CACHE:
-            return _SSH_CACHE[BENCH_SSH_HOST]
-        result = _ssh_powershell(BENCH_SSH_HOST, _BENCH_SNAPSHOT_SCRIPT,
-                                 BENCH_SSH_TIMEOUT_S)
-        _SSH_CACHE[BENCH_SSH_HOST] = result
-        return result
+    """The one ssh round trip both bench probes below need, once per run.
+
+    The two bench probes now START AT THE SAME MOMENT, which broke this three
+    ways at once until 2026-09-10: a module dict let both dial, a lock over the
+    dict alone let both dial, and a lock held across the dial billed the loser
+    9s of waiting as 9s of its own work. :meth:`RunState.once` is all three
+    fixes -- one dial per run, the loser waits for that answer, and the wait is
+    charged to nobody.
+    """
+    return ctx.run.once(
+        _SSH_KEY + BENCH_SSH_HOST,
+        lambda: _ssh_powershell(BENCH_SSH_HOST, _BENCH_SNAPSHOT_SCRIPT,
+                                BENCH_SSH_TIMEOUT_S))
 
 
 def _bench_task_report(payload: dict) -> Report:
@@ -1692,7 +1838,11 @@ def _p_route(ctx: Ctx) -> Report:
     path = ctx.repo_root / "daedalus" / "orchestration" / "semantic_route.py"
     if not path.exists():
         return absent("route.latent", f"{_rel(path)} is not present")
-    callers = production_importers("daedalus.orchestration.semantic_route", ctx.repo_root)
+    # Through `run_sources`, so this probe and `wiring.islands` -- which now
+    # start together -- share ONE walk of the tree instead of racing to do
+    # the same one twice.
+    callers = production_importers("daedalus.orchestration.semantic_route",
+                                   ctx.repo_root, run_sources(ctx))
     wiring = [measured("production callers",
                        ", ".join(callers) if callers else "NONE")]
     if not callers:
@@ -1708,10 +1858,10 @@ def _p_route(ctx: Ctx) -> Report:
                        remedy="python -m daedalus.health --deep --only route")
     try:
         from .orchestration.semantic_route import FALLBACK, semantic_route_explained
-        t0 = time.time()
+        t0 = time.monotonic()
         result = semantic_route_explained(PROBE_TEXT, [],
                                           repo_root=str(ctx.repo_root))
-        took = time.time() - t0
+        took = time.monotonic() - t0
     except Exception as exc:                     # noqa: BLE001
         return degraded("route.latent",
                         f"the latent router is wired and RAISED when called: "
@@ -1817,22 +1967,38 @@ _NON_PRODUCTION = ("tests", "tools", "build", "__pycache__", ".venv", "node_modu
 _OBSERVERS = ("daedalus/health.py", "daedalus/status.py")
 
 
-#: Cleared at the top of every :func:`assess`, never persisted. A cache that
-#: outlives a run would be exactly the "read a stale description of the tree"
-#: failure this file reports on, committed by this file.
-_SOURCE_CACHE: dict[str, list[tuple[str, str, str]]] = {}
+#: The key the source-reading probes claim in :class:`RunState`. There is no
+#: module-level cache: one that outlived a run would be exactly the "read a
+#: stale description of the tree" failure this file reports on, committed by
+#: this file, and one shared between runs let two concurrent requests clear
+#: each other's work.
+_SOURCES_KEY = "sources:"
+
+
+def run_sources(ctx: Ctx) -> list[tuple[str, str, str]]:
+    """The product source text, read ONCE per run however many probes ask.
+
+    `route.latent` and `wiring.islands` both need it. While the probes were
+    serial the second one found the first one's walk already done; started
+    together they both missed a cold cache and both walked -- MEASURED
+    2026-09-10, 1 walk became 2 at one caller and 2 became 4 at two, which is
+    the promise below ("read ONCE per run") quietly deleted, plus double the
+    peak memory. Single flight restores it: the second asker waits for the
+    first walk and is charged nothing for the wait.
+    """
+    return ctx.run.once(_SOURCES_KEY + str(Path(ctx.repo_root).resolve()),
+                        lambda: _production_sources(ctx.repo_root))
 
 
 def _production_sources(repo_root: Path) -> list[tuple[str, str, str]]:
     """``(posix path, relative path, text)`` for every product .py file.
 
-    Read ONCE per run and reused across modules: the first version re-walked
-    the tree per capability and cost 4.5s of an 8.5s run, which is how a status
-    surface stops being run.
+    UNCACHED: one walk every time it is called. :func:`run_sources` is what the
+    probes use and what guarantees "read ONCE per run" -- the first version of
+    this re-walked the tree per capability and cost 4.5s of an 8.5s run, which
+    is how a status surface stops being run.
     """
-    key = str(Path(repo_root).resolve())
-    if key in _SOURCE_CACHE:
-        return _SOURCE_CACHE[key]
+    repo_root = Path(repo_root)
     out: list[tuple[str, str, str]] = []
     for base in ("daedalus", "runs", "apps"):
         root = repo_root / base
@@ -1849,7 +2015,6 @@ def _production_sources(repo_root: Path) -> list[tuple[str, str, str]]:
                             p.read_text(encoding="utf-8", errors="replace")))
             except OSError:
                 continue
-    _SOURCE_CACHE[key] = out
     return out
 
 
@@ -1895,7 +2060,7 @@ def production_importers(module: str, repo_root: Path,
 def _p_islands(ctx: Ctx) -> Report:
     found: dict[str, list[str]] = {}
     missing: list[str] = []
-    sources = _production_sources(ctx.repo_root)
+    sources = run_sources(ctx)
     for mod in CAPABILITY_MODULES:
         path = ctx.repo_root / (mod.replace(".", "/") + ".py")
         if not path.exists():
@@ -2040,10 +2205,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                          "crash); the VERDICT line still tells the truth")
     args = ap.parse_args(argv)
 
-    _t0 = time.time()
+    # MONOTONIC, not wall clock: a clock step mid-read would otherwise
+    # produce a negative duration, and the cockpit renders a negative
+    # `wall_seconds` as "nicht gemessen" -- which would report a bad
+    # clock as an untimed caller. Those are different facts.
+    _t0 = time.monotonic()
     reports = assess(args.only, repo_root=args.repo_root,
                      probe_remote=args.probe_remote, deep=args.deep)
-    wall = time.time() - _t0
+    wall = time.monotonic() - _t0
     code = verdict(reports)
     if args.json:
         print(json.dumps(to_payload(reports, wall_seconds=wall),

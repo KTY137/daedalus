@@ -662,10 +662,13 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
             # of `subsystems[].seconds` is the WORK and not the wait -- a
             # caller that adds the rows up now overstates the latency several
             # times over, so the real elapsed time is reported on its own.
-            _t0 = time.time()
+            # MONOTONIC: a wall-clock step mid-read would produce a negative
+            # duration, which the cockpit renders as "nicht gemessen" -- a
+            # bad clock reported as an untimed caller. Different facts.
+            _t0 = time.monotonic()
             reports = _health.assess(only, deep=deep, probe_remote=remote)
-            payload = _health.to_payload(reports,
-                                         wall_seconds=time.time() - _t0)
+            payload = _health.to_payload(
+                reports, wall_seconds=time.monotonic() - _t0)
             payload["asked"] = {"deep": deep, "probe_remote": remote,
                                 "only": only}
             self._send_json(core.envelope(None, health=payload))

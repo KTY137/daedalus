@@ -245,16 +245,26 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
               {snapshot.generated_at || 'unbekannt'}
               {hidden > 0 ? ` · ${hidden} laufende ausgeblendet` : ''}
               {/* TWO DIFFERENT NUMBERS, AND THEY ARE NOT INTERCHANGEABLE.
-                  The probes run concurrently, so the summed row costs are how
-                  much WORK was done and `wall_seconds` is how long the read
-                  took. Measured 2026-09-10: 8,3 s of work in 2,2 s of waiting.
-                  When the backend did not time itself, the wait is simply not
-                  shown -- it is never back-filled from the sum. */}
-              {totalCost(snapshot.subsystems || []) > 0 && (
-                <span className="health-total">
-                  {' · '}{costText(totalCost(snapshot.subsystems || []))} Prüfarbeit
+                  The probes run concurrently, so the summed row costs are the
+                  probes' own elapsed time and `wall_seconds` is how long the
+                  read took. Measured 2026-09-10: 8,5 s summed inside a 2,4 s
+                  read. The sum is an upper bound on the work -- it still
+                  carries whatever contention the probes cost each other -- so
+                  it is labelled as summed probe time and never as the wait.
+
+                  GATED ON EITHER NUMBER, NOT ON THE SUM. It used to be
+                  `totalCost(...) > 0`, so a board whose rows all rounded to
+                  zero hid the honest wall figure along with them. */}
+              {(totalCost(snapshot.subsystems || []) > 0 || waitText(snapshot.wall_seconds)) && (
+                <span
+                  className="health-total"
+                  title="Die Prüfungen laufen nebenläufig. Die Summe der Einzelzeiten ist deshalb größer als die Wartezeit und enthält, was die Prüfungen sich gegenseitig gekostet haben. Sie ist eine Obergrenze der Arbeit, nicht die Dauer des Aufrufs."
+                >
+                  {totalCost(snapshot.subsystems || []) > 0
+                    ? ` · ${costText(totalCost(snapshot.subsystems || []))} Prüfzeit summiert`
+                    : ''}
                   {waitText(snapshot.wall_seconds)
-                    ? ` in ${waitText(snapshot.wall_seconds)} Wartezeit`
+                    ? ` · ${waitText(snapshot.wall_seconds)} Wartezeit`
                     : ' · Wartezeit nicht gemessen'}
                 </span>
               )}
