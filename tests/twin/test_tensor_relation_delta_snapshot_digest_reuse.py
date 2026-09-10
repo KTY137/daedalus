@@ -158,10 +158,9 @@ def test_compiler_keeps_single_partition_and_axis_setup_owners() -> None:
         caller_code=compiler_code,
         callee_codes=(_PROBE._relation_compiler._forest_node_partition.__code__,),
     )
-    axis_metric = _PROBE._direct_callee_metrics(
+    axis_metric = _PROBE._code_metrics(
         stats,
-        caller_code=compiler_code,
-        callee_codes=(_PROBE._relation_compiler.TypedAxis.__init__.__code__,),
+        (_PROBE._relation_compiler.TypedAxis.__init__.__code__,),
     )
     axis_post_init_metric = _PROBE._code_metrics(
         stats,
