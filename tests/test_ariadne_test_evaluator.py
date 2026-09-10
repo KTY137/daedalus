@@ -699,6 +699,13 @@ def test_the_evaluator_argv_head_is_an_allowlist():
         (("python", "-m", "pytest", "tests/x:y"), "relative to the workspace"),
         (("python", "-m", "pytest", "tests/t.py::test_a"), "relative to the workspace"),
         (("python", "-m", "pytest", "tests//unit"), "no empty or relative segments"),
+        # The argv IS the campaign identity: it is frozen into the
+        # ExperimentSpec and its digest. So a path cannot be normalised on the
+        # way through -- that would change the digest -- and the only
+        # consistent rule is to refuse a spelling that is not already the
+        # admitted one, saying which spelling to write (round 4, low 2).
+        (("python", "-m", "pytest", "tests/unit/"), "already be in their admitted spelling"),
+        (("python", "-m", "pytest", "tests\\unit"), "already be in their admitted spelling"),
     ):
         with pytest.raises(AriadneCampaignError, match=expected):
             _admit_test_evaluator(TestCommandEvaluator(argv=bad))
@@ -713,7 +720,6 @@ def test_the_evaluator_argv_head_is_an_allowlist():
         ("python", "-m", "pytest", "-q", "-p", "no:cacheprovider"),
         ("python", "-m", "pytest", "-pno:cacheprovider", "tests"),
         ("python", "-m", "pytest", "--tb=short", "--maxfail=1", "tests/unit"),
-        ("python", "-m", "pytest", "tests/unit/"),
         ("python", "-m", "pytest", "-x", "--no-header", "tests"),
     ):
         _admit_test_evaluator(TestCommandEvaluator(argv=good))
@@ -925,3 +931,70 @@ def test_a_content_sensitive_test_supplies_the_control_failure_without_executing
             assert "SELF-REPORTED" in " ".join(blob.get("reasons", ()))
             hedged += 1
     assert hedged >= 4
+
+
+def test_a_config_in_an_ancestor_cannot_reach_into_the_workspace(tmp_path):
+    """Cerberus round 4 (high 1), MEASURED: pytest's rootdir discovery walks
+    UPWARD out of the workspace.
+
+    An ini file in an ANCESTOR directory becomes the configfile, and its
+    `addopts` re-injects any option -- including `-p <module>`, which loads and
+    executes an arbitrary module inside the judging process. That is round 2's
+    CRITICAL reproduced with no hostile argv at all, so no argv rule can close
+    it. `--confcutdir` closes only the conftest half; the campaign's own `-c`
+    closes both, which is why the campaign appends one beside `--junitxml=`.
+
+    This is a property test, not an enumeration: it booby-traps the
+    surroundings and asserts no tripwire fires. Four review rounds established
+    that an enumeration lasts exactly as long as the author's imagination."""
+
+    outer = tmp_path / "outer"
+    workspace = outer / "ws"
+    (workspace / "tests").mkdir(parents=True)
+    (workspace / "tests" / "test_ok.py").write_text(
+        "def test_ok():\n    assert True\n", encoding="utf-8")
+
+    # The traps: a config whose addopts loads a plugin, the plugin itself, and
+    # a conftest. All OUTSIDE the workspace, all in no revision.
+    marker = tmp_path / "TRIPWIRE.txt"
+    payload = (
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('outside the workspace ran', encoding='utf-8')\n"
+    )
+    (outer / "canary.py").write_text(payload, encoding="utf-8")
+    (outer / "conftest.py").write_text(payload, encoding="utf-8")
+    (outer / "pytest.ini").write_text(
+        "[pytest]\naddopts = -p canary\n", encoding="utf-8")
+
+    def run(*extra: str) -> subprocess.CompletedProcess:
+        if marker.exists():
+            marker.unlink()
+        return subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+             *extra, "tests"],
+            cwd=workspace, capture_output=True, text=True,
+            env={**os.environ, "PYTHONPATH": str(outer)},
+        )
+
+    # Without the campaign's config the ancestor wins: this is the finding.
+    unguarded = run()
+    assert marker.exists(), (
+        "the ancestor config did not fire, so this test proves nothing on this "
+        f"host: {unguarded.stdout[-400:]}")
+
+    # With it, nothing outside the workspace is read or executed.
+    config = workspace / subject.TEST_CONFIG_RELATIVE
+    config.write_bytes(subject.TEST_CONFIG_BODY)
+    guarded = run("-c", subject.TEST_CONFIG_RELATIVE)
+    assert not marker.exists(), (
+        "a file outside the workspace ran despite the campaign's own config: "
+        f"{guarded.stdout[-400:]}")
+    assert guarded.returncode == 0, guarded.stdout[-400:]
+
+
+def test_the_campaign_owns_its_config_name(tmp_path):
+    """A revision that already carries that name would have its own file
+    overwritten, and the fence would be whatever the revision put there."""
+
+    assert subject.TEST_CONFIG_RELATIVE.startswith("daedalus-ariadne-")
+    assert subject.TEST_CONFIG_BODY == b"[pytest]\n"  # a fence, not a config

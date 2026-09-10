@@ -95,10 +95,21 @@ still worthless. The packet was candid about forgery and silent about vacuity.
    bundled `-pno:NAME`. Path tokens go through `_admit_workspace_relative`,
    the same primitive the revision entries use, with an explicit refusal of
    argparse's prefix character on top — required rather than implied, because
-   that primitive admits `@pwn.txt` on its own. The consequence worth stating:
-   a pytest **node id** (`tests/t.py::test_a`) is now refused, because the
-   primitive refuses `:`. Selecting one test is not a shape any campaign in the
-   tree uses, and adding it back is an evidenced change, not an oversight.
+   that primitive admits `@pwn.txt` on its own.
+
+   **What this narrowing costs, in full.** Refused along with the inline
+   programs: node ids (`tests/t.py::test_a`), `-k EXPR`, `-m MARKEXPR`,
+   `--ignore=`, `--deselect`, `-ra`, `-v`, `--co`, `--`, a trailing separator,
+   and any path spelled with a backslash. `-k` and `-m` are the two that
+   matter: with no selection mechanism, every arm runs a whole directory three
+   times under the 900-second ceiling, which is a real operational limit on a
+   repository with a slow suite.
+
+   It is not pure loss, and the upside should be claimed rather than
+   discovered: a whole-suite run makes the cross-arm identity comparison
+   *stronger*, because a selection is a place where the three arms could
+   silently disagree about what ran. Adding `-k` back is an evidenced change,
+   not an oversight.
 
 ## What this packet does NOT close, measured and retained
 
@@ -253,3 +264,75 @@ real tool against the admitted argv.
 **Measured after round 3:** 28 tests in the packet suite; 4/4 new guards
 load-bearing (removing the argparse-prefix refusal, the shared path admission,
 the ascii guard or the `--plugin` removal each turns the argv test red).
+
+
+## Review round 4 (2026-09-11, `02c2c527`)
+
+**Cerberus: `pass`, `blocking: false`.** No CRITICAL stands. CRITICAL 3 is
+repaired and the reviewer could not make an admitted path token reach outside
+the workspace across 47 measured shapes; `@` is confirmed to be argparse's only
+pre-application resolution, and the leading-character test is placed correctly.
+Every admitted shape was executed against real pytest 9.1.1 — eleven commands,
+no exit 4 anywhere, which is the first time this packet's *good* list has been
+verified against the tool rather than against its own rule.
+
+| # | finding | repair |
+| --- | --- | --- |
+| high 1 | pytest's rootdir discovery walks **upward out of the workspace**. An ini file in an ancestor becomes the configfile and its `addopts` re-injects any option — including `-p <module>`, which loads and executes arbitrary code inside the judging process. That is round 2's CRITICAL **with no hostile argv at all**, so no argv rule can close it, and the comment claiming the candidate "cannot reach any other byte" was false | the campaign appends its own `-c`, beside `--junitxml=`, pointing at a config it writes into the workspace. Pinned by a property test that booby-traps the surroundings and asserts the tripwire fires without the fence and not with it |
+| low 2 | `_admit_workspace_relative` returns a normalised path and the caller discarded it, so `tests\unit` was admitted and pytest was handed the backslash spelling verbatim — validating one string and executing another | the argv IS the campaign identity, frozen into the `ExperimentSpec` digest, so normalising it would change the digest. A spelling that is not already the admitted one is refused, naming the spelling to write |
+
+**Why high 1 was high and not CRITICAL, and what is actually holding it.** The
+candidate cannot plant the ancestor config: the workspace is labelled
+Low-integrity inheritably and its ancestors are not, so a Low process cannot
+write up. No ancestor config exists on the measuring host — every ancestor was
+scanned. **But that only holds because the workspace lives under the control
+root.** Round 3 moved it to `%TEMP%`, where any same-user process could plant
+one; round 4 moved it back for unrelated reasons and got this for free. That is
+now written at the extraction site so the next person does not move it again.
+
+## The argv is the wrong shape, and this packet says so
+
+Asked directly whether this should merge at all, the reviewer argued from this
+packet's own record rather than from taste, and the argument is right.
+
+Four rounds, four breaches, each at a different token position: the head, the
+option, the option's bundled tail, and a token that was neither. What survives
+the fence is a directory or two, six boolean flags, one enum, one integer and
+`-p no:NAME`. **The typed design already exists — it was built by attrition and
+is still spelled as a string, and the string is what keeps costing review
+rounds.**
+
+The replacement is booked as the next packet: `argv: tuple[str, ...]` becomes
+`paths`, `maxfail`, `tb`, `quiet`, `exitfirst`, `no_header`, `no_summary`,
+`disable_plugins`, and the campaign *builds* the argv. Then there is no token a
+caller can spell, so there is no parser surface to enumerate, and `-k` returns
+later as an additive typed field rather than as a hole. The digest stays in the
+`ExperimentSpec` exactly as it does today.
+
+**Read the argv shape here as a scar, not as a principle.** "Options admitted
+by name, paths by the same primitive" is what four rounds cost, not what anyone
+would design.
+
+## The general check that would have caught all three rounds
+
+Also from round 4, and worth more than the fence it critiques: no mutation
+could have caught any of the three CRITICALs, because a mutation set is drawn
+from the same imagination as the rule it mutates. Two assertions over the
+*good*-shapes list are enough, and cost about eight seconds:
+
+1. **every admitted shape must be a shape the tool accepts** — run it, require
+   exit ∈ {0,1,5} and a JUnit report. This catches `--plugin=no:randomly`
+   (exit 4) and round 1's `-Ic`, the latter not by recognising the option but
+   because the child was not pytest and wrote no report;
+2. **every admitted shape must run in a canary workspace whose surroundings are
+   booby-trapped**, with no tripwire firing. This is a *property* — "nothing
+   outside the workspace was read or executed" — rather than an enumeration,
+   which is why it survives the author's imagination running out. It would have
+   caught rounds 2 and 3, and it catches high 1 for free, with no argv
+   involved.
+
+The contained half of (2) is in this packet as
+`test_a_config_in_an_ancestor_cannot_reach_into_the_workspace`. The full
+version, driven through `run_campaign`, goes with the typed-knob packet.
+
+**Measured after round 4:** 30 tests in the packet suite.

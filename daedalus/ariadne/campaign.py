@@ -176,6 +176,15 @@ MAX_TEST_OUTPUT_CHARS = 0
 #: An exit code cannot distinguish "the tests passed" from "no test ran"; the
 #: proven attack switched the suite off and passed (Cerberus round 1, CRITICAL 2).
 TEST_REPORT_RELATIVE = "daedalus-ariadne-report.xml"
+#: The campaign's own pytest config, written into the workspace and passed with
+#: `-c`. Without it pytest searches UPWARD for a config, so an ini file in an
+#: ancestor directory sets rootdir and its `addopts` re-injects any option --
+#: including `-p <module>`, which loads and executes code inside the judging
+#: process (Cerberus round 4, high 1). `--confcutdir` closes only the conftest
+#: half of that; `-c` closes both. Deliberately empty apart from the section
+#: header: it is a fence, not a place to configure anything.
+TEST_CONFIG_RELATIVE = "daedalus-ariadne-pytest.ini"
+TEST_CONFIG_BODY = b"[pytest]\n"
 #: The report is hostile input to the orchestrator, so it is bounded before it
 #: is parsed at all.
 MAX_TEST_REPORT_BYTES = 4 * 1024 * 1024
@@ -297,6 +306,7 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
     # (reads a config outside the workspace whose `addopts` re-injects
     # anything) -- Cerberus round 2 of this packet, CRITICAL 2. A path names
     # something INSIDE the workspace and nothing else.
+    admitted = list(argv)
     index = 3
     while index < len(argv):
         item = argv[index]
@@ -314,7 +324,12 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
                     f"'{item[:1]}' is argparse's fromfile prefix, so this names a file "
                     "whose lines are spliced in as arguments -- with no path "
                     "restriction, before pytest sees them")
-            _admit_workspace_relative(item.rstrip("/"), label="evaluator argv path")
+            # Use the value the primitive RETURNS. Discarding it admitted
+            # `tests\\unit` and handed pytest the backslash spelling verbatim,
+            # which works on Windows and exits 4 on POSIX -- validating one
+            # string and executing another (Cerberus round 4, low 2).
+            admitted[index - 1] = _admit_workspace_relative(
+                item.rstrip("/"), label="evaluator argv path")
             continue
         if item in _TEST_ARGV_BARE_OPTIONS:
             continue
@@ -354,6 +369,14 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
         raise AriadneCampaignError("evaluator test_roots must be non-empty text prefixes")
     for root in roots:
         _admit_workspace_relative(root.rstrip("/"), label="evaluator test root")
+    if tuple(admitted) != argv:
+        # The admitted spelling is what runs. Returning a record whose argv
+        # differs from the one the caller wrote would change the digest that
+        # identifies the campaign, so the normalisation is reported rather than
+        # applied silently.
+        raise AriadneCampaignError(
+            "evaluator argv paths must already be in their admitted spelling "
+            f"(forward slashes, no trailing separator): {' '.join(admitted[3:])}")
     return value
 
 
@@ -2340,10 +2363,31 @@ def run_campaign(
                     gate_name = "ariadne-frozen-evaluator"
                     gate_timeout = float(timeout_s)
                 else:
-                    # Tests are the judge, so the workspace is the pinned
-                    # REVISION with exactly one file replaced: every test the
-                    # command runs is the base revision's, and the candidate
-                    # cannot reach any other byte.
+                    # Tests are the judge. The workspace is the pinned
+                    # REVISION with one file replaced, plus two files the
+                    # CAMPAIGN writes: its own JUnit report and its own pytest
+                    # config.
+                    #
+                    # What this does and does not guarantee, precisely, because
+                    # the comment here used to claim "the candidate cannot
+                    # reach any other byte" and that was false (Cerberus round
+                    # 4, high 1). pytest's rootdir discovery walks UPWARD out
+                    # of the workspace: an ini file in an ANCESTOR whose
+                    # `addopts` re-injects `-p <module>` loads and executes an
+                    # arbitrary module inside the judging process, with no
+                    # hostile argv at all. The campaign-owned `-c` below pins
+                    # rootdir and conftest collection inside the workspace,
+                    # which closes that route.
+                    #
+                    # What still holds it, and is worth stating because it was
+                    # got for free rather than designed: this workspace lives
+                    # under the control root, not under %TEMP%. A candidate
+                    # cannot plant an ancestor config there -- the workspace is
+                    # Low-integrity and the ancestors are not, so a Low process
+                    # cannot write up. Under %TEMP% any same-user process
+                    # could. Round 3 moved it to %TEMP% and round 4 moved it
+                    # back for unrelated reasons; do not move it again without
+                    # reading this.
                     workspace_files, workspace_bytes = _extract_revision(
                         root, source_revision, evaluation_workspace
                     )
@@ -2362,11 +2406,19 @@ def run_campaign(
                             "target is not a file at the pinned revision"
                         )
                     overlay.write_bytes(arm_bytes)
-                    # The campaign appends its OWN report flag, so the caller
-                    # cannot omit it and the candidate cannot choose where the
-                    # counts come from.
+                    # The campaign appends its OWN report flag and its OWN
+                    # config, so the caller cannot omit either, the candidate
+                    # cannot choose where the counts come from, and pytest
+                    # cannot walk up out of the workspace looking for one.
+                    config = evaluation_workspace / TEST_CONFIG_RELATIVE
+                    if config.exists():
+                        raise AriadneCampaignError(
+                            "the pinned revision already contains "
+                            f"{TEST_CONFIG_RELATIVE}, which the campaign must own")
+                    config.write_bytes(TEST_CONFIG_BODY)
                     gate_argv = (
                         evaluator_interpreter, *evaluator.argv[1:],
+                        "-c", TEST_CONFIG_RELATIVE,
                         f"--junitxml={TEST_REPORT_RELATIVE}",
                     )
                     gate_name = "ariadne-test-evaluator"
