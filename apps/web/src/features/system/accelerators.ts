@@ -38,6 +38,17 @@ import type { AcceleratorPayload, AcceleratorFramework, AcceleratorLane } from '
  * 3. `cuda_ready: null` IS NOT `false`. `_DEEP_PROBE` deliberately sets null
  *    for cuvs, cugraph and newton because import success "alone must not claim
  *    CUDA readiness". Three values in, three readings out.
+ * 4. AN ANSWER NOBODY COULD HAVE GIVEN MUST NOT READ AS A MEASUREMENT. Point 2
+ *    holds only where find_spec looked at the machine. In the packaged desktop
+ *    backend it does not: a frozen PyInstaller process imports from its own
+ *    bundle, and `DESKTOP_PYINSTALLER_EXCLUDES` strips torch, cupy, warp and
+ *    newton out of that bundle, so `installed: false` there is guaranteed by
+ *    the build. The backend now says so per row with `host_visible: false`;
+ *    reading it as `absent` painted six red "nicht installiert" rows on a
+ *    machine nobody had looked at — the exact collapse refusal 1 exists to
+ *    prevent, arriving through the other door. `host_visible` is only ever
+ *    false on rows the backend did not probe: a row that came back from the
+ *    probe child was produced by a real interpreter in a real environment.
  */
 
 export type FrameworkReading =
@@ -49,9 +60,10 @@ export type FrameworkReading =
   | 'cuda_untested'
   /** not probed: find_spec found it, nothing was executed */
   | 'importable'
-  /** the check ran and the module is not importable */
+  /** the check ran ON THIS MACHINE and the module is not importable */
   | 'absent'
-  /** the deep probe died; this row is a fill-in and says nothing */
+  /** nobody looked here: the deep probe died and left a fill-in, or the
+   *  backend could not see the machine at all (`host_visible: false`) */
   | 'unchecked';
 
 export const FRAMEWORK_WORD: Record<FrameworkReading, string> = {
@@ -73,8 +85,12 @@ export function frameworkReading(row: AcceleratorFramework): FrameworkReading {
     if (row.cuda_ready === false) return 'no_cuda';
     return 'cuda_untested';
   }
-  // Shallow. `installed` is a live find_spec, so it is evidence either way.
-  return row.installed ? 'importable' : 'absent';
+  // Shallow. `installed` is a live find_spec, so it is evidence either way —
+  // in a process that can see the machine. See refusal 4: when the backend
+  // says it could not, a `false` here is guaranteed by the build and is the
+  // one thing this reading must never call a measured absence.
+  if (row.installed) return 'importable';
+  return row.host_visible === false ? 'unchecked' : 'absent';
 }
 
 /**

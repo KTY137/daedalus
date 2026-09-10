@@ -22,6 +22,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Any
 import urllib.error
 import urllib.parse
@@ -43,6 +44,22 @@ NVOF_SDK_ENV = "DAEDALUS_NVOF_SDK"
 # ``sys.executable`` is a Python interpreter only in a source checkout; see
 # ``probe_interpreter``.
 ACCELERATOR_PYTHON_ENV = "DAEDALUS_ACCELERATOR_PYTHON"
+
+# The optional compute runtimes this module reports on, in reporting order.
+FRAMEWORK_NAMES = ("torch", "cupy", "warp", "cuvs", "cugraph", "newton")
+# Of those, the ones the desktop build strips from the bundle BY NAME.  This is
+# a deliberate local copy of the accelerator entries of
+# ``DESKTOP_PYINSTALLER_EXCLUDES`` in ``tools/build_tauri_sidecar.py``: a
+# runtime module must not import a build script (it is not shipped, and it
+# reaches for the repository root).  ``tests/test_accelerators.py`` asserts the
+# two lists still agree, so drift fails a test instead of producing a message
+# that is wrong for some rows.
+#
+# cuvs and cugraph are NOT on that list, and saying they were would be a lie
+# told to an operator who is already looking at a surprising panel.  They are
+# invisible to a frozen backend for the other reason named in
+# ``_shallow_framework_detail``: a frozen process imports from its own bundle.
+DESKTOP_EXCLUDED_FRAMEWORKS = frozenset({"torch", "cupy", "warp", "newton"})
 
 
 @dataclass(frozen=True)
@@ -142,6 +159,16 @@ def nvidia_hardware_status() -> dict[str, Any]:
 
 _DEEP_PROBE_SENTINEL = "__DAEDALUS_ACCELERATOR_PROBE_JSON_V1__:"
 _DEEP_PROBE_DIAGNOSTIC_LIMIT = 4_000
+# Wall-clock bound for the child. A module constant so a test can shorten it
+# instead of sleeping for half a minute.
+_DEEP_PROBE_TIMEOUT_SECONDS = 30.0
+# How long the kill is given to land before the transport stops waiting on the
+# direct child at all.
+_DEEP_PROBE_KILL_GRACE_SECONDS = 5.0
+# Bytes read back from each redirected stream. The child writes to a temporary
+# file rather than a pipe, so a runaway writer costs disk, not the parent's
+# memory -- but the parent still refuses to load an unbounded file.
+_DEEP_PROBE_OUTPUT_LIMIT = 1_000_000
 
 _DEEP_PROBE_TEMPLATE = r"""
 import importlib
@@ -189,6 +216,11 @@ def _bounded_probe_diagnostic(raw: str) -> str:
 
 
 def _probe_failure(detail: str, *, stdout: str = "", stderr: str = "") -> dict[str, dict[str, Any]]:
+    # The detail is bounded like the streams are. It carries text this module
+    # did not write -- an OSError message, a decoder complaint -- and that text
+    # is copied onto all six rows by ``_framework_rows``, so an unbounded one
+    # is six unbounded ones.
+    detail = _bounded_probe_diagnostic(detail)
     diagnostics: dict[str, str] = {}
     if stdout.strip():
         diagnostics["stdout"] = _bounded_probe_diagnostic(stdout)
@@ -280,8 +312,10 @@ def probe_interpreter() -> tuple[str, str]:
     if configured:
         candidate = Path(configured)
         if not candidate.is_file():
+            # Not ``!r``: this string is read by an operator who is about to
+            # retype the path, and ``repr`` doubles every backslash in it.
             return "", (
-                f"{ACCELERATOR_PYTHON_ENV}={configured!r} is not an existing file"
+                f"{ACCELERATOR_PYTHON_ENV}={configured} is not an existing file"
             )
         return str(candidate), ""
     if _frozen_application():
@@ -295,6 +329,149 @@ def probe_interpreter() -> tuple[str, str]:
     return sys.executable, ""
 
 
+# Environment the probe child is allowed to inherit.
+#
+# The parent is the Daedalus backend, and its environment carries provider
+# credentials: MEASURED 2026-09-11 in this process, a child spawned with the
+# default inherited environment received ANTHROPIC_API_KEY,
+# DAEDALUS_RTX_OLLAMA_TOKEN and CLAUDE_CODE_MESSAGING_TOKEN.  The probe is an
+# operator-named executable -- ``DAEDALUS_ACCELERATOR_PYTHON`` points wherever
+# the operator says -- so handing it every secret in the backend's environment
+# to answer "is torch importable" is authority it never needed.
+#
+# An allowlist rather than a denylist: a new secret must not become inherited
+# merely because nobody added its name here.  Entries exist to let the child
+# START (OS plumbing, temp dir) and to let a CUDA runtime FIND ITS LIBRARIES
+# (search path, CUDA root).  PYTHONPATH and PYTHONHOME are deliberately absent:
+# they belong to the parent's interpreter, not to the operator's.
+_PROBE_ENV_ALLOWLIST = frozenset(
+    {
+        # process plumbing the interpreter itself needs to start
+        "COMSPEC",
+        "HOME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LANG",
+        "LC_ALL",
+        "NUMBER_OF_PROCESSORS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "USERPROFILE",
+        "WINDIR",
+        # where a runtime unpacks, caches and finds its own installation
+        "APPDATA",
+        "LOCALAPPDATA",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "PROGRAMFILES(X86)",
+        "PROGRAMW6432",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        # where the CUDA/driver libraries are found
+        "CUDA_HOME",
+        "CUDA_PATH",
+        "CUDA_VISIBLE_DEVICES",
+        "DYLD_LIBRARY_PATH",
+        "LD_LIBRARY_PATH",
+        "NVIDIA_VISIBLE_DEVICES",
+        "PATH",
+    }
+)
+
+
+def _probe_environment() -> dict[str, str]:
+    """The filtered environment handed to the probe child."""
+
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if name.upper() in _PROBE_ENV_ALLOWLIST
+    }
+
+
+@dataclass(frozen=True)
+class _ProbeTransport:
+    """What the child process did, separated from what it claimed."""
+
+    returncode: int
+    stdout: str
+    stderr: str
+    timed_out: bool = False
+
+
+def _read_bounded_stream(handle: Any) -> str:
+    handle.seek(0)
+    return handle.read(_DEEP_PROBE_OUTPUT_LIMIT).decode("utf-8", errors="replace")
+
+
+def _run_deep_probe(interpreter: str) -> _ProbeTransport:
+    """Run the probe under a bound that survives a launcher shim.
+
+    WHY NOT ``subprocess.run(..., timeout=...)``.  That timeout is not a
+    wall-clock bound on Windows.  CPython's ``run`` reacts to ``TimeoutExpired``
+    with ``process.kill()`` and then, on Windows only, a SECOND ``communicate()``
+    with no timeout at all.  ``kill()`` is ``TerminateProcess`` on the direct
+    child alone, so a grandchild that inherited the pipe keeps the write end
+    open and the untimed read blocks until the grandchild exits.
+
+    MEASURED against the previous implementation.  By the independent review of
+    2026-09-10, with ``timeout=30``: ``HANG elapsed=600.1s`` (direct child
+    spawns a grandchild holding stdout, then exits) and ``FLOOD elapsed=45.6s``
+    on 8 GiB of stdout, all of which the untimed second read pulled into the
+    parent's memory.  Reproduced here on 2026-09-11 by
+    ``test_the_probe_is_bounded_by_wall_clock_even_through_a_launcher_shim``:
+    ``30.1s`` for a ``2s`` bound -- 30s being the test grandchild's own
+    deadline, so the call ended when the GRANDCHILD did, not when the bound
+    did.  The same test measures ``2.01s`` against this implementation.
+
+    That is the NATURAL value of ``DAEDALUS_ACCELERATOR_PYTHON`` on Windows:
+    ``py.exe`` is a launcher that spawns the real interpreter, a conda
+    ``activate.bat`` and any ``.cmd`` wrapper are ``cmd.exe`` spawning a child.
+    Following this module's own advice would have armed the trap.
+
+    So the transport does not use pipes.  Each stream is a temporary file, the
+    wait is ``Popen.wait(timeout=...)`` -- ``WaitForSingleObject`` on the direct
+    child's handle, which no descendant can extend -- and the parent reads a
+    bounded prefix of each file afterwards.  A grandchild that outlives the
+    kill can still write to that file, which costs disk until it exits; it can
+    no longer cost the caller its wall clock or the parent its memory.  Killing
+    a whole process tree needs a Job object and is a larger change than this
+    repair; the residual is stated rather than implied away.
+    """
+
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+        # A list argv, never a shell string: the interpreter path comes from an
+        # environment variable and must not be word-split or expanded.
+        process = subprocess.Popen(
+            [interpreter, "-c", _DEEP_PROBE],
+            stdin=subprocess.DEVNULL,
+            stdout=out,
+            stderr=err,
+            env=_probe_environment(),
+        )
+        timed_out = False
+        try:
+            returncode = process.wait(timeout=_DEEP_PROBE_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            process.kill()
+            try:
+                returncode = process.wait(timeout=_DEEP_PROBE_KILL_GRACE_SECONDS)
+            except subprocess.TimeoutExpired:
+                # Even the kill did not land in time. Stop waiting: the caller
+                # is a read endpoint, not a process supervisor.
+                returncode = -1
+        return _ProbeTransport(
+            returncode=returncode,
+            stdout=_read_bounded_stream(out),
+            stderr=_read_bounded_stream(err),
+            timed_out=timed_out,
+        )
+
+
 @lru_cache(maxsize=1)
 def deep_framework_status() -> dict[str, dict[str, Any]]:
     """Probe optional Python compute runtimes in an isolated, bounded process."""
@@ -303,15 +480,19 @@ def deep_framework_status() -> dict[str, dict[str, Any]]:
         # Not a probe result and not an import verdict: nothing was executed.
         return _probe_failure(refusal)
     try:
-        result = subprocess.run(
-            [interpreter, "-c", _DEEP_PROBE],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        result = _run_deep_probe(interpreter)
     except (OSError, subprocess.SubprocessError) as exc:
-        return _probe_failure(str(exc))
+        return _probe_failure(f"{type(exc).__name__}: {exc}")
+    if result.timed_out:
+        # Deliberately not ``str(TimeoutExpired)``: that renders the whole argv,
+        # and argv[2] is the entire probe source -- which used to be copied onto
+        # all six rows. What an operator needs is the bound that was exceeded.
+        return _probe_failure(
+            f"framework probe exceeded its {_DEEP_PROBE_TIMEOUT_SECONDS:g}s bound "
+            "and was killed",
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
     if result.returncode != 0:
         return _probe_failure(
             f"framework probe exited with status {result.returncode}",
@@ -508,12 +689,71 @@ def _remote_compute_status(*, probe: bool) -> dict[str, Any]:
             "hint": ""}
 
 
+def _deep_probe_hint() -> str:
+    """How this process could get a real answer, in the operator's terms."""
+
+    configured = os.environ.get(ACCELERATOR_PYTHON_ENV, "").strip()
+    interpreter, refusal = probe_interpreter()
+    if interpreter:
+        return (
+            f"a deep probe through {ACCELERATOR_PYTHON_ENV}={interpreter} can "
+            "answer it; this shallow read runs nothing"
+        )
+    if configured:
+        # The operator DID follow the instruction and the value does not work.
+        # Repeating "set the variable" here would read as if they had not.
+        return (
+            f"{refusal}; point it at a python executable whose environment "
+            "carries the optional accelerator runtimes, then request a deep probe"
+        )
+    return (
+        f"set {ACCELERATOR_PYTHON_ENV} to a python executable whose environment "
+        "carries the optional accelerator runtimes, then request a deep probe"
+    )
+
+
+def _shallow_framework_detail(name: str, *, host_visible: bool) -> str:
+    """The detail of one shallow row, true for THAT row.
+
+    The first version of this message said "this frozen backend excludes the
+    optional accelerator runtimes" on all six rows. It is not true of two:
+    cuvs and cugraph are absent from ``DESKTOP_PYINSTALLER_EXCLUDES``. They are
+    invisible to the frozen backend anyway, for the other reason -- a frozen
+    process imports from its bundle, not from the machine's site-packages -- so
+    the row says that instead of asserting a build decision that was not made.
+    """
+
+    if host_visible:
+        # A source checkout: find_spec really did look at this machine, and the
+        # cockpit suppresses exactly this string as the noise it is.
+        return "deep probe not requested"
+    if name in DESKTOP_EXCLUDED_FRAMEWORKS:
+        reason = (
+            f"the desktop build excludes {name} from the bundle "
+            "(DESKTOP_PYINSTALLER_EXCLUDES in tools/build_tauri_sidecar.py), so "
+            "a missing import here is guaranteed by the build"
+        )
+    else:
+        reason = (
+            "this frozen backend imports from its own bundle rather than from "
+            f"the machine's environment, and {name} is not in the bundle, so a "
+            "missing import here is a fact about the bundle"
+        )
+    return f"not measured on this machine: {reason} -- {_deep_probe_hint()}"
+
+
 def _framework_rows(
     *,
     deep: bool,
     probe_diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    names = ("torch", "cupy", "warp", "cuvs", "cugraph", "newton")
+    names = FRAMEWORK_NAMES
+    # Can ``_has_module`` see the machine at all?  A frozen PyInstaller process
+    # has its bundle on ``sys.path`` and not the machine's site-packages, so its
+    # ``find_spec`` answers a question about the bundle.  Rows say so, because a
+    # False that is guaranteed by construction must not be drawn as the measured
+    # absence that the cockpit paints red.
+    host_visible = not _frozen_application()
     if deep:
         rows = deep_framework_status()
         if probe_diagnostics is not None:
@@ -548,11 +788,13 @@ def _framework_rows(
             return {
                 name: {
                     # A failed deep probe says nothing about imports. Retain
-                    # the safe, non-executing find_spec evidence instead.
+                    # the safe, non-executing find_spec evidence instead --
+                    # and, with it, whether that evidence saw the machine.
                     "installed": _has_module(name),
                     "cuda_ready": None,
                     "detail": f"deep probe failed: {detail}",
                     "probed": False,
+                    "host_visible": host_visible,
                 }
                 for name in names
             }
@@ -566,6 +808,7 @@ def _framework_rows(
                     "cuda_ready": None,
                     "detail": f"deep probe returned no result for {name}",
                     "probed": False,
+                    "host_visible": host_visible,
                 }
                 continue
             normalized[name] = {
@@ -579,30 +822,29 @@ def _framework_rows(
                 ),
                 "detail": str(source.get("detail", "")),
                 "probed": True,
+                # A row that came back from the child was produced by an
+                # interpreter that actually imported in a real environment --
+                # the running one, or the operator's. That is a measurement of
+                # a machine even when this process could not make it.
+                "host_visible": True,
             }
         return normalized
     # The cockpit calls /api/accelerators/status WITHOUT deep=1, so this is the
     # branch the desktop capability panel actually renders. In a frozen build
-    # ``_has_module`` answers a question about the BUNDLE, not about the host:
-    # tools/build_tauri_sidecar.py names torch, cupy, cupyx, cupy_backends,
-    # warp, newton, nvidia, triton and cuda in DESKTOP_PYINSTALLER_EXCLUDES, so
-    # False here is guaranteed by construction and is not evidence that the
-    # machine lacks them. Saying "deep probe not requested" -- a string the
-    # cockpit suppresses -- let that guaranteed False read as a measurement.
-    shallow_detail = "deep probe not requested"
-    if _frozen_application() and not os.environ.get(ACCELERATOR_PYTHON_ENV, "").strip():
-        shallow_detail = (
-            "not shipped in the desktop bundle: this frozen backend excludes the "
-            "optional accelerator runtimes, so it cannot see one that is "
-            f"installed on the machine. Set {ACCELERATOR_PYTHON_ENV} to a python "
-            "executable from such an environment and request a deep probe."
-        )
+    # ``_has_module`` answers a question about the BUNDLE, not about the host,
+    # and it does so no matter how ``DAEDALUS_ACCELERATOR_PYTHON`` is set: that
+    # variable selects an interpreter for the DEEP probe and changes nothing
+    # about find_spec in this process. Gating the honest detail on the variable
+    # therefore switched the fix off for exactly the operator who followed its
+    # instructions. The gate is the one fact that decides the question: whether
+    # this process can see the machine's environment at all.
     return {
         name: {
             "installed": _has_module(name),
             "cuda_ready": None,
-            "detail": shallow_detail,
+            "detail": _shallow_framework_detail(name, host_visible=host_visible),
             "probed": False,
+            "host_visible": host_visible,
         }
         for name in names
     }

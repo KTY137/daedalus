@@ -79,6 +79,49 @@ export function runAcceleratorSpec(): Result[] {
     FRAMEWORK_WORD.importable
   );
 
+  // ---- 1b. ...and only where find_spec could see the machine --------------
+  // The packaged desktop backend is a frozen PyInstaller process: it imports
+  // from its own bundle, and the build strips torch, cupy, warp and newton out
+  // of that bundle. `installed: false` there is guaranteed by construction, so
+  // the badge said "nicht installiert" in red about a machine nobody had
+  // looked at. `host_visible: false` is the backend saying exactly that, and
+  // this reading is the only thing standing between it and the red dot.
+  const blind = fw({
+    installed: false,
+    probed: false,
+    host_visible: false,
+    detail: 'not measured on this machine: the desktop build excludes torch from the bundle'
+  });
+  check(
+    'a shallow row the backend could not measure is not a measured absence',
+    frameworkReading(blind) === 'unchecked',
+    frameworkReading(blind)
+  );
+  check('a row nobody could measure is not painted red', frameworkTone(frameworkReading(blind)) !== 'bad');
+  check(
+    'the two "we did not look" cases are the same reading',
+    frameworkReading(blind) === frameworkReading(fw({ installed: false, detail: '', probed: true }))
+  );
+  // The direction that keeps the flag from swallowing real evidence: a source
+  // checkout DID measure, and its absence must stay red.
+  check(
+    'a measured absence stays a measured absence',
+    frameworkReading(fw({ installed: false, probed: false, host_visible: true })) === 'absent'
+  );
+  // A backend older than 2026-09-11 does not send the field at all. Treating
+  // `undefined` as "not visible" would grey out every honest absence in the
+  // source checkout the developers actually run.
+  check(
+    'a payload without the field is read as measured, not as blind',
+    frameworkReading(fw({ installed: false, probed: false })) === 'absent'
+  );
+  // A blind process CAN still find something in its own bundle; that is a real
+  // find_spec result about the process that answered.
+  check(
+    'a module the blind process did import is still importable',
+    frameworkReading(fw({ installed: true, probed: false, host_visible: false })) === 'importable'
+  );
+
   // ---- 2. a dead probe is not an absence ----------------------------------
   // When the probe subprocess dies, `_framework_rows(deep=True)` still stamps
   // `probed: True` on all six with `installed: False` and an EMPTY detail.
