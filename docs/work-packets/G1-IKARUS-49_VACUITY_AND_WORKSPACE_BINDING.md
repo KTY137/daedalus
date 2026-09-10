@@ -67,14 +67,25 @@ still worthless. The packet was candid about forgery and silent about vacuity.
    this host, and it makes this repository admissible as its own subject again:
    its four tracked symlinks are materialised as the paths their blobs store
    instead of being refused.
-4. **The argv head is an allowlist.** The first version denylisted `-c` and
-   `--command`; review round 1 defeated it with `-Ic`, because CPython bundles
-   short options, and with `-Sc`, `--command=`, `-` (program on stdin),
-   `-m pip install` (which writes the interpreter that judges every later
-   campaign) and `--pyargs` (which runs an installed package's tests instead of
-   the workspace's). A denylist of an option parser this module does not own
-   cannot be closed. The command IS `python -m pytest`; its arguments are still
-   held to the workspace, and `-p` may only DISABLE a plugin, never load one.
+4. **The argv is an allowlist — head AND arguments.** The first version
+   denylisted `-c` and `--command`; round 1 defeated it with `-Ic`, because
+   CPython bundles short options. So the HEAD became an allowlist,
+   `python -m pytest` — and round 2 defeated the ARGUMENTS exactly the same
+   way, one token to the right, because the loop skipped every `-`-leading
+   token that was not an *exact* member of a forbidden set. `-pevilplugin`
+   imports and EXECUTES an arbitrary module before conftest, under the
+   campaign's lease; `-cC:/Windows/win.ini` makes pytest read a config file
+   outside the workspace whose `addopts` re-injects any option at all,
+   including the plugin load. Both were admitted and both are honoured by the
+   real pytest.
+
+   Every argument is now admitted by name or refused: a workspace-relative
+   path, one of six bare options, `--tb=STYLE` from pytest's own closed set,
+   `--maxfail=N`, or `-p no:NAME` in every spelling pytest accepts — including
+   the bundled `-pno:NAME`, because refusing that would break a real command
+   while refusing nothing. The set grows only on evidence that a campaign needs
+   an option, and each addition must argue that the option reads nothing
+   outside the workspace and loads no code.
 
 ## What this packet does NOT close, measured and retained
 
@@ -131,7 +142,10 @@ master plan, its amendment chain, `AGENTS.md`.
 1. a change no test reads is refused, naming the control that only errored;
 2. the in-place neutering is nominated, and the test says so as negative
    evidence, with the hedge present on every observation and the nomination;
-   the same for a content-sensitive test supplying the control's failure;
+   the same for a content-sensitive test supplying the control's failure —
+   `test_a_content_sensitive_test_supplies_the_control_failure_without_executing`,
+   written in round 2 after review found this row asserting a test that did not
+   exist;
 3. an untracked `export-ignore` line is refused by the workspace comparison,
    with `git status` clean at the time;
 4. an inline program, an absolute path and a `..` in the argv are refused, and
@@ -141,7 +155,7 @@ master plan, its amendment chain, `AGENTS.md`.
 
 ## Evidence, expected failures and review
 
-`tests/test_ariadne_test_evaluator.py`, 23 tests. Expected failures, retained:
+`tests/test_ariadne_test_evaluator.py`, 28 tests. Expected failures, retained:
 the neutering nomination above, and every campaign whose suite cannot produce a
 failing negative control. Review: this packet exists because an adversarial pass
 on a merged commit found what five review rounds had not.
@@ -168,3 +182,26 @@ comparisons are computed from reports that were already being written.
 database in 4.65 s (6378 files, 282 MiB), and the previously refusing symlinks
 now materialise, so the self-Renovation strand can name its own repository as a
 subject.
+
+## Review round 2 (2026-09-11, `c8d2496d`)
+
+**Cerberus: `block`, one CRITICAL unrepaired.** CRITICAL 1 was attacked against
+a hand-built hostile tree (`git mktree`, so the shapes `git add` refuses) and
+held: a blob whose content embeds a fake `<40hex> blob <n>` frame extracted
+byte-exact, because the parse is length-prefixed; `..\..\x`, drive letters,
+alternate data streams, trailing dots and spaces, NTFS case collisions and
+gitlinks were all refused; nothing escaped the workspace root.
+
+| # | finding | repair |
+| --- | --- | --- |
+| CRITICAL 2 | **not repaired.** The head was an allowlist; the arguments were still a denylist, and the loop skipped any `-`-leading token that was not an exact member of it. `-pevilplugin` loaded and executed a module (`PLUGIN_IMPORT_EXECUTED`, measured against real pytest 9.1.1); `-cC:/Windows/win.ini` read a config outside the workspace and its `addopts` re-injected the plugin load | the arguments are an allowlist too, and the suite now carries the bundled forms rather than only spellings the code already refused |
+| high 1 | `_admit_workspace_relative` promised "no device name" and had no such check: a tree of `NUL` + `ok.txt` extracted as **two files with one on disk**, because writing to `NUL` silently succeeds and the counter still says two | device names refused on every host (the workspace must be the revision on every host, not only where the name happens to be writable), plus a post-write size check that refuses whatever the enumeration misses |
+| high 2 | acceptance row 2 asserted a pin for the content-sensitive vacuity route **that was never written**. The prose was honest; the matrix row was not | the test exists now and asserts the measured outcome: a suite that only reads the source as text supplies the control's failure, every gate passes, and the nomination is vacuous |
+| medium 1 | three helpers defined twice, byte-identical — the later copies win, the first three are dead, and one of the dead copies is the environment scrub | deleted |
+| medium 2 | `_revision_file_list` was dead **and** was the one unscrubbed, untimed git call, so round 1's "one bounded helper for every git call" was true only because nothing called it | deleted |
+| low | the payload was verified against the oid git ECHOED, never against the oid the TREE named | the sha1 is bound to the tree's digest. A separate header comparison would be redundant, not defence in depth, because a substituted object is internally consistent and dies on the digest — so the binding is pinned by a test instead of duplicated by a branch |
+| low | two comments described designs that no longer exist (a bounded excerpt that is now no output at all; a comparison that is now a construction) | corrected |
+
+**Mutation table, 5/5 guards proven load-bearing:** disabling the argument
+allowlist, the plugin-disable rule, the device-name refusal, the post-write size
+check, or the digest binding each turns a named test red.

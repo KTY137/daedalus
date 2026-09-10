@@ -646,24 +646,75 @@ def test_the_evaluator_argv_head_is_an_allowlist():
         with pytest.raises(AriadneCampaignError, match="must be exactly python -m pytest"):
             _admit_test_evaluator(TestCommandEvaluator(argv=bad))
 
-    # Arguments to pytest are still held to the workspace.
+    # The ARGUMENTS are an allowlist too. Round 1 defeated the head denylist
+    # with `-Ic`; round 2 defeated the argument denylist exactly the same way,
+    # one token to the right, because the loop SKIPPED any `-`-leading token it
+    # did not recognise. Both bundled forms below were admitted and both are
+    # honoured by the real pytest: `-pNAME` imports and EXECUTES a module
+    # before conftest, and `-c<path>` reads a config file outside the workspace
+    # whose `addopts` re-injects anything -- including the plugin load.
     for bad, expected in (
-        (("python", "-m", "pytest", "--pyargs", "daedalus"), "inline program"),
-        (("python", "-m", "pytest", "--rootdir=/etc"), "absolute path"),
+        (("python", "-m", "pytest", "-pevilplugin", "tests"), "only DISABLE a plugin"),
+        (("python", "-m", "pytest", "-cC:/Windows/win.ini", "tests"), "by name only"),
+        (("python", "-m", "pytest", "-c../../evil.ini", "tests"), "by name only"),
+        (("python", "-m", "pytest", "-foo=/etc/x", "tests"), "by name only"),
+        (("python", "-m", "pytest", "-Ic", "import os"), "by name only"),
+        (("python", "-m", "pytest", "-o", "addopts=-pevil"), "by name only"),
+        (("python", "-m", "pytest", "-W", "error"), "by name only"),
+        (("python", "-m", "pytest", "-X", "dev"), "by name only"),
+        (("python", "-m", "pytest", "--import-mode=importlib"), "by name only"),
+        (("python", "-m", "pytest", "--basetemp=/tmp/x"), "by name only"),
+        (("python", "-m", "pytest", "--pyargs", "daedalus"), "by name only"),
+        (("python", "-m", "pytest", "--rootdir=/etc"), "by name only"),
+        (("python", "-m", "pytest", "--tb=evil"), "unknown traceback style"),
+        (("python", "-m", "pytest", "--maxfail=x"), "unusable --maxfail"),
+        (("python", "-m", "pytest", "--maxfail=0"), "unusable --maxfail"),
         (("python", "-m", "pytest", "C:/Windows/Temp"), "absolute path"),
         (("python", "-m", "pytest", "/etc"), "absolute path"),
         (("python", "-m", "pytest", "../../.."), "leave the workspace"),
         (("python", "-m", "pytest", "-p", "sitecustomize"), "only DISABLE a plugin"),
         (("python", "-m", "pytest", "-p=evil"), "only DISABLE a plugin"),
+        (("python", "-m", "pytest", "-pno:"), "only DISABLE a plugin"),
+        (("python", "-m", "pytest", "--plugin=evil"), "only DISABLE a plugin"),
     ):
         with pytest.raises(AriadneCampaignError, match=expected):
             _admit_test_evaluator(TestCommandEvaluator(argv=bad))
 
     # The shapes a real campaign uses still pass, including disabling the cache
-    # writer so pytest does not dirty the tree it is judging.
-    _admit_test_evaluator(TestCommandEvaluator(argv=("python", "-m", "pytest", "-q", "tests")))
-    _admit_test_evaluator(TestCommandEvaluator(
-        argv=("python", "-m", "pytest", "-q", "-p", "no:cacheprovider")))
+    # writer so pytest does not dirty the tree it is judging -- in every
+    # spelling, because refusing the bundled `-pno:NAME` would break a real
+    # command while refusing nothing.
+    for good in (
+        ("python", "-m", "pytest", "-q", "tests"),
+        ("python", "-m", "pytest", "-q", "-p", "no:cacheprovider"),
+        ("python", "-m", "pytest", "-pno:cacheprovider", "tests"),
+        ("python", "-m", "pytest", "--plugin=no:randomly"),
+        ("python", "-m", "pytest", "--tb=short", "--maxfail=1", "tests/unit"),
+        ("python", "-m", "pytest", "-x", "--no-header", "tests"),
+    ):
+        _admit_test_evaluator(TestCommandEvaluator(argv=good))
+
+
+def test_a_revision_naming_a_windows_device_is_refused_on_every_host():
+    """Cerberus round 2 (high 1), MEASURED: `_admit_workspace_relative` promised
+    "no device name" in its docstring and had no such check. A tree of `NUL` and
+    `ok.txt` extracted as TWO files with ONE on disk -- the write to `NUL`
+    silently succeeds and stores nothing, and the counter still says two. That
+    is the O2-2 shape, the workspace silently differing from the revision, at a
+    smaller scale.
+
+    Refused on every platform, not only Windows: the guarantee is that the
+    workspace IS the revision on every supported host, and a name that cannot
+    be materialised identically everywhere makes it false wherever it is
+    admitted."""
+
+    for name in ("NUL", "nul.txt", "sub/CON.py", "a/b/LPT9", "com1", "PRN.md", "CONIN$"):
+        with pytest.raises(AriadneCampaignError, match="no Windows filesystem can hold"):
+            subject._admit_workspace_relative(name, label="revision entry")
+    # And names that merely LOOK like devices are still ordinary files, because
+    # a false refusal makes real repositories inadmissible.
+    for name in ("a/nulls.py", "console.py", "aux2/x", "tests/test_com.py", "NULL.py"):
+        assert subject._admit_workspace_relative(name, label="revision entry") == name
 
 
 def test_the_workspace_is_built_from_objects_not_from_git_archive(tmp_path):
@@ -729,3 +780,124 @@ def test_the_module_says_what_a_green_run_does_not_prove():
     assert "SELF-REPORT" in text and "verdict_is_self_reported" in text
     assert "nomination is not promotion" in text
     assert sys.version_info >= (3, 12)
+
+
+def test_the_workspace_refuses_an_object_the_revision_did_not_name(tmp_path, monkeypatch):
+    """The payload is bound to the digest the TREE named, not to the oid git
+    echoed back (Cerberus round 2, low).
+
+    Checking a blob against git's own echo verifies that git is self-consistent
+    and nothing else. Here `cat-file --batch` answers every request with a
+    different, internally consistent object -- the shape a compromised object
+    store or a substituted alternate would produce -- and the extraction
+    refuses instead of writing it."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    payload = b"# not what the revision names\n"
+    frame = b"%s blob %d\n%s\n" % (
+        hashlib.sha1(b"blob %d\x00" % len(payload) + payload).hexdigest().encode("ascii"),
+        len(payload), payload)
+    real = subject._git_out
+
+    def substituted(root_arg, args, *, stdin=None):
+        if args and args[0] == "cat-file":
+            return frame * (stdin.count(b"\n") if stdin else 1)
+        return real(root_arg, args, stdin=stdin)
+
+    monkeypatch.setattr(subject, "_git_out", substituted)
+    with pytest.raises(AriadneCampaignError, match="does not match its digest"):
+        _extract_revision(root, revision, tmp_path / "workspace")
+
+
+def test_the_workspace_refuses_a_filesystem_that_stores_nothing(tmp_path, monkeypatch):
+    """A write that silently succeeds and stores nothing (Cerberus round 2,
+    high 1).
+
+    That is what `NUL` did: the counter said two files, one was on disk, and
+    nothing refused. The name check refuses the device names this module
+    enumerates; this refuses whatever the enumeration misses, because a
+    workspace whose file count is not the revision's file count is not the
+    revision, and every later comparison rests on that count."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    monkeypatch.setattr(Path, "write_bytes", lambda self, data: len(data))
+    with pytest.raises(AriadneCampaignError, match="did not materialise"):
+        _extract_revision(root, revision, tmp_path / "workspace")
+
+
+@pytest.mark.slow
+def test_a_content_sensitive_test_supplies_the_control_failure_without_executing(tmp_path):
+    """NEGATIVE EVIDENCE, retained (Cerberus round 1 of this packet, high 1).
+
+    The gate this packet added asks the negative control to contain a test that
+    the baseline PASSED and that FAILED. A content-sensitive test -- a style,
+    lint, census or byte-pin test that reads the source as TEXT rather than
+    executing it -- supplies that failure without ever running the changed
+    region. Here the suite never imports `pkg.mod` at all: it only asserts that
+    no line is longer than 32 characters. The control's mutation appends
+    `__ariadne_negative__`, taking the line to 36, so the test fails; the
+    repair's line is 28, so it passes; and NOTHING called `add()` in any arm.
+
+    Every new gate passes and the nomination is vacuous. This is the second
+    vacuity route the packet leaves open, and the packet says so rather than
+    claiming a closure: closing it needs the failing control test to be one
+    that IMPORTS the target, which the baseline arm could record and this
+    packet does not.
+
+    The acceptance matrix asserted this pin before it existed (Cerberus round 2,
+    high 2). It exists now, and it asserts the measured outcome."""
+
+    root = tmp_path / "subject"
+    (root / "pkg").mkdir(parents=True)
+    (root / "tests").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "mod.py").write_text(MODULE, encoding="utf-8")
+    # A style test. It reads the file; it never imports it.
+    (root / "tests" / "test_style.py").write_text(
+        "from pathlib import Path\n\n\n"
+        "def test_lines_are_short():\n"
+        "    source = Path(__file__).resolve().parents[1] / 'pkg' / 'mod.py'\n"
+        "    for line in source.read_text(encoding='utf-8').splitlines():\n"
+        "        assert len(line) <= 32, line\n",
+        encoding="utf-8")
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+    for argv in (["init", "-q"], ["add", "-A"], ["commit", "-qm", "fixture"]):
+        subprocess.run(["git", "-C", str(root), *argv], check=True, env=env, capture_output=True)
+    KillSwitch(repo_root=root).arm(note="G1-IKARUS-49 content-sensitive fixture")
+    revision = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+    receipt = run_campaign(
+        repo_root=str(root), source_revision=revision, campaign_id="a19-content",
+        target_path="pkg/mod.py", before=BEFORE, after=AFTER,
+        timeout_s=60, evaluator=EVALUATOR,
+    )
+    assert receipt["outcome"] == "nominated"  # measured, not desired
+    arms = {trial["variant_id"]: trial["status"] for trial in receipt["trials"]}
+    assert arms == {"baseline": "passed", "negative-control": "failed", "repair": "passed"}
+
+    # The only thing that protects the reader is the hedge, so it must be on
+    # every observation and on the nomination.
+    from daedalus.spine.killswitch import control_root
+
+    hedged = 0
+    for path in control_root(root).rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            blob = json.loads(path.read_bytes().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, OSError):
+            continue
+        if isinstance(blob, dict) and str(blob.get("schema", "")).startswith(
+                "daedalus-ariadne-test-evaluator-observation"):
+            assert blob["verdict_is_self_reported"] is True
+            hedged += 1
+        if isinstance(blob, dict) and blob.get("nomination_status") == "nominated":
+            assert "SELF-REPORTED" in " ".join(blob.get("reasons", ()))
+            hedged += 1
+    assert hedged >= 4

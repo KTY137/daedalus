@@ -124,17 +124,40 @@ _TEST_OBSERVATION_KEYS = (
 #: pytest, and those are still held to the workspace (no absolute path, no
 #: traversal, no inline program smuggled through a pytest option).
 _TEST_ARGV_HEAD = ("python", "-m", "pytest")
-_TEST_ARGV_FORBIDDEN_FLAGS = frozenset({
-    "-c", "--command", "--pyargs", "--rootdir", "--confcutdir",
-    "--import-mode", "--basetemp",
+#: Options a test command may carry, by name. Everything else beginning with
+#: ``-`` is refused.
+#:
+#: Round 1 defeated the HEAD denylist with ``-Ic``; round 2 defeated the
+#: ARGUMENT denylist the same way, one token to the right. ``-pevilplugin``
+#: imports and EXECUTES an arbitrary module before conftest, under the
+#: campaign's lease. ``-cC:/Windows/win.ini`` makes pytest read a config file
+#: outside the workspace, whose ``addopts`` re-injects any option at all --
+#: including the plugin load. Both were admitted, because the loop skipped
+#: every ``-``-leading token that was not an EXACT member of a forbidden set.
+#:
+#: A denylist of an option parser this module does not own cannot be closed.
+#: This set can only grow by evidence that a campaign genuinely needs an
+#: option, and each addition has to argue that the option reads nothing
+#: outside the workspace and loads no code.
+_TEST_ARGV_BARE_OPTIONS = frozenset({
+    "-q", "--quiet", "-x", "--exitfirst", "--no-header", "--no-summary",
 })
-#: ``-p no:NAME`` DISABLES a plugin, and the campaign's own command needs it so
-#: pytest does not write a cache into the tree it is judging. ``-p NAME`` LOADS
-#: one, which is a way to run code the suite never asked for.
-_PLUGIN_FLAGS = ("-p", "--plugin")
+#: ``--tb=STYLE`` selects how much of a traceback is printed. The output is not
+#: retained at all, so this only affects the gate's scratch, but the value is
+#: still held to pytest's own closed set rather than passed through.
+_TEST_ARGV_TB_STYLES = frozenset({"auto", "long", "short", "line", "native", "no"})
+MAX_TEST_MAXFAIL = 1000
 #: Only this interpreter token may open a test command. It is replaced by the
 #: interpreter the campaign resolved, so an argv can never name a binary path.
 _TEST_ARGV_INTERPRETER = "python"
+#: Windows resolves these as devices in EVERY directory and with ANY extension,
+#: so `NUL`, `nul.txt` and `sub/dir/CON.py` are all the device, not a file.
+#: Writing to one succeeds and stores nothing.
+_RESERVED_DEVICE_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+    | {f"COM{n}" for n in range(1, 10)}
+    | {f"LPT{n}" for n in range(1, 10)}
+)
 MAX_TEST_ARGV = 32
 MAX_TEST_ARG_CHARS = 200
 MAX_TEST_TIMEOUT_S = 900
@@ -262,35 +285,46 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
     for item in argv:
         if not item or len(item) > MAX_TEST_ARG_CHARS or "\x00" in item:
             raise AriadneCampaignError("evaluator argv entries must be short, non-empty text")
-    # The packet claimed an argv naming an absolute path was refused. It was
-    # not: `python -c "import os; os.system(...)"` was admitted, and so was a
-    # path outside the workspace (Odysseus round 2 on the merged packet, O2-4).
-    # A test command names things INSIDE the workspace and nothing else.
-    for index, item in enumerate(argv[3:], start=3):
-        if item in _TEST_ARGV_FORBIDDEN_FLAGS:
-            raise AriadneCampaignError(
-                f"evaluator argv may not carry an inline program: {item}")
-        if item in _PLUGIN_FLAGS or item.startswith(tuple(f"{flag}=" for flag in _PLUGIN_FLAGS)):
-            # NOT `value`: that name is the evaluator record this function is
-            # admitting, and shadowing it made every later check read a string.
-            plugin_value = item.split("=", 1)[1] if "=" in item else (
-                argv[index + 1] if index + 1 < len(argv) else "")
-            if not plugin_value.startswith("no:"):
+    # Every argument is admitted BY NAME or refused. The previous version
+    # skipped any `-`-leading token it did not recognise, which admitted
+    # `-pevilplugin` (loads and executes a module) and `-cC:/Windows/win.ini`
+    # (reads a config outside the workspace whose `addopts` re-injects
+    # anything) -- Cerberus round 2 of this packet, CRITICAL 2. A path names
+    # something INSIDE the workspace and nothing else.
+    index = 3
+    while index < len(argv):
+        item = argv[index]
+        index += 1
+        if not item.startswith("-"):
+            if item.startswith(("/", "\\")) or (len(item) > 1 and item[1] == ":"):
                 raise AriadneCampaignError(
-                    "evaluator argv may only DISABLE a plugin ('-p no:NAME'), not load one: "
-                    f"{plugin_value}")
+                    f"evaluator argv may not name an absolute path: {item}")
+            if any(part == ".." for part in item.replace("\\", "/").split("/")):
+                raise AriadneCampaignError(
+                    f"evaluator argv may not leave the workspace: {item}")
             continue
-        if index > 3 and argv[index - 1] in _PLUGIN_FLAGS:
-            continue  # already checked as that flag's value
-        candidate = item.split("=", 1)[-1] if item.startswith("--") else item
-        if not candidate or candidate.startswith("-"):
+        if item in _TEST_ARGV_BARE_OPTIONS:
             continue
-        if candidate.startswith(("/", "\\")) or (len(candidate) > 1 and candidate[1] == ":"):
-            raise AriadneCampaignError(
-                f"evaluator argv may not name an absolute path: {item}")
-        if any(part == ".." for part in candidate.replace("\\", "/").split("/")):
-            raise AriadneCampaignError(
-                f"evaluator argv may not leave the workspace: {item}")
+        if item.startswith("--tb="):
+            if item[len("--tb="):] not in _TEST_ARGV_TB_STYLES:
+                raise AriadneCampaignError(
+                    f"evaluator argv has an unknown traceback style: {item}")
+            continue
+        if item.startswith("--maxfail="):
+            digits = item[len("--maxfail="):]
+            if not digits.isdigit() or not 1 <= int(digits) <= MAX_TEST_MAXFAIL:
+                raise AriadneCampaignError(
+                    f"evaluator argv has an unusable --maxfail: {item}")
+            continue
+        consumed = _plugin_disable_tokens(item, argv, index)
+        if consumed is not None:
+            index += consumed
+            continue
+        raise AriadneCampaignError(
+            "evaluator argv admits options by name only, and this is not one of them: "
+            f"{item}. Permitted: " + ", ".join(sorted(_TEST_ARGV_BARE_OPTIONS))
+            + ", --tb=STYLE, --maxfail=N, and '-p no:NAME' to DISABLE a plugin. A "
+            "bundled short option defeats any denylist, so there is no denylist")
     # No working directory: the kernel's command gate requires ``gate_cwd='.'``
     # and runs at the workspace root, so offering one would be a promise the
     # kernel refuses. The argv carries the selection instead.
@@ -306,6 +340,33 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
     return value
 
 
+def _plugin_disable_tokens(item: str, argv: tuple[str, ...], next_index: int) -> int | None:
+    """How many EXTRA tokens a plugin-disabling option consumes, or ``None``
+    when this is not a plugin option at all.
+
+    ``-p`` is the one option a test command genuinely needs -- the campaign's
+    own command must disable the cache plugin so pytest does not write into the
+    tree it is judging -- and it is also the one that LOADS and executes an
+    arbitrary module. It is admitted only in its ``no:NAME`` disabling form, in
+    every spelling pytest accepts, including the bundled ``-pno:NAME`` that
+    defeated round 2's denylist.
+    """
+
+    if item in ("-p", "--plugin"):
+        value, consumed = (argv[next_index] if next_index < len(argv) else ""), 1
+    elif item.startswith("--plugin="):
+        value, consumed = item[len("--plugin="):], 0
+    elif item.startswith("-p"):
+        value, consumed = item[2:], 0
+    else:
+        return None
+    if not value.startswith("no:") or not value[3:]:
+        raise AriadneCampaignError(
+            "evaluator argv may only DISABLE a plugin ('-p no:NAME'), not load one: "
+            f"{item}")
+    return consumed
+
+
 def _admit_workspace_relative(value: str, *, label: str) -> str:
     """A path that stays inside the workspace, by the same lexical rule the
     target path is held to. No absolute path, no traversal, no device name."""
@@ -318,6 +379,21 @@ def _admit_workspace_relative(value: str, *, label: str) -> str:
     for part in parts:
         if part != part.strip() or part.endswith("."):
             raise AriadneCampaignError(f"{label} has a segment the filesystem would rewrite")
+        if part.split(".", 1)[0].upper() in _RESERVED_DEVICE_NAMES:
+            # The docstring promised this check and did not have it. A tree of
+            # `NUL` + `ok.txt` extracted as two files with ONE on disk: the
+            # write to `NUL` silently succeeds, the counter still says two, and
+            # nothing refuses (Cerberus round 2 of this packet, high 1). That
+            # is the O2-2 shape -- the workspace silently differing from the
+            # revision -- at a smaller scale.
+            #
+            # Refused on EVERY platform, not only Windows. The guarantee is
+            # that the workspace IS the revision on every supported host, and a
+            # name that cannot be materialised identically everywhere makes
+            # that guarantee false wherever it is admitted.
+            raise AriadneCampaignError(
+                f"{label} has a segment no Windows filesystem can hold, so the workspace "
+                f"could not be the revision on every host: {part}")
     return "/".join(parts)
 
 
@@ -435,87 +511,6 @@ def _campaign_lease_timeout_s(timeout_s: int, evaluator: "TestCommandEvaluator |
     return int(per_arm * 3 + (0 if evaluator is None else 3 * WORKSPACE_BUILD_ALLOWANCE_S))
 
 
-def _refuse_target_inside_test_roots(target_path: str, test_roots: tuple[str, ...]) -> None:
-    """A candidate may not be a test when tests are the judge.
-
-    The workspace is the pinned revision with one file replaced, so a target
-    inside a test root would let the candidate rewrite the very assertions that
-    decide its verdict -- the plan's section 8.1 rule, applied to the project's
-    own suite rather than only to this evaluator's tests.
-    """
-
-    spelling = target_path.replace("\\", "/").strip("/").casefold()
-    for root in test_roots:
-        prefix = root.replace("\\", "/").strip("/").casefold()
-        if spelling == prefix or spelling.startswith(prefix + "/"):
-            raise AriadneCampaignError(
-                "target_path is inside a declared test root, and the tests are the "
-                f"evaluator for this campaign: {root}"
-            )
-    name = spelling.rsplit("/", 1)[-1]
-    if name in SESSION_CONTROL_NAMES or name.endswith(SESSION_CONTROL_SUFFIXES):
-        raise AriadneCampaignError(
-            "target_path configures the test session rather than being tested by it, "
-            f"so a candidate could decide its own verdict: {name}"
-        )
-
-
-def _git_out(root: Path, args: list[str], *, stdin: bytes | None = None) -> bytes:
-    """One bounded git call with a scrubbed environment.
-
-    The kernel scrubs exactly these variables on its own git path; the
-    evaluator's calls did not, and one of them executed a filter command from
-    an untracked config with the operator's environment (Cerberus round 1 of
-    this packet, medium 3).
-    """
-
-    env = dict(os.environ)
-    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG",
-                 "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_ATTR_SYSTEM",
-                 "GIT_SSH_COMMAND", "GIT_EXTERNAL_DIFF", "GIT_ASKPASS"):
-        env.pop(name, None)
-    env["GIT_CONFIG_NOSYSTEM"] = "1"
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    try:
-        return subprocess.run(
-            ["git", "-C", str(root), *args], input=stdin, capture_output=True,
-            check=True, timeout=GIT_CALL_TIMEOUT_S, env=env,
-        ).stdout
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise AriadneCampaignError(
-            f"the pinned revision could not be read: {type(exc).__name__}"
-        ) from exc
-
-
-def _revision_blobs(root: Path, revision: str) -> tuple[tuple[str, str, str], ...]:
-    """Every entry the revision declares: (mode, blob digest, path).
-
-    Read from the object database, not from `git archive`. `git archive`
-    applies `$GIT_DIR/info/attributes`, which selects export filters AND smudge
-    filters -- arbitrary shell commands named in an untracked config. The
-    reviewer used one to rewrite the guarding test's content while the file
-    list stayed identical, and to run a command on the host (CRITICAL 1).
-    """
-
-    listing = _git_out(root, ["ls-tree", "-r", "-z", revision]).decode("utf-8", errors="strict")
-    entries: list[tuple[str, str, str]] = []
-    for record in listing.split("\x00"):
-        if not record:
-            continue
-        meta, _, name = record.partition("\t")
-        parts = meta.split()
-        if len(parts) != 3:
-            raise AriadneCampaignError("the pinned revision's tree listing is unreadable")
-        mode, kind, digest = parts
-        if kind != "blob":
-            # A submodule is a commit pointer, not source this evaluator reads.
-            raise AriadneCampaignError(
-                f"the pinned revision contains a {kind} entry this workspace cannot "
-                f"represent: {name}")
-        entries.append((mode, digest, _admit_workspace_relative(name, label="revision entry")))
-    return tuple(sorted(entries, key=lambda item: item[2]))
-
-
 def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
     """Build an evaluation workspace from one Git revision's OBJECTS.
 
@@ -556,7 +551,14 @@ def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
         cursor += size + 1  # git writes a newline after every object
         if len(payload) != size:
             raise AriadneCampaignError(f"the pinned revision's object is truncated: {name}")
-        if hashlib.sha1(b"blob %d\x00" % size + payload).hexdigest() != header[0]:
+        # Bound to the oid the TREE named, NOT to `header[0]`, the oid git
+        # echoed back. Checking the payload against git's own echo would verify
+        # that git is self-consistent and nothing else; checking it against the
+        # digest the revision names is what makes this a construction of the
+        # revision (Cerberus round 2, low). A substituted object is internally
+        # consistent and dies here, which is why a separate header comparison
+        # would be redundant rather than defence in depth.
+        if hashlib.sha1(b"blob %d\x00" % size + payload).hexdigest() != digest:
             raise AriadneCampaignError(f"the pinned revision's object does not match its digest: {name}")
         folded = name.casefold()
         if folded in seen:
@@ -577,6 +579,16 @@ def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
         # has four tracked symlinks -- an inadmissible subject for its own
         # self-Renovation strand.
         target.write_bytes(payload)
+        # The name checks refuse the device names this module knows about. This
+        # refuses whatever it does not: a workspace whose file count is not the
+        # revision's file count is not the revision, and the count is the thing
+        # every later comparison rests on.
+        written = target.stat().st_size if target.is_file() else None
+        if written != size:
+            raise AriadneCampaignError(
+                "the pinned revision did not materialise: the filesystem stored "
+                f"{'nothing' if written is None else str(written) + ' bytes'} for {name}, "
+                f"not {size}")
     return files, total
 
 
@@ -661,27 +673,6 @@ def _revision_blobs(root: Path, revision: str) -> tuple[tuple[str, str, str], ..
     return tuple(sorted(entries, key=lambda item: item[2]))
 
 
-def _revision_file_list(root: Path, revision: str) -> tuple[str, ...]:
-    """Every blob path the revision itself declares, from the object database.
-
-    `git archive` honours `$GIT_DIR/info/attributes`, which is untracked, in no
-    revision, and invisible to `git status`. One `export-ignore` line removed
-    the test that guarded a target and turned a refusal into a nomination
-    (Odysseus round 2 on the merged packet, O2-2). The tree listing does not
-    read that file, so comparing the two is what makes "the workspace is the
-    pinned revision" a checked statement instead of a hope.
-    """
-
-    try:
-        listing = subprocess.run(
-            ["git", "-C", str(root), "ls-tree", "-r", "-z", "--name-only", revision],
-            capture_output=True, check=True,
-        ).stdout.decode("utf-8", errors="strict")
-    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as exc:
-        raise AriadneCampaignError(
-            f"the pinned revision's file list is unreadable: {type(exc).__name__}"
-        ) from exc
-    return tuple(sorted(name for name in listing.split("\x00") if name))
 
 
 _CAMPAIGN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -2446,9 +2437,11 @@ def run_campaign(
                         "interpreter": interpreter_provenance,
                     }
                 else:
-                    # The output is producer text and can name host paths, so
-                    # the evidence keeps a BOUNDED excerpt and the projection at
-                    # the tool door redacts what reaches a planner.
+                    # The output is producer text and can name host paths, so the
+                    # evidence retains NO output at all -- not an excerpt, not a
+                    # redaction. A digest and the report counts say what happened
+                    # and the text stays in the gate's scratch (Cerberus round 2,
+                    # low: this comment described the design it replaced).
                     raw_output = result.output or ""
                     observation = {
                         "schema": TEST_EVALUATOR_OBSERVATION_SCHEMA,
