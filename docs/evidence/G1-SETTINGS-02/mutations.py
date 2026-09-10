@@ -49,7 +49,8 @@ MUTATIONS = [
         "    except (json.JSONDecodeError, ValueError) as exc:\n"
         "        raise AdmittedSettingsUnreadable(\n"
         "            f\"admitted desktop settings '{path}' are corrupt ({exc}); \"\n"
-        "            \"refusing to fall back to an unadmitted environment\"\n"
+        "            \"refusing to fall back to an unadmitted environment; \"\n"
+        "            + REPAIR_ADMITTED_SETTINGS\n"
         "        ) from exc\n",
         "    except (json.JSONDecodeError, ValueError):\n"
         "        return None  # MUTATION\n",
@@ -94,6 +95,23 @@ MUTATIONS = [
         "        effective, source = coerce(raw), SOURCE_ENVIRONMENT\n",
         "    elif coerce is not None and False:  # MUTATION\n"
         "        effective, source = coerce(raw), SOURCE_ENVIRONMENT\n",
+    ),
+    (
+        "M10 the reporting surface raises like an admission path",
+        LEDGER,
+        "        try:\n"
+        "            resolved = self._resolve_limits()\n"
+        "        except BudgetUnavailable as exc:\n"
+        "            return self._unresolved_provenance(exc)\n",
+        "        resolved = self._resolve_limits()  # MUTATION\n",
+    ),
+    (
+        "M11 the report treats an unreadable document as an absent one",
+        LEDGER,
+        "        unknown = {\n"
+        "            \"effective\": None,\n",
+        "        unknown = {\n"
+        "            \"effective\": _env_float_opt(ENV_CEILING),  # MUTATION\n",
     ),
     (
         "M9 the trust parse is re-derived instead of reused",

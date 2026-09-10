@@ -250,25 +250,41 @@ def _budget_view(lock_timeout_s: float = BUDGET_READ_LOCK_TIMEOUT_S) -> dict[str
     from ...budget import BudgetError, Ledger
 
     ledger = Ledger(lock_timeout_s=lock_timeout_s)
+    # WHERE the ceiling came from, beside WHAT it is. Since 2026-09-11 the
+    # ledger composes the admitted desktop settings document with the process
+    # environment, strictest-wins, so "ceiling: $5" no longer says which of the
+    # two produced it -- and an ambient variable that widened past the code
+    # default with nothing admitted behind it would otherwise be invisible.
+    #
+    # Read FIRST and unguarded, because it never raises: when the resolution
+    # itself refuses -- an unreadable admitted document is the case that
+    # matters -- this is the only thing that can still name the file to repair.
+    # A monitor that printed "unavailable" without saying which file broke is
+    # how a fail-closed guard becomes an outage nobody can end.
+    provenance = ledger.limit_provenance()
     try:
         state = ledger.state()
-        # WHERE the ceiling came from, beside WHAT it is. Since 2026-09-11 the
-        # ledger composes the admitted desktop settings document with the
-        # process environment, strictest-wins, so "ceiling: $5" no longer says
-        # which of the two produced it -- and an ambient variable that widened
-        # past the code default with nothing admitted behind it would otherwise
-        # be invisible.
-        provenance = ledger.limit_provenance()
     except BudgetError as exc:
-        return {"available": False, "reason": str(exc)}
+        return {
+            "available": False,
+            "reason": str(exc),
+            "limit_provenance": provenance,
+        }
     except OSError as exc:  # unreadable path, permissions, full disk
-        return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+        return {
+            "available": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+            "limit_provenance": provenance,
+        }
     return {"available": True, **state.as_dict(), "limit_provenance": provenance}
 
 
 def _render_budget_view(budget: dict[str, Any]) -> str:
     if not budget.get("available"):
-        return f"budget: unavailable -- {budget['reason']}"
+        return (
+            f"budget: unavailable -- {budget['reason']}"
+            + _render_limit_provenance(budget.get("limit_provenance"))
+        )
     period_limit = (
         f"${budget['ceiling_usd']:.2f} ceiling"
         if budget["period_ceiling_enabled"]
@@ -298,6 +314,10 @@ def _render_limit_provenance(provenance: Any) -> str:
     if not isinstance(provenance, dict):
         return ""
     clauses: list[str] = []
+    if provenance.get("admitted_document_unreadable"):
+        # The one case a reader must never be left guessing about: the file
+        # that has to be repaired, and what stays refused until it is.
+        return " [" + str(provenance["admitted_document_unreadable"]) + "]"
     ceiling = provenance.get("period_ceiling_usd") or {}
     calls = provenance.get("max_calls") or {}
     policy = provenance.get("execution_limit_policy") or {}

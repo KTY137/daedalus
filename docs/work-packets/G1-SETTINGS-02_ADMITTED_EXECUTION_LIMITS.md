@@ -143,11 +143,62 @@ those two is what would let a bare `$5.00` default outrank an admitted
 absent for all of them — including `DAEDALUS_EXECUTION_LIMIT_POLICY`, which
 previously read a present-but-blank value as an assertion of `bounded`.
 
-**A present, unusable document is a refusal.** `AdmittedSettingsUnreadable`
-(a `BudgetUnavailable`, so every existing handler already treats it as one).
-Falling back to the environment would hand back the escape hatch: corrupt the
-file the owner admitted and the ambient variable decides again. An *absent*
-document is the one benign case.
+**Strictest-wins is uniform across all eight axes, `max_calls` included.**
+Settled 2026-09-11; do not re-litigate. The objection is that a lower call cap
+is *cheaper* rather than *safer*, which is true about cost and beside the point
+about authority. Every axis in section 4.1 exists to bound a resource, so a
+tighter bound cannot grant anything, and strictest-wins is safe by construction
+on all eight regardless of whether the tighter value is also the cheaper one.
+The failure it can cause -- a mission dying halfway because the cap was lower
+than it needed -- is a liveness cost, and section 4.1 already chose that trade
+by making `bounded` the default for every unconfigured process. A per-axis
+exception would mean the composition rule is no longer "can only narrow", and
+the one axis that could widen would then owe a confirmation surface: the hole
+this packet closes, reopened for convenience.
+
+**A present, unusable document is a refusal, and the refusal is narrow.**
+`AdmittedSettingsUnreadable` is a `BudgetUnavailable`, so every existing handler
+already treats it as one. Falling back to the environment would hand back the
+escape hatch: corrupt the file the owner admitted and the ambient variable
+decides again. Falling back to the *code default* is available but no better --
+a document that set `$1.00` would fall back to `$5.00`, a widening caused by
+corrupting a file, which is the shape this packet exists to prevent.
+
+Raising it out of every reader, however, would convert one bad file into total
+unavailability -- and that would be a **new** failure mode introduced by this
+packet, since before it a corrupt document broke only the desktop. So the
+refusal is placed where a **spend or a work admission** consults the cap and
+nowhere else:
+
+| path | behaviour with an unreadable document |
+| --- | --- |
+| `ceiling_usd`, `max_calls`, `execution_limit_policy` | raise |
+| `state`, `reserve`, `open_envelope` | raise (they resolve a cap) |
+| `limit_provenance` | **never raises**: names the file, the parse error, and reports every axis as `None` |
+| `token-monitor`, desktop status, the loop's spend probe | still run, report unavailable, name the file to repair |
+
+The boundary was **not** built for this. It already existed and was measured
+before anything was written: `shell.py::process_guard_boundary_decision`
+already returns a refusing `GuardDecision` on any exception ("an unknown
+ceiling is not an absent ceiling"), `loop.read_spend` already never raises and
+signals `readable=False` which the caller treats as a reason to stop, and both
+`token_monitor._budget_view` and `projection.budget_status` already catch
+`BudgetError`. The only surface that raised where it should report was
+`limit_provenance`, which this packet introduced; it is now the one thing that
+can still name the broken file when everything else says "unavailable".
+
+**Unreadable is not absent, on either path.** Admission refuses; reporting says
+`None`. Neither falls through to the branch where the environment decides
+alone, because that fallthrough is exactly how corrupting a file would buy back
+an unadmitted widening. Verified with a corrupt document plus
+`DAEDALUS_BUDGET_USD=999999`, `DAEDALUS_BUDGET_MAX_CALLS=1000000` and an
+unbounded `DAEDALUS_EXECUTION_LIMIT_POLICY`: every reported effective value is
+`None`, `unadmitted_widening` is `False`, and mutation M11 -- reporting the
+environment's number instead -- turns the suite red.
+
+Every refusal message carries `REPAIR_ADMITTED_SETTINGS`: which file, what
+parse error, and that no new spend or work admission will be accepted until it
+is repaired or removed while read-only inspection keeps working.
 
 **An already issued contract is not rewritten** (section 4.1, verbatim). The
 `ceiling_usd=`, `max_calls=`, `execution_limit_policy=` and
@@ -234,6 +285,18 @@ stated:
 15. **Refusal.** An unusable environment value still refuses when a document
     exists.
 16. An unstated axis in a partial document imposes no bound.
+16a. **Refusal, narrowed.** A corrupt document stops `state`, `reserve` and
+    `open_envelope`.
+16b. A corrupt document does not stop `limit_provenance`, which reports the
+    path, the parse error and the repair sentence.
+16c. **Unreadable is not absent.** A corrupt document plus a hostile ambient
+    environment reports every axis as `None`, never the environment's number.
+16d. The report shape is identical whether or not the resolution succeeded, and
+    is JSON-serializable either way.
+16e. An unusable *variable* is reported without blaming the document.
+16f. The three read-only surfaces the tree actually has -- `token-monitor`
+    (view and rendering), `loop.read_spend`, `projection.budget_status` --
+    still run with a corrupt document and each names the file to repair.
 17. **Section 4.1, end to end.** A widening `save_settings` raises naming
     `confirm_widening` and `period_ceiling_usd` and leaves **no** document
     behind; the confirmed save writes one; the kernel then reads `500.0`.
@@ -266,17 +329,19 @@ run with `-x`. Command: `docs/evidence/G1-SETTINGS-02/mutations.py`.
 
 | mutation | file | result |
 | --- | --- | --- |
-| M1 the document is never read | ledger.py | 1 failed in 0.69s |
-| M2 the environment wins outright again | ledger.py | 1 failed, 3 passed in 0.72s |
-| M3 caps compose by AND instead of OR | ledger.py | 1 failed, 4 passed in 0.83s |
-| M4 a corrupt document falls back to the environment | ledger.py | 1 failed, 11 passed in 0.81s |
-| M5 an issued contract is re-resolved from the document | ledger.py | 1 failed, 28 passed in 1.50s |
-| M6 an absent variable asserts bounded over the document | ledger.py | 1 failed, 1 passed in 0.72s |
-| M7 the retired boolean is invisible to the projection again | settings_inventory.py | 1 failed, 58 passed in 1.64s |
-| M8 env-only rows report raw text again | settings_inventory.py | 1 failed, 80 passed in 1.87s |
-| M9 the trust parse is re-derived instead of reused | sensitivity.py | 1 failed, 90 passed in 1.91s |
+| M1 the document is never read | ledger.py | 1 failed in 0.84s |
+| M2 the environment wins outright again | ledger.py | 1 failed, 3 passed in 0.75s |
+| M3 caps compose by AND instead of OR | ledger.py | 1 failed, 4 passed in 0.93s |
+| M4 a corrupt document falls back to the environment | ledger.py | 1 failed, 11 passed in 0.74s |
+| M5 an issued contract is re-resolved from the document | ledger.py | 1 failed, 35 passed in 1.63s |
+| M6 an absent variable asserts bounded over the document | ledger.py | 1 failed, 1 passed in 0.71s |
+| M7 the retired boolean is invisible to the projection again | settings_inventory.py | 1 failed, 65 passed in 1.77s |
+| M8 env-only rows report raw text again | settings_inventory.py | 1 failed, 87 passed in 1.85s |
+| M10 the reporting surface raises like an admission path | ledger.py | 1 failed, 13 passed in 0.75s |
+| M11 the report treats an unreadable document as an absent one | ledger.py | 1 failed, 14 passed in 0.78s |
+| M9 the trust parse is re-derived instead of reused | sensitivity.py | 1 failed, 97 passed in 1.96s |
 
-Nine of nine turn red. No guard here is decorative.
+Eleven of eleven turn red. No guard here is decorative.
 
 ## Cost, measured 2026-09-11
 
@@ -384,16 +449,24 @@ tree. Not caused by this work and not fixed by it.
 
 ## Review questions
 
-- Is "strictest wins" right for `max_calls`, where a *lower* cap is not always
-  the safer operational choice, only the cheaper one? The packet argues the
-  monetary reading; a reviewer who disagrees should say so explicitly.
-- `AdmittedSettingsUnreadable` makes a corrupt desktop document refuse in every
-  CLI process on the same machine. Is that fail-closed, or is it a denial of
-  service against a user who cannot then run the tool that would repair it?
-  (The desktop settings UI itself stays available: `load()` catches the error
-  and reports it, which is the existing repair path.)
+Two earlier questions were put to the coordinator and answered on 2026-09-11;
+both answers are implemented and recorded above, not left open:
+
+- *Is strictest-wins right for `max_calls`?* Yes, and uniformly. See
+  "Strictest-wins is uniform across all eight axes".
+- *Is `AdmittedSettingsUnreadable` a self-inflicted denial of service?* It was.
+  The refusal is now narrowed to the spend and work-admission paths, and the
+  reporting surface never raises. See "A present, unusable document is a
+  refusal, and the refusal is narrow".
+
+Open, for the independent reviewer:
+
 - Does `document_present` belong on `describe_settings`, or should the
   projection take the resolved provenance from a `Ledger` instead and stop
   reproducing the composition at all?
 - Is `token_monitor` the right first reporting surface, or should
   `GET /api/desktop/settings` carry `limit_provenance` now?
+- `limit_provenance` catches `BudgetUnavailable` and reports it. Is there a
+  `BudgetUnavailable` a *reporting* caller should still see raised -- a
+  corrupt ledger file, say -- or is "report everything, decide nothing" the
+  right contract for a surface that admits nothing?

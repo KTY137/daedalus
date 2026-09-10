@@ -94,6 +94,7 @@ __all__ = [
     "ENV_PERIOD",
     "ENV_PERIOD_CEILING_ENABLED",
     "Ledger",
+    "REPAIR_ADMITTED_SETTINGS",
     "Reservation",
     "SOURCE_ADMITTED_DOCUMENT",
     "SOURCE_COMPOSED",
@@ -695,6 +696,15 @@ SOURCES: tuple[str, ...] = (
 )
 
 
+#: Appended to every refusal below. An operator who hits one needs to know
+#: WHICH file to repair and what the blast radius is; "refused" with no
+#: remedy is how a fail-closed guard becomes an outage nobody can end.
+REPAIR_ADMITTED_SETTINGS = (
+    "no new spend or work admission will be accepted until it is repaired or "
+    "removed; read-only inspection still works and reports this"
+)
+
+
 class AdmittedSettingsUnreadable(BudgetUnavailable):
     """The admitted settings document is present but cannot be trusted.
 
@@ -704,6 +714,22 @@ class AdmittedSettingsUnreadable(BudgetUnavailable):
     is therefore a REFUSAL, exactly like a corrupt ledger. An ABSENT document
     is the one benign case -- it is an unambiguous "the owner admitted nothing
     here", and the environment and code default answer as they always did.
+
+    WHERE IT REFUSES, AND WHERE IT DOES NOT. Raising this out of every reader
+    would turn one bad file into total unavailability -- and it would be a
+    failure mode introduced by making the kernel read that document at all,
+    since before this packet a corrupt document broke only the desktop. So it
+    is raised where a SPEND or a WORK ADMISSION consults the cap
+    (:meth:`Ledger.ceiling_usd`, :meth:`Ledger.max_calls`,
+    :meth:`Ledger.execution_limit_policy`, and therefore :meth:`Ledger.state`,
+    :meth:`Ledger.reserve` and :meth:`Ledger.open_envelope`), and NOT out of
+    :meth:`Ledger.limit_provenance`, which is the reporting surface and reports
+    the path, the parse error and an unknown value for every axis.
+
+    An unreadable document is NOT an absent one on either path. Admission
+    refuses; reporting says ``None``. Neither falls through to the branch where
+    the environment decides alone, because that fallthrough is precisely how
+    corrupting a file would buy back an unadmitted widening.
     """
 
 
@@ -747,18 +773,21 @@ def load_admitted_settings(
     except (OSError, UnicodeDecodeError) as exc:
         raise AdmittedSettingsUnreadable(
             f"admitted desktop settings '{path}' cannot be read ({exc}); "
-            "refusing to fall back to an unadmitted environment"
+            "refusing to fall back to an unadmitted environment; "
+            + REPAIR_ADMITTED_SETTINGS
         ) from exc
     try:
         raw = json.loads(text)
     except (json.JSONDecodeError, ValueError) as exc:
         raise AdmittedSettingsUnreadable(
             f"admitted desktop settings '{path}' are corrupt ({exc}); "
-            "refusing to fall back to an unadmitted environment"
+            "refusing to fall back to an unadmitted environment; "
+            + REPAIR_ADMITTED_SETTINGS
         ) from exc
     if not isinstance(raw, dict):
         raise AdmittedSettingsUnreadable(
-            f"admitted desktop settings '{path}' are not an object; refusing"
+            f"admitted desktop settings '{path}' are not an object; refusing; "
+            + REPAIR_ADMITTED_SETTINGS
         )
 
     ceiling: float | None = None
@@ -768,7 +797,7 @@ def load_admitted_settings(
         if not isinstance(budget, dict):
             raise AdmittedSettingsUnreadable(
                 f"admitted desktop settings '{path}' have a non-object "
-                "'budget' section; refusing"
+                "'budget' section; refusing; " + REPAIR_ADMITTED_SETTINGS
             )
         if "period_ceiling_usd" in budget:
             try:
@@ -779,14 +808,16 @@ def load_admitted_settings(
                 )
             except BudgetUnavailable as exc:
                 raise AdmittedSettingsUnreadable(
-                    f"admitted desktop settings '{path}': {exc}"
+                    f"admitted desktop settings '{path}': {exc}; "
+                    + REPAIR_ADMITTED_SETTINGS
                 ) from exc
         if "max_calls" in budget:
             value = budget["max_calls"]
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise AdmittedSettingsUnreadable(
                     f"admitted desktop settings '{path}': budget.max_calls="
-                    f"{value!r} is not a usable call cap (must be an int > 0)"
+                    f"{value!r} is not a usable call cap (must be an int > 0); "
+                    + REPAIR_ADMITTED_SETTINGS
                 )
             max_calls = int(value)
 
@@ -798,7 +829,8 @@ def load_admitted_settings(
         except LimitPolicyError as exc:
             raise AdmittedSettingsUnreadable(
                 f"admitted desktop settings '{path}': invalid execution limit "
-                f"policy ({exc}); refusing to guess which caps are enforced"
+                f"policy ({exc}); refusing to guess which caps are enforced; "
+                + REPAIR_ADMITTED_SETTINGS
             ) from exc
 
     return AdmittedSettings(
@@ -1118,13 +1150,26 @@ class Ledger:
         was refused a widening is VISIBLE rather than silent, and so that a
         process can say which of the two inputs produced the number it is
         about to spend against.
+
+        NEVER RAISES, exactly because it is the reporting surface. When the
+        resolution refuses -- an unreadable admitted document, an unusable
+        variable -- this says so, names the file, and reports every axis as
+        unknown. It never reports the environment's number in that case: an
+        unreadable document is not an absent one, and treating it as one is
+        how corrupting a file would buy back the widening this packet closes.
         """
 
-        resolved = self._resolve_limits()
+        try:
+            resolved = self._resolve_limits()
+        except BudgetUnavailable as exc:
+            return self._unresolved_provenance(exc)
         return {
+            "resolved": True,
             "admitted_document": (
                 None if resolved.admitted_path is None else str(resolved.admitted_path)
             ),
+            "admitted_document_unreadable": "",
+            "unresolved_reason": "",
             "unadmitted_widening": resolved.unadmitted_widening,
             "period_ceiling_usd": {
                 "effective": resolved.ceiling_usd,
@@ -1146,6 +1191,40 @@ class Ledger:
                 "source": resolved.policy_source,
                 "refused_environment_axes": list(resolved.refused_policy_axes),
                 "unadmitted_disabled_axes": list(resolved.unadmitted_disabled_axes),
+                "environment_variable": ENV_EXECUTION_LIMIT_POLICY,
+            },
+        }
+
+    def _unresolved_provenance(self, exc: BudgetUnavailable) -> dict[str, Any]:
+        """The same report shape when nothing could be resolved.
+
+        Every effective value is ``None``. Reporting the environment's number
+        here would be the exact fallthrough the refusal exists to prevent, so
+        the honest answer to "what is the ceiling" while the admitted document
+        is unreadable is "unknown", not "999999 because a variable said so".
+        """
+
+        unreadable = isinstance(exc, AdmittedSettingsUnreadable)
+        unknown = {
+            "effective": None,
+            "source": None,
+            "refused_environment_value": None,
+            "unadmitted_widening": False,
+        }
+        return {
+            "resolved": False,
+            "admitted_document": str(admitted_settings_path(self._runtime_root)),
+            "admitted_document_unreadable": str(exc) if unreadable else "",
+            "unresolved_reason": str(exc),
+            "unadmitted_widening": False,
+            "period_ceiling_usd": {**unknown, "environment_variable": ENV_CEILING},
+            "max_calls": {**unknown, "environment_variable": ENV_MAX_CALLS},
+            "execution_limit_policy": {
+                "mode": None,
+                "effective_axes": None,
+                "source": None,
+                "refused_environment_axes": [],
+                "unadmitted_disabled_axes": [],
                 "environment_variable": ENV_EXECUTION_LIMIT_POLICY,
             },
         }

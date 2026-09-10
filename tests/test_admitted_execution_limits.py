@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -305,14 +306,19 @@ def test_an_unadmitted_narrowing_is_not_reported_as_a_widening(
 # --------------------------------------------------------------------------- #
 
 
+def _corrupt(root: Path) -> Path:
+    target = root / ADMITTED_SETTINGS_REL
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("{ not json", encoding="utf-8")
+    return target
+
+
 def test_a_corrupt_document_refuses_instead_of_falling_back_to_the_environment(
     tmp_path, monkeypatch
 ):
     """Fail-closed, or corrupting the file is an escape hatch from the bound."""
 
-    target = tmp_path / ADMITTED_SETTINGS_REL
-    target.parent.mkdir(parents=True)
-    target.write_text("{ not json", encoding="utf-8")
+    _corrupt(tmp_path)
     monkeypatch.setenv("DAEDALUS_BUDGET_USD", "999999")
     ledger = Ledger(runtime_root=tmp_path)
 
@@ -322,6 +328,165 @@ def test_a_corrupt_document_refuses_instead_of_falling_back_to_the_environment(
         ledger.max_calls()
     with pytest.raises(AdmittedSettingsUnreadable):
         ledger.execution_limit_policy()
+
+
+# --------------------------------------------------------------------------- #
+# The refusal is narrowed: it stops a SPEND, not a READ                       #
+# --------------------------------------------------------------------------- #
+
+
+def test_a_corrupt_document_stops_every_spend_and_work_admission(tmp_path):
+    """One bad file must fail closed where money moves."""
+
+    from daedalus.kernel.policy.pricing import Estimate
+
+    _corrupt(tmp_path)
+    ledger = Ledger(tmp_path / "ledger.json", runtime_root=tmp_path)
+
+    with pytest.raises(AdmittedSettingsUnreadable):
+        ledger.state()
+    with pytest.raises(AdmittedSettingsUnreadable):
+        ledger.reserve(
+            Estimate("deepseek", "m", 0.01, 1, "priced"), label="blocked"
+        )
+    with pytest.raises(AdmittedSettingsUnreadable):
+        ledger.open_envelope(label="blocked", cap_usd=1.0)
+
+
+def test_a_corrupt_document_does_not_break_read_only_reporting(tmp_path):
+    """One bad file must NOT become total unavailability.
+
+    Before this packet a corrupt desktop document broke only the desktop.
+    Making the kernel read it must not convert that into every CLI on the
+    machine refusing, so the reporting surface still answers -- and answers
+    with the file to repair.
+    """
+
+    target = _corrupt(tmp_path)
+    report = Ledger(runtime_root=tmp_path).limit_provenance()
+
+    assert report["resolved"] is False
+    assert report["admitted_document"] == str(target)
+    assert str(target) in report["admitted_document_unreadable"]
+    assert "corrupt" in report["admitted_document_unreadable"]
+    assert (
+        "no new spend or work admission will be accepted"
+        in report["admitted_document_unreadable"]
+    )
+
+
+def test_an_unreadable_document_is_never_reported_as_an_absent_one(
+    tmp_path, monkeypatch
+):
+    """The actual bug behind the question: unreadable is not absent.
+
+    Admission refuses and reporting says ``None``.  Neither may fall through to
+    the branch where the environment decides alone, because that fallthrough is
+    how corrupting a file would buy back an unadmitted widening.
+    """
+
+    _corrupt(tmp_path)
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "999999")
+    monkeypatch.setenv("DAEDALUS_BUDGET_MAX_CALLS", "1000000")
+    monkeypatch.setenv("DAEDALUS_EXECUTION_LIMIT_POLICY", _policy_env(UNBOUNDED))
+    report = Ledger(runtime_root=tmp_path).limit_provenance()
+
+    assert report["period_ceiling_usd"]["effective"] is None
+    assert report["max_calls"]["effective"] is None
+    assert report["execution_limit_policy"]["mode"] is None
+    assert report["execution_limit_policy"]["effective_axes"] is None
+    assert report["unadmitted_widening"] is False
+    for axis in ("period_ceiling_usd", "max_calls"):
+        assert report[axis]["source"] is None, axis
+
+
+def test_the_report_shape_is_the_same_whether_or_not_it_resolved(tmp_path):
+    """A caller must not have to branch on two different report shapes."""
+
+    resolved = Ledger(runtime_root=tmp_path).limit_provenance()
+    _corrupt(tmp_path)
+    unresolved = Ledger(runtime_root=tmp_path).limit_provenance()
+
+    assert set(resolved) == set(unresolved)
+    for axis in ("period_ceiling_usd", "max_calls", "execution_limit_policy"):
+        assert set(resolved[axis]) == set(unresolved[axis]), axis
+    assert resolved["resolved"] is True
+    assert json.dumps(unresolved)  # JSON-serializable, like the resolved shape
+
+
+def test_an_unusable_variable_is_reported_without_blaming_the_document(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "free")
+    report = Ledger(runtime_root=tmp_path).limit_provenance()
+
+    assert report["resolved"] is False
+    assert report["admitted_document_unreadable"] == ""
+    assert "DAEDALUS_BUDGET_USD" in report["unresolved_reason"]
+    assert report["period_ceiling_usd"]["effective"] is None
+
+
+def test_the_read_only_surfaces_still_run_with_a_corrupt_document(
+    tmp_path, monkeypatch
+):
+    """The three read paths the tree actually has, exercised end to end."""
+
+    from daedalus import budget as budget_kernel
+    from daedalus.interfaces.cli import token_monitor
+    from daedalus.orchestration import loop as loop_module
+
+    _corrupt(tmp_path)
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "999999")
+    monkeypatch.setattr(
+        token_monitor,
+        "REPO_ROOT",
+        token_monitor.REPO_ROOT,
+    )
+
+    # 1. token-monitor: runs, reports unavailable, and names the file.
+    def _ledger(**kwargs):
+        return Ledger(tmp_path / "ledger.json", runtime_root=tmp_path)
+
+    monkeypatch.setattr(budget_kernel, "Ledger", _ledger)
+    view = token_monitor._budget_view()
+    assert view["available"] is False
+    rendered = token_monitor._render_budget_view(view)
+    assert "budget: unavailable" in rendered
+    assert str(tmp_path / ADMITTED_SETTINGS_REL) in rendered
+    assert "no new spend or work admission will be accepted" in rendered
+
+    # 2. the loop's spend probe: never raises, reports unreadable, which the
+    #    caller treats as a reason to STOP rather than to continue.
+    monkeypatch.setattr(budget_kernel, "ledger", _ledger)
+    spend = loop_module.read_spend()
+    assert spend.readable is False
+    assert spend.spent_usd == 0.0
+    assert "AdmittedSettingsUnreadable" in spend.error
+
+
+def test_the_desktop_status_projection_reports_instead_of_raising(tmp_path):
+    """The third read path: the desktop's own status panel."""
+
+    from daedalus.interfaces.desktop import projection
+
+    _corrupt(tmp_path)
+    document = defaults()
+    manager = SimpleNamespace(config=document, _budget_policy_error="")
+    fake_kernel = SimpleNamespace(
+        BudgetError=BudgetUnavailable.__mro__[1],
+        ledger=lambda: Ledger(tmp_path / "ledger.json", runtime_root=tmp_path),
+    )
+    status = projection.budget_status(
+        manager,
+        budget_kernel=fake_kernel,
+        execution_limit_policy=ExecutionLimitPolicy,
+    )
+
+    assert status["available"] is False
+    assert str(tmp_path / ADMITTED_SETTINGS_REL) in status["last_error"]
+    assert (
+        "no new spend or work admission will be accepted" in status["last_error"]
+    )
 
 
 @pytest.mark.parametrize(
