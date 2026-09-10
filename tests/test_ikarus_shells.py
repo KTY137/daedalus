@@ -89,6 +89,12 @@ def setUpModule():
             ikarus_os, "_llm",
             return_value=(_PINNED_VOICE_REPLY, "pinned-model",
                           ikarus_os._EMPTY_CTX)),
+        # G1-IKARUS-46: the Hand this module tests is the file-bridge queue.
+        # `_computer_hand` reads the owner's computer policy from the control
+        # root; pinned to "no loop" so a host that has configured computer
+        # assistance cannot flip these routing verdicts. The loop route has
+        # its own suite (tests/test_ikarus_computer_dispatch.py).
+        mock.patch.object(ikarus_os, "_computer_hand", return_value=None),
     ))
     for pin in _VOICE_PINS:
         pin.start()

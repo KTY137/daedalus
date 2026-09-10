@@ -16,6 +16,21 @@ from daedalus.orchestration.ikarus import shell as ikarus_os
 from daedalus.providers import ollama as ollama_mod
 from daedalus.providers._openai_compat import ProviderHTTPError, chat_stream
 
+# G1-IKARUS-46: this module streams the file-bridge queue offer. `_computer_hand`
+# reads the owner's computer policy from the control root, so it is pinned to
+# "no loop" here (MEASURED 2026-09-10: a configured loop on the authority root
+# flipped `lane` to `computer`); the loop route has its own suite,
+# tests/test_ikarus_computer_dispatch.py.
+_HAND_PIN = mock.patch.object(ikarus_os, "_computer_hand", return_value=None)
+
+
+def setUpModule():
+    _HAND_PIN.start()
+
+
+def tearDownModule():
+    _HAND_PIN.stop()
+
 
 def _sse(chunks):
     """Build an OpenAI-style streaming body from text pieces."""

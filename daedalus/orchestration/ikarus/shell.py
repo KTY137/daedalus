@@ -285,7 +285,8 @@ def classify(message: str) -> str:
                             "watcher", "health check", "alive", "pending", "in flight")):
         return "status"
     if any(k in t for k in ("build ", "add ", "fix ", "implement", "create ",
-                            "write ", "refactor ", "make ", "generate ")):
+                            "write ", "refactor ", "make ", "generate ",
+                            "improve ", "extend ", "develop ")):
         return "enqueue"
     # Localised AFFORDANCE only. The independent may_act predicate still owns
     # capability and can refuse a question such as "kannst du das bauen?".
@@ -481,6 +482,13 @@ def _ask_inner(project: str, message: str, provider: str | None = None,
             # THE ONLY DOOR TO THE HAND SHELL, and `act.allowed` is true on
             # every path that reaches it (see _route). `provider` is not passed:
             # the executor is the system's choice, not the request's.
+            run = _confirmed_computer_run(project, act)
+            if run is not None:
+                # G1-IKARUS-46: a confirmed offer runs through the SAME command
+                # route the cockpit's click and a typed `/computer run` take.
+                for event, payload in conversation_events(project, run):
+                    if event == "final":
+                        return payload
             return _enqueue(project, act.objective or message, act=act)
         if act.suspected:
             # The Voice REPORTING what may_act said, not the Voice judging.
@@ -686,6 +694,110 @@ def _reply_in_german(message: str) -> bool:
     )
 
 
+#: The authority root the computer loop binds its policy to -- the Daedalus
+#: checkout that runs this server, exactly as ``computer_loop.conversation_events``
+#: derives it. One derivation, so the offer and the run read the same policy.
+_COMPUTER_AUTHORITY_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _computer_hand(project: str) -> dict | None:
+    """The computer loop's capability for THIS project, or ``None``.
+
+    G1-IKARUS-46. ``None`` means "not available": no owner policy, every
+    configured tool unavailable on this host, or the status read failing for
+    any reason. This never raises and never touches a network: it reads the
+    owner's computer policy from the control root through the same
+    ``computer_status`` projection ``/computer status`` renders, so the offer
+    the chat makes names exactly the planner and tools the run will get.
+    """
+    try:
+        from ...runtimes.computer import computer_status
+        from .computer_loop import project_readers
+
+        caps = computer_status(_COMPUTER_AUTHORITY_ROOT, project=project,
+                               project_readers=project_readers())
+    except Exception:
+        return None
+    if caps.get("enabled") is not True:
+        return None
+    tools = [tool.get("name") for tool in caps.get("tools", []) if isinstance(tool, dict)]
+    return {
+        "planner": {"provider": caps.get("planner_provider"),
+                    "model": caps.get("planner_model"),
+                    "remote_context": caps.get("allow_remote_context") is True},
+        "tools": [name for name in tools if isinstance(name, str)],
+        "workspace": caps.get("workspace"),
+        "policy_sha256": caps.get("policy_sha256"),
+        "max_steps": caps.get("max_steps"), "timeout_s": caps.get("timeout_s"),
+    }
+
+
+def _computer_offer(project: str, objective: str, act: ActDecision | None,
+                    computer: dict, *, german: bool) -> dict:
+    """Propose the objective as a confirm-gated computer task.
+
+    The action names the exact chat message the confirmation sends
+    (``/computer run <objective>``): the cockpit's click and a typed "ja" both
+    re-enter ``conversation_events`` through it, so the executor the offer
+    describes is the one that runs. ``act_offer`` is stamped so the next
+    turn's bare affirmative can confirm THIS objective and nothing else.
+    """
+    from .computer_loop import run_command
+
+    message = run_command(objective)
+    planner = computer["planner"]
+    planner_line = str(planner.get("provider") or "?")
+    if planner.get("model"):
+        planner_line += f" ({planner['model']})"
+    tools = ", ".join(f"`{name}`" for name in computer["tools"]) or "keine"
+    action = {
+        "kind": "computer_task",
+        "args": {"project": project, "objective": objective, "lane": "computer",
+                 "message": message, "planner": dict(planner),
+                 "tools": list(computer["tools"])},
+        "requires_confirmation": True,
+    }
+    if german:
+        reply = (
+            f"Ich kann das als Computer-Auftrag im Daedalus-Loop ausführen: „{objective[:140]}“. "
+            f"Planner: {planner_line}"
+            f"{' (Beobachtungen verlassen den Rechner)' if planner.get('remote_context') else ''}. "
+            f"Werkzeuge: {tools}. Erst dein Klick oder ein „ja“ startet den Lauf; jeder Schritt wird "
+            "beobachtet, belegt und hier gezeigt. Ein Abschluss des Planners ist ein Vorschlag, kein Beweis."
+        )
+    else:
+        reply = (
+            f"I can run this as a computer task in the Daedalus loop: “{objective[:140]}”. "
+            f"Planner: {planner_line}"
+            f"{' (observations leave this machine)' if planner.get('remote_context') else ''}. "
+            f"Tools: {tools}. Only your click or a “yes” starts the run; every step is observed, "
+            "evidenced and shown here. The planner's finish is a proposal, not proof."
+        )
+    extra = {"act": act.to_dict()} if act is not None else {}
+    return core.envelope(
+        project, intent="enqueue", shell=SHELL_HAND, assistant=reply, action=action,
+        provider_used="deterministic", computer=dict(computer),
+        act_offer={"objective": objective, "reason": "computer task offered",
+                   "signal": "computer_task"},
+        **extra)
+
+
+def _confirmed_computer_run(project: str, act: ActDecision | None) -> str | None:
+    """The ``/computer run`` message a confirmed act re-enters through, or None.
+
+    Only a CONFIRMATION (``act.confirmation_of``, i.e. a bare "ja" answering
+    the offer of the previous turn) and only while the loop is available for
+    the project; an unconfirmed imperative still gets an offer, never a run.
+    """
+    if act is None or not act.allowed or not act.confirmation_of:
+        return None
+    if _computer_hand(project) is None:
+        return None
+    from .computer_loop import run_command
+
+    return run_command(act.confirmation_of)
+
+
 def _hand_lane(project: str) -> str:
     """Project-owned executor lane, fail-closed to ``local_only``.
 
@@ -788,6 +900,13 @@ def _enqueue(project: str, message: str, act: ActDecision | None = None) -> dict
     confirmed = bool(act is not None and act.confirmation_of)
     lane = _hand_lane(project)
     german = _reply_in_german(objective)
+    # G1-IKARUS-46: when the owner has configured computer assistance, the
+    # loop IS the Hand -- observe, propose, admit, act, verify under the
+    # computer policy -- and the offer says so. The file-bridge queue below
+    # stays the executor only while no loop is available, visibly.
+    computer = _computer_hand(project)
+    if computer is not None:
+        return _computer_offer(project, objective, act, computer, german=german)
     # Local liveness is clearance only for a lane that forbids fallback. A
     # project-owned non-local lane must not be refused because Ollama is down.
     hand = _hand_state(probe=confirmed) if lane == "local_only" else None
@@ -3627,6 +3746,14 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         intent = "chat"
     act = _decide(message, intent, conversation_id)
     route = _route(intent, act)
+
+    if route == "enqueue":
+        run = _confirmed_computer_run(project, act)
+        if run is not None:
+            # G1-IKARUS-46: a typed confirmation streams the loop's progress
+            # exactly like `/computer run`; nothing is queued behind a click.
+            yield from conversation_events(project, run, cancelled=computer_cancelled)
+            return
 
     # Deterministic lanes: no token stream to give, just compute and finish.
     # ``route``, not ``intent`` — an enqueue-classified message the capability

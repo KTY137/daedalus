@@ -47,7 +47,23 @@ _MAX_CONSECUTIVE_REPAIRS = 2
 _STALL_OBSERVATIONS = 3
 _MAX_PLANS_PER_STEP = 4
 _READ_TOOLS = frozenset({"file.list", "file.read", "vision.inspect", "vision.match",
-                         "vision.changes", "vision.ocr", "desktop.observe", "browser.read"})
+                         "vision.changes", "vision.ocr", "desktop.observe", "browser.read",
+                         # G1-IKARUS-46: identical project observations are a stall, not progress.
+                         "daedalus.status", "daedalus.structure", "daedalus.slice",
+                         "daedalus.docrefs", "daedalus.tasks"})
+#: ``/computer run <objective>`` executes the objective verbatim, even when its
+#: first word collides with a subcommand ("status", "queue", "task", ...). The
+#: chat's confirmed offers use this form so an objective can never be parsed
+#: as a command (G1-IKARUS-46).
+RUN_VERB = "run"
+
+
+def run_command(objective: str) -> str:
+    """The exact chat message that executes ``objective`` as a computer task."""
+    text = " ".join(str(objective or "").split())
+    if not text:
+        raise ComputerLoopRefused("computer objective must not be empty")
+    return f"/computer {RUN_VERB} {text}"
 # The planner providers the policy admits (kernel/policy/computer.py) and the two that
 # stay on this machine. Choosing any other one sends observations to a vendor (G1-IKARUS-43).
 _PLANNER_PROVIDERS = frozenset({"ollama_http", "ollama", "claude_code_cli", "codex_cli", "deepseek"})
@@ -1120,17 +1136,87 @@ def _repeat_request(argument: str) -> tuple[int, int, str]:
     return seconds, count, parts[2]
 
 
+def project_readers():
+    """The status/bridge readers for the daedalus.* observations (G1-IKARUS-46).
+
+    Built HERE, inside the orchestration layer that already imports the status
+    and file-bridge modules, and handed to the service: neither
+    ``runtimes.computer`` nor ``runtimes.computer_daedalus`` may import them,
+    or the runtimes package joins the orchestration import cycle the census
+    pins (MEASURED 2026-09-10: 19 -> 20/21 modules when they did).
+    """
+    from ...file_bridge import _project_report_briefs, bridge_status
+    from ...runtimes.computer_daedalus import GIT_TIMEOUT_S, ProjectReaders
+    from ...status import collect_status
+    return ProjectReaders(
+        git_counters=lambda root: collect_status(root, git_timeout_s=GIT_TIMEOUT_S),
+        bridge_status=bridge_status, report_briefs=_project_report_briefs)
+
+
+def _run_objective(project: str | None, root: Path, objective: str,
+                   cancelled: Callable[[], bool] | None) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Execute one objective through the loop; the only place a service is built for a task."""
+    from ... import core
+    from ...runtimes.computer import ComputerService
+    service = ComputerService(root, project=project, project_readers=project_readers())
+    try:
+        for event, payload in computer_events(root, objective, service=service, cancelled=cancelled):
+            if event == "final":
+                yield "final", core.envelope(project, intent="computer", shell="hand",
+                                             assistant=_chat_report(payload), provider_used="computer-policy", computer=payload)
+            else:
+                yield event, payload
+    finally:
+        service.close()
+
+
 def conversation_events(project: str | None, message: str, *,
                         cancelled: Callable[[], bool] | None = None) -> Iterator[tuple[str, dict[str, Any]]]:
     """Explicit chat command; chat-selected providers never select tool authority."""
     from ... import core
-    from ...runtimes.computer import ComputerService
     root = Path(__file__).resolve().parents[3]
     command = message.strip().split(maxsplit=1)
     objective = command[1].strip() if len(command) > 1 else "status"
     yield "start", {"intent": "computer", "shell": "hand", "provider_used": "computer-policy"}
     try:
         verb, _, argument = objective.partition(" ")
+        explicit_run = verb.casefold() == RUN_VERB
+        if explicit_run:
+            # G1-IKARUS-46: the verbatim objective, past every subcommand below.
+            objective = argument.strip()
+            if not objective:
+                raise ComputerLoopRefused("Use /computer run <objective>")
+            yield from _run_objective(project, root, objective, cancelled)
+            return
+        if verb.casefold() in {"enable", "disable"}:
+            # G1-IKARUS-46: an explicit owner grant of the read-only daedalus.*
+            # family, through the same compare-and-replace path as /computer
+            # planner and /computer configure. Nothing here widens by default:
+            # a fresh setup still stores no tool grants.
+            from ...kernel.policy.computer import DAEDALUS_TOOLS
+            from ...runtimes.computer import computer_status
+            from ...interfaces.computer_configuration import configure_computer
+            if argument.strip().casefold() != "daedalus":
+                raise ComputerLoopRefused("Use /computer enable daedalus or /computer disable daedalus")
+            caps = computer_status(root, project=project, project_readers=project_readers())
+            current, digest = caps.get("configuration"), caps.get("policy_sha256")
+            if not isinstance(current, dict) or not digest:
+                raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
+            tools = [tool for tool in current.get("tools", []) if tool not in DAEDALUS_TOOLS]
+            if verb.casefold() == "enable":
+                tools.extend(DAEDALUS_TOOLS)
+            payload = dict(current)
+            payload["tools"] = tools
+            configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=digest)
+            granted = ", ".join(f"`{tool}`" for tool in DAEDALUS_TOOLS)
+            summary = (f"Read-only Daedalus tools enabled for the registered project (Policy `{configured.get('policy_sha256')}`): {granted}. "
+                       "They observe the project; they cannot write, launch or send anything."
+                       if verb.casefold() == "enable" else
+                       f"Daedalus tools removed from the policy (Policy `{configured.get('policy_sha256')}`).")
+            yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
+                                         assistant=summary,
+                                         computer={**configured, "daedalus_tools": verb.casefold() == "enable"})
+            return
         if verb.casefold() in {"tasks", "task"}:
             from .computer_history import list_computer_tasks, computer_task
             if verb.casefold() == "task":
@@ -1284,7 +1370,7 @@ def conversation_events(project: str | None, message: str, *,
             return
         if objective.casefold() in {"status", "help"}:
             from ...runtimes.computer import computer_status
-            caps = computer_status(root)
+            caps = computer_status(root, project=project, project_readers=project_readers())
             enabled = caps.get("enabled") is True
             summary = ("Computer assistance is configured. Use /computer followed by your task."
                        if enabled else
@@ -1316,20 +1402,12 @@ def conversation_events(project: str | None, message: str, *,
                         "`/computer queue <task>`, `/computer every <30m> <count> <task>`, "
                         "`/computer cancel <schedule_id>`, `/computer tasks`, `/computer task <mission_id>`, "
                         "`/computer schedule <ISO8601> <task>`, `/computer scheduled`, `/computer run-due`, "
-                        "`/computer planner <provider> [model] [confirm-remote]`.")
+                        "`/computer planner <provider> [model] [confirm-remote]`, "
+                        "`/computer run <objective>`, `/computer enable daedalus`, `/computer disable daedalus`.")
             yield "final", core.envelope(project, intent="computer", shell="hand", assistant=summary,
                                          provider_used="deterministic", computer={"capabilities": caps})
             return
-        service = ComputerService(root)
-        try:
-            for event, payload in computer_events(root, objective, service=service, cancelled=cancelled):
-                if event == "final":
-                    yield "final", core.envelope(project, intent="computer", shell="hand",
-                                                 assistant=_chat_report(payload), provider_used="computer-policy", computer=payload)
-                else:
-                    yield event, payload
-        finally:
-            service.close()
+        yield from _run_objective(project, root, objective, cancelled)
     except Exception as exc:
         yield "final", core.envelope(project, intent="error", shell="hand",
                                      assistant=f"Computer assistance blocked: {type(exc).__name__}: {exc}",

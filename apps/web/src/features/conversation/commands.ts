@@ -26,7 +26,7 @@ export interface CommandSpec {
 }
 
 export const COMMANDS: readonly CommandSpec[] = [
-  { name: 'computer', arg: 'Aufgabe | queue | every | cancel | tasks | status', argOptional: true, summary: 'Aufgaben ausführen, dauerhaft einreihen, begrenzt wiederholen und ihren Fortschritt prüfen' },
+  { name: 'computer', arg: 'run Aufgabe | queue | every | cancel | tasks | status | enable daedalus', argOptional: true, summary: 'Aufgaben im Daedalus-Loop ausführen, dauerhaft einreihen, begrenzt wiederholen und ihren Fortschritt prüfen' },
   { name: 'status', summary: 'Projektzustand aus dem lokalen Index, ohne Modell' },
   { name: 'distill', summary: 'Struktur destillieren, ohne Modell' },
   { name: 'plan', arg: 'Frage', summary: 'Zeigt, was für diese Frage gelesen würde. Sendet nichts.' },

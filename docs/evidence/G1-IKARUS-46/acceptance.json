@@ -1,0 +1,105 @@
+{
+  "packet": "G1-IKARUS-46",
+  "measured_on": "2026-09-10",
+  "base_revision": "aae675f463d8334d09fa0f1fbd74fb30979280fc",
+  "suites": {
+    "packet and neighbouring suites, final tree (computer_daedalus, dispatch, loop, adversarial, stream, service, evidence_terminal, act, os, shells, schedule, schedule_autonomy)": "366 passed, 99 subtests",
+    "broad regression before the reader injection (tests/runtimes tests/interfaces tests/test_ikarus_*.py conversation/queue/llm_client tests/contracts tests/orchestration)": "2661 passed, 122 skipped, 14 xfailed, 3 failed: two fixed by the reader injection and the stream pin, one pre-existing (test_plan_and_replan_are_advisory_mission_bound_artifacts, identical on the untouched primary checkout)",
+    "pins, final tree (SCC census, work-packet index, s02 corpus, imports graph)": "see final_pins",
+    "cockpit": "tsc --noEmit clean; node src/app/run-spec.mjs 620/620"
+  },
+  "final_pins": "45 passed, 4 skipped: SCC census 520 modules / 2095 edges / 14 components / max 19 / component digest unchanged; work-packet registry 528 tracked files, packet G1-IKARUS-46 post_index; s02 kernel row re-pinned (7135 functions, 47421 type-name sites, marginal_functions 8); imports graph",
+  "mutation_table": "14/14 caught; see mutation-table.txt",
+  "live_run_ledger_rows": [
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.06959199999999999,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.069564,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.081588,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.10529999999999999,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.11208800000000001,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    }
+  ],
+  "files": {
+    "mutation-table.txt": "5eadd2cb9164fcbba2e18bcea035ad4e0efb9491ea91b3e7d76b6547b33edfab",
+    "mutate.py.txt": "d1bec16e04dd53f5c5ca2f49c7f3143bd0ed91390c334befb0554846bb5da0c9",
+    "s02-g1-ikarus-46-corpora-a.json.gz": "05d2f789bfb05f1d6c64f1238c19bcb72c73c835376f754363f7be682b0a0ed2",
+    "s02-g1-ikarus-46-corpora-b.json.gz": "9174fd0bfd9ab36f4bcf2b4073409380dae57924cd33baa9bca43cb38f2fc5d3",
+    "live-offer.json": "5659e2d1fef742e08aecc0224203cc250c5671966b04f353ef19825141f312ff",
+    "live-run-1-codex-blocked.json": "77d5f18f06a2eb587b0cfff24b7b3d57f0a22f25b31a27d938240a8b61f4dcbd",
+    "live-run-2-claude-budget-refused.json": "c1d9e2159eaadfbd7d2e4e11d36666e3f9d4b1d3bedd2d3575ff94cda534146c",
+    "live-run-3-claude.json": "6b025285eaeb7784124cde4354b2d26e798d6b1b378cfcae76abaa1a0b90904e"
+  }
+}

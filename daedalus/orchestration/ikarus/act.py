@@ -93,6 +93,9 @@ ACT_VERBS = frozenset({
     "build", "add", "fix", "implement", "create", "write", "refactor",
     "generate", "make", "queue", "delete", "remove", "rename", "rewrite",
     "run", "install",
+    # G1-IKARUS-46: the English siblings of the German improvement verbs
+    # added the same day (owner instruction 2026-09-10).
+    "improve", "extend", "develop",
 })
 
 #: Stripped from the FRONT only, so "please build X" reads as an imperative
@@ -129,6 +132,14 @@ _GERMAN_ACT = frozenset({
     "lies", "lese", "führ", "führe", "fuehr", "fuehre", "starte",
     "installier", "installiere", "aktualisier", "aktualisiere",
     "dokumentier", "dokumentiere", "optimier", "optimiere",
+    # G1-IKARUS-46, owner instruction 2026-09-10 ("verbessere Daedalus" and
+    # "code generation starten" are work orders): the improvement, extension,
+    # correction and construction imperatives that measured as plain chat on
+    # 2026-09-08. Still exact imperative forms only; "verbessern" stays a
+    # request form below and clears nothing on its own.
+    "verbesser", "verbessere", "erweiter", "erweitere", "ergänz", "ergänze",
+    "ergaenz", "ergaenze", "korrigier", "korrigiere", "entwickel", "entwickle",
+    "programmier", "programmiere",
 })
 
 # Broader conjugations are useful only for recognizing a directed or modal
@@ -141,6 +152,8 @@ _GERMAN_REQUEST_FORMS = _GERMAN_ACT | frozenset({
     "prüfen", "pruefen", "testen", "analysieren", "untersuchen", "ansehen",
     "suchen", "lesen", "führen", "fuehren", "starten", "installieren",
     "aktualisieren", "dokumentieren", "optimieren",
+    "verbessern", "erweitern", "ergänzen", "ergaenzen", "korrigieren",
+    "entwickeln", "programmieren",
 })
 
 #: A confirmation is the WHOLE message, compared after normalisation — never a

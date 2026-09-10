@@ -129,7 +129,7 @@ def test_explicit_configuration_is_not_a_planner_tool(monkeypatch):
 
 def test_status_displays_copyable_configuration_and_enabled_capability_limits(monkeypatch):
     from daedalus.runtimes import computer
-    monkeypatch.setattr(computer, "computer_status", lambda root: {
+    monkeypatch.setattr(computer, "computer_status", lambda root, project=None, project_readers=None: {
         "enabled": True, "workspace": "fixture-workspace", "tools": [{"name": "browser.read"}],
         "policy_sha256": "a" * 64, "configuration": {"schema": "fixture"},
         "browser_limits": "static pages only", "desktop_validation": "not yet measured",
@@ -935,7 +935,7 @@ def _planner_command_fixture(monkeypatch, *, provider="ollama_http", model=None,
     configuration = {"schema": "daedalus-computer-policy/1", "workspace": "W", "tools": ["browser.read"], "origins": [],
                      "applications": {}, "planner_provider": provider, "planner_model": model,
                      "allow_remote_context": remote, "max_steps": 16, "timeout_s": 300, "max_file_bytes": 1048576}
-    monkeypatch.setattr(computer, "computer_status", lambda root: {
+    monkeypatch.setattr(computer, "computer_status", lambda root, project=None, project_readers=None: {
         "enabled": True, "workspace": "W", "tools": [{"name": "browser.read"}], "policy_sha256": "e" * 64,
         "configuration": configuration})
     calls = []

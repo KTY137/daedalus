@@ -85,6 +85,44 @@ Beobachtung selbst bleibt lokal als Evidenz erhalten. Das lokale Modell braucht 
 Bestätigung. Gemessen am 2026-09-06: Codex als Planner beendete die Messmission als
 erste mit `finish`, das lokale 7B-Modell liest, schließt aber nicht ab.
 
+### Aufträge in natürlicher Sprache und die Daedalus-Werkzeuge (G1-IKARUS-46)
+
+Sobald eine Computer-Policy konfiguriert ist, ist der Loop die Hand des Chats:
+Ein Arbeitsauftrag im Imperativ („verbessere Daedalus“, „erweitere den
+Parser“, „build a settings dialog“) wird als **Computer-Auftrag** angeboten.
+Das Angebot nennt den konfigurierten Planner, ob Beobachtungen den Rechner
+verlassen, die freigegebenen Werkzeuge und die exakte Nachricht, die der Lauf
+sendet (`/computer run <Auftrag>`). Erst ein Klick oder ein „ja“ im nächsten
+Turn startet ihn; der Chat streamt dann jeden Schritt mit Beleg. Eine Frage
+(„kannst du das verbessern?“) startet weiterhin nichts. Ohne Computer-Policy
+bleibt das bisherige Queue-Angebot unverändert.
+
+`/computer run <Auftrag>` führt den Auftrag wörtlich aus, auch wenn sein erstes
+Wort ein Unterbefehl ist. `/computer enable daedalus` gibt fünf **lesende**
+Werkzeuge auf das registrierte Projekt der Unterhaltung frei, `/computer
+disable daedalus` nimmt sie wieder heraus; beides läuft über dieselbe
+Vergleich-und-Ersetzen-Konfiguration wie `/computer planner`, und ein frisches
+`/computer setup` gibt weiterhin nichts frei:
+
+| Werkzeug | beobachtet | schreibt |
+| --- | --- | --- |
+| `daedalus.status` | Git-Zähler des Projekts, Queue und Watcher | nichts |
+| `daedalus.structure` | Struktur-Zusammenfassung: Dateien, Sprachen, Hotspots, Clone-Cluster, Fan-in | nichts |
+| `daedalus.slice` | die destillierte semantische Scheibe eines indizierten Moduls, durch die Egress-Policy des Projekts | nichts |
+| `daedalus.docrefs` | Doku-Verweise auf Code-Symbole, die der eigene Resolver als kaputt meldet | nichts |
+| `daedalus.tasks` | jüngste Aufgabenberichte des Projekts aus der File-Bridge (Missionshistorie weiterhin über `/computer tasks`) | nichts |
+
+Die Lane für `daedalus.slice` folgt dem Planner: lokales Ollama (Loopback) und
+die Claude-CLI sind `trusted`, Codex und DeepSeek `untrusted` und erhalten die
+Scheibe nur durch die Default-Deny-Allow-Liste des Projekts; die Secret-Floor
+läuft in jeder Lane. Kein Repository-Pfad erreicht den Planner; ein Modulname
+wird nur innerhalb des Index aufgelöst. Eine Sitzung ohne registriertes
+Projekt (etwa ein geplanter Auftrag) meldet die Familie als nicht verfügbar
+und verweigert sie vor jeder Lease. Der Loop kann damit beobachten und
+vorschlagen; **verändern** kann er den Projektbaum weiterhin nicht — das ist
+der Gegenstand der Folgepakete (Ariadne-Kampagne als Werkzeug, `terminal.run`),
+siehe [G1-IKARUS-46](work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md).
+
 ```text
 /computer queue Öffne die freigegebene Statusseite und lies den aktuellen Status.
 /computer every 30m 4 Öffne die freigegebene Statusseite und lies den aktuellen Status.

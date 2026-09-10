@@ -1,0 +1,94 @@
+"""Mutation table for G1-IKARUS-46: disable one guard, run the packet suites, restore.
+
+Each mutation is an exact-string replacement in one production file. The file is
+restored from memory afterwards (never via git, which would discard the packet's
+own edits). Output: one line per mutation with the test names that caught it.
+"""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PY = ROOT / ".venv" / "Scripts" / "python.exe"
+SUITES = ["tests/runtimes/test_computer_daedalus.py", "tests/test_ikarus_computer_dispatch.py",
+          "tests/test_ikarus_act.py", "tests/runtimes/test_computer_evidence_terminal.py"]
+
+MUTATIONS = [
+    ("M1 daedalus tool becomes a host mutation", "daedalus/runtimes/computer.py",
+     '_HOST_MUTATION_TOOLS = frozenset({"file.write",',
+     '_HOST_MUTATION_TOOLS = frozenset({"daedalus.status", "file.write",'),
+    ("M2 the offer ignores an available loop", "daedalus/orchestration/ikarus/shell.py",
+     "    computer = _computer_hand(project)\n    if computer is not None:",
+     "    computer = None\n    if computer is not None:"),
+    ("M3 a confirmation never runs the loop", "daedalus/orchestration/ikarus/shell.py",
+     "    if act is None or not act.allowed or not act.confirmation_of:\n        return None",
+     "    if act is None or not act.allowed or not act.confirmation_of:\n        return None\n    return None"),
+    ("M4 the offer's message drifts from run_command", "daedalus/orchestration/ikarus/shell.py",
+     "    message = run_command(objective)\n    planner = computer[\"planner\"]",
+     "    message = \"/computer \" + objective\n    planner = computer[\"planner\"]"),
+    ("M5 Codex planner trusted", "daedalus/runtimes/computer_daedalus.py",
+     '    if provider in _TRUSTED_PLANNERS:\n        return "trusted"\n    return "untrusted"',
+     '    if provider in _TRUSTED_PLANNERS:\n        return "trusted"\n    return "trusted"'),
+    ("M6 module resolution accepts any path", "daedalus/runtimes/computer_daedalus.py",
+     '        raise ComputerRefused("module is not in the project\'s index; name an indexed source file")',
+     '        return token'),
+    ("M7 a refused read is filed as reconciliation", "daedalus/runtimes/computer.py",
+     "            provably_no_effect = (external_started and not dispatched and tool in DAEDALUS_TOOLS\n                                  and isinstance(exc, ComputerRefused))",
+     "            provably_no_effect = False"),
+    ("M8 the family is offered without a project", "daedalus/runtimes/computer.py",
+     "            if not reason and tool in DAEDALUS_TOOLS and self._project is None:\n                reason = _NO_PROJECT_REFUSAL",
+     "            pass"),
+    ("M9 /computer run parses subcommands again", "daedalus/orchestration/ikarus/computer_loop.py",
+     "        explicit_run = verb.casefold() == RUN_VERB",
+     "        explicit_run = False"),
+    ("M10 enable ignores the current policy digest", "daedalus/orchestration/ikarus/computer_loop.py",
+     "            configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=digest)\n            granted",
+     "            configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=None)\n            granted"),
+    ("M11 'verbessere' dropped from the act verbs", "daedalus/orchestration/ikarus/act.py",
+     '    "verbesser", "verbessere", "erweiter",', '    "verbesser", "erweiter",'),
+    ("M12 slice text unbounded", "daedalus/runtimes/computer_daedalus.py",
+     "        text, elided = _bounded_text(result.get(\"slice_text\", \"\"))",
+     "        text, elided = str(result.get(\"slice_text\", \"\")), False"),
+    ("M13 no act_offer on the computer offer (a typed ja stops confirming)", "daedalus/orchestration/ikarus/shell.py",
+     '        act_offer={"objective": objective, "reason": "computer task offered",\n                   "signal": "computer_task"},\n        **extra)',
+     '        **extra)'),
+    ("M14 stream path queues instead of running", "daedalus/orchestration/ikarus/shell.py",
+     "            yield from conversation_events(project, run, cancelled=computer_cancelled)\n            return\n\n    # Deterministic lanes",
+     "            pass\n\n    # Deterministic lanes"),
+]
+
+
+def run_suites() -> tuple[int, str]:
+    proc = subprocess.run([str(PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *SUITES, "--no-header", "-rf"],
+                          cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def main() -> int:
+    rows = []
+    for label, rel, old, new in MUTATIONS:
+        path = ROOT / rel
+        original = path.read_text(encoding="utf-8")
+        if original.count(old) != 1:
+            rows.append((label, "NOT APPLIED (anchor not unique)", ""))
+            continue
+        path.write_text(original.replace(old, new, 1), encoding="utf-8")
+        try:
+            code, out = run_suites()
+        finally:
+            path.write_text(original, encoding="utf-8")
+        failed = sorted({line.split(" - ")[0].replace("FAILED ", "").strip()
+                         for line in out.splitlines() if line.startswith("FAILED ") or line.startswith("ERROR ")})
+        summary = [line for line in out.splitlines() if " passed" in line or " failed" in line or " error" in line]
+        rows.append((label, "CAUGHT" if code != 0 else "SURVIVED", "; ".join(failed[:6]) + (" | " + summary[-1] if summary else "")))
+    code, out = run_suites()
+    rows.append(("restored tree", "GREEN" if code == 0 else "RED", [l for l in out.splitlines() if " passed" in l][-1:] and out.splitlines()[-1]))
+    for label, verdict, detail in rows:
+        print(f"{verdict:9} | {label} | {detail}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

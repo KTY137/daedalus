@@ -525,6 +525,40 @@ export function runConversationSpec(): ConversationSpecResult[] {
       && offerSubject({ kind: 'run_campaign', args: {} }, 'p')?.kind === 'run_campaign');
   check('a non-object action derives nothing', offerSubject('queue_task', 'p') === undefined && offerSubject(undefined, 'p') === undefined);
 
+  /* ---- G1-IKARUS-46: a computer task runs through the message the server named ---- */
+  const computerAction = {
+    kind: 'computer_task', requires_confirmation: true,
+    args: {
+      project: 'atlas', objective: 'verbessere den Parser', lane: 'computer',
+      message: '/computer run verbessere den Parser',
+      planner: { provider: 'claude_code_cli', model: 'sonnet', remote_context: true },
+      tools: ['daedalus.status', 'daedalus.slice', 7]
+    }
+  };
+  const computerSubject = offerSubject(computerAction, 'fallback');
+  check('a computer task is executable exactly through the server-named run message',
+    computerSubject?.kind === 'computer_task' && computerSubject.executable === true
+      && computerSubject.message === '/computer run verbessere den Parser' && computerSubject.lane === 'computer'
+      && computerSubject.project === 'atlas' && computerSubject.objective === 'verbessere den Parser',
+    JSON.stringify(computerSubject));
+  check('the planner line and the tool list are projected, non-strings dropped',
+    computerSubject?.planner === 'claude_code_cli (sonnet) · Beobachtungen verlassen den Rechner'
+      && JSON.stringify(computerSubject.tools) === JSON.stringify(['daedalus.status', 'daedalus.slice']),
+    JSON.stringify(computerSubject));
+  check('a computer task without a run message is not executable and carries none',
+    offerSubject({ kind: 'computer_task', args: { objective: 'x' } }, 'p')?.executable === false
+      && offerSubject({ kind: 'computer_task', args: { objective: 'x' } }, 'p')?.message === undefined
+      && offerSubject({ kind: 'computer_task', args: { objective: 'x', message: 'rm -rf /' } }, 'p')?.executable === false
+      && offerSubject({ kind: 'computer_task', args: { objective: 'x', message: '/computer status' } }, 'p')?.executable === false);
+  check('a computer task defaults its lane to computer, a queue task to local_only',
+    offerSubject({ kind: 'computer_task', args: {} }, 'p')?.lane === 'computer'
+      && offerSubject({ kind: 'queue_task', args: {} }, 'p')?.lane === 'local_only');
+  const computerPanel = renderToStaticMarkup(createElement(OfferConfirm, { subject: computerSubject!, onAccept: () => {}, onDecline: () => {} }));
+  check('the confirm panel shows the run message, the planner and the tools before the click',
+    computerPanel.includes('/computer run verbessere den Parser') && computerPanel.includes('claude_code_cli (sonnet)')
+      && computerPanel.includes('daedalus.status, daedalus.slice') && !computerPanel.includes('keinen Ausführungsweg'),
+    computerPanel);
+
   const panel = renderToStaticMarkup(createElement(OfferConfirm, { subject: subject!, onAccept: () => {}, onDecline: () => {} }));
   check('the confirm panel names the action, project, lane and objective before any click',
     panel.includes('queue_task') && panel.includes('atlas') && panel.includes('local_only') && panel.includes('Parser härten'), panel.slice(0, 200));

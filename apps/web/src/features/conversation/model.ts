@@ -645,6 +645,15 @@ export interface OfferSubject {
   requiresConfirmation: boolean;
   /** whether this cockpit has an endpoint for that kind at all */
   executable: boolean;
+  /**
+   * `computer_task` only: the exact chat message the server named for the
+   * run (`/computer run <objective>`). The cockpit sends it verbatim and never
+   * composes its own; a `computer_task` without one is not executable.
+   */
+  message?: string;
+  /** `computer_task` only: what the server said will plan and which tools it holds. */
+  planner?: string;
+  tools?: string[];
 }
 
 /**
@@ -670,15 +679,29 @@ export function offerSubject(action: unknown, fallbackProject: string): OfferSub
       revisionState = 'unreadable';
     }
   }
+  // G1-IKARUS-46: a computer task is executable only through the message the
+  // server named, and only when that message really is a `/computer run`.
+  const message = str(args.message) || '';
+  const computerRun = kind === 'computer_task' && /^\/computer run \S/.test(message);
+  const plannerRec = isRecord(args.planner) ? args.planner : undefined;
+  const plannerProvider = plannerRec ? str(plannerRec.provider) : '';
+  const plannerModel = plannerRec ? str(plannerRec.model) : '';
+  const planner = plannerProvider
+    ? `${plannerProvider}${plannerModel ? ` (${plannerModel})` : ''}${plannerRec?.remote_context === true ? ' · Beobachtungen verlassen den Rechner' : ''}`
+    : undefined;
+  const tools = Array.isArray(args.tools) ? args.tools.filter((t): t is string => typeof t === 'string') : undefined;
   return {
     kind,
     project: str(args.project) || fallbackProject,
-    lane: str(args.lane) || 'local_only',
+    lane: str(args.lane) || (kind === 'computer_task' ? 'computer' : 'local_only'),
     objective: str(args.objective) || '',
     sourceRevision,
     revisionState,
     requiresConfirmation: action.requires_confirmation !== false,
-    executable: kind === 'queue_task'
+    executable: kind === 'queue_task' || computerRun,
+    ...(computerRun ? { message } : {}),
+    ...(planner ? { planner } : {}),
+    ...(tools ? { tools } : {})
   };
 }
 

@@ -24,7 +24,14 @@ FILE_TOOLS = ("file.list", "file.read", "file.write", "file.mkdir", "file.move")
 VISION_TOOLS = ("vision.inspect", "vision.match", "vision.changes", "vision.ocr")
 DESKTOP_TOOLS = ("desktop.observe", "desktop.click", "desktop.type", "desktop.key", "app.launch")
 BROWSER_TOOLS = ("browser.navigate", "browser.read", "browser.click", "browser.fill")
-ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS)
+# G1-IKARUS-46: read-only observations of the REGISTERED PROJECT the chat is
+# bound to (git counters, queue, structure summary, one distilled slice, broken
+# doc references, recent tasks). No host mutation, no process, no network; the
+# adapter is ``daedalus.runtimes.computer_daedalus``. A policy grants them like
+# any other family; a fresh setup still grants nothing.
+DAEDALUS_TOOLS = ("daedalus.status", "daedalus.structure", "daedalus.slice",
+                  "daedalus.docrefs", "daedalus.tasks")
+ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS)
 # v0.1.6 release fence.  ``Path.resolve`` plus a later pathname operation is
 # not a write-root boundary: another process can replace a checked ancestor
 # with a symlink/junction between those two operations.  G1-IKARUS-24/25
