@@ -161,11 +161,11 @@ def test_compiler_keeps_single_partition_and_axis_setup_owners() -> None:
     axis_metric = _PROBE._direct_callee_metrics(
         stats,
         caller_code=compiler_code,
-        callee_codes=(_PROBE.TypedAxis.__init__.__code__,),
+        callee_codes=(_PROBE._relation_compiler.TypedAxis.__init__.__code__,),
     )
     axis_post_init_metric = _PROBE._code_metrics(
         stats,
-        (_PROBE.TypedAxis.__post_init__.__code__,),
+        (_PROBE._relation_compiler.TypedAxis.__post_init__.__code__,),
     )
 
     assert partition_metric["calls"] == 1
