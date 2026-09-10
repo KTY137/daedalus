@@ -25,8 +25,12 @@ everything the harness reads back afterwards — the exit code, the output, the
 JUnit report — is produced by that process. Round 1 forged the exit code by
 switching the suite off; round 2 forged the report itself, claiming 41 tests,
 and was nominated. Requiring the repair arm to execute *exactly* as many tests
-as the baseline closes both, and a forger cannot read the baseline's count off
-its own arm. It does **not** close a forger that counts the suite itself and
+as the baseline closes both. It does **not** make the baseline's count
+unknowable: round 3 read it out of the baseline arm's own retained observation
+from a parent directory of the running arm, and counting the suite directly
+works too. The evaluation workspace has been moved out from under the control
+root so that evidence is no longer one directory away, but reads are not
+fenced, so the rule raises the cost of a forgery rather than preventing one. It does **not** close a forger that counts the suite itself and
 reports that number. **The verdict is a self-report**, every observation carries
 `verdict_is_self_reported: true`, and observing the run from outside the child
 is a separate packet. What stands between a forged verdict and the repository is
@@ -286,3 +290,40 @@ One correction to the earlier claim that the workspace is the pinned revision:
 byte-identical to their blobs. No working-tree content leaks, which is what the
 claim is for, but the wording "every byte is the base revision's" was too
 strong.
+
+## Review round 3 (2026-09-10, `fb3c6ca6`)
+
+**Cerberus: `needs_fix`, not blocking. The round-2 CRITICAL is discharged.**
+The reviewer re-ran its forge and got a refusal, then ran the forge this packet
+admits is open and got the nomination the packet predicts, with
+`verdict_is_self_reported: true` on every observation.
+
+Three findings, all repaired here:
+
+| # | finding | repair |
+| --- | --- | --- |
+| high 1 | the sentence justifying the equality rule was FALSE. The baseline's workspace is deleted, but its retained observation is not, and the arm's working directory sat inside the control root that holds it — the reviewer's A/B differed in nothing but whether the child looked one directory up | the evaluation workspace is created outside the control root, and both the comment and the packet now say what the rule does and does not buy |
+| high 2 | the artifact a human reads at the promotion gate carried no hedge: `NominationReceipt.reasons` said "passed the frozen project test command" flatly, for runs that never executed a test | the reason begins with `SELF-REPORTED` and ends with "not an independent measurement" |
+| medium 1 | the replay's error branch accepted a null evaluator digest whenever the spec could not be read (`None in (X, None)`) | absence refuses |
+
+**Recorded, not fixed, and not this packet's:** the comment claiming a candidate
+"cannot reach any other byte" than its workspace is false and predates this
+packet — filesystem READS above the workspace are not fenced, while writes are
+(measured twice, independently). The class docstring's reach paragraph discloses
+environment and network but not read reach; that belongs with the kernel owners
+who own the gate.
+
+**A product consequence, stated as a decision.** Equality refuses a repair that
+legitimately ADDS a test. For this campaign that cannot arise — the operator
+replaces one text fragment in one file, and a target under a test root is
+refused — but a future operator that can add tests will need a different rule
+than equality.
+
+**The condition under which this becomes CRITICAL, from the reviewer, recorded
+so it is not forgotten:** the day `evaluator=` becomes reachable from
+`daedalus/ariadne/__main__.py`, `daedalus/interfaces/http/effects.py` or
+`daedalus/runtimes/computer_ariadne.py`, a self-reported verdict becomes
+produceable by a caller who is not the author of the test, and the receipt that
+reaches the owner still says the tests passed. Verified in this round: all three
+doors omit the argument, and `TestCommandEvaluator` is imported nowhere in
+`daedalus/` outside `campaign.py`.

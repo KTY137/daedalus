@@ -39,6 +39,7 @@ from daedalus.ariadne.campaign import (
     _extract_revision,
     run_campaign,
 )
+from daedalus.ariadne import campaign as subject
 from daedalus.spine.killswitch import KillSwitch
 
 MODULE = "def add(a, b):\n    return a + b\n"
@@ -365,6 +366,85 @@ def test_every_observation_says_the_verdict_is_self_reported(tmp_path):
             assert blob["child_network"] == "unrestricted"
             seen += 1
     assert seen >= 3  # one per arm
+
+
+@pytest.mark.slow
+def test_the_nomination_a_human_reads_says_the_verdict_is_self_reported(tmp_path):
+    """Cerberus round 3 (high 2): `verdict_is_self_reported` lived on the
+    observation, in the docstring and in the packet -- everywhere except the one
+    artifact a human reads at the promotion gate. The nomination said "passed
+    the frozen project test command" flatly, for runs that never executed a
+    test."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    from daedalus.spine.killswitch import control_root
+
+    receipt = _campaign(root, revision, campaign_id="a13-hedge")
+    assert receipt["outcome"] == "nominated"
+    # The nomination is its own artifact: this is the one a human reads.
+    nominations = []
+    for path in control_root(root).rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            blob = json.loads(path.read_bytes().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, OSError):
+            continue
+        if isinstance(blob, dict) and blob.get("nomination_status") == "nominated":
+            nominations.append(blob)
+    assert nominations, "the campaign wrote no nomination receipt"
+    for nomination in nominations:
+        reasons = " ".join(nomination.get("reasons", ()))
+        assert "SELF-REPORTED" in reasons
+        assert "not an independent measurement" in reasons
+
+
+@pytest.mark.slow
+def test_the_evaluation_workspace_is_not_under_the_retained_evidence(tmp_path):
+    """Cerberus round 3 (high 1, Forge C): the arm's working directory was a
+    descendant of the control root, so a candidate could walk up and read the
+    BASELINE arm's retained observation -- the very count the equality rule
+    expects it not to know. The reviewer's A/B differed in nothing else.
+
+    Reads are still not fenced, so this raises the cost rather than closing the
+    class; what it removes is the one-directory-away version."""
+
+    from daedalus.spine.killswitch import control_root
+
+    seen: list[Path] = []
+    real_gate = subject.command_gate
+
+    def watched(argv, **kwargs):
+        runner = real_gate(argv, **kwargs)
+
+        def wrapped(ctx):
+            seen.append(Path(ctx.worktree))
+            return runner(ctx)
+
+        return wrapped
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    original = subject.command_gate
+    subject.command_gate = watched
+    try:
+        _campaign(root, revision, campaign_id="a14-workspace")
+    finally:
+        subject.command_gate = original
+
+    assert len(seen) == 3
+    control = control_root(root).resolve()
+    for worktree in seen:
+        assert control not in worktree.resolve().parents
+
+
+def test_an_unreadable_spec_fails_the_replay_closed(tmp_path):
+    """Cerberus round 3 (medium 1): `None in (EVALUATOR_SHA256, None)` accepted
+    an observation whose evaluator digest was null whenever the spec could not
+    be read. Absence must refuse, not pass."""
+
+    source = Path(subject.__file__).read_text(encoding="utf-8")
+    assert "(EVALUATOR_SHA256,) if spec_frozen_evaluator is None" in source
+    assert "None in" not in source.split("def _require_campaign_inner_effect_terminals")[1][:4000]
 
 
 def test_the_module_says_what_a_green_run_does_not_prove():

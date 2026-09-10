@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import sys
 import tarfile
 from dataclasses import asdict, dataclass
@@ -1012,8 +1013,12 @@ def _require_campaign_inner_effect_terminals(
                 or observation.get("candidate_tree_sha256")
                 != trial.candidate_tree_sha256
                 or observation.get("attempt_contract_sha256") != attempt.digest
+                # `spec_frozen_evaluator` is None when the spec cannot be read,
+                # and `None in (..., None)` would have passed anything carrying
+                # a null digest (Cerberus round 3, medium 1).
                 or observation.get("evaluator_sha256") not in (
-                    EVALUATOR_SHA256, spec_frozen_evaluator)
+                    (EVALUATOR_SHA256,) if spec_frozen_evaluator is None
+                    else (EVALUATOR_SHA256, spec_frozen_evaluator))
                 or not isinstance(observation.get("error_type"), str)
                 or not observation.get("error_type")
                 or not isinstance(observation.get("error"), str)
@@ -1851,10 +1856,13 @@ def run_campaign(
             "head_revision": head_receipt_sha,
         }
         # The spec must not expire while its own arms are still legal to run.
+        # The default path keeps the 15 minutes it always had; only a test
+        # evaluator, whose arms are genuinely longer, extends it.
         expires = (
             datetime.now(timezone.utc)
             + timedelta(minutes=15)
-            + timedelta(seconds=_campaign_lease_timeout_s(timeout_s, evaluator))
+            + (timedelta(0) if evaluator is None
+               else timedelta(seconds=_campaign_lease_timeout_s(timeout_s, evaluator)))
         ).isoformat(timespec="microseconds")
         spec_inputs = (task_sha, base.ref.sha256, head_receipt_sha, *frozen.values())
         spec = ExperimentSpec(
@@ -2018,11 +2026,26 @@ def run_campaign(
             )
             usage = ResourceUsage()
             try:
-                evaluation_workspace = (
-                    workspace_parent
-                    / "evaluations"
-                    / f"{attempt.attempt_id}-{candidate.ref.sha256[:16]}"
-                )
+                if evaluator is None:
+                    evaluation_workspace = (
+                        workspace_parent
+                        / "evaluations"
+                        / f"{attempt.attempt_id}-{candidate.ref.sha256[:16]}"
+                    )
+                else:
+                    # NOT under the control root. The arm's working directory was
+                    # a descendant of the directory holding every retained
+                    # observation, so a candidate could walk up and read the
+                    # BASELINE arm's executed count -- which is exactly the
+                    # number the equality rule expects it not to know (Cerberus
+                    # round 3, Forge C: the only difference between nomination
+                    # and refusal was whether the child looked above its
+                    # workspace). Reads are not fenced, so a candidate that
+                    # knows where to look can still find that evidence; this
+                    # stops it being one directory away.
+                    evaluation_workspace = Path(
+                        tempfile.mkdtemp(prefix="daedalus-ariadne-eval-")
+                    ) / f"{attempt.attempt_id}-{candidate.ref.sha256[:16]}"
                 workspace_files = 0
                 workspace_bytes = 0
                 if evaluator is None:
@@ -2548,8 +2571,12 @@ def run_campaign(
             # `>=` let a forged report inflate the count and win: the reviewer
             # wrote a report claiming 41 tests where the baseline ran 1, and it
             # was nominated (Cerberus round 2). Equality also closes the "more
-            # but weaker" class, and a forger cannot read the baseline's count
-            # off its own arm -- the baseline ran in a workspace that is gone.
+            # but weaker" class. It does NOT make the count unknowable to a
+            # forger: round 3 read the baseline's own retained observation from
+            # a parent directory of the arm, and counting the suite directly
+            # works too. The rule raises the cost of a forgery; it does not
+            # prevent one, and `verdict_is_self_reported` is the field that
+            # says so.
             baseline_executed = executed_by_variant.get("baseline", 0)
             repair_executed = executed_by_variant.get("repair", 0)
             if repair_executed != baseline_executed:
@@ -2574,8 +2601,10 @@ def run_campaign(
             reasons=(
                 ("passed frozen exact-match evaluator under equal configured budget",)
                 if evaluator is None else
-                ("passed the frozen project test command under equal configured budget, "
-                 "with a green baseline and a failing negative control",)
+                ("SELF-REPORTED: the project's own test command reported a green baseline, "
+                 "a failing negative control and a passing repair executing the same number "
+                 "of tests, under equal configured budget. The command ran candidate code, "
+                 "so this verdict is the run's own report and not an independent measurement",)
             ),
             provenance=_prov("ariadne.controlled-repair.nomination", source_revision, nomination_at, *nomination_inputs, trace=campaign_id),
         )
