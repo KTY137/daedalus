@@ -382,3 +382,144 @@ def test_accelerator_status_exposes_top_level_probe_failure_diagnostics() -> Non
     assert all(row["cuda_ready"] is None for row in payload["frameworks"].values())
     assert all(row["state"] != "ready" for row in payload["lanes"])
 
+
+
+# --- probe interpreter selection -------------------------------------------
+#
+# Regression cover for the desktop symptom of 2026-09-10: the capability panel
+# of the packaged app reported torch/cupy/warp/cuvs/cugraph/newton as "nicht
+# installiert" because the deep probe shelled out to ``sys.executable -c``,
+# and in a frozen build ``sys.executable`` is the packaged application, not an
+# interpreter.  MEASURED against the shipped generation: exit status 2 with
+# ``unrecognized arguments: -c``, after a full second sidecar bootstrap.
+
+
+def test_source_checkout_probe_uses_the_running_interpreter() -> None:
+    import sys as _sys
+
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True):
+        interpreter, refusal = accelerators.probe_interpreter()
+
+    assert refusal == ""
+    assert interpreter == _sys.executable
+
+
+def test_frozen_application_is_refused_and_never_executed() -> None:
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(
+                accelerators.sys, "executable", r"C:\app\daedalus-web-api.exe"
+            ), \
+            mock.patch.object(accelerators.subprocess, "run") as run:
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    # The decisive assertion: the frozen application is NOT spawned. Spawning
+    # it cost a second backend bootstrap and produced an argparse usage error
+    # that was then read as "no accelerator is installed".
+    run.assert_not_called()
+    failure = rows["probe"]
+    assert failure["probed"] is False
+    assert failure["installed"] is False
+    assert failure["cuda_ready"] is None
+    assert "daedalus-web-api.exe" in failure["detail"]
+    assert accelerators.ACCELERATOR_PYTHON_ENV in failure["detail"]
+
+
+def test_frozen_application_probe_failure_does_not_claim_absence(
+    tmp_path,
+) -> None:
+    """A refused probe must stay 'unprobed', never harden into 'absent'."""
+
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(
+                accelerators.sys, "executable", r"C:\app\daedalus-web-api.exe"
+            ), \
+            mock.patch.object(accelerators.subprocess, "run") as run, \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=True)
+
+    run.assert_not_called()
+    assert set(rows) == {"torch", "cupy", "warp", "cuvs", "cugraph", "newton"}
+    for name, row in rows.items():
+        assert row["probed"] is False, name
+        assert row["cuda_ready"] is None, name
+        assert accelerators.ACCELERATOR_PYTHON_ENV in row["detail"], name
+
+
+def test_configured_interpreter_overrides_a_frozen_executable(tmp_path) -> None:
+    interpreter = tmp_path / "python.exe"
+    interpreter.write_bytes(b"")
+    completed = mock.Mock(
+        returncode=0,
+        stdout=(
+            accelerators._DEEP_PROBE_SENTINEL
+            + json.dumps(
+                {
+                    name: {
+                        "installed": name == "torch",
+                        "cuda_ready": name == "torch",
+                        "detail": "measured",
+                    }
+                    for name in ("torch", "cupy", "warp", "cuvs", "cugraph", "newton")
+                }
+            )
+            + "\n"
+        ),
+        stderr="",
+    )
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: str(interpreter)},
+        clear=True,
+    ), mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(
+                accelerators.subprocess, "run", return_value=completed
+            ) as run:
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    assert run.call_args.args[0][0] == str(interpreter)
+    assert run.call_args.args[0][1] == "-c"
+    assert rows["torch"]["installed"] is True
+
+
+def test_configured_interpreter_that_is_not_a_file_is_refused() -> None:
+    missing = r"C:\nowhere\python.exe"
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: missing},
+        clear=True,
+    ), mock.patch.object(accelerators.subprocess, "run") as run:
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    run.assert_not_called()
+    assert "is not an existing file" in rows["probe"]["detail"]
+    assert accelerators.ACCELERATOR_PYTHON_ENV in rows["probe"]["detail"]
+
+
+def test_status_reports_which_interpreter_answered_the_deep_probe() -> None:
+    import sys as _sys
+
+    with mock.patch.object(
+        accelerators, "deep_framework_status", return_value=_frameworks(("torch",))
+    ), mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True):
+        payload = accelerators.accelerator_status(deep=True)
+
+    assert payload["framework_probe_diagnostics"]["interpreter"] == _sys.executable
+
+
+def test_shallow_status_names_no_interpreter_because_none_was_asked() -> None:
+    with mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.dict("os.environ", {}, clear=True):
+        payload = accelerators.accelerator_status(deep=False)
+
+    assert payload["framework_probe_diagnostics"]["interpreter"] == ""
+    assert (
+        payload["framework_probe_diagnostics"]["transport_outcome"]
+        == "not_requested"
+    )

@@ -39,6 +39,10 @@ RTX_TOKEN_FALLBACK_ENV = "DAEDALUS_RTX_TOKEN"
 RTX_SSH_ENV = "DAEDALUS_RTX_SSH"
 RTX_SSH_FALLBACK_ENV = "ROOM_BENCH_SSH"
 NVOF_SDK_ENV = "DAEDALUS_NVOF_SDK"
+# Interpreter used for the isolated deep framework probe.  It exists because
+# ``sys.executable`` is a Python interpreter only in a source checkout; see
+# ``probe_interpreter``.
+ACCELERATOR_PYTHON_ENV = "DAEDALUS_ACCELERATOR_PYTHON"
 
 
 @dataclass(frozen=True)
@@ -238,12 +242,69 @@ def _decode_deep_probe_output(stdout: str, stderr: str) -> dict[str, dict[str, A
     return payload
 
 
+def _frozen_application() -> bool:
+    """True when this process is a frozen (PyInstaller) application."""
+
+    return bool(getattr(sys, "frozen", False))
+
+
+def probe_interpreter() -> tuple[str, str]:
+    """Return ``(interpreter, refusal)``; exactly one of the two is non-empty.
+
+    ``sys.executable`` names a Python interpreter only in a source checkout.
+    In the packaged desktop backend it names the frozen application, and the
+    frozen application does not accept ``-c``.
+
+    MEASURED 2026-09-10 against the shipped generation
+    ``.../backend-generations/021ad229.../daedalus-web-api.exe``::
+
+        $ ./daedalus-web-api.exe -c "import sys; print('PROBE_RAN')"
+        EXIT=2
+        usage: daedalus-web-api.exe [-h] [--host HOST] [--port PORT]
+                                    [--allow-remote-clients]
+        daedalus-web-api.exe: error: unrecognized arguments: -c import sys; ...
+
+    So the deep probe never probed anything in the desktop app: it reported
+    every accelerator row as unprobed-and-absent, and it paid for that answer
+    with a *second complete sidecar bootstrap* (effect admission, runtime
+    preparation, kill-switch arm, chdir, manager construction) before argparse
+    rejected the arguments.  Refusing with a reason is both honest and cheaper.
+
+    An operator who wants a real answer from the packaged app points
+    ``DAEDALUS_ACCELERATOR_PYTHON`` at an interpreter whose environment has the
+    optional runtimes.  Absent that, the refusal says so instead of letting a
+    frozen bundle's exclusion list masquerade as a fact about the machine.
+    """
+
+    configured = os.environ.get(ACCELERATOR_PYTHON_ENV, "").strip()
+    if configured:
+        candidate = Path(configured)
+        if not candidate.is_file():
+            return "", (
+                f"{ACCELERATOR_PYTHON_ENV}={configured!r} is not an existing file"
+            )
+        return str(candidate), ""
+    if _frozen_application():
+        return "", (
+            "the frozen desktop backend ships no Python interpreter: "
+            f"sys.executable is the packaged application "
+            f"({os.path.basename(sys.executable)}), which rejects -c. "
+            f"Set {ACCELERATOR_PYTHON_ENV} to a python executable whose "
+            "environment carries the optional accelerator runtimes."
+        )
+    return sys.executable, ""
+
+
 @lru_cache(maxsize=1)
 def deep_framework_status() -> dict[str, dict[str, Any]]:
     """Probe optional Python compute runtimes in an isolated, bounded process."""
+    interpreter, refusal = probe_interpreter()
+    if refusal:
+        # Not a probe result and not an import verdict: nothing was executed.
+        return _probe_failure(refusal)
     try:
         result = subprocess.run(
-            [sys.executable, "-c", _DEEP_PROBE],
+            [interpreter, "-c", _DEEP_PROBE],
             capture_output=True,
             text=True,
             timeout=30,
@@ -534,8 +595,13 @@ def _framework_rows(
 def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dict[str, Any]:
     """Describe local and remote accelerator readiness without capability inflation."""
     hardware = nvidia_hardware_status()
+    probe_interpreter_path, _probe_interpreter_refusal = probe_interpreter()
     framework_probe_diagnostics: dict[str, Any] = {
         "requested": deep,
+        # Which interpreter was asked. Empty means none was: either no deep
+        # probe was requested, or no usable interpreter exists in this process
+        # (see ``probe_interpreter``), in which case ``failure`` says why.
+        "interpreter": probe_interpreter_path if deep else "",
         "transport_outcome": "not_requested" if not deep else "not_observed",
         "stdout": "",
         "stderr": "",
