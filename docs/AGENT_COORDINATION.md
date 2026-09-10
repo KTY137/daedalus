@@ -84,6 +84,19 @@ den Nachrichten-Anhang.
   auf 7145/47482/94.35 nachgezogen, Mutationstabelle 33/33 gefangen
   (`mutation-table-6.txt`), 0 CR-Bytes. Danach Cerberus Runde 4 und Odysseus
   Runde 4; PR #364 bleibt Draft bis Cerberus `approve`.
+- Herzschlag: 2026-09-10 15:22 — Runde 4 (`a90b61a6`): Cerberus `needs_fix`,
+  Block aufgehoben, kein CRITICAL, neu H3 (erklärter Tailnet-Host „verlässt
+  nichts“) und H4 (Mehrdeutigkeits-Verweigerung zählt rohe Pfade auf);
+  Odysseus D9 (echte Regelstrings tragen Pfad + Fragment), D10 (Status filtert
+  nur str), D11–D13. Alles in Commit 5 repariert: Verlassen = Physik
+  (`is_loopback_host`), Lane = Konsens; Regel → feste Klasse, Withheld-Block
+  neu gebaut; jeder Wert über alle Strings gefiltert; `*_elided`. Siebzehn
+  Suiten 646 grün, Mutationstabelle 40/40, s02-Pin 7150/47512/0.1119, 0 CR.
+  Commit 5 wird gepusht; danach Cerberus/Odysseus Runde 5. Owner-Richtung
+  15:05 („brute force … als Skill … völlig autonom“): Reihenfolge 47 → 37 →
+  Skill `daedalus-jarvis`; Karte der Anschlussstellen liegt vor (Ariadne
+  `run_campaign` als Python-API, `POST /api/genesis`, kein `terminal.run`,
+  kein Chat-Genesis-Intent, keine Code-Durchsetzung von „irreversibel“).
 
 ### Lane `codex-desktop` — Desktop-Packaging (Codex, direkt im Primär-Checkout)
 
@@ -115,7 +128,12 @@ den Nachrichten-Anhang.
 - [ ] Seal-Entscheidung (G3-SEAL-01/02): darf der einzige Allowed-Signer auch
       `seal/<manifest_sha>`-Tags autorisieren? (offen seit 2026-09-08)
 - [ ] Codex-Planner: `~/.codex/config.toml`-Modell an codex-cli angleichen
-      oder CLI aktualisieren.
+      oder CLI aktualisieren. MEASURED 2026-09-10 14:55: `codex exec -m gpt-5.5`
+      wird von codex-cli 0.152.0 mit ChatGPT-Login akzeptiert (`gpt-5-codex`,
+      `gpt-5.3-codex`, `gpt-5.4`, `gpt-6`, `gpt-6-codex` nicht), aber das
+      Konto meldet „usage limit … try again at Sep 15th, 2026 7:31 AM“ — bis
+      dahin gibt es weder Codex-Planner noch Codex-Zweitmeinung (`council`),
+      unabhängig von der Konfiguration.
 - [ ] Lokalen `main` im Primär-Checkout auf `origin/main` vorspulen und die
       Desktop-App neu starten.
 

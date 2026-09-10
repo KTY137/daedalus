@@ -235,6 +235,14 @@ not applied in the first pass because its anchor had moved to `_redact_rule`;
 it was re-run alone with the same driver after the anchor fix, and the table
 records both passes. Table 5 is superseded and not retained.
 
+After review round 4 (`mutation-table-7.txt`): plus M34 (status gates str
+values only), M35 (the ambiguity refusal lists raw paths), M36 (leaving the
+machine decided by the lane), M37 (`focus_file` ungated), M38 (the flattener
+drops sets, keys and objects), M39 (the TOP bound truncates silently), M40
+(the withheld block keeps the slicer's breadcrumbs); M5, M30, M32 and M33
+re-anchored on the moved lines — **40 applied**; result recorded in
+`docs/evidence/G1-IKARUS-46/acceptance.json` (`mutation_table`).
+
 ### Live measurement
 
 `[MEASURED 2026-09-10 12:23–12:25, this host, worktree authority root, control
@@ -436,6 +444,31 @@ the fourth commit:
 | D6 | the slice's gate RULE quotes the marker it fired on (`content matches sensitive marker /CODENAME/`) in the withheld rows AND in the focus refusal line the slicer writes into the text; scrubbing file names alone moved the disclosure | `_redact_rule` replaces the quoted pattern with `/<marker>/` in rows, breadcrumbs and the focus line; the focus file name is scrubbed too | `test_slice_gate_rules_never_quote_the_marker_they_fired_on`; mutation M33 |
 | D7 | `~user/`, a non-ASCII first segment, a bare UNC host (`\\nas01`), a drive after a word (`checkoutC:\`) still passed | the regex admits any first segment, `~user/`, a bare UNC host, and a drive anywhere | `test_embedded_host_paths_are_detected` (36 spellings) |
 | D8 | the module comment claimed `https://` URLs were withheld while they passed | the code now matches the comment (a scheme'd host URL is withheld) | `test_embedded_host_paths_are_detected` |
+
+**Cerberus round 4** (`a90b61a6`, frozen `git archive` copy): verdict
+`needs_fix`, the block lifted, no CRITICAL. C1 RESOLVED with a probe over
+thirteen `OLLAMA_HOST` spellings and four planners (`localhost` is refused by
+design: the predicate accepts numeric literals only); H1/H2/D6 RESOLVED for the
+shapes filed; authority confirmed unwidened (no write, spawn, network or
+policy reach in the adapter). Two new `high` findings and one nit.
+
+**Odysseus round 4** (same snapshot, executed probes): D5 and D8 RESOLVED; D7
+NARROWED (21 natural spellings blocked; percent-encoded, full-width and
+zero-width spellings pass and no producer emits them — accepted residue, not
+repaired); the egress lane consistent for 12/12 host spellings; D4 PARTIAL
+and D6 PARTIAL, re-filed as the items below; both round-3 guards pinned in a
+mutation spot-check. All repaired in the fifth commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| H3 (high) | `DAEDALUS_TRUSTED_HOSTS` makes a tailnet Ollama a TRUSTED lane, so "leaves the machine" — decided by the lane since round 3 — said *nichts verlässt ihn* while bytes crossed the tunnel, the deny list was off and `confirm-remote` was skipped | leaving is physics: `planner_leaves_machine` asks `sensitivity.is_loopback_host`, which no declaration widens; the lane stays consent (which filter runs); the warning and the grant name the host and the declaration | `test_leaving_the_machine_is_physics_and_the_lane_is_consent` (9 rows), `test_an_owner_declared_trusted_host_still_leaves_the_machine`; mutations M30, M36 |
+| H4 (high) | the ambiguity refusal of `_resolve_module` listed raw indexed paths; refusals reach the planner's history like any result, so a model-chosen basename enumerated exactly the paths `daedalus.structure` withholds; corollary: `focus_file` disclosed the directory a basename resolved into | candidates go through `_admit`, the rest is a count; `focus_file` is gated | `test_an_ambiguous_module_names_only_the_candidates_the_gate_admits`, `test_a_withheld_focus_discloses_neither_its_path_nor_its_rule_text`; M35, M37 |
+| D9 (high) | the gate's REAL rule strings are `<path>: denylisted path fragment '<fragment>'` and `<path>: path not on the external allow-list (default-deny)`; the round-3 `_redact_rule` knew one of five shapes, so the withheld rows and the breadcrumbs still carried the path and the project's deny fragment; the round-3 test pinned an invented rule string the gate never emits | only a fixed rule CLASS travels (`secret_path`, `secret_content`, `denylisted_path`, `default_deny`, `deny_content`, `egress_rule`); the withheld block after the slicer's header and the focus refusal are REBUILT from the gated rows; the tests use the rule strings `slice_egress_rule` really returns, and one runs the real index and the real slicer end to end | `test_slice_withheld_rows_name_a_rule_class_never_the_file_fragment_or_marker`, `test_the_real_slicer_hands_no_withheld_path_or_fragment_to_the_planner`, `test_slice_gate_rules_never_quote_the_marker_they_fired_on`; M33, M40 |
+| D10 (high) | `_status` gated `str` values only; a list, dict, set, `Path`, exception, bytes or dict KEY carrying a host path or a deny word reached the planner, in `git` and in `queue` | `_strings_in` flattens sets, dict keys, bytes and the `str()` of any other object (what `default=str` would render); every git and queue value goes through `_admit_value` | `test_status_gates_every_value_shape_in_git_and_queue`, `test_nested_strings_in_a_kept_field_are_gated`; M34, M38 |
+| D11 (medium) | D4 residue: the same shapes under a kept row key | same flattener, through `_admit_rows` | same tests |
+| D12 (low) | the scrub regexes were format-fragile: a file name with a space or a CRLF line left the breadcrumb and the focus line unscrubbed | no regex over file names any more: the block is rebuilt from the rows | the slice test above carries a CRLF line and a name with a space |
+| D13 (low) | `[:TOP]` truncated silently; `*_withheld` counted refusals only | `*_elided` counts beside every `*_withheld` | `test_structure_counts_the_admitted_rows_the_top_bound_drops`; M39 |
+| nit | dead store `remote` in the enable branch | removed | — |
 
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file

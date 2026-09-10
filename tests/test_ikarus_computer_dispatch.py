@@ -174,6 +174,40 @@ class EnableDaedalusTest(unittest.TestCase):
         self.assertNotIn("nichts verlässt ihn", granted)
         self.assertNotIn("gelten hier NICHT", granted)
 
+    def test_an_owner_declared_trusted_host_still_leaves_the_machine(self):
+        """Cerberus round 4 (H3): DAEDALUS_TRUSTED_HOSTS makes a tailnet Ollama a
+        trusted LANE; the round-3 grant then said "nothing leaves this machine"
+        and skipped the confirmation while bytes crossed the tunnel. Leaving is
+        physics: the warning and the grant name the host, the declaration and
+        the floor-only filter, and the grant still needs confirm-remote."""
+        from daedalus.interfaces import computer_configuration
+        from daedalus.runtimes import computer
+        env = {"OLLAMA_HOST": "http://100.119.126.9:11434", "DAEDALUS_TRUSTED_HOSTS": "100.119.126.9"}
+        status = lambda root, project=None, project_readers=None: self._status(  # noqa: E731
+            ["file.read"], provider="ollama_http", remote=True)
+        with mock.patch.dict(os.environ, env), \
+                mock.patch.object(computer, "computer_status", status), \
+                mock.patch.object(computer_configuration, "configure_computer",
+                                  side_effect=AssertionError("must not configure without the confirmation")):
+            final = list(loop.conversation_events(PROJECT, "/computer enable daedalus"))[-1][1]
+        self.assertEqual(final["computer"]["daedalus_tools_change"], "confirmation_required")
+        self.assertIn("läuft auf `http://100.119.126.9:11434`, nicht auf diesem Rechner", final["assistant"])
+        self.assertIn("DAEDALUS_TRUSTED_HOSTS als vertraut erklärt", final["assistant"])
+        self.assertIn("gelten hier NICHT", final["assistant"])
+        with mock.patch.dict(os.environ, env):
+            granted = self._enable(provider="ollama_http", remote=True)["assistant"]
+        self.assertIn("verlassen damit den Rechner und gehen an `http://100.119.126.9:11434`", granted)
+        self.assertIn("DAEDALUS_TRUSTED_HOSTS als vertraut erklärt", granted)
+        self.assertIn("gelten hier NICHT", granted)
+        self.assertNotIn("nichts verlässt ihn", granted)
+        # Without the declaration the same host is untrusted AND leaves: the
+        # deny list applies and the host is still named.
+        with mock.patch.dict(os.environ, {"OLLAMA_HOST": env["OLLAMA_HOST"], "DAEDALUS_TRUSTED_HOSTS": ""}):
+            granted = self._enable(provider="ollama_http", remote=True)["assistant"]
+        self.assertIn("gehen an `http://100.119.126.9:11434`.", granted)
+        self.assertNotIn("vertraut erklärt", granted)
+        self.assertIn("Egress-Policy des Projekts (Deny-Liste, deny_content)", granted)
+
     def test_enable_adds_the_family_through_compare_and_replace(self):
         from daedalus.interfaces import computer_configuration
         from daedalus.runtimes import computer

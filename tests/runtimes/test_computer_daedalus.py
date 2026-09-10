@@ -73,6 +73,30 @@ def test_planner_lane_trusts_only_this_machine_and_the_claude_cli(tmp_path, monk
     assert subject.planner_lane(policy) == lane
 
 
+@pytest.mark.parametrize("provider, host, declared, lane, leaves", [
+    ("ollama_http", "http://127.0.0.1:11434", "", "trusted", False),
+    ("ollama", "http://[::1]:11434", "", "trusted", False),
+    ("ollama_http", "127.5.5.5:11434", "", "trusted", False),
+    ("ollama_http", "http://100.119.126.9:11434", "", "untrusted", True),
+    ("ollama_http", "http://100.119.126.9:11434", "100.119.126.9", "trusted", True),
+    ("ollama_http", "http://0.0.0.0:11434", "", "untrusted", True),
+    ("ollama_http", "http://localhost:11434", "", "untrusted", True),
+    ("claude_code_cli", "http://127.0.0.1:11434", "", "trusted", True),
+    ("codex_cli", "http://127.0.0.1:11434", "", "untrusted", True),
+])
+def test_leaving_the_machine_is_physics_and_the_lane_is_consent(tmp_path, monkeypatch, provider, host,
+                                                                declared, lane, leaves):
+    """Cerberus round 4 (H3): an owner-declared DAEDALUS_TRUSTED_HOSTS address is
+    a TRUSTED lane (consent: only the floor filters) and still LEAVES the
+    machine (physics). The two questions have two predicates."""
+    monkeypatch.setenv("OLLAMA_HOST", host)
+    monkeypatch.setenv("DAEDALUS_TRUSTED_HOSTS", declared)
+    policy = _policy(tmp_path, planner_provider=provider, allow_remote_context=True)
+    assert subject.planner_lane(policy) == lane
+    assert subject.planner_leaves_machine(policy) is leaves
+    assert subject.planner_host(policy) == (host if provider in ("ollama_http", "ollama") else None)
+
+
 def test_allow_remote_context_does_not_promote_a_remote_planner_to_trusted(tmp_path):
     policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
     assert subject.planner_lane(policy) == "untrusted"
@@ -164,10 +188,38 @@ def test_module_resolution_is_index_bound(tmp_path, module, expected):
     ("x" * 1001, "bounded"),
     ("pkg/mod.py\x00", "bounded"),
 ])
-def test_module_resolution_refuses_ambiguity_and_everything_outside_the_index(tmp_path, module, reason):
+def test_module_resolution_refuses_ambiguity_and_everything_outside_the_index(tmp_path, monkeypatch, module, reason):
     idx = {"modules": {"pkg/mod.py": {}, "pkg/dup.py": {}, "lib/dup.py": {}}}
+    adapter = _adapter(tmp_path)
+    monkeypatch.setattr(adapter, "_project_policy", lambda: None)
     with pytest.raises(ComputerRefused, match=reason):
-        _adapter(tmp_path)._resolve_module(idx, module)
+        adapter._resolve_module(idx, module)
+
+
+def test_an_ambiguous_module_names_only_the_candidates_the_gate_admits(tmp_path, monkeypatch):
+    """Cerberus round 4 (H4): the ambiguity refusal listed raw indexed paths and
+    reaches the planner's history like any result -- on the untrusted lane a
+    model-chosen basename enumerated exactly the paths ``daedalus.structure``
+    withholds. Candidates go through the same gate; the rest is a count."""
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    idx = {"modules": {"lib/laser.py": {}, "tct_app/devices/laser.py": {}, "vendor/acme/laser.py": {}}}
+    with pytest.raises(ComputerRefused) as refused:
+        adapter._resolve_module(idx, "laser.py")
+    message = str(refused.value)
+    assert "3 indexed candidates, 2 withheld" in message and "name one of: lib/laser.py" in message
+    assert "tct_app" not in message and "vendor" not in message
+    with pytest.raises(ComputerRefused) as refused:
+        adapter._resolve_module({"modules": {"tct_app/devices/laser.py": {}, "vendor/acme/laser.py": {}}}, "laser.py")
+    assert "all withheld" in str(refused.value)
+    assert "tct_app" not in str(refused.value) and "vendor" not in str(refused.value)
+    # The trusted lane sees the same list its structure rows would show.
+    trusted = subject.DaedalusObservation(_policy(tmp_path, planner_provider="claude_code_cli",
+                                                  allow_remote_context=True),
+                                          "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    with pytest.raises(ComputerRefused, match="0 withheld"):
+        trusted._resolve_module(idx, "laser.py")
 
 
 def test_slice_text_is_bounded_and_the_elision_is_reported(tmp_path, monkeypatch):
@@ -354,7 +406,7 @@ def test_structure_rows_go_through_the_path_gate(tmp_path, monkeypatch):
     # producer adds later cannot join the prompt; N7: the real ignore keys.
     assert "future_field" not in structure["hotspots"][0]
     assert structure["ignored"] == {"count": 1, "n_files_scanned": 4, "ignore_patterns": ["@tests"],
-                                    "ignore_patterns_withheld": 0}
+                                    "ignore_patterns_withheld": 0, "ignore_patterns_elided": 0}
     assert "secret/x.py" not in json.dumps(structure)
     assert [row["name"] for row in structure["clones"]] == ["helper"]
     assert structure["clones"][0]["sites"] == [{"module": "pkg/mod.py", "line": 1}]
@@ -423,32 +475,206 @@ def test_ignore_patterns_are_gated_and_counted(tmp_path, monkeypatch):
         "languages": {}, "totals": {}, "hotspots": [], "clones": [], "fan_in": []})
     structure = adapter.execute("daedalus.structure", {})
     assert structure["ignored"] == {"count": 2, "n_files_scanned": 3, "ignore_patterns": ["@tests"],
-                                    "ignore_patterns_withheld": 2}
+                                    "ignore_patterns_withheld": 2, "ignore_patterns_elided": 0}
 
 
-def test_slice_withheld_rows_name_the_rule_never_the_file(tmp_path, monkeypatch):
-    """Cerberus round 3 (H2): the withheld rows enumerated exactly the files the
-    project keeps from the vendor; only role and rule travel, plus the count,
-    and the slicer's own breadcrumb lines are scrubbed to the same shape."""
+def _real_rules(adapter, lane="untrusted"):
+    """The rule strings ``slice_egress_rule`` really returns for the fixture
+    policy -- the round-3 test pinned an invented ``egress policy: …`` string
+    the gate never emits, which is how D9 stayed green (Odysseus round 4)."""
+    from daedalus.sensitivity import slice_egress_rule
+    project = adapter._project_policy()
+    return {
+        "deny": slice_egress_rule("tct_app/devices/iseg.py", "x = 1", lane=lane, policy=project),
+        "default": slice_egress_rule("internal/roadmap q4.py", "x = 1", lane=lane, policy=project),
+        "secret": slice_egress_rule("deploy/id_rsa", "x = 1", lane=lane, policy=project),
+        "marker": slice_egress_rule("pkg/notes.py", "the ODYSSEUSCHIMERA rig", lane=lane, policy=project),
+    }
+
+
+def test_slice_withheld_rows_name_a_rule_class_never_the_file_fragment_or_marker(tmp_path, monkeypatch):
+    """Cerberus round 3 (H2) and Odysseus round 4 (D9/D12): the gate's real rule
+    strings are ``<path>: denylisted path fragment '<fragment>'``, ``<path>: path
+    not on the external allow-list (default-deny)``, ``secret path marker
+    '<fragment>'`` and ``content matches sensitive marker /<pattern>/`` -- each
+    names the withheld path, the project's deny fragment or the marker. Only a
+    fixed class travels, in the rows and in the rebuilt breadcrumb block, and a
+    file name with spaces or a CRLF line cannot slip past a regex."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"], deny_content=[r"ODYSSEUSCHIMERA"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    rules = _real_rules(adapter)
+    assert "tct_app/devices/" in rules["deny"] and "roadmap q4" in rules["default"]
+    assert "ODYSSEUSCHIMERA" in rules["marker"] and rules["secret"].startswith("secret path marker")
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 3, "n_included": 1, "trimmed_count": 2,
+        "slice_text": ("def present():\n    return 1\n\n# ===== WITHHELD (egress gate) =====\n"
+                       f"# tct_app/devices/iseg.py  ({rules['deny']})  [dependency]\r\n"
+                       f"# internal/roadmap q4.py  ({rules['default']})  [neighbor]\n"
+                       f"# deploy/id_rsa  ({rules['secret']})  [neighbor]\n"
+                       f"# pkg/notes.py  ({rules['marker']})  [importer]\n"
+                       "# ===== CONTEXT TRIMMED: dropped 2 of 5 neighbors to fit budget ====="),
+        "withheld": [{"file": "tct_app/devices/iseg.py", "role": "dependency", "rule": rules["deny"]},
+                     {"file": "internal/roadmap q4.py", "role": "neighbor", "rule": rules["default"]},
+                     {"file": "deploy/id_rsa", "role": "neighbor", "rule": rules["secret"]},
+                     {"file": "pkg/notes.py", "role": "importer", "rule": rules["marker"]}]})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert sliced["withheld"] == [{"role": "dependency", "rule": "denylisted_path"},
+                                  {"role": "neighbor", "rule": "default_deny"},
+                                  {"role": "neighbor", "rule": "secret_path"},
+                                  {"role": "importer", "rule": "deny_content"}]
+    assert sliced["withheld_count"] == 4 and sliced["focus_file"] == "pkg/mod.py"
+    dumped = json.dumps(sliced)
+    for secret in ("iseg", "tct_app", "devices", "roadmap", "id_rsa", "deploy", "notes.py", "ODYSSEUSCHIMERA", "\\r"):
+        assert secret not in dumped, secret
+    assert sliced["text"] == ("def present():\n    return 1\n\n# ===== WITHHELD (egress gate) =====\n"
+                              "# <withheld>  (denylisted_path)  [dependency]\n"
+                              "# <withheld>  (default_deny)  [neighbor]\n"
+                              "# <withheld>  (secret_path)  [neighbor]\n"
+                              "# <withheld>  (deny_content)  [importer]\n"
+                              "# ===== CONTEXT TRIMMED: dropped 2 of 5 neighbors to fit budget =====")
+
+
+def test_a_withheld_focus_discloses_neither_its_path_nor_its_rule_text(tmp_path, monkeypatch):
+    """Cerberus round 4 (H4 corollary): a basename resolves to its full indexed
+    path, which on the untrusted lane may be the very directory the project
+    withholds -- ``focus_file`` and the refusal line are gated too."""
     from daedalus.structcore import slice as slicer
     _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
     policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
     adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
-    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    rule = _real_rules(adapter)["deny"]
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"tct_app/devices/iseg.py": {}}})
     monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
-        "focus_file": target, "slice_tokens": 3, "n_included": 1,
-        "slice_text": ("def present():\n    return 1\n\n# ===== WITHHELD (egress gate) =====\n"
-                       "# tct_app/devices/iseg.py  (egress policy: tct_app/devices/)  [neighbor]\n"
-                       "# configs/secrets/lab.yaml  (secret path)  [neighbor]\n"),
-        "withheld": [{"file": "tct_app/devices/iseg.py", "role": "neighbor", "rule": "egress policy: tct_app/devices/"},
-                     {"file": "configs/secrets/lab.yaml", "role": "neighbor", "rule": "secret path"}]})
+        "focus_file": target, "slice_tokens": 9, "n_included": 0,
+        "slice_text": (f"# ===== WITHHELD: {target} ({rule}) =====\n"
+                       "# focus file withheld by the egress gate (lane=untrusted); slice refused (fail-closed)."),
+        "withheld": [{"file": target, "role": "focus", "rule": rule}]})
+    sliced = adapter.execute("daedalus.slice", {"module": "iseg.py"})
+    assert sliced["focus_file"] == "<withheld>"
+    assert sliced["withheld"] == [{"role": "focus", "rule": "denylisted_path"}]
+    assert sliced["text"] == ("# ===== WITHHELD: <withheld> (denylisted_path) =====\n"
+                              "# focus file withheld by the egress gate (lane=untrusted); slice refused (fail-closed).")
+    assert "iseg" not in json.dumps(sliced) and "tct_app" not in json.dumps(sliced)
+
+
+def test_the_real_slicer_hands_no_withheld_path_or_fragment_to_the_planner(tmp_path, monkeypatch):
+    """Odysseus round 4 (D9), end to end: the REAL index and the REAL slicer on
+    a repository whose focus imports a denylisted module. The dependency is
+    withheld by the real gate and neither its path, its directory nor the deny
+    fragment appears anywhere in the observation."""
+    import subprocess
+    repo = tmp_path / "repo"
+    for rel, body in {
+        "pkg/__init__.py": "",
+        "pkg/mod.py": "from tct_app.devices import iseg\n\n\ndef present():\n    return iseg.read()\n",
+        "tct_app/__init__.py": "",
+        "tct_app/devices/__init__.py": "",
+        "tct_app/devices/iseg.py": "def read():\n    return 1\n",
+    }.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(body, encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com", "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com",
+                    "commit", "-q", "-m", "fixture"], check=True)
+    from daedalus.foundation import projects
+    from daedalus.structcore import index as index_module
+    monkeypatch.setenv("DAEDALUS_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(index_module, "_INDEX_CACHE", {}, raising=False)
+    config = {"name": "fixture", "repo_root": str(repo),
+              "policy": {"deny": ["tct_app/devices/"], "deny_content": [], "allow": ["pkg/", ".md"]}}
+    monkeypatch.setattr(projects, "load_project", lambda name: config)
+    monkeypatch.setattr(projects, "resolve_repo_root", lambda repo_root, project: str(repo))
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _readers())
     sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
-    assert sliced["withheld"] == [{"role": "neighbor", "rule": "egress policy: tct_app/devices/"},
-                                  {"role": "neighbor", "rule": "secret path"}]
-    assert sliced["withheld_count"] == 2
-    assert "iseg" not in json.dumps(sliced) and "lab.yaml" not in json.dumps(sliced)
-    assert "# <withheld>  (secret path)  [neighbor]" in sliced["text"]
-    assert "# ===== WITHHELD (egress gate) =====" in sliced["text"]
+    assert sliced["lane"] == "untrusted" and sliced["focus_file"] == "pkg/mod.py"
+    assert sliced["withheld"] == [{"role": "dependency", "rule": "denylisted_path"}], sliced
+    assert sliced["withheld_count"] == 1
+    dumped = json.dumps(sliced)
+    assert "def present" in sliced["text"] and "# <withheld>  (denylisted_path)  [dependency]" in sliced["text"]
+    # The focus SOURCE still names its import (``from tct_app.devices import
+    # iseg`` is the focus file's own admitted text); the withheld module's
+    # PATH, its directory and the project's deny fragment are never added.
+    for secret in ("iseg.py", "devices/", "tct_app/", "denylisted path fragment"):
+        assert secret not in dumped, secret
+    assert dumped.count("iseg") == dumped.count("import iseg") + dumped.count("iseg.read()")
+
+
+def test_status_gates_every_value_shape_in_git_and_queue(tmp_path, monkeypatch):
+    """Odysseus round 4 (D10/D11): the status gate looked at str values only, so
+    a list, a dict, a set, a Path, an exception, bytes or a dict KEY carrying a
+    host path or a deny word reached the planner untouched."""
+    from pathlib import PurePath
+    _project_with_policy(monkeypatch, deny=[], deny_content=[r"iseg"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    hostile = {
+        "git_branch": "main", "git_status": "", "open_todos": 3,
+        "todo_list": ["C:\\Users\\someone\\memory\\todos.md"],
+        "worktrees": {"j": "C:\\Users\\someone\\memory\\t.md"},
+        "marker_set": {"touched the iseg driver"},
+        "path_obj": PurePath("C:/Users/someone/t.md"),
+        "error": OSError("C:\\Users\\someone\\t.md"),
+        "raw": b"C:\\Users\\someone\\t.md",
+        "keyed": {"C:\\Users\\someone\\t.md": 1},
+        "nested": [[{"deep": ("fine", "the iseg driver")}]],
+        "flag": True, "ratio": 0.5, "nothing": None,
+    }
+    readers = subject.ProjectReaders(
+        git_counters=lambda root: dict(hostile),
+        bridge_status=lambda project: {"queue_depth": ["C:\\Users\\someone\\q"], "in_flight": 0,
+                                       "unread_count": 0, "reports_total": 0, "watcher": {"state": "iseg"}},
+        report_briefs=lambda project: [])
+    # Untrusted lane: every host-path shape AND every deny_content hit is
+    # withheld, and a str scalar is default-denied like any non-allow-listed
+    # path (the round-3 behaviour, unchanged).
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, readers)
+    status = adapter.execute("daedalus.status", {})
+    assert set(status["git"]) == {"git_status", "open_todos", "flag", "ratio", "nothing",
+                                  "git_status_withheld", "fields_withheld"}
+    assert status["git"]["fields_withheld"] == 9
+    assert status["queue"] == {"in_flight": 0, "unread_count": 0, "reports_total": 0, "fields_withheld": 2}
+    dumped = json.dumps(status)
+    assert "someone" not in dumped and "iseg" not in dumped
+    # Trusted lane: only the floor and the host-path shapes withhold -- in every
+    # container shape -- and the deny word passes exactly as for the Voice.
+    trusted = subject.DaedalusObservation(_policy(tmp_path, planner_provider="claude_code_cli",
+                                                  allow_remote_context=True),
+                                          "fixture", lambda: None, tmp_path, readers)
+    status = trusted.execute("daedalus.status", {})
+    assert set(status["git"]) == {"git_branch", "git_status", "open_todos", "flag", "ratio", "nothing",
+                                  "marker_set", "nested", "git_status_withheld", "fields_withheld"}
+    assert status["git"]["fields_withheld"] == 6
+    assert status["queue"] == {"in_flight": 0, "unread_count": 0, "reports_total": 0, "watcher": "iseg",
+                               "fields_withheld": 1}
+    assert "someone" not in json.dumps(status)
+
+
+def test_structure_counts_the_admitted_rows_the_top_bound_drops(tmp_path, monkeypatch):
+    """Odysseus round 4 (D13): ``[:TOP]`` truncated silently; a short list read
+    as a complete one. The dropped admitted rows are counted apart from the
+    gate's refusals."""
+    from daedalus.structcore import report as report_module
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    many = subject.TOP + 2
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
+        "n_files": many + 1, "languages": {}, "totals": {},
+        "hotspots": [{"module": f"pkg/h{i}.py", "score": i} for i in range(many)]
+                    + [{"module": "tct_app/devices/x.py", "score": 99}],
+        "fan_in": [{"module": f"pkg/f{i}.py", "count": i} for i in range(many)],
+        "clones": [], "ignored": {"count": 0, "n_files_scanned": 1, "ignore_patterns": [f"@p{i}" for i in range(many)]}})
+    structure = adapter.execute("daedalus.structure", {})
+    assert len(structure["hotspots"]) == subject.TOP
+    assert structure["hotspots_withheld"] == 1 and structure["hotspots_elided"] == 2
+    assert structure["fan_in_withheld"] == 0 and structure["fan_in_elided"] == 2
+    assert structure["clones_elided"] == 0
+    assert structure["ignored"]["ignore_patterns_withheld"] == 0 and structure["ignored"]["ignore_patterns_elided"] == 2
 
 
 def test_slice_gate_rules_never_quote_the_marker_they_fired_on(tmp_path, monkeypatch):
@@ -465,9 +691,10 @@ def test_slice_gate_rules_never_quote_the_marker_they_fired_on(tmp_path, monkeyp
         "withheld": [{"file": "tests/test_two.py", "role": "focus",
                       "rule": "content matches sensitive marker /ODYSSEUSCHIMERA/"}]})
     sliced = adapter.execute("daedalus.slice", {"module": "tests/test_two.py"})
-    assert sliced["withheld"] == [{"role": "focus", "rule": "content matches sensitive marker /<marker>/"}]
-    assert sliced["text"] == "# ===== WITHHELD: <withheld> (content matches sensitive marker /<marker>/) =====\n"
-    assert "ODYSSEUSCHIMERA" not in json.dumps({k: v for k, v in sliced.items() if k != "focus_file"})
+    assert sliced["withheld"] == [{"role": "focus", "rule": "deny_content"}]
+    assert sliced["text"] == ("# ===== WITHHELD: <withheld> (deny_content) =====\n"
+                              "# focus file withheld by the egress gate (lane=untrusted); slice refused (fail-closed).")
+    assert "ODYSSEUSCHIMERA" not in json.dumps(sliced)
 
 
 def test_nested_strings_in_a_kept_field_are_gated(tmp_path, monkeypatch):
@@ -682,7 +909,8 @@ def test_structure_and_slice_observations_read_the_scratch_repository(scratch_re
     # MEASURED 2026-09-10 (live run 3): ``ignored.source`` carried the absolute
     # ignore-file path; only the counts and the ignore PATTERNS are observed
     # now, under the key the index really emits (Cerberus N7).
-    assert set(structure["ignored"]) == {"count", "n_files_scanned", "ignore_patterns", "ignore_patterns_withheld"}
+    assert set(structure["ignored"]) == {"count", "n_files_scanned", "ignore_patterns", "ignore_patterns_withheld",
+                                         "ignore_patterns_elided"}
     assert str(scratch_repo) not in json.dumps(structure)
     sliced = adapter.execute("daedalus.slice", {"module": "mod.py"})
     assert sliced["focus_file"].endswith("pkg/mod.py")

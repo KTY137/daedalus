@@ -1063,14 +1063,42 @@ def _egress_filter_sentence(trusted: bool) -> str:
 
 def _planner_lane_of(configuration: Mapping[str, Any]) -> str:
     """The lane the stored configuration's planner gets, from the one predicate the adapter uses."""
+    return _planner_egress_of(configuration)[0]
+
+
+def _planner_egress_of(configuration: Mapping[str, Any]) -> tuple[str, str | None, bool]:
+    """``(lane, host, leaves)`` of the stored configuration's planner, from the
+    adapter's own predicates: the lane is CONSENT (which filter runs), ``host``
+    is the local planner's address or None, ``leaves`` is PHYSICS (Cerberus
+    round 4, H3: an owner-declared trusted tailnet host is trusted AND leaves)."""
     from ...kernel.policy.computer import ComputerPolicy
-    from ...runtimes.computer_daedalus import planner_lane
-    return planner_lane(ComputerPolicy.from_dict(dict(configuration)))
+    from ...runtimes.computer_daedalus import planner_host, planner_lane, planner_leaves_machine
+    policy = ComputerPolicy.from_dict(dict(configuration))
+    return planner_lane(policy), planner_host(policy), planner_leaves_machine(policy)
 
 
-def _daedalus_tools_egress_warning(provider: str, *, trusted: bool) -> str:
-    return (f"Der konfigurierte Planner `{provider}` ist ein entfernter Dienst. Mit den Daedalus-Werkzeugen gehen "
-            f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt an den Anbieter. {_egress_filter_sentence(trusted)} "
+def _egress_destination_sentence(leaves: bool, trusted: bool, host: str | None) -> str:
+    """Where the Daedalus observations go -- true per host AND per lane."""
+    if not leaves:
+        return "er läuft auf diesem Rechner, nichts verlässt ihn."
+    if host is not None and trusted:
+        return (f"sie verlassen damit den Rechner und gehen an `{host}`, einen Host, den du in "
+                "DAEDALUS_TRUSTED_HOSTS als vertraut erklärt hast.")
+    if host is not None:
+        return f"sie verlassen damit den Rechner und gehen an `{host}`."
+    return "sie verlassen damit den Rechner und gehen an den Anbieter."
+
+
+def _daedalus_tools_egress_warning(provider: str, *, trusted: bool, host: str | None = None) -> str:
+    if host is not None:
+        where = (f"Der konfigurierte Planner `{provider}` läuft auf `{host}`, nicht auf diesem Rechner"
+                 + (" — einem Host, den du in DAEDALUS_TRUSTED_HOSTS als vertraut erklärt hast" if trusted else "")
+                 + ". Mit den Daedalus-Werkzeugen gehen "
+                 f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt dorthin.")
+    else:
+        where = (f"Der konfigurierte Planner `{provider}` ist ein entfernter Dienst. Mit den Daedalus-Werkzeugen gehen "
+                 f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt an den Anbieter.")
+    return (where + f" {_egress_filter_sentence(trusted)} "
             "Das ersetzt keine Freigabe. Bestätige ausdrücklich mit "
             "`/computer enable daedalus confirm-remote`. Die Bestätigung gilt nur für diesen einen Befehl und wird "
             "nicht gespeichert.")
@@ -1244,21 +1272,18 @@ def conversation_events(project: str | None, message: str, *,
             if not isinstance(current, dict) or not digest:
                 raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
             enabling = verb.casefold() == "enable"
-            remote = current.get("allow_remote_context") is True
             planner_name = str(current.get("planner_provider") or "?")
             # Cerberus round 2 (N1/N6): the sentences below are TRUE per lane.
-            # ``leaves`` -- observations reach a vendor -- needs the remote flag
-            # AND a non-local planner; ``trusted`` -- Claude or loopback Ollama
+            # ``trusted`` -- Claude, loopback Ollama or an owner-declared host
             # -- means the project's deny list does not apply, only the floor,
             # exactly as for the Voice (``sensitivity.slice_egress_rule``).
-            # Cerberus round 3 (C1): decided by HOST, through the one predicate
-            # the adapter uses -- a networked Ollama (OLLAMA_HOST on a tailnet
-            # address, allow_remote_context set) is untrusted, its observations
-            # leave, and the grant must say so and ask. The flag alone is not
+            # Cerberus round 3 (C1) and round 4 (H3): ``leaves`` is PHYSICS, not
+            # the lane -- a networked Ollama leaves whether or not the owner
+            # declared its address trusted in DAEDALUS_TRUSTED_HOSTS, and the
+            # grant must say so and ask. ``allow_remote_context`` alone is not
             # egress: loopback Ollama with the flag set stays on this machine.
-            lane = _planner_lane_of(current)
+            lane, host, leaves = _planner_egress_of(current)
             trusted = lane == "trusted"
-            leaves = planner_name not in _LOCAL_PLANNERS or lane != "trusted"
             if enabling and leaves and not confirm:
                 # Cerberus 2026-09-10 (CRITICAL 2 / MAJOR 3 / m-3): with a remote
                 # planner this grant widens egress -- the observations ARE the
@@ -1266,7 +1291,8 @@ def conversation_events(project: str | None, message: str, *,
                 # choosing the remote planner did, naming what leaves.
                 yield "final", core.envelope(
                     project, intent="computer", shell="hand", provider_used="deterministic",
-                    assistant=_daedalus_tools_egress_warning(planner_name, trusted=trusted) + "\n\nNichts wurde geändert.",
+                    assistant=_daedalus_tools_egress_warning(planner_name, trusted=trusted, host=host)
+                    + "\n\nNichts wurde geändert.",
                     computer={"daedalus_tools_change": "confirmation_required", "planner": planner_name,
                               "expected_policy_sha256": digest})
                 return
@@ -1282,9 +1308,7 @@ def conversation_events(project: str | None, message: str, *,
                     f"Daedalus-Werkzeuge für das registrierte Projekt freigegeben (Policy `{configured.get('policy_sha256')}`): {granted}. "
                     "Sie lesen Git-Status-Pfade, die Strukturübersicht, Doku-Referenzen, Aufgabenberichte und "
                     "Codescheiben des Projekts und geben diese Beobachtungen als Prompt an den konfigurierten "
-                    f"Planner `{planner_name}` — "
-                    + ("sie verlassen damit den Rechner und gehen an den Anbieter."
-                       if leaves else "er läuft auf diesem Rechner, nichts verlässt ihn.")
+                    f"Planner `{planner_name}` — " + _egress_destination_sentence(leaves, trusted, host)
                     + " " + _egress_filter_sentence(trusted)
                     + " Zurückgehaltene Zeilen werden gezählt. Im Arbeitsbereich und im Projektbaum schreiben, starten "
                       "oder senden die Werkzeuge nichts (Index ohne Cache und ohne Prozess-Pool; `git status`/`git branch` "

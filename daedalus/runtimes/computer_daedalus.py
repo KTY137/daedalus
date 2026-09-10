@@ -87,26 +87,49 @@ _TRUSTED_PLANNERS = frozenset({"claude_code_cli"})
 _LOCAL_PLANNERS = frozenset({"ollama_http", "ollama"})
 
 
+def planner_host(policy: ComputerPolicy) -> str | None:
+    """The address a LOCAL planner connects to -- the raw ``OLLAMA_HOST`` value,
+    exactly as ``shell._local_lane`` passes it, so the predicates own the wire
+    grammar (``[::1]`` included). ``None`` for every other planner."""
+    if policy.planner_provider in _LOCAL_PLANNERS:
+        from daedalus.providers.ollama import DEFAULT_HOST
+        return os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+    return None
+
+
 def planner_lane(policy: ComputerPolicy) -> str:
     """The egress lane of the configured planner: ``trusted`` or ``untrusted``.
 
-    A local Ollama is trusted only when ``OLLAMA_HOST`` really is this machine
+    A local Ollama is trusted only when ``OLLAMA_HOST`` is this machine or an
+    address the owner declared in ``DAEDALUS_TRUSTED_HOSTS``
     (``sensitivity.lane_for_host``, the one implementation of that question);
     the Claude CLI is trusted-with-IP exactly as in ``shell._llm``; every other
     planner is untrusted. ``allow_remote_context`` does not widen this: it
     admits that observations leave the machine, it does not promote the
-    destination to a trusted one.
+    destination to a trusted one. The lane answers CONSENT (which filter
+    applies); whether bytes cross a wire is :func:`planner_leaves_machine`.
     """
-    provider = policy.planner_provider
-    if provider in _LOCAL_PLANNERS:
-        from daedalus.providers.ollama import DEFAULT_HOST
+    host = planner_host(policy)
+    if host is not None:
         from daedalus.sensitivity import lane_for_host
-        # The raw OLLAMA_HOST value, exactly as ``shell._local_lane`` passes
-        # it: the predicate owns the wire grammar (``[::1]`` included).
-        return lane_for_host(os.environ.get("OLLAMA_HOST", DEFAULT_HOST))
-    if provider in _TRUSTED_PLANNERS:
+        return lane_for_host(host)
+    if policy.planner_provider in _TRUSTED_PLANNERS:
         return "trusted"
     return "untrusted"
+
+
+def planner_leaves_machine(policy: ComputerPolicy) -> bool:
+    """Whether an observation handed to the planner crosses a wire -- physics,
+    not consent. Cerberus round 4 (H3): an owner's ``DAEDALUS_TRUSTED_HOSTS``
+    entry makes a tailnet bench a TRUSTED lane (only the secret floor filters),
+    and the grant then said "nothing leaves this machine" while packets crossed
+    the tunnel. ``sensitivity.is_loopback_host`` cannot be widened by any
+    declaration; a remote vendor planner always leaves."""
+    host = planner_host(policy)
+    if host is None:
+        return True
+    from daedalus.sensitivity import is_loopback_host
+    return not is_loopback_host(host)
 
 
 def _looks_like_host_path(value: str) -> bool:
@@ -153,33 +176,52 @@ def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
 
 
-#: The slicer's per-file breadcrumb under ``# ===== WITHHELD (egress gate) =====``:
-#: ``# <file>  (<rule>)  [<role>]`` (structcore/slice.py). The file name is
-#: replaced; rule and role stay, so the planner still sees that and why a
-#: neighbour is missing without learning which file the project withholds.
-_WITHHELD_BREADCRUMB = re.compile(r"^# (?!=====)(\S+)  \((.*?)\)  \[(\w+)\]$", re.MULTILINE)
-#: The slicer's FOCUS refusal line: ``# ===== WITHHELD: <file> (<rule>) =====``.
-_WITHHELD_FOCUS_LINE = re.compile(r"^# ===== WITHHELD: (\S+) \((.*)\) =====$", re.MULTILINE)
-#: A gate rule that quotes the marker it fired on -- ``content matches
-#: sensitive marker /<pattern>/`` -- would disclose the very word the project
-#: keeps from the vendor (Odysseus round 3, D6). The pattern is replaced.
-_RULE_MARKER = re.compile(r"(sensitive marker )/.*/$")
+#: The slicer's withheld block header; the block is kept LAST in the slice
+#: text and every line after it is a per-file breadcrumb ``# <file>  (<rule>)
+#: [<role>]`` (structcore/slice.py). Both name what the project withholds, so
+#: the block is REBUILT from the gated rows -- no file-name grammar (spaces,
+#: CRLF) can slip a name past a regex (Odysseus round 4, D12).
+_WITHHELD_HEADER = "# ===== WITHHELD (egress gate) ====="
+_TRIMMED_MARKER = "# ===== CONTEXT TRIMMED"
+#: Every rule string the gate returns quotes what it fired on: ``<path>:
+#: denylisted path fragment '<fragment>'``, ``<path>: path not on the external
+#: allow-list (default-deny)``, ``content matches sensitive marker
+#: /<pattern>/``, ``secret path marker '<fragment>'``, ``secret content:
+#: <label>`` (sensitivity.py). The withheld path, the project's own deny
+#: fragment and the marker word are exactly what must not travel (Odysseus
+#: round 4, D9: the round-3 redaction knew one of the five shapes). Only a
+#: fixed class leaves; the rule text never does.
+_RULE_CLASSES = (("secret path marker", "secret_path"), ("secret content", "secret_content"),
+                 ("denylisted path fragment", "denylisted_path"), ("default-deny", "default_deny"),
+                 ("sensitive marker", "deny_content"))
 
 
-def _redact_rule(rule: str) -> str:
-    return _RULE_MARKER.sub(r"\1/<marker>/", str(rule))
+def _rule_class(rule: object) -> str:
+    text = str(rule)
+    for needle, label in _RULE_CLASSES:
+        if needle in text:
+            return label
+    return "egress_rule"
 
 
 def _strings_in(value: Any) -> list[str]:
-    """Every non-empty string inside a value, nested lists and dicts included
-    (Cerberus round 3, (b): a kept key holding a list of strings is gated too)."""
+    """Every string a value hands on once ``_json_safe`` serialises it: nested
+    lists, tuples, sets, dict KEYS and values, bytes, and the ``str()`` of any
+    other object -- a ``Path``, an exception -- because ``default=str`` renders
+    exactly that. Odysseus round 4 (D4/D10/D11): the round-3 flattener knew str,
+    list, tuple and Mapping values; a set, a Path and a dict key carried a host
+    path past it."""
     if isinstance(value, str):
         return [value] if value else []
+    if isinstance(value, bytes):
+        return _strings_in(value.decode("utf-8", "replace"))
     if isinstance(value, Mapping):
-        return [text for item in value.values() for text in _strings_in(item)]
-    if isinstance(value, (list, tuple)):
+        return [text for key, item in value.items() for text in _strings_in(key) + _strings_in(item)]
+    if isinstance(value, (list, tuple, set, frozenset)):
         return [text for item in value for text in _strings_in(item)]
-    return []
+    if value is None or isinstance(value, (bool, int, float)):
+        return []
+    return _strings_in(str(value))
 
 
 def _bounded_text(value: object, limit: int = MAX_TEXT_CHARS) -> tuple[str, bool]:
@@ -360,15 +402,17 @@ class DaedalusObservation:
         git = dict(self._readers.git_counters(repo_root))
         self._checkpoint()
         bridge = dict(self._readers.bridge_status(self._project))
-        queue = {key: bridge.get(key) for key in (
+        queue_raw = {key: bridge.get(key) for key in (
             "queue_depth", "in_flight", "unread_count", "reports_total")}
         watcher = bridge.get("watcher") if isinstance(bridge.get("watcher"), dict) else {}
-        queue["watcher"] = watcher.get("state", "unknown")
+        queue_raw["watcher"] = watcher.get("state", "unknown")
         # Host paths never reach the planner: the registry row is the
         # projection, the absolute path is not part of the observation.
         # MEASURED 2026-09-10 (live run 3): ``collect_status`` also carries
-        # ``todo_snapshot``, an absolute path; every absolute-path value is
-        # dropped by shape, not by name, so a later counter cannot leak one.
+        # ``todo_snapshot``, an absolute path. Every value is gated by SHAPE
+        # through every string it would hand on -- a list, a dict, a set, a
+        # Path or an exception included (Odysseus round 4, D10: the round-3
+        # gate looked at str values only, so a list of paths passed).
         observed: dict[str, Any] = {}
         withheld_paths = 0
         withheld_fields = 0
@@ -388,14 +432,27 @@ class DaedalusObservation:
                         withheld_paths += 1
                 observed[key] = "\n".join(kept_lines)
                 continue
-            if isinstance(value, str):
-                if _looks_like_host_path(value) or not self._admit(f"{key}.txt", value):
-                    withheld_fields += 1
-                    continue
-            observed[key] = value
+            if self._admit_value(key, value):
+                observed[key] = value
+            else:
+                withheld_fields += 1
         observed["git_status_withheld"] = withheld_paths
         observed["fields_withheld"] = withheld_fields
+        queue: dict[str, Any] = {}
+        queue_withheld = 0
+        for key, value in queue_raw.items():
+            if self._admit_value(key, value):
+                queue[key] = value
+            else:
+                queue_withheld += 1
+        queue["fields_withheld"] = queue_withheld
         return {"git": observed, "queue": queue, "registered": True}
+
+    def _admit_value(self, key: str, value: Any) -> bool:
+        """A scalar or container is admitted only if every string it would hand
+        on passes the shape check and the project's gate."""
+        return all(not _looks_like_host_path(text) and self._admit(f"{key}.txt", text)
+                   for text in _strings_in(value))
 
     def _structure(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
@@ -432,15 +489,22 @@ class DaedalusObservation:
         # other string (Cerberus round 3, H1).
         patterns = [str(p) for p in (ignored.get("ignore_patterns") or [])]
         admitted_patterns = [p for p in patterns if self._admit_text(p)]
+        # ``*_withheld`` counts gate refusals; ``*_elided`` counts the admitted
+        # rows the TOP bound drops, so a short list is never mistaken for a
+        # complete one (Odysseus round 4, D13).
         return {"n_files": summary.get("n_files"),
                 "ignored": {"count": ignored.get("count", 0),
                             "n_files_scanned": ignored.get("n_files_scanned"),
                             "ignore_patterns": admitted_patterns[:TOP],
-                            "ignore_patterns_withheld": len(patterns) - len(admitted_patterns)},
+                            "ignore_patterns_withheld": len(patterns) - len(admitted_patterns),
+                            "ignore_patterns_elided": max(0, len(admitted_patterns) - TOP)},
                 "languages": summary.get("languages"), "totals": summary.get("totals"),
                 "hotspots": hotspots[:TOP], "hotspots_withheld": hotspots_withheld,
+                "hotspots_elided": max(0, len(hotspots) - TOP),
                 "clones": clones[:TOP], "clones_withheld": clones_withheld,
+                "clones_elided": max(0, len(clones) - TOP),
                 "fan_in": fan_in[:TOP], "fan_in_withheld": fan_in_withheld,
+                "fan_in_elided": max(0, len(fan_in) - TOP),
                 "churn": "not measured (effect-free index)"}
 
     def _resolve_module(self, idx: dict, module: object) -> str:
@@ -454,7 +518,20 @@ class DaedalusObservation:
         if len(hits) == 1:
             return hits[0]
         if len(hits) > 1:
-            raise ComputerRefused("module is ambiguous; name one of: " + ", ".join(hits[:TOP]))
+            # The refusal text reaches the planner's history like any result
+            # (runtimes/computer.py ``outcome["error"]``), so the candidates go
+            # through the same gate as a ``module`` row of ``daedalus.structure``
+            # -- a basename the model chooses must not enumerate the paths the
+            # project withholds (Cerberus round 4, H4).
+            admitted = [hit for hit in hits if self._admit(hit, "")]
+            withheld = len(hits) - len(admitted)
+            if admitted:
+                raise ComputerRefused(
+                    f"module is ambiguous ({len(hits)} indexed candidates, {withheld} withheld by the egress "
+                    f"gate); name one of: " + ", ".join(admitted[:TOP]))
+            raise ComputerRefused(
+                f"module is ambiguous ({len(hits)} indexed candidates, all withheld by the egress gate); "
+                "name a fuller repository-relative path")
         raise ComputerRefused("module is not in the project's index; name an indexed source file")
 
     def _slice(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -473,17 +550,38 @@ class DaedalusObservation:
         withheld = result.get("withheld") or []
         # The withheld rows name the FILES the gate refused -- on the untrusted
         # lane exactly the paths the project keeps from the vendor (Cerberus
-        # round 3, H2). Only the role and the rule travel; the count says how
-        # many. The in-text ``# ===== WITHHELD`` breadcrumbs are the slicer's own
-        # and carry the file names too, so they are scrubbed to the rule.
-        rows = [{"role": str(row.get("role", "")), "rule": _redact_rule(row.get("rule", ""))}
+        # round 3, H2) -- and the RULE names the path, the deny fragment or the
+        # marker again (Odysseus round 4, D9). Only the role and a rule CLASS
+        # travel; the count says how many.
+        rows = [{"role": str(row.get("role", "")), "rule": _rule_class(row.get("rule", ""))}
                 for row in withheld if isinstance(row, Mapping)] if isinstance(withheld, list) else []
-        text = _WITHHELD_BREADCRUMB.sub(lambda m: f"# <withheld>  ({_redact_rule(m.group(2))})  [{m.group(3)}]", text)
-        text = _WITHHELD_FOCUS_LINE.sub(lambda m: f"# ===== WITHHELD: <withheld> ({_redact_rule(m.group(2))}) =====", text)
-        return {"focus_file": result.get("focus_file"), "lane": lane,
+        shown = rows[:TOP]
+        if any(row["role"] == "focus" for row in rows):
+            # A withheld focus yields no slice at all: the slicer's whole text
+            # is its two-line refusal naming the file and the rule. Rebuilt.
+            text = (f"# ===== WITHHELD: <withheld> ({shown[0]['rule']}) =====\n"
+                    f"# focus file withheld by the egress gate (lane={lane}); slice refused (fail-closed).")
+            elided = False
+        elif _WITHHELD_HEADER in text:
+            # The slicer keeps its withheld block LAST: everything after the
+            # header is a per-file breadcrumb naming the file and the rule.
+            # Rebuilt from the gated rows; only a CONTEXT TRIMMED marker (counts
+            # only) is carried over from the original tail.
+            head, tail = text.split(_WITHHELD_HEADER, 1)
+            trimmed = [line.rstrip("\r") for line in tail.splitlines() if line.startswith(_TRIMMED_MARKER)]
+            text = (head + _WITHHELD_HEADER
+                    + "".join(f"\n# <withheld>  ({row['rule']})  [{row['role']}]" for row in shown)
+                    + (f"\n# ... {len(rows) - len(shown)} more withheld" if len(rows) > len(shown) else "")
+                    + "".join("\n" + line for line in trimmed))
+        # The resolved focus path is disclosed only if the gate admits it: a
+        # basename resolves to its full indexed path, which on the untrusted
+        # lane may be exactly the directory the project withholds (Cerberus
+        # round 4, H4 corollary).
+        focus = target if self._admit(target, "") else "<withheld>"
+        return {"focus_file": focus, "lane": lane,
                 "slice_tokens": result.get("slice_tokens"), "n_included": result.get("n_included"),
                 "trimmed_count": result.get("trimmed_count", 0),
-                "withheld": rows[:TOP], "withheld_count": len(rows),
+                "withheld": shown, "withheld_count": len(rows),
                 "withheld_elided": max(0, len(rows) - TOP),
                 "text": text, "text_elided": elided}
 
