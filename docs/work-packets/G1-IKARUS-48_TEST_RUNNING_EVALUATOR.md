@@ -28,9 +28,12 @@ and was nominated. Requiring the repair arm to execute *exactly* as many tests
 as the baseline closes both. It does **not** make the baseline's count
 unknowable: round 3 read it out of the baseline arm's own retained observation
 from a parent directory of the running arm, and counting the suite directly
-works too. The evaluation workspace has been moved out from under the control
-root so that evidence is no longer one directory away, but reads are not
-fenced, so the rule raises the cost of a forgery rather than preventing one. It does **not** close a forger that counts the suite itself and
+works too. Round 3 moved the evaluation workspace out from under the control root so
+that evidence would not be one directory away; round 4 measured that a
+contained arm finds it regardless by walking down from the home directory, and
+the move was reverted (see below). Reads are not fenced, so the rule raises the
+cost of a forgery rather than preventing one.
+It does **not** close a forger that counts the suite itself and
 reports that number. **The verdict is a self-report**, every observation carries
 `verdict_is_self_reported: true`, and observing the run from outside the child
 is a separate packet. What stands between a forged verdict and the repository is
@@ -327,3 +330,40 @@ produceable by a caller who is not the author of the test, and the receipt that
 reaches the owner still says the tests passed. Verified in this round: all three
 doors omit the argument, and `TestCommandEvaluator` is imported nowhere in
 `daedalus/` outside `campaign.py`.
+
+## Review round 4 (2026-09-10, `d97035c4`)
+
+**Cerberus: not blocking, no CRITICAL. Round 3's high 1, high 2 and medium 1
+are all discharged by execution rather than by reading.** The nomination
+artifact a promoting owner reads carries the self-report qualifier; an
+unreadable specification now refuses; and the corrected wording about the
+equality rule matches what the reviewer measured.
+
+**NEW-1 (high), introduced by round 3 and reverted here.** Round 3 moved the
+evaluation workspace into the system temp directory. Round 4 measured what that
+bought: nothing. A contained, low-integrity arm read this campaign's own freshly
+written baseline observation anyway, by walking DOWN from the home directory —
+the control root is home-derived, and the child needs no path to it. What the
+move cost was real:
+
+- the arm ran outside the containment root this campaign **declares and
+  retains**, so two retained evidence strings became false for this path;
+- the temporary parent directory was never removed: 93 before that round, 130
+  after (all removed now);
+- a faulted arm left the entire pinned revision — about 284 MiB here — in the
+  temp directory permanently.
+
+So the workspace is back under the declared campaign root, and the leak the move
+exposed is fixed for **both** paths: every arm removes its workspace in a
+`finally`, which no earlier revision of this packet did either. The negative
+evidence is retained in the module and in a test, because the next person to
+have this idea should find the measurement rather than repeat it.
+
+**NEW-3 (low), fixed:** the regression test for the unreadable-specification
+refusal asserted the spelling of a source line, so an equivalent rewrite that
+reintroduced the bug would have passed it. It asserts behaviour now.
+
+**Still recorded and still not this packet's:** filesystem reads above the
+workspace are unfenced, and the comment claiming a candidate "cannot reach any
+other byte" predates this packet. Writes above the workspace ARE blocked,
+measured independently three times.

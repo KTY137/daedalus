@@ -27,6 +27,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -400,14 +401,21 @@ def test_the_nomination_a_human_reads_says_the_verdict_is_self_reported(tmp_path
 
 
 @pytest.mark.slow
-def test_the_evaluation_workspace_is_not_under_the_retained_evidence(tmp_path):
-    """Cerberus round 3 (high 1, Forge C): the arm's working directory was a
-    descendant of the control root, so a candidate could walk up and read the
-    BASELINE arm's retained observation -- the very count the equality rule
-    expects it not to know. The reviewer's A/B differed in nothing else.
+def test_the_evaluation_workspace_is_declared_and_always_removed(tmp_path):
+    """NEGATIVE EVIDENCE, retained (Cerberus rounds 3 and 4).
 
-    Reads are still not fenced, so this raises the cost rather than closing the
-    class; what it removes is the one-directory-away version."""
+    Round 3 moved this workspace into the system temp directory so that the
+    retained observations would not be a parent of the running arm. Round 4
+    measured that a contained arm finds this campaign's own baseline
+    observation regardless, by walking down from the home directory -- the
+    control root is home-derived. The move bought nothing measurable and cost
+    two true statements (the arm ran outside the containment root the campaign
+    declares and retains) plus an unbounded temp leak, so it was reverted.
+
+    What is pinned instead is what actually holds: the workspace sits under the
+    declared campaign root, and it is gone afterwards on every path -- including
+    a fault, which left the entire pinned revision on disk in every earlier
+    revision of this packet."""
 
     from daedalus.spine.killswitch import control_root
 
@@ -424,6 +432,8 @@ def test_the_evaluation_workspace_is_not_under_the_retained_evidence(tmp_path):
         return wrapped
 
     root, revision = _subject(tmp_path, TEST_SEEING)
+    temp_root = Path(tempfile.gettempdir())
+    before = len(list(temp_root.glob("daedalus-ariadne-eval-*")))
     original = subject.command_gate
     subject.command_gate = watched
     try:
@@ -434,17 +444,57 @@ def test_the_evaluation_workspace_is_not_under_the_retained_evidence(tmp_path):
     assert len(seen) == 3
     control = control_root(root).resolve()
     for worktree in seen:
-        assert control not in worktree.resolve().parents
+        # Declared: the lease names this root, and the retained containment
+        # evidence is true because of it.
+        assert control in worktree.resolve().parents
+        # Removed: the receipt is the evidence, the tree is not.
+        assert not worktree.exists()
+    assert len(list(temp_root.glob("daedalus-ariadne-eval-*"))) == before
 
 
-def test_an_unreadable_spec_fails_the_replay_closed(tmp_path):
-    """Cerberus round 3 (medium 1): `None in (EVALUATOR_SHA256, None)` accepted
-    an observation whose evaluator digest was null whenever the spec could not
-    be read. Absence must refuse, not pass."""
+@pytest.mark.slow
+def test_a_fault_after_the_extraction_leaves_no_workspace_behind(tmp_path):
+    """Cerberus round 4 (NEW-1): the arm's try block had no `finally`, so a
+    fault between building the workspace and removing it left about 284 MiB of
+    the pinned revision on disk, permanently, once per faulted arm."""
 
-    source = Path(subject.__file__).read_text(encoding="utf-8")
-    assert "(EVALUATOR_SHA256,) if spec_frozen_evaluator is None" in source
-    assert "None in" not in source.split("def _require_campaign_inner_effect_terminals")[1][:4000]
+    from daedalus.spine.killswitch import control_root
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    original = subject.command_gate
+
+    def exploding(argv, **kwargs):
+        def boom(_ctx):
+            raise RuntimeError("injected fault after the revision was extracted")
+
+        return boom
+
+    subject.command_gate = exploding
+    try:
+        with pytest.raises(Exception):
+            _campaign(root, revision, campaign_id="a15-fault")
+    finally:
+        subject.command_gate = original
+
+    evaluations = control_root(root) / "ariadne" / "workspaces" / "evaluations"
+    leftover = [p for p in evaluations.iterdir()] if evaluations.is_dir() else []
+    assert leftover == [], f"a faulted arm left its workspace behind: {leftover}"
+
+
+@pytest.mark.slow
+def test_an_unreadable_spec_fails_the_replay_closed(tmp_path, monkeypatch):
+    """Cerberus round 3 (medium 1) and round 4 (NEW-3): the branch accepted a
+    null evaluator digest whenever the ExperimentSpec could not be read, because
+    `None in (X, None)` is true. Absence must refuse.
+
+    Pinned by BEHAVIOUR: the previous version of this test asserted the spelling
+    of the source line, so an equivalent rewrite that reintroduced the bug would
+    have passed it."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    monkeypatch.setattr(subject, "_frozen_evaluator_of", lambda store, receipt: None)
+    with pytest.raises(AriadneCampaignError, match="command digest"):
+        _campaign(root, revision, campaign_id="a16-nospec")
 
 
 def test_the_module_says_what_a_green_run_does_not_prove():

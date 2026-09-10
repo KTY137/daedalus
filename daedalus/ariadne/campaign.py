@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
 import sys
 import tarfile
 from dataclasses import asdict, dataclass
@@ -316,6 +315,18 @@ def _read_test_report(path: Path) -> dict[str, int]:
                 ) from exc
     counts["executed"] = max(0, counts["tests"] - counts["skipped"])
     return counts
+
+
+def _remove_evaluation_workspace(workspace: Path) -> bool:
+    """Remove one arm's evaluation workspace. The receipt is the evidence."""
+
+    try:
+        shutil.rmtree(workspace, ignore_errors=False)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
 
 
 def _campaign_lease_timeout_s(timeout_s: int, evaluator: "TestCommandEvaluator | None") -> int:
@@ -2025,27 +2036,23 @@ def run_campaign(
                 max_total_bytes=MAX_CAMPAIGN_FILE_BYTES,
             )
             usage = ResourceUsage()
+            evaluation_workspace: Path | None = None
             try:
-                if evaluator is None:
-                    evaluation_workspace = (
-                        workspace_parent
-                        / "evaluations"
-                        / f"{attempt.attempt_id}-{candidate.ref.sha256[:16]}"
-                    )
-                else:
-                    # NOT under the control root. The arm's working directory was
-                    # a descendant of the directory holding every retained
-                    # observation, so a candidate could walk up and read the
-                    # BASELINE arm's executed count -- which is exactly the
-                    # number the equality rule expects it not to know (Cerberus
-                    # round 3, Forge C: the only difference between nomination
-                    # and refusal was whether the child looked above its
-                    # workspace). Reads are not fenced, so a candidate that
-                    # knows where to look can still find that evidence; this
-                    # stops it being one directory away.
-                    evaluation_workspace = Path(
-                        tempfile.mkdtemp(prefix="daedalus-ariadne-eval-")
-                    ) / f"{attempt.attempt_id}-{candidate.ref.sha256[:16]}"
+                # NEGATIVE EVIDENCE, retained (Cerberus rounds 3 and 4).
+                # Round 3 moved this workspace into %TEMP% so the retained
+                # observations would not be a parent directory of the running
+                # arm. Round 4 measured that a contained arm finds this
+                # campaign's own baseline observation anyway, by walking DOWN
+                # from Path.home(): the control root is home-derived and the
+                # child needs no path to it. The move bought nothing and cost
+                # two true statements -- the arm ran outside the containment
+                # root this campaign declares and retains -- plus an unbounded
+                # temp leak. The workspace belongs where the lease says it is.
+                evaluation_workspace = (
+                    workspace_parent
+                    / "evaluations"
+                    / f"{attempt.attempt_id}-{candidate.ref.sha256[:16]}"
+                )
                 workspace_files = 0
                 workspace_bytes = 0
                 if evaluator is None:
@@ -2141,12 +2148,12 @@ def run_campaign(
                     # A tree of the pinned revision per arm is ~284 MiB on this
                     # repository; three of them per campaign, retained forever,
                     # is not evidence, it is disk (Cerberus round 1, high 3).
-                    # The receipt is the evidence, so the tree goes.
-                    try:
-                        shutil.rmtree(evaluation_workspace, ignore_errors=False)
-                        workspace_removed = True
-                    except OSError:
-                        workspace_removed = False
+                    # The receipt is the evidence, so the tree goes. The
+                    # `finally` below covers the paths this line cannot reach:
+                    # a fault between the extraction and here left the whole
+                    # revision on disk in every earlier revision of this packet
+                    # (Cerberus round 4).
+                    workspace_removed = _remove_evaluation_workspace(evaluation_workspace)
                 if evaluator is None:
                     evaluator_value = _verify_frozen_evaluator_output(
                         result,
@@ -2377,6 +2384,13 @@ def run_campaign(
                     # still raise: those are faults the operator must see as such.
                     return failed_receipt.to_dict()
                 raise
+            finally:
+                # The ARM's try: a fault between building this workspace and
+                # removing it left the entire pinned revision on disk -- about
+                # 284 MiB for this repository -- in every earlier revision of
+                # this packet (Cerberus round 4). The receipt is the evidence.
+                if evaluation_workspace is not None:
+                    _remove_evaluation_workspace(evaluation_workspace)
             receipt_ref = store_contract(store, completion.receipt)
             negative_outcomes = []
             blockers = []
@@ -2489,10 +2503,19 @@ def run_campaign(
                     "Campaign failure receipt is canonical but its inner Attempt "
                     "effect needs reconciliation"
                 ) from terminal_failure
+            finally:
+                # A fault between the extraction and the removal above left
+                # the entire pinned revision on disk -- about 284 MiB for
+                # this repository -- in every earlier revision of this
+                # packet (Cerberus round 4). The receipt is the evidence;
+                # the tree is not.
+                if evaluation_workspace is not None:
+                    _remove_evaluation_workspace(evaluation_workspace)
             active_attempt_begin = None
             active_inner = None
             active_inner_execution = None
             active_inner_start = None
+
             trials.append(trial)
             evidence_by_key[(variant, seed)] = packet
             if budget_violations:
