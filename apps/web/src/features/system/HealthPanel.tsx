@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { HealthFact, HealthPayload, HealthSubsystem } from '@/shared/api';
 import { scrimVariants, surfaceVariants, useReducedMotionPref } from '@/shared/ui/motion';
-import { costText, readMode, scopeNote, shallow, totalCost } from './healthread';
+import { costText, readMode, scopeNote, shallow, totalCost, waitText } from './healthread';
 import { useDialogFocus } from '@/shared/ui/useDialogFocus';
 
 /**
@@ -240,11 +240,18 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
               {snapshot.subsystems?.length || 0} {snapshot.subsystems?.length === 1 ? 'Prüfung' : 'Prüfungen'} · gelesen{' '}
               {snapshot.generated_at || 'unbekannt'}
               {hidden > 0 ? ` · ${hidden} laufende ausgeblendet` : ''}
-              {/* Why the panel took as long as it did, summed from the rows
-                  themselves rather than timed by the browser. */}
+              {/* TWO DIFFERENT NUMBERS, AND THEY ARE NOT INTERCHANGEABLE.
+                  The probes run concurrently, so the summed row costs are how
+                  much WORK was done and `wall_seconds` is how long the read
+                  took. Measured 2026-09-10: 8,3 s of work in 2,2 s of waiting.
+                  When the backend did not time itself, the wait is simply not
+                  shown -- it is never back-filled from the sum. */}
               {totalCost(snapshot.subsystems || []) > 0 && (
                 <span className="health-total">
-                  {' · '}{costText(totalCost(snapshot.subsystems || []))} gemessen
+                  {' · '}{costText(totalCost(snapshot.subsystems || []))} Prüfarbeit
+                  {waitText(snapshot.wall_seconds)
+                    ? ` in ${waitText(snapshot.wall_seconds)} Wartezeit`
+                    : ' · Wartezeit nicht gemessen'}
                 </span>
               )}
             </p>

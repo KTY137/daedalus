@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hmac
 import re
+import time
 from typing import Any, Callable, Pattern
 from urllib.parse import quote, unquote
 
@@ -656,8 +657,15 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
             deep = (qs.get("deep") or ["0"])[0] in ("1", "true", "yes")
             remote = (qs.get("probe_remote") or ["0"])[0] in ("1", "true", "yes")
             only = _clip((qs.get("only") or [""])[0], 100) or None
-            payload = _health.to_payload(
-                _health.assess(only, deep=deep, probe_remote=remote))
+            # The wait is timed HERE because this is the only place that
+            # holds the stopwatch. Since the probes run concurrently, the sum
+            # of `subsystems[].seconds` is the WORK and not the wait -- a
+            # caller that adds the rows up now overstates the latency several
+            # times over, so the real elapsed time is reported on its own.
+            _t0 = time.time()
+            reports = _health.assess(only, deep=deep, probe_remote=remote)
+            payload = _health.to_payload(reports,
+                                         wall_seconds=time.time() - _t0)
             payload["asked"] = {"deep": deep, "probe_remote": remote,
                                 "only": only}
             self._send_json(core.envelope(None, health=payload))

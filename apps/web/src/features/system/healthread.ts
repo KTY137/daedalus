@@ -66,19 +66,42 @@ export function shallow(asked: HealthAsked | undefined): boolean {
  *
  * German decimal comma, and two places because the interesting range here is
  * hundredths: measured 2026-09-03, the twenty subsystems ran from 0.00s to
- * 2.06s and summed to 10.62s -- which is the whole of the ~10.6s a health read
- * takes. Rounding to whole seconds would turn most rows into "0 s" and hide
- * exactly the distribution that explains the wait.
+ * 2.06s. Rounding to whole seconds would turn most rows into "0 s" and hide
+ * exactly the distribution that explains where the work goes.
  */
 export function costText(seconds: number | null | undefined): string {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return '';
   return `${seconds.toFixed(2).replace('.', ',')} s`;
 }
 
-/** What the whole board cost, summed from the rows that reported a cost. */
+/**
+ * What the whole board of WORK cost, summed from the rows that reported a cost.
+ *
+ * THIS IS NOT THE WAIT, AND SINCE 2026-09-10 IT NEVER WILL BE AGAIN. The
+ * backend runs its probes concurrently, so the sum is how much work happened
+ * and `wall_seconds` is how long the caller stood there. Measured on the
+ * owner's machine that day: 8.3s summed, 2.2s waited. The serial version made
+ * those the same number, which is the only reason this function was ever
+ * allowed to stand in for the latency.
+ */
 export function totalCost(subsystems: Array<{ seconds?: number | null }>): number {
   return subsystems.reduce(
     (sum, s) => sum + (typeof s.seconds === 'number' && Number.isFinite(s.seconds) && s.seconds > 0 ? s.seconds : 0),
     0
   );
+}
+
+/**
+ * How long the read actually took, in the backend's own measurement.
+ *
+ * `null` is the honest answer for a caller that did not hold a stopwatch --
+ * the CLI's `--json` without timing, an older backend, a hand-written fixture.
+ * It must never be filled in from {@link totalCost}: that number is four
+ * times too large now, and inventing it here is exactly the failure the health
+ * surface exists to report on. Returns '' when nothing was measured, so the
+ * caller renders nothing rather than a made-up figure.
+ */
+export function waitText(wallSeconds: number | null | undefined): string {
+  if (typeof wallSeconds !== 'number' || !Number.isFinite(wallSeconds) || wallSeconds < 0) return '';
+  return `${wallSeconds.toFixed(2).replace('.', ',')} s`;
 }

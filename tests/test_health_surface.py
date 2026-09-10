@@ -29,8 +29,10 @@ import os
 import sqlite3
 import sys
 import tempfile
+import threading
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from unittest import mock
@@ -240,6 +242,23 @@ class Rendering(unittest.TestCase):
         self.assertEqual(payload["verdict"], 2)
         self.assertEqual(sorted(payload["not_proven"]), ["a", "b"])
         json.dumps(payload)      # must stay serialisable
+
+    def test_an_untimed_read_reports_no_wait_rather_than_the_sum(self):
+        """`wall_seconds` is measured or it is null. It is never derived.
+
+        The probes are concurrent, so the sum of the rows is the WORK and the
+        wall clock is the WAIT -- 8.3s and 2.2s respectively, measured
+        2026-09-10. Back-filling one from the other would put a 4x overstatement
+        on the screen under the word "measured", which is the exact class of
+        claim this module exists to refuse.
+        """
+        rows = [Report("a", WORKING, "", (measured("x", 1),), seconds=2.0),
+                Report("b", WORKING, "", (measured("x", 1),), seconds=2.0)]
+        self.assertIsNone(health.to_payload(rows)["wall_seconds"])
+        timed = health.to_payload(rows, wall_seconds=2.061)
+        self.assertEqual(timed["wall_seconds"], 2.061)
+        self.assertLess(timed["wall_seconds"],
+                        sum(r["seconds"] for r in timed["subsystems"]))
 
 
 # =========================================================================== #
@@ -556,6 +575,122 @@ class ProbesReportBadNews(unittest.TestCase):
 
 
 # =========================================================================== #
+# 7b. the probes run CONCURRENTLY, and the answer is unchanged by that        #
+# =========================================================================== #
+class ProbesRunConcurrently(unittest.TestCase):
+    """The wait is bounded by the slowest probe, not by their sum.
+
+    MEASURED 2026-09-10: the serial loop this replaced made `GET /api/health`
+    cost 6.2s warm and 11.3s cold, and the desktop's status line therefore read
+    "Zustand wird gelesen …" for that whole time on every launch. Two of the
+    twenty probes ask the same dead local Ollama host one after the other, and
+    a refused TCP connect costs ~2.04s on that machine whatever the port.
+
+    NOT A CLOCK ASSERTION. A test that asserts "faster than N seconds" is a
+    test that goes red on a loaded box and green on a serial implementation
+    that happens to run on a fast one. These probes meet at a
+    :class:`threading.Barrier` instead: every probe must be in flight at the
+    same moment or the barrier breaks and the reports say so. Serial cannot
+    pass it, and a slow machine cannot fail it.
+    """
+
+    #: Long enough that a busy box is not what breaks the barrier, short enough
+    #: that the mutation in :data:`GUARDS` does not stall the suite.
+    RENDEZVOUS_S = 8.0
+
+    @classmethod
+    def _fan(cls, n: int):
+        """`n` probes that only report WORKING if all `n` are running at once."""
+        barrier = threading.Barrier(n, timeout=cls.RENDEZVOUS_S)
+
+        def make(i):
+            def fn(ctx):
+                barrier.wait()      # BrokenBarrierError when run one by one
+                return health.working(f"fan.{i}", "met the other probes",
+                                      (measured("index", i),))
+            return ProbeSpec(name=f"fan.{i}", asks="are we concurrent?", fn=fn)
+
+        return [make(i) for i in range(n)]
+
+    def test_all_probes_are_in_flight_at_the_same_moment(self):
+        with mock.patch.object(health, "PROBES", self._fan(4)):
+            reports = health.assess()
+        self.assertEqual([r.name for r in reports],
+                         ["fan.0", "fan.1", "fan.2", "fan.3"])
+        self.assertEqual([r.state for r in reports], [WORKING] * 4,
+                         "\n".join(f"{r.name}: {r.headline}" for r in reports))
+
+    def test_reports_come_back_in_registry_order_not_finishing_order(self):
+        """Concurrency must not reshuffle the board under the operator."""
+        def slow(seconds, i):
+            def fn(ctx):
+                time.sleep(seconds)
+                return health.working(f"ord.{i}", "done", (measured("i", i),))
+            return ProbeSpec(name=f"ord.{i}", asks="?", fn=fn)
+
+        # Registered slowest-first, so finishing order is the exact reverse.
+        specs = [slow(0.30, 0), slow(0.20, 1), slow(0.10, 2), slow(0.0, 3)]
+        with mock.patch.object(health, "PROBES", specs):
+            reports = health.assess()
+        self.assertEqual([r.name for r in reports],
+                         ["ord.0", "ord.1", "ord.2", "ord.3"])
+
+    def test_a_probe_that_raises_still_becomes_unknown_off_the_main_thread(self):
+        """`_coerce`'s guarantee has to survive being called in a worker."""
+        def boom(ctx):
+            raise RuntimeError("the probe itself fell over")
+
+        specs = [ProbeSpec(name="ok.one", asks="?",
+                           fn=lambda ctx: health.working(
+                               "ok.one", "fine", (measured("x", 1),))),
+                 ProbeSpec(name="bad.one", asks="?", fn=boom)]
+        with mock.patch.object(health, "PROBES", specs):
+            reports = health.assess()
+        self.assertEqual(reports[0].state, WORKING)
+        self.assertEqual(reports[1].state, UNKNOWN)
+        self.assertIn("RuntimeError", reports[1].headline)
+
+    def test_a_single_probe_read_still_answers(self):
+        """`?only=` narrows to one probe; it must not need a rendezvous."""
+        specs = [ProbeSpec(name="solo.probe", asks="?",
+                           fn=lambda ctx: health.working(
+                               "solo.probe", "alone", (measured("x", 1),))),
+                 ProbeSpec(name="other.probe", asks="?",
+                           fn=lambda ctx: health.working(
+                               "other.probe", "no", (measured("x", 2),)))]
+        with mock.patch.object(health, "PROBES", specs):
+            reports = health.assess(only="solo")
+        self.assertEqual([r.name for r in reports], ["solo.probe"])
+        self.assertEqual(reports[0].state, WORKING)
+
+    def test_the_bench_is_dialled_once_even_when_both_probes_start_together(self):
+        """"one timeout, not two" survives the two probes becoming simultaneous.
+
+        The cache in `_ssh_bench_snapshot` used to be safe because the probes
+        were serial. Concurrently, a cache that only guards its own dict lets
+        both callers dial out and saves nothing -- so the second caller has to
+        WAIT for the first answer, which is what the lock is for.
+        """
+        calls = []
+
+        def slow_ssh(host, script, timeout):
+            calls.append(host)
+            time.sleep(0.25)
+            return True, {"task": {"ok": False, "error": "stub"},
+                          "crashes": {"ok": False, "error": "stub"}}
+
+        health._SSH_CACHE.clear()
+        with mock.patch.object(health, "_ssh_powershell", slow_ssh):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                out = list(pool.map(lambda _: health._ssh_bench_snapshot(Ctx()),
+                                    range(2)))
+        health._SSH_CACHE.clear()
+        self.assertEqual(len(calls), 1,
+                         f"the bench was dialled {len(calls)} time(s)")
+        self.assertEqual(out[0], out[1])
+
+
+# =========================================================================== #
 # 8. the assembled surface on THIS repo                                       #
 # =========================================================================== #
 class LiveSurface(unittest.TestCase):
@@ -692,6 +827,44 @@ def _creating_vector_probe(ctx):
                           (measured("opened", True),))
 
 
+def _serial_assess(only=None, *, repo_root=None, probe_remote=False,
+                   deep=False, timeout_s=6.0):
+    """`assess` as it was before 2026-09-10: one probe after another.
+
+    This is the regression, verbatim. It answers exactly the same thing, which
+    is why no assertion about STATES or provenance can catch it -- only the
+    rendezvous in :class:`ProbesRunConcurrently` can.
+    """
+    ctx = Ctx(repo_root=Path(repo_root).resolve() if repo_root else health.ROOT,
+              probe_remote=probe_remote, deep=deep, timeout_s=timeout_s)
+    health._SOURCE_CACHE.clear()
+    health._SSH_CACHE.clear()
+    out = []
+    for spec in health.PROBES:
+        if only and only not in spec.name:
+            continue
+        t0 = time.time()
+        try:
+            value = spec.fn(ctx)
+        except BaseException as exc:                     # noqa: BLE001
+            if isinstance(exc, KeyboardInterrupt):
+                raise
+            value = exc
+        out.append(health._coerce(spec, value, time.time() - t0))
+    return out
+
+
+def _unlocked_ssh_snapshot(ctx):
+    """`_ssh_bench_snapshot` with the lock removed -- the dict-only cache."""
+    if health.BENCH_SSH_HOST in health._SSH_CACHE:
+        return health._SSH_CACHE[health.BENCH_SSH_HOST]
+    result = health._ssh_powershell(health.BENCH_SSH_HOST,
+                                    health._BENCH_SNAPSHOT_SCRIPT,
+                                    health.BENCH_SSH_TIMEOUT_S)
+    health._SSH_CACHE[health.BENCH_SSH_HOST] = result
+    return result
+
+
 def _counting_observers(module, repo_root):
     """`production_importers` without the observer exclusion."""
     saved = health._OBSERVERS
@@ -798,6 +971,18 @@ GUARDS = [
       "test_a_wired_router_that_is_not_called_is_present_not_working",
       "ProbesReportBadNews.test_a_router_that_raises_when_called_is_degraded",
       "ProbesReportBadNews.test_a_keyword_fallback_is_degraded_not_working"]),
+
+    ("assess.probes_are_concurrent",
+     "the probe fan-out, i.e. the wait becomes the SUM of the probes again",
+     lambda: mock.patch.object(health, "assess", _serial_assess),
+     ["ProbesRunConcurrently.test_all_probes_are_in_flight_at_the_same_moment"]),
+
+    ("ssh_cache.second_caller_waits",
+     "the lock that stops both bench probes dialling out at once",
+     lambda: mock.patch.object(health, "_ssh_bench_snapshot",
+                               _unlocked_ssh_snapshot),
+     ["ProbesRunConcurrently."
+      "test_the_bench_is_dialled_once_even_when_both_probes_start_together"]),
 
     ("status.json_exits_zero",
      "the --json exit-0 contract the VS Code extension depends on",

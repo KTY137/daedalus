@@ -75,10 +75,12 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
 from collections import namedtuple
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -377,26 +379,66 @@ def _coerce(spec: ProbeSpec, value: Any, seconds: float) -> Report:
     return rep
 
 
+#: Ceiling on the probe fan-out. The probes are all I/O -- a refused TCP
+#: connect, a `git` subprocess, an ssh round trip, a tree walk -- so threads
+#: are the right shape and the GIL is not the constraint. The cap exists so a
+#: registry that grows to hundreds of probes cannot spawn hundreds of threads.
+_MAX_PROBE_WORKERS = 32
+
+
 def assess(only: str | None = None, *, repo_root: str | Path | None = None,
            probe_remote: bool = False, deep: bool = False,
            timeout_s: float = 6.0) -> list[Report]:
+    """Run every selected probe and return their reports IN REGISTRY ORDER.
+
+    THE PROBES RUN CONCURRENTLY, and that is a wall-clock change only -- no
+    probe's answer depends on another's, none of them writes, and each one is
+    still timed around its own call, so `seconds` keeps meaning "what this
+    probe cost" rather than "where it sat in a queue".
+
+    MEASURED 2026-09-10 on the owner's machine, shallow read, twenty probes:
+    the serial loop this replaces summed to 6.24s of wall clock and the
+    endpoint took 6.23s, because the sum WAS the wall clock. Two of those
+    probes (`embed.local` 2.05s, `hand.executor` 2.12s) are the same dead
+    local Ollama host answered twice in a row, and a refused TCP connect costs
+    ~2.04s on this box regardless of the port. Serially that is 4.1s of
+    nothing; concurrently it is 2.1s of nothing, and the run is bounded by its
+    slowest single probe instead of by their sum.
+
+    The seconds a caller sees therefore no longer add up to the wall clock,
+    which is the honest reporting: they never described the wait, they
+    described the work, and only the serial loop made those the same number.
+    """
     ctx = Ctx(repo_root=Path(repo_root).resolve() if repo_root else ROOT,
               probe_remote=probe_remote, deep=deep, timeout_s=timeout_s)
     _SOURCE_CACHE.clear()
     _SSH_CACHE.clear()
-    out: list[Report] = []
-    for spec in PROBES:
-        if only and only not in spec.name:
-            continue
+    specs = [s for s in PROBES if not (only and only not in s.name)]
+    if not specs:
+        return []
+
+    def _run(spec: ProbeSpec) -> Report:
         t0 = time.time()
         try:
             value: Any = spec.fn(ctx)
         except BaseException as exc:            # noqa: BLE001 - see _coerce
+            # Ctrl-C aborts the read; it is not a probe result. Raised from a
+            # worker this surfaces out of `pool.map` in the caller, which is
+            # the same thing the serial loop did.
             if isinstance(exc, KeyboardInterrupt):
                 raise
             value = exc
-        out.append(_coerce(spec, value, time.time() - t0))
-    return out
+        return _coerce(spec, value, time.time() - t0)
+
+    if len(specs) == 1:
+        # One probe is the `?only=` path and every unit test that swaps PROBES
+        # for a single fake. Keep it on the calling thread so a probe that
+        # raises KeyboardInterrupt still interrupts, and so nothing about the
+        # single-probe path depends on a pool.
+        return [_run(specs[0])]
+    with ThreadPoolExecutor(max_workers=min(len(specs), _MAX_PROBE_WORKERS),
+                            thread_name_prefix="health-probe") as pool:
+        return list(pool.map(_run, specs))
 
 
 def verdict(reports: Sequence[Report]) -> int:
@@ -456,7 +498,18 @@ def render(reports: Sequence[Report], *, verbose: bool = True) -> str:
     return "\n".join(lines)
 
 
-def to_payload(reports: Sequence[Report]) -> dict:
+def to_payload(reports: Sequence[Report], *,
+               wall_seconds: float | None = None) -> dict:
+    """The machine-readable board.
+
+    ``wall_seconds`` IS NOT THE SUM OF ``subsystems[].seconds`` and must not be
+    derived from it. Since the probes run concurrently (see :func:`assess`) the
+    sum is the WORK -- measured 2026-09-10, ~8.3s of it -- while the wait was
+    ~2.2s. A reader that adds the rows up and calls the total "how long this
+    took" would now be off by 4x, so the wait is reported separately by the
+    caller that actually held the stopwatch. ``None`` means exactly that: this
+    caller did not time the read. It is never a guess and never the sum.
+    """
     return {
         "schema": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -465,6 +518,8 @@ def to_payload(reports: Sequence[Report]) -> dict:
         "verdict": verdict(reports),
         "not_proven": [r.name for r in reports if r.state in (PRESENT, UNKNOWN)],
         "subsystems": [r.to_dict() for r in reports],
+        "wall_seconds": (None if wall_seconds is None
+                         else round(float(wall_seconds), 3)),
     }
 
 
@@ -1087,6 +1142,12 @@ def _p_bench_residency(ctx: Ctx) -> Report:
 # ONE ssh round trip serves both probes; they are cached per :func:`assess`
 # run (:data:`_SSH_CACHE`) so an unreachable bench costs one timeout, not two.
 _SSH_CACHE: dict[str, tuple[bool, Any]] = {}
+#: Held across the round trip, not just across the dict access. The two bench
+#: probes now start at the same moment (see :func:`assess`), so a lock that
+#: only guarded the dict would let both of them dial out and the cache would
+#: save nothing -- "one timeout, not two" has to mean the second caller WAITS
+#: for the first answer.
+_SSH_CACHE_LOCK = threading.Lock()
 
 
 def _ps_quote(value: str) -> str:
@@ -1234,12 +1295,13 @@ function Get-CrashFacts {
 
 def _ssh_bench_snapshot(ctx: Ctx) -> tuple[bool, Any]:
     """The one ssh round trip both bench probes below need, cached per run."""
-    if BENCH_SSH_HOST in _SSH_CACHE:
-        return _SSH_CACHE[BENCH_SSH_HOST]
-    result = _ssh_powershell(BENCH_SSH_HOST, _BENCH_SNAPSHOT_SCRIPT,
-                             BENCH_SSH_TIMEOUT_S)
-    _SSH_CACHE[BENCH_SSH_HOST] = result
-    return result
+    with _SSH_CACHE_LOCK:
+        if BENCH_SSH_HOST in _SSH_CACHE:
+            return _SSH_CACHE[BENCH_SSH_HOST]
+        result = _ssh_powershell(BENCH_SSH_HOST, _BENCH_SNAPSHOT_SCRIPT,
+                                 BENCH_SSH_TIMEOUT_S)
+        _SSH_CACHE[BENCH_SSH_HOST] = result
+        return result
 
 
 def _bench_task_report(payload: dict) -> Report:
@@ -1978,11 +2040,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                          "crash); the VERDICT line still tells the truth")
     args = ap.parse_args(argv)
 
+    _t0 = time.time()
     reports = assess(args.only, repo_root=args.repo_root,
                      probe_remote=args.probe_remote, deep=args.deep)
+    wall = time.time() - _t0
     code = verdict(reports)
     if args.json:
-        print(json.dumps(to_payload(reports), indent=2, default=str))
+        print(json.dumps(to_payload(reports, wall_seconds=wall),
+                         indent=2, default=str))
     else:
         print("daedalus health -- working / present / degraded / absent / unknown")
         print(f"repo: {args.repo_root or ROOT}\n")
