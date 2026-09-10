@@ -22,7 +22,7 @@ from daedalus.kernel.offload_lease import acquire_effect_lease, WaveLeaseDenied
 from daedalus.kernel.policy import computer as _release_policy
 from daedalus.kernel.policy.computer import (
     ComputerRefused, ComputerPolicy, FILE_TOOLS, VISION_TOOLS, DESKTOP_TOOLS,
-    BROWSER_TOOLS, PATH_IO_RELEASE_REFUSAL, FILE_REPLACE_RELEASE_REFUSAL,
+    BROWSER_TOOLS, DAEDALUS_TOOLS, PATH_IO_RELEASE_REFUSAL, FILE_REPLACE_RELEASE_REFUSAL,
     admit_operation, load_policy, policy_path,
     refuse_workspace_path_io,
 )
@@ -66,7 +66,20 @@ TOOL_SPECS = {
     "browser.read": ("Observe current browser DOM and receive a fresh observation token.", _schema({})),
     "browser.click": ("Click an observed non-submit element; read again to verify.", _schema({"observation_id": _STRING, "selector": _STRING}, ("observation_id", "selector"))),
     "browser.fill": ("Fill a text field in the observed page, without submitting.", _schema({"observation_id": _STRING, "selector": _STRING, "text": _STRING}, ("observation_id", "selector", "text"))),
+    # G1-IKARUS-46: read-only observations of the registered project (no host mutation).
+    "daedalus.status": ("Observe the registered project: git counters (branch, dirty, ahead/behind) and the Daedalus queue/watcher state. Read-only.", _schema({})),
+    "daedalus.structure": ("Observe the project's structure summary: file/language totals, top hotspots, clone clusters and fan-in. Read-only.", _schema({})),
+    "daedalus.slice": ("Read the distilled semantic slice of one indexed source module (the file plus its dependency/caller neighbourhood), through the project's egress policy. Name the repository-relative path. Read-only.", _schema({"module": _STRING}, ("module",))),
+    "daedalus.docrefs": ("Observe documentation references to code symbols that the repository's own resolver reports as broken. Read-only.", _schema({})),
+    "daedalus.tasks": ("Observe the project's recent Daedalus task reports from the file bridge. Read-only.", _schema({})),
 }
+#: The tools whose adapter changes host state. The daedalus.* family is
+#: deliberately absent: it is read-only by contract (tests pin the disjointness).
+_HOST_MUTATION_TOOLS = frozenset({"file.write", "file.mkdir", "file.move", "app.launch", "desktop.click",
+                                  "desktop.type", "desktop.key", "browser.click", "browser.fill"})
+assert not (_HOST_MUTATION_TOOLS & frozenset(DAEDALUS_TOOLS))
+_NO_PROJECT_REFUSAL = "computer session has no registered project; run it from a project conversation"
+_NO_READERS_REFUSAL = "computer session carries no project readers; run it from the chat's computer route"
 
 
 def _release_tool_spec(tool: str) -> tuple[str, dict[str, Any]] | None:
@@ -142,12 +155,25 @@ def _release_unavailable_reason(policy: ComputerPolicy, tool: str) -> str:
 
 
 class ComputerService:
-    def __init__(self, authority_root: Path, workspace: Path | None = None):
+    def __init__(self, authority_root: Path, workspace: Path | None = None, *,
+                 project: str | None = None, project_readers: Any = None):
         self.authority_root = Path(authority_root).resolve()
         self.control = control_root(self.authority_root)
         self._policy = load_policy(self.authority_root)
         if workspace is not None and Path(workspace).resolve() != self._policy.workspace:
             raise ComputerRefused("caller cannot override the owner-configured workspace")
+        # G1-IKARUS-46: the registered project this session observes through
+        # the daedalus.* family. It is a NAME resolved through the project
+        # registry at use, never a path the caller hands in; a session without
+        # one reports that family as unavailable and refuses it at execution.
+        if project is not None and (not isinstance(project, str) or not project.strip() or len(project) > 200):
+            raise ComputerRefused("computer session project must be a bounded registry name")
+        self._project = project.strip() if isinstance(project, str) else None
+        # The status/bridge readers the daedalus.* adapter needs are handed in
+        # by the orchestration caller: this module and that adapter must not
+        # import them (SCC census, tests/contracts/test_import_scc_hierarchy.py).
+        self._project_readers = project_readers
+        self._daedalus = None
         self.policy_digest = self._policy.digest
         self.limit_policy = load_limit_policy()
         self._switch = KillSwitch(repo_root=self.authority_root)
@@ -178,6 +204,8 @@ class ComputerService:
                 unavailable[tool] = PATH_IO_RELEASE_REFUSAL
                 continue
             reason = _release_unavailable_reason(self._policy, tool)
+            if not reason and tool in DAEDALUS_TOOLS and (self._project is None or self._project_readers is None):
+                reason = _NO_PROJECT_REFUSAL if self._project is None else _NO_READERS_REFUSAL
             if reason:
                 unavailable[tool] = reason
             else:
@@ -186,8 +214,11 @@ class ComputerService:
                     parameters["properties"]["application"]["enum"] = list(dict(self._policy.applications))
                 if tool == "browser.navigate":
                     description += " Enabled origins: " + ", ".join(self._policy.origins)
+                if tool in DAEDALUS_TOOLS:
+                    description += f" Project: {self._project}."
                 available.append({"name": tool, "description": description, "parameters": parameters})
         return {"enabled": bool(available), "tools": available, "unavailable": unavailable,
+                "project": self._project,
                 "path_io_release_lock": "; ".join(
                     [f"path-based vision: {PATH_IO_RELEASE_REFUSAL}"]
                     + ([f"file.write with expected_sha256: {FILE_REPLACE_RELEASE_REFUSAL}"]
@@ -210,6 +241,10 @@ class ComputerService:
         reason = _release_unavailable_reason(self._policy, tool)
         if reason:
             raise ComputerRefused(reason)
+        if tool in DAEDALUS_TOOLS and self._project is None:
+            raise ComputerRefused(_NO_PROJECT_REFUSAL)
+        if tool in DAEDALUS_TOOLS and self._project_readers is None:
+            raise ComputerRefused(_NO_READERS_REFUSAL)
         if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
             if self._desktop is None:
                 raise ComputerRefused("a current policy-scoped desktop observation is required")
@@ -289,8 +324,9 @@ class ComputerService:
                           "operation_sha256": operation_digest, "result": result,
                           "mission_id": mission_id, "attempt_id": attempt_id,
                           "policy_sha256": self.policy_digest,
-                          "host_mutation": tool in {"file.write", "file.mkdir", "file.move", "app.launch", "desktop.click", "desktop.type", "desktop.key", "browser.click", "browser.fill"},
+                          "host_mutation": tool in _HOST_MUTATION_TOOLS,
                           "filesystem_scope_kind": ("handle-anchored-computer-workspace" if tool in FILE_TOOLS
+                                                    else "project-registry-read-only" if tool in DAEDALUS_TOOLS
                                                     else "computer-policy-workspace-relative")}
                 artifact = store_canonical_json(self.control / "computer-artifacts", output)
                 terminal = granted.authorization.finish_effect(started.receipt, outcome="COMPLETED",
@@ -321,7 +357,12 @@ class ComputerService:
             # deadline, policy drift, re-admission) is observed after the effect
             # landed; the lease then stays STARTED for reconciliation.
             effect_state = getattr(exc, "effect_state", None)
-            provably_no_effect = external_started and not dispatched and tool in FILE_TOOLS and (
+            # G1-IKARUS-46: the daedalus.* family changes nothing on the host by
+            # contract, so a failure before its adapter returned is provably
+            # effect-free (a read that did not finish is not a mutation).
+            provably_no_effect = (external_started and not dispatched and tool in DAEDALUS_TOOLS
+                                  and isinstance(exc, ComputerRefused))
+            provably_no_effect = provably_no_effect or external_started and not dispatched and tool in FILE_TOOLS and (
                 # A plain refusal is raised by the adapter only before an effect;
                 # an interruption is trusted only when the adapter typed it.
                 (isinstance(exc, ComputerRefused) and effect_state in (None, "none"))
@@ -436,6 +477,19 @@ class ComputerService:
             if self._browser is None:
                 self._browser = BrowserAdapter(self._policy, self.check_cancelled, self.control)
             return self._browser.execute(tool, args)
+        if tool in DAEDALUS_TOOLS:
+            # G1-IKARUS-46: read-only project observations. The adapter refuses
+            # an unbound or unregistered project itself; nothing here resolves
+            # a path on the model's behalf.
+            from daedalus.runtimes.computer_daedalus import DaedalusObservation
+            if self._project is None:
+                raise ComputerRefused(_NO_PROJECT_REFUSAL)
+            if self._project_readers is None:
+                raise ComputerRefused(_NO_READERS_REFUSAL)
+            if self._daedalus is None:
+                self._daedalus = DaedalusObservation(self._policy, self._project, self.check_cancelled,
+                                                     self.authority_root, self._project_readers)
+            return self._daedalus.execute(tool, args)
         raise ComputerRefused("unknown computer tool")
 
     def close(self) -> None:
@@ -443,9 +497,9 @@ class ComputerService:
             self._browser.close()
 
 
-def computer_status(authority_root: Path) -> dict:
+def computer_status(authority_root: Path, *, project: str | None = None, project_readers: Any = None) -> dict:
     try:
-        service = ComputerService(authority_root)
+        service = ComputerService(authority_root, project=project, project_readers=project_readers)
         return {**service.capabilities(), "configuration_path": str(policy_path(authority_root)),
                 "configuration": service._policy.to_dict()}
     except (ComputerRefused, OSError, ValueError) as exc:

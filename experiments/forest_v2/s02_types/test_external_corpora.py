@@ -107,12 +107,18 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # resolver still buys the same eight functions over an annotation-only
     # control that it bought before. Rates drifted at the 0.01pp level; the
     # claim did not drift at all.
+    #
+    # Re-pinned 2026-09-10 (G1-IKARUS-46) after one annotated module,
+    # daedalus/runtimes/computer_daedalus.py, joined the corpus: 7107 -> 7160
+    # functions, 47257 -> 47559 type-name sites, 520 files parsed. Probe run
+    # twice, identical except wall time (docs/evidence/G1-IKARUS-46). Again
+    # ``marginal_functions`` is exactly 8; the rates moved by 0.01-0.02pp.
     assert entry["annotation_only_pct"] == 94.47  # the control
     assert entry["full_resolver_pct"] == 94.36
     assert entry["marginal_functions"] == 8
-    assert entry["marginal_pp"] == 0.1126
+    assert entry["marginal_pp"] == 0.1117
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.
-    assert entry["verified_share_of_internal_pct"] == 90.13
+    assert entry["verified_share_of_internal_pct"] == 90.14
 
 
 

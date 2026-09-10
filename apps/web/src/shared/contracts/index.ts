@@ -275,11 +275,37 @@ export interface IkarusChatPayload extends ApiEnvelope {
   control_plane?: ControlPlanePayload;
 }
 
-export interface IkarusAskAction {
-  kind: 'queue_task';
-  args: { project: string; objective: string; lane: string };
-  requires_confirmation: boolean;
-}
+/**
+ * A confirm-gated action Ikarus offered. `queue_task` posts to the file bus;
+ * `computer_task` (G1-IKARUS-46) re-enters the chat with the exact
+ * `/computer run <objective>` message the server named, so the executor the
+ * panel shows is the one that runs.
+ */
+export type IkarusAskAction =
+  | {
+      kind: 'queue_task';
+      args: { project: string; objective: string; lane: string };
+      requires_confirmation: boolean;
+    }
+  | {
+      kind: 'computer_task';
+      args: {
+        project: string;
+        objective: string;
+        lane: 'computer';
+        message: string;
+        planner?: {
+          provider?: string | null;
+          model?: string | null;
+          /** consent flag of the policy (allow_remote_context) */
+          remote_context?: boolean;
+          /** physics: the planner's host is not this machine (G1-IKARUS-46, Cerberus round 5) */
+          leaves_machine?: boolean;
+        };
+        tools?: string[];
+      };
+      requires_confirmation: boolean;
+    };
 
 /** Reasoning effort for a freeform Ikarus chat turn. Cheap-by-default = 'low'. */
 export type EffortLevel = 'low' | 'medium' | 'high';

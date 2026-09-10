@@ -1,0 +1,801 @@
+{
+  "/computer run Prüfe den Zustand von Daedalus: lies den Status, die Struktur und die kaputten Doku-Referenzen des Projekts und fasse in drei Sätzen zusammen, was als Nächstes verbessert werden sollte.": {
+    "ok": true,
+    "generated_at": "2026-09-10T10:25:26.931544+00:00",
+    "project": "agent_env",
+    "warnings": [],
+    "intent": "computer",
+    "shell": "hand",
+    "assistant": "3 tool operation(s) completed; evidence is retained. The planner's task-level conclusion remains advisory.\n\nArbeitsplan (Modellvorschlag):\n\n1. Call daedalus.status, daedalus.structure and daedalus.docrefs to observe project state, hotspots and broken doc references\n2. Summarize findings in three sentences covering next improvement priorities\n\n`daedalus.status`\n\n```json\n{\"git\": {\"git_branch\": \"packet/g1-ikarus-46-daedalus-tools-20260910\", \"git_status\": \"M apps/web/src/features/conversation/Conversation.tsx\\n M apps/web/src/features/conversation/OfferConfirm.tsx\\n M apps/web/src/features/conversation/commands.ts\\n M apps/web/src/features/conversation/conversation.spec.ts\\n M apps/web/src/features/conversation/model.ts\\n M apps/web/src/shared/contracts/index.ts\\n M daedalus/kernel/policy/computer.py\\n M daedalus/orchestration/ikarus/act.py\\n M daedalus/orchestration/ikarus/computer_loop.py\\n M daedalus/orchestration/ikarus/shell.py\\n M daedalus/runtimes/computer.py\\nA  daedalus/runtimes/computer_daedalus.py\\n M docs/IKARUS_COMPUTER.md\\nAM docs/work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md\\n M docs/work-packets/index.json\\n M experiments/forest_v2/README.md\\n M experiments/forest_v2/s02_types/test_external_corpora.py\\n M tests/contracts/test_work_packet_index.py\\nA  tests/runtimes/test_computer_daedalus.py\\n M tests/runtimes/test_computer_evidence_terminal.py\\nA  tests/test_ikarus_computer_dispatch.py\\n M tests/test_ikarus_computer_loop.py\\n M tests/test_ikarus_computer_loop_adversarial.py\\n M tests/test_ikarus_os.py\\n M tests/test_ikarus_shells.py\\n?? docs/evidence/G1-IKARUS-46/\\n?? runs/jarvis-20260910/\", \"outbox_count\": 0, \"inbox_count\": 0, \"memory_events\": 0, \"open_todos\": 0, \"todo_snapshot\": \"<worktree>\\\\memory\\\\todos.local.md\"}, \"queue\": {\"queue_depth\": 0, \"in_flight\": null, \"unread_count\": 0, \"reports_total\": 0, \"watcher\": \"none\"}, \"registered\": true, \"kind\": \"observation\", \"project\": \"agent_env\", \"host_mutation\": false}\n```\n\n`daedalus.structure`\n\n```json\n{\"n_files\": 682, \"ignored\": {\"count\": 1342, \"n_files_scanned\": 2024, \"center\": [\"apps/web/src\", \"daedalus\", \"tools\"], \"ignore_patterns\": [\"runs/\", \"vault/\", \"docs/recovery/\", \"references/\", \"structcore-rs/target/\", \".claude/worktrees/\", \"apps/web/src-tauri/backend/\", \"daedalus/eval/fixtures/\"], \"source\": \"<worktree>\\\\.daedalusignore\", \"sample\": [\"apps/web/playwright.config.ts\", \"apps/web/src-tauri/build.rs\", \"apps/web/src-tauri/src/instance.rs\", \"apps/web/src-tauri/src/lib.rs\", \"apps/web/src-tauri/src/main.rs\", \"apps/web/tests/_app.ts\", \"apps/web/tests/_live-fixtures.ts\", \"apps/web/tests/app-loads.spec.ts\", \"apps/web/tests/ariadne.spec.ts\", \"apps/web/tests/backend-down.spec.ts\", \"apps/web/tests/catalogue.spec.ts\", \"apps/web/tests/cockpit-stream.spec.ts\", \"apps/web/tests/cockpit.spec.ts\", \"apps/web/tests/commands.spec.ts\", \"apps/web/tests/compute.spec.ts\", \"apps/web/tests/conversation-honesty.spec.ts\", \"apps/web/tests/degraded.spec.ts\", \"apps/web/tests/dialogfocus.spec.ts\", \"apps/web/tests/dispatch-evidence-provenance.spec.ts\", \"apps/web/tests/genesis.spec.ts\", \"apps/web/tests/health.spec.ts\", \"apps/web/tests/ide.spec.ts\", \"apps/web/tests/interactive-rooms.spec.ts\", \"apps/web/tests/live-execution-status.spec.ts\", \"apps/web/tests/live-project-scope.spec.ts\"], \"truncated\": true}, \"languages\": {\"python\": {\"files\": 537, \"loc\": 269821}, \"typescript\": {\"files\": 113, \"loc\": 29254}, \"css\": {\"files\": 23, \"loc\": 6311}, \"javascript\": {\"files\": 8, \"loc\": 5476}, \"shell\": {\"files\": 1, \"loc\": 72}}, \"totals\": {\"unit_clusters\": 79, \"renamed_clusters\": 191, \"near_clusters\": 62, \"window_clusters\": 328, \"safety_fenced\": 180}, \"hotspots\": [{\"module\": \"daedalus/resources/web_dist/assets/index-BkBUvMW3.js\", \"score\": 559.0, \"loc\": 324, \"long_functions\": 0, \"guard_count\": 552, \"cc_max\": null, \"churn\": 324}, {\"module\": \"daedalus/resources/web_dist/assets/FourfoldStage-CyeJvxbP.js\", \"score\": 254.2, \"loc\": 312, \"lon … (full observation retained in evidence)\n```\n\n`daedalus.docrefs`\n\n```json\n{\"n_resolving\": 5610, \"n_broken\": 134, \"n_skipped\": 2722, \"files_scanned\": 821, \"broken\": [{\"doc_path\": \"docs/ABSORPTION.md\", \"line\": 484, \"raw\": \"attempt._git_env()\", \"module_path\": \"daedalus/spine/attempt.py\", \"symbol\": \"_git_env\", \"state\": \"broken\", \"why\": \"daedalus/spine/attempt.py defines no '_git_env'\", \"anchored\": false}, {\"doc_path\": \"docs/adrs/011-event-spine.md\", \"line\": 121, \"raw\": \"provenance.task_id\", \"module_path\": \"daedalus/eval/provenance.py\", \"symbol\": \"task_id\", \"state\": \"broken\", \"why\": \"daedalus/eval/provenance.py defines no 'task_id'\", \"anchored\": false}, {\"doc_path\": \"docs/adrs/011-event-spine.md\", \"line\": 145, \"raw\": \"provenance.agent\", \"module_path\": \"daedalus/eval/provenance.py\", \"symbol\": \"agent\", \"state\": \"broken\", \"why\": \"daedalus/eval/provenance.py defines no 'agent'\", \"anchored\": false}, {\"doc_path\": \"docs/adrs/016-autonomy-preconditions.md\", \"line\": 102, \"raw\": \"attempt.offload_runner\", \"module_path\": \"daedalus/spine/attempt.py\", \"symbol\": \"offload_runner\", \"state\": \"broken\", \"why\": \"daedalus/spine/attempt.py defines no 'offload_runner'\", \"anchored\": false}, {\"doc_path\": \"docs/adrs/016-autonomy-preconditions.md\", \"line\": 184, \"raw\": \"attempt.pytest_gate_argv\", \"module_path\": \"daedalus/spine/attempt.py\", \"symbol\": \"pytest_gate_argv\", \"state\": \"broken\", \"why\": \"daedalus/spine/attempt.py defines no 'pytest_gate_argv'\", \"anchored\": false}, {\"doc_path\": \"docs/ARCHITECTURE_BASELINE_20260825.md\", \"line\": 39, \"raw\": \"ignore.file\", \"module_path\": \"daedalus/structcore/ignore.py\", \"symbol\": \"file\", \"state\": \"broken\", \"why\": \"daedalus/structcore/ignore.py defines no 'file'\", \"anchored\": false}, {\"doc_path\": \"docs/ARCHITECTURE_BASELINE_20260825.md\", \"line\": 212, \"raw\": \"ignore.file\", \"module_path\": \"daedalus/structcore/ignore.py\", \"symbol\": \"file\", \"state\": \"broken\", \"why\": \"daedalus/structcore/ignore.py defines no 'file'\", \"anchored\": false}, {\"doc_path\": \"docs/archive/swarm-2026-07-30/census/SYNTH-claims.md\", \"line\": 289, \"raw\": \"containment.py:: … (full observation retained in evidence)\n```\n\nPlanner: claude_code_cli · Kontext hat den Rechner verlassen: ja\n\nHinweis: Angaben der Modell-Zusammenfassung, die in keiner Beobachtung vorkommen: `270k`, `011/016`. Das ist ein Fabrikationsdetektor ohne Bestätigungskraft; ein Erfolg ist damit nicht belegt.\n\nMission: `computer-5ff138299ab34fb9bdae71a94ecd9f74`",
+    "provider_used": "computer-policy",
+    "computer": {
+      "ok": true,
+      "state": "completed",
+      "mission_id": "computer-5ff138299ab34fb9bdae71a94ecd9f74",
+      "mission_sha256": "0dff066ab3efcbe9336a20bdf198aeec51e2fc311ab666f312b8077e50455422",
+      "mission_artifact": {
+        "sha256": "02828bd3d9c103c4258c58d9705fd281da9dfe8670b393396f1e951d15e89ed2",
+        "locator": "artifact-locator:sha256:02828bd3d9c103c4258c58d9705fd281da9dfe8670b393396f1e951d15e89ed2"
+      },
+      "steps": [
+        {
+          "step": 1,
+          "tool": "daedalus.status",
+          "outcome": {
+            "ok": true,
+            "state": "completed",
+            "result": {
+              "git": {
+                "git_branch": "packet/g1-ikarus-46-daedalus-tools-20260910",
+                "git_status": "M apps/web/src/features/conversation/Conversation.tsx\n M apps/web/src/features/conversation/OfferConfirm.tsx\n M apps/web/src/features/conversation/commands.ts\n M apps/web/src/features/conversation/conversation.spec.ts\n M apps/web/src/features/conversation/model.ts\n M apps/web/src/shared/contracts/index.ts\n M daedalus/kernel/policy/computer.py\n M daedalus/orchestration/ikarus/act.py\n M daedalus/orchestration/ikarus/computer_loop.py\n M daedalus/orchestration/ikarus/shell.py\n M daedalus/runtimes/computer.py\nA  daedalus/runtimes/computer_daedalus.py\n M docs/IKARUS_COMPUTER.md\nAM docs/work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md\n M docs/work-packets/index.json\n M experiments/forest_v2/README.md\n M experiments/forest_v2/s02_types/test_external_corpora.py\n M tests/contracts/test_work_packet_index.py\nA  tests/runtimes/test_computer_daedalus.py\n M tests/runtimes/test_computer_evidence_terminal.py\nA  tests/test_ikarus_computer_dispatch.py\n M tests/test_ikarus_computer_loop.py\n M tests/test_ikarus_computer_loop_adversarial.py\n M tests/test_ikarus_os.py\n M tests/test_ikarus_shells.py\n?? docs/evidence/G1-IKARUS-46/\n?? runs/jarvis-20260910/",
+                "outbox_count": 0,
+                "inbox_count": 0,
+                "memory_events": 0,
+                "open_todos": 0,
+                "todo_snapshot": "<worktree>\\memory\\todos.local.md"
+              },
+              "queue": {
+                "queue_depth": 0,
+                "in_flight": null,
+                "unread_count": 0,
+                "reports_total": 0,
+                "watcher": "none"
+              },
+              "registered": true,
+              "kind": "observation",
+              "project": "agent_env",
+              "host_mutation": false
+            },
+            "evidence": {
+              "artifact": {
+                "sha256": "df60a6af504ab3f82a2934a3c2490906d5f04fb685b2484f1b651d185cedd820",
+                "locator": "artifact-locator:sha256:df60a6af504ab3f82a2934a3c2490906d5f04fb685b2484f1b651d185cedd820"
+              },
+              "lease_sha256": "6671b44d7a3833333d3b1fdbda6e83658a83a7f3b978dde16cf8ab06dc8b3cc8",
+              "start_sha256": "803f6858d7a361752c4f1c78ca964a6e1d9bbfa009ac7532af051d900fcd09f4",
+              "terminal_sha256": "1e9f8974d624158490d04a41d0770d54f35eaead5c8985499d50915fe1d435ad",
+              "binding": {
+                "subject_record_sha256": "a4a863742b8cc9efc69a4efc8c9bd80358d7840e6b4158dd9ffd1d1cc2f8f7ab",
+                "execution_record_sha256": "c6e7fc47845a3d77779b4f15d028a13363edc7ec477a5c6f24c68b0b70fdcdbf",
+                "execution_request_sha256": "411652bc4f3e714515682f2745c2530fa5ed76bc17a49399a7461319e171b5ed",
+                "execution_id": "computer-f03d754e262b702300858e8eb6ed99e4-exec-0",
+                "source_revision": "88d170ef58e7bdfaf6e92c1f5695e9271a9db9c5986618624e30ea7578e9b693",
+                "attempt_id": "computer-5ff138299ab34fb9bdae71a94ecd9f74-step-0001",
+                "operation_sha256": "05af382b78c4320d94946244f6ee0ec7acbdf07669876000a02abde5af0c2f61",
+                "terminal_record_sha256": "08dd942aeb23a2915ce3e99f7bb818c2d87b7418d8eb3df13014070623a876f1"
+              }
+            }
+          },
+          "artifact": {
+            "sha256": "4c3e294ca90f6fe93733f59665539eb9f7168adcfa809b954de13b24dbf93412",
+            "locator": "artifact-locator:sha256:4c3e294ca90f6fe93733f59665539eb9f7168adcfa809b954de13b24dbf93412"
+          },
+          "withheld_from_planner": false
+        },
+        {
+          "step": 2,
+          "tool": "daedalus.structure",
+          "outcome": {
+            "ok": true,
+            "state": "completed",
+            "result": {
+              "n_files": 682,
+              "ignored": {
+                "count": 1342,
+                "n_files_scanned": 2024,
+                "center": [
+                  "apps/web/src",
+                  "daedalus",
+                  "tools"
+                ],
+                "ignore_patterns": [
+                  "runs/",
+                  "vault/",
+                  "docs/recovery/",
+                  "references/",
+                  "structcore-rs/target/",
+                  ".claude/worktrees/",
+                  "apps/web/src-tauri/backend/",
+                  "daedalus/eval/fixtures/"
+                ],
+                "source": "<worktree>\\.daedalusignore",
+                "sample": [
+                  "apps/web/playwright.config.ts",
+                  "apps/web/src-tauri/build.rs",
+                  "apps/web/src-tauri/src/instance.rs",
+                  "apps/web/src-tauri/src/lib.rs",
+                  "apps/web/src-tauri/src/main.rs",
+                  "apps/web/tests/_app.ts",
+                  "apps/web/tests/_live-fixtures.ts",
+                  "apps/web/tests/app-loads.spec.ts",
+                  "apps/web/tests/ariadne.spec.ts",
+                  "apps/web/tests/backend-down.spec.ts",
+                  "apps/web/tests/catalogue.spec.ts",
+                  "apps/web/tests/cockpit-stream.spec.ts",
+                  "apps/web/tests/cockpit.spec.ts",
+                  "apps/web/tests/commands.spec.ts",
+                  "apps/web/tests/compute.spec.ts",
+                  "apps/web/tests/conversation-honesty.spec.ts",
+                  "apps/web/tests/degraded.spec.ts",
+                  "apps/web/tests/dialogfocus.spec.ts",
+                  "apps/web/tests/dispatch-evidence-provenance.spec.ts",
+                  "apps/web/tests/genesis.spec.ts",
+                  "apps/web/tests/health.spec.ts",
+                  "apps/web/tests/ide.spec.ts",
+                  "apps/web/tests/interactive-rooms.spec.ts",
+                  "apps/web/tests/live-execution-status.spec.ts",
+                  "apps/web/tests/live-project-scope.spec.ts"
+                ],
+                "truncated": true
+              },
+              "languages": {
+                "python": {
+                  "files": 537,
+                  "loc": 269821
+                },
+                "typescript": {
+                  "files": 113,
+                  "loc": 29254
+                },
+                "css": {
+                  "files": 23,
+                  "loc": 6311
+                },
+                "javascript": {
+                  "files": 8,
+                  "loc": 5476
+                },
+                "shell": {
+                  "files": 1,
+                  "loc": 72
+                }
+              },
+              "totals": {
+                "unit_clusters": 79,
+                "renamed_clusters": 191,
+                "near_clusters": 62,
+                "window_clusters": 328,
+                "safety_fenced": 180
+              },
+              "hotspots": [
+                {
+                  "module": "daedalus/resources/web_dist/assets/index-BkBUvMW3.js",
+                  "score": 559.0,
+                  "loc": 324,
+                  "long_functions": 0,
+                  "guard_count": 552,
+                  "cc_max": null,
+                  "churn": 324
+                },
+                {
+                  "module": "daedalus/resources/web_dist/assets/FourfoldStage-CyeJvxbP.js",
+                  "score": 254.2,
+                  "loc": 312,
+                  "long_functions": 0,
+                  "guard_count": 248,
+                  "cc_max": null,
+                  "churn": 2
+                },
+                {
+                  "module": "daedalus/orchestration/ikarus/shell.py",
+                  "score": 240.2,
+                  "loc": 4244,
+                  "long_functions": 14,
+                  "guard_count": 111,
+                  "cc_max": null,
+                  "churn": 3438
+                },
+                {
+                  "module": "daedalus/chip_design/executor.py",
+                  "score": 199.5,
+                  "loc": 2887,
+                  "long_functions": 10,
+                  "guard_count": 110,
+                  "cc_max": null,
+                  "churn": 3241
+                },
+                {
+                  "module": "daedalus/kernel/offload_lease.py",
+                  "score": 184.0,
+                  "loc": 3749,
+                  "long_functions": 15,
+                  "guard_count": 54,
+                  "cc_max": null,
+                  "churn": 20464
+                },
+                {
+                  "module": "daedalus/resources/web_dist/assets/roomRenderer-AVQMs2vE.js",
+                  "score": 182.4,
+                  "loc": 4116,
+                  "long_functions": 0,
+                  "guard_count": 98,
+                  "cc_max": null,
+                  "churn": 4116
+                },
+                {
+                  "module": "daedalus/spine/linux_containment.py",
+                  "score": 177.3,
+                  "loc": 1871,
+                  "long_functions": 8,
+                  "guard_count": 114,
+                  "cc_max": null,
+                  "churn": 3720
+                },
+                {
+                  "module": "daedalus/kernel/attempt_execution.py",
+                  "score": 173.4,
+                  "loc": 2846,
+                  "long_functions": 13,
+                  "guard_count": 76,
+                  "cc_max": null,
+                  "churn": 3092
+                },
+                {
+                  "module": "daedalus/orchestration/genesis/service.py",
+                  "score": 165.7,
+                  "loc": 3189,
+                  "long_functions": 9,
+                  "guard_count": 72,
+                  "cc_max": null,
+                  "churn": 6377
+                },
+                {
+                  "module": "daedalus/runtimes/provider/executable_object_registry.py",
+                  "score": 160.7,
+                  "loc": 2636,
+                  "long_functions": 11,
+                  "guard_count": 75,
+                  "cc_max": null,
+                  "churn": 4
+                }
+              ],
+              "clones": [
+                {
+                  "name": "__post_init__",
+                  "language": "python",
+                  "count": 3,
+                  "loc": 31,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/runtimes/fault_attestation_issuer.py",
+                      "line": 206
+                    },
+                    {
+                      "module": "daedalus/runtimes/fixture_fault_attestation_issuer.py",
+                      "line": 125
+                    },
+                    {
+                      "module": "daedalus/runtimes/live_fault_attestation_issuer.py",
+                      "line": 131
+                    }
+                  ]
+                },
+                {
+                  "name": "_canonical_ref",
+                  "language": "python",
+                  "count": 2,
+                  "loc": 33,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/gates/repository/head_revision.py",
+                      "line": 64
+                    },
+                    {
+                      "module": "daedalus/runtimes/contracts/repository.py",
+                      "line": 63
+                    }
+                  ]
+                },
+                {
+                  "name": "_timestamp",
+                  "language": "python",
+                  "count": 5,
+                  "loc": 10,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/runtimes/fault_attestations.py",
+                      "line": 87
+                    },
+                    {
+                      "module": "daedalus/runtimes/fault_matrix.py",
+                      "line": 105
+                    },
+                    {
+                      "module": "daedalus/runtimes/fixture_fault_collector.py",
+                      "line": 119
+                    },
+                    {
+                      "module": "daedalus/runtimes/host_fault_runner.py",
+                      "line": 91
+                    },
+                    {
+                      "module": "daedalus/runtimes/live_fault_collector.py",
+                      "line": 115
+                    }
+                  ]
+                },
+                {
+                  "name": "_load_bundle",
+                  "language": "python",
+                  "count": 3,
+                  "loc": 16,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/runtimes/fault_attestation_issuer.py",
+                      "line": 515
+                    },
+                    {
+                      "module": "daedalus/runtimes/fixture_fault_attestation_issuer.py",
+                      "line": 411
+                    },
+                    {
+                      "module": "daedalus/runtimes/live_fault_attestation_issuer.py",
+                      "line": 421
+                    }
+                  ]
+                },
+                {
+                  "name": "to_dict",
+                  "language": "python",
+                  "count": 3,
+                  "loc": 16,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/runtimes/fixture_fault_collector.py",
+                      "line": 476
+                    },
+                    {
+                      "module": "daedalus/runtimes/host_fault_runner.py",
+                      "line": 304
+                    },
+                    {
+                      "module": "daedalus/runtimes/live_fault_collector.py",
+                      "line": 311
+                    }
+                  ]
+                },
+                {
+                  "name": "__enter__",
+                  "language": "python",
+                  "count": 2,
+                  "loc": 23,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/shift.py",
+                      "line": 268
+                    },
+                    {
+                      "module": "daedalus/interfaces/cli/shift.py",
+                      "line": 203
+                    }
+                  ]
+                },
+                {
+                  "name": "digest",
+                  "language": "python",
+                  "count": 11,
+                  "loc": 4,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/gates/guard_implementation_manifest.py",
+                      "line": 443
+                    },
+                    {
+                      "module": "daedalus/gates/repository/write_classification.py",
+                      "line": 1311
+                    },
+                    {
+                      "module": "daedalus/gates/repository/write_effect_lease.py",
+                      "line": 423
+                    },
+                    {
+                      "module": "daedalus/gates/repository/write_evidence_origin.py",
+                      "line": 481
+                    },
+                    {
+                      "module": "daedalus/gates/repository/write_guard_structure.py",
+                      "line": 451
+                    },
+                    {
+                      "module": "daedalus/gates/repository/write_inventory.py",
+                      "line": 250
+                    },
+                    {
+                      "module": "daedalus/gates/repository/write_inventory_v2.py",
+                      "line": 149
+                    },
+                    {
+                      "module": "daedalus/gates/repository/write_runtime_conformance.py",
+                      "line": 504
+                    }
+                  ]
+                },
+                {
+                  "name": "run",
+                  "language": "python",
+                  "count": 3,
+                  "loc": 14,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/eval/gate3/arms/local_mutation.py",
+                      "line": 98
+                    },
+                    {
+                      "module": "daedalus/eval/gate3/arms/random_search.py",
+                      "line": 93
+                    },
+                    {
+                      "module": "daedalus/eval/gate3/arms/single_llm_loop.py",
+                      "line": 136
+                    }
+                  ]
+                },
+                {
+                  "name": "__exit__",
+                  "language": "python",
+                  "count": 2,
+                  "loc": 21,
+                  "safety": "judgment-gated — do NOT auto-collapse",
+                  "sites": [
+                    {
+                      "module": "daedalus/interfaces/bridge/watcher.py",
+                      "line": 106
+                    },
+                    {
+                      "module": "daedalus/kernel/policy/ledger.py",
+                      "line": 307
+                    }
+                  ]
+                },
+                {
+                  "name": "to_dict",
+                  "language": "python",
+                  "count": 3,
+                  "loc": 14,
+                  "safety": null,
+                  "sites": [
+                    {
+                      "module": "daedalus/runtimes/fault_attestation_issuer.py",
+                      "line": 244
+                    },
+                    {
+                      "module": "daedalus/runtimes/fixture_fault_attestation_issuer.py",
+                      "line": 163
+                    },
+                    {
+                      "module": "daedalus/runtimes/live_fault_attestation_issuer.py",
+                      "line": 175
+                    }
+                  ]
+                }
+              ],
+              "fan_in": [
+                {
+                  "module": "daedalus.spine.effect_boundary",
+                  "count": 132
+                },
+                {
+                  "module": "daedalus.schemas",
+                  "count": 120
+                },
+                {
+                  "module": "daedalus.spine.envelope",
+                  "count": 102
+                },
+                {
+                  "module": "spine.envelope",
+                  "count": 96
+                },
+                {
+                  "module": "daedalus.budget",
+                  "count": 62
+                },
+                {
+                  "module": "spine.effect_boundary",
+                  "count": 62
+                },
+                {
+                  "module": "daedalus.spine.killswitch",
+                  "count": 56
+                },
+                {
+                  "module": "daedalus.spine.ledger",
+                  "count": 55
+                },
+                {
+                  "module": "kernel.contracts.base",
+                  "count": 51
+                },
+                {
+                  "module": "daedalus.kernel.contracts",
+                  "count": 46
+                }
+              ],
+              "kind": "observation",
+              "project": "agent_env",
+              "host_mutation": false
+            },
+            "evidence": {
+              "artifact": {
+                "sha256": "3ad878cb9fed54fc6bf9d67872e330696c65a7ab475a4ed153949fa2f74f65f3",
+                "locator": "artifact-locator:sha256:3ad878cb9fed54fc6bf9d67872e330696c65a7ab475a4ed153949fa2f74f65f3"
+              },
+              "lease_sha256": "2d6ab919ff1bfd2a85472fe1c5426ebdcfd0860a3d2ffdda12a8fe19a7daf7f7",
+              "start_sha256": "4766fa111683be1446ca7848db59906b780455806471214815225a959b90cca1",
+              "terminal_sha256": "57259333ab3a41f061ecb2258b051449ba95905d6e9944614e261708b32c5a50",
+              "binding": {
+                "subject_record_sha256": "dc45efe9e38faeb61a3ae5214db5aa95e7e08399d1d51f091941fd6c596fb40a",
+                "execution_record_sha256": "043a778251ff9c25e546aacf93da5cd107e6f17aec4b097a0271b0778555c185",
+                "execution_request_sha256": "db116e16952ec909741b6f5c9ae1a937ffd427eee1fbf47b680a31c603534f5e",
+                "execution_id": "computer-5d6a2a579160d371721ae95ed100db96-exec-0",
+                "source_revision": "88d170ef58e7bdfaf6e92c1f5695e9271a9db9c5986618624e30ea7578e9b693",
+                "attempt_id": "computer-5ff138299ab34fb9bdae71a94ecd9f74-step-0002",
+                "operation_sha256": "1aff6f754cd27322f509a7232d5bed80ff24983da4f229cb9449f574c30c9f2a",
+                "terminal_record_sha256": "64daae177739d9809167812607cbd9dc69d561f2480757750f3742ae1678a24e"
+              }
+            }
+          },
+          "artifact": {
+            "sha256": "00b3e5deecdfb364ce876741475527bbd5f4fef698d64a47ca190526d6f8cb62",
+            "locator": "artifact-locator:sha256:00b3e5deecdfb364ce876741475527bbd5f4fef698d64a47ca190526d6f8cb62"
+          },
+          "withheld_from_planner": false
+        },
+        {
+          "step": 3,
+          "tool": "daedalus.docrefs",
+          "outcome": {
+            "ok": true,
+            "state": "completed",
+            "result": {
+              "n_resolving": 5610,
+              "n_broken": 134,
+              "n_skipped": 2722,
+              "files_scanned": 821,
+              "broken": [
+                {
+                  "doc_path": "docs/ABSORPTION.md",
+                  "line": 484,
+                  "raw": "attempt._git_env()",
+                  "module_path": "daedalus/spine/attempt.py",
+                  "symbol": "_git_env",
+                  "state": "broken",
+                  "why": "daedalus/spine/attempt.py defines no '_git_env'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/adrs/011-event-spine.md",
+                  "line": 121,
+                  "raw": "provenance.task_id",
+                  "module_path": "daedalus/eval/provenance.py",
+                  "symbol": "task_id",
+                  "state": "broken",
+                  "why": "daedalus/eval/provenance.py defines no 'task_id'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/adrs/011-event-spine.md",
+                  "line": 145,
+                  "raw": "provenance.agent",
+                  "module_path": "daedalus/eval/provenance.py",
+                  "symbol": "agent",
+                  "state": "broken",
+                  "why": "daedalus/eval/provenance.py defines no 'agent'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/adrs/016-autonomy-preconditions.md",
+                  "line": 102,
+                  "raw": "attempt.offload_runner",
+                  "module_path": "daedalus/spine/attempt.py",
+                  "symbol": "offload_runner",
+                  "state": "broken",
+                  "why": "daedalus/spine/attempt.py defines no 'offload_runner'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/adrs/016-autonomy-preconditions.md",
+                  "line": 184,
+                  "raw": "attempt.pytest_gate_argv",
+                  "module_path": "daedalus/spine/attempt.py",
+                  "symbol": "pytest_gate_argv",
+                  "state": "broken",
+                  "why": "daedalus/spine/attempt.py defines no 'pytest_gate_argv'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/ARCHITECTURE_BASELINE_20260825.md",
+                  "line": 39,
+                  "raw": "ignore.file",
+                  "module_path": "daedalus/structcore/ignore.py",
+                  "symbol": "file",
+                  "state": "broken",
+                  "why": "daedalus/structcore/ignore.py defines no 'file'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/ARCHITECTURE_BASELINE_20260825.md",
+                  "line": 212,
+                  "raw": "ignore.file",
+                  "module_path": "daedalus/structcore/ignore.py",
+                  "symbol": "file",
+                  "state": "broken",
+                  "why": "daedalus/structcore/ignore.py defines no 'file'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/archive/swarm-2026-07-30/census/SYNTH-claims.md",
+                  "line": 289,
+                  "raw": "containment.py::_verify_job_config",
+                  "module_path": "daedalus/spine/containment.py",
+                  "symbol": "_verify_job_config",
+                  "state": "broken",
+                  "why": "daedalus/spine/containment.py defines no '_verify_job_config'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/archive/swarm-2026-07-30/census/SYNTH-claims.md",
+                  "line": 301,
+                  "raw": "gated_writes._spec_for",
+                  "module_path": "daedalus/kairos/gated_writes.py",
+                  "symbol": "_spec_for",
+                  "state": "broken",
+                  "why": "daedalus/kairos/gated_writes.py defines no '_spec_for'",
+                  "anchored": false
+                },
+                {
+                  "doc_path": "docs/archive/swarm-2026-07-30/census/SYNTH-claims.md",
+                  "line": 348,
+                  "raw": "budget._store",
+                  "module_path": "daedalus/budget.py",
+                  "symbol": "_store",
+                  "state": "broken",
+                  "why": "daedalus/budget.py defines no '_store'",
+                  "anchored": false
+                }
+              ],
+              "broken_elided": 124,
+              "errors": [],
+              "kind": "observation",
+              "project": "agent_env",
+              "host_mutation": false
+            },
+            "evidence": {
+              "artifact": {
+                "sha256": "d944ac1ffb8569e62333c78cc709412b99b2dfc3a56d68b0b3fe13a8149d9cc2",
+                "locator": "artifact-locator:sha256:d944ac1ffb8569e62333c78cc709412b99b2dfc3a56d68b0b3fe13a8149d9cc2"
+              },
+              "lease_sha256": "e29d4c91bed6eee51a22730c0e06a8b114dd594f4d492b808cbf43da8b759416",
+              "start_sha256": "9e30d53411db6d26ee2e7aedaf1e79d59250efc1b5bfa8a8c3a5cffa23bd95c6",
+              "terminal_sha256": "e22c4b87fa1e40f8c9a0d9dc370c5d1c8fdb606356a2a7253bdee6b8f9d42f45",
+              "binding": {
+                "subject_record_sha256": "a9e52e964127d3525b10be3a703a53a812043ca6a494c3c6cf39acf7fa55a498",
+                "execution_record_sha256": "c28757c6ce756b8526be3bfc36f5f1f3e277f9353ef03b93b0551f131fc05a54",
+                "execution_request_sha256": "4d98c53a2d44fd2ddcd57c86f36e4ff8d92d3407119d3622820949b7ad857582",
+                "execution_id": "computer-be7c852117ca3479efaea9deab7eac20-exec-0",
+                "source_revision": "88d170ef58e7bdfaf6e92c1f5695e9271a9db9c5986618624e30ea7578e9b693",
+                "attempt_id": "computer-5ff138299ab34fb9bdae71a94ecd9f74-step-0003",
+                "operation_sha256": "27674ba2327b25f8ed99a59e24b89303ad68fbf28a8f49779e8593d360fe27cd",
+                "terminal_record_sha256": "c16afe57cb46fac3f24410718a8e9c0f30cf9b315845b898c8763bf573af1c8d"
+              }
+            }
+          },
+          "artifact": {
+            "sha256": "559b35c702fc9b2152458aed54515cf74476bdbcbb0d9bd51fadfc5d532dcd9e",
+            "locator": "artifact-locator:sha256:559b35c702fc9b2152458aed54515cf74476bdbcbb0d9bd51fadfc5d532dcd9e"
+          },
+          "withheld_from_planner": false
+        }
+      ],
+      "summary": "3 tool operation(s) completed; evidence is retained. The planner's task-level conclusion remains advisory.",
+      "planner_summary": "Daedalus steht auf Branch packet/g1-ikarus-46-daedalus-tools-20260910 mit einem stark dirty Working Tree (u.a. Conversation-UI, Kernel-Policy, Ikarus-Orchestrierung und zugehörige Tests/Docs geändert, neue Dateien wie runtimes/computer_daedalus.py) und leerer Queue – das laufende Work-Packet G1-IKARUS-46 sollte zuerst zu Ende gebracht, verifiziert und committed werden. Die Struktur (682 Dateien, 537 Python-Module, ~270k LOC) zeigt klare Hotspots mit hoher Komplexität/Churn – shell.py (4244 LOC, 14 Long Functions), offload_lease.py (Churn 20464), executor.py und linux_containment.py – die als nächstes für Refactoring/gezielte Testabdeckung priorisiert werden sollten. Zusätzlich meldet der Doc-Resolver 134 kaputte Symbolreferenzen in Dokumenten wie docs/ABSORPTION.md, den ADRs 011/016 und ARCHITECTURE_BASELINE_20260825.md, die aktualisiert oder entfernt werden müssen, damit die Doku wieder verlässlich auf den Code verweist.",
+      "authority_root": "<worktree>",
+      "planner_calls": 5,
+      "tool_steps": 3,
+      "replans": 0,
+      "repair_calls": 0,
+      "plan": {
+        "advisory": true,
+        "revision": 1,
+        "steps": [
+          "Call daedalus.status, daedalus.structure and daedalus.docrefs to observe project state, hotspots and broken doc references",
+          "Summarize findings in three sentences covering next improvement priorities"
+        ],
+        "artifact": {
+          "sha256": "a26a0ad3757e9f45ab56d4bee25bad6342943d79f63841cf70b903c40cac7bf2",
+          "locator": "artifact-locator:sha256:a26a0ad3757e9f45ab56d4bee25bad6342943d79f63841cf70b903c40cac7bf2"
+        }
+      },
+      "proposals": [
+        {
+          "sha256": "a26a0ad3757e9f45ab56d4bee25bad6342943d79f63841cf70b903c40cac7bf2",
+          "locator": "artifact-locator:sha256:a26a0ad3757e9f45ab56d4bee25bad6342943d79f63841cf70b903c40cac7bf2"
+        },
+        {
+          "sha256": "44bde323742a4763c6b17beaa865e69a38d6cea5db28b66724a19d39029867e9",
+          "locator": "artifact-locator:sha256:44bde323742a4763c6b17beaa865e69a38d6cea5db28b66724a19d39029867e9"
+        },
+        {
+          "sha256": "de161abcf40e2c4d162799c1afc0e4654a12665924c4935cafac92e7c10b3575",
+          "locator": "artifact-locator:sha256:de161abcf40e2c4d162799c1afc0e4654a12665924c4935cafac92e7c10b3575"
+        },
+        {
+          "sha256": "5806c4565642968b51115063e0b11e45fd5be95781d063a72f3f6f743dec6f73",
+          "locator": "artifact-locator:sha256:5806c4565642968b51115063e0b11e45fd5be95781d063a72f3f6f743dec6f73"
+        },
+        {
+          "sha256": "f480e8f8268eb07dc58a82533bfb49181101ad1fa8bc4d48a8aaff32b81c4e3e",
+          "locator": "artifact-locator:sha256:f480e8f8268eb07dc58a82533bfb49181101ad1fa8bc4d48a8aaff32b81c4e3e"
+        }
+      ],
+      "planner": {
+        "provider": "claude_code_cli",
+        "model": null,
+        "remote_context": true
+      },
+      "plan_progress": {
+        "tool_steps_since_plan": 3,
+        "next_step_index": null,
+        "next_step": null,
+        "open_steps": [],
+        "every_step_has_a_tool_step": true
+      },
+      "prompt_chars_max": 21197,
+      "planner_context_tokens": null,
+      "context_estimate": "chars/4",
+      "prompt_overflow_calls": null,
+      "compaction": {
+        "version": "v1",
+        "applied_calls": 0,
+        "unfit_calls": 0,
+        "elided_chars_max": 0,
+        "elided_steps": [],
+        "verbatim_window": 3,
+        "budget_chars_last": null,
+        "reason": "no known window"
+      },
+      "stall_after_elision": false,
+      "task_success_verified": false,
+      "elapsed_s": 64.46900000000096,
+      "summary_tokens_absent_from_observations": {
+        "version": "v1",
+        "checked": 7,
+        "absent": [
+          "270k",
+          "011/016"
+        ],
+        "grounded_in": {
+          "packet/g1-ikarus-46-daedalus-tools-20260910": [
+            1
+          ],
+          "G1-IKARUS-46": [
+            1
+          ],
+          "4244": [
+            2
+          ],
+          "20464": [
+            2
+          ],
+          "ARCHITECTURE_BASELINE_20260825.md": [
+            3
+          ]
+        }
+      },
+      "report_artifact": {
+        "sha256": "8e030286e0781981bf42731bac0f57374d46b5b87dac580e8b7c12accc131c01",
+        "locator": "artifact-locator:sha256:8e030286e0781981bf42731bac0f57374d46b5b87dac580e8b7c12accc131c01"
+      }
+    },
+    "delivery_mode": "blocking",
+    "stream_interrupted": false
+  }
+}

@@ -250,6 +250,8 @@ export function Conversation({
   const [dispatchReadState, setDispatchReadState] = useState<'loading' | 'ready' | 'error'>('ready');
 
   const sentAt = useRef(0);
+  /** `sendMessage` as of the latest render, for callbacks declared above it (G1-IKARUS-46). */
+  const sendMessageRef = useRef<((message: string) => Promise<void>) | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   /** true while the reader is at the bottom; only then may new text scroll */
@@ -628,6 +630,18 @@ export function Conversation({
       );
       const durableTurnId = positiveTurnId(backendTurnId);
       const hasDurableAttribution = conversationPersisted === true && Boolean(threadId) && durableTurnId !== undefined;
+      if (subject.kind === 'computer_task') {
+        // G1-IKARUS-46: the run is a chat turn, not a bus request. The server
+        // named the exact message; the cockpit sends it verbatim and follows
+        // the streamed loop like any `/computer` turn. No queue, no task id.
+        // `sendMessage` is declared later in this component, so it is reached
+        // through the ref that render keeps current.
+        if (!subject.message) return 'nicht gestartet: der Server hat keine Ausführungsnachricht benannt';
+        const send = sendMessageRef.current;
+        if (!send) return 'nicht gestartet: die Oberfläche ist noch nicht sendebereit';
+        void send(subject.message);
+        return `Computer-Auftrag gestartet · ${subject.message}`;
+      }
       try {
         const queued = await queueTask(
           actionProject,
@@ -1124,6 +1138,7 @@ export function Conversation({
       failCreation(creationError instanceof Error ? creationError : new Error('Der Turn konnte nicht angelegt werden.'));
     }
   }, [busy, editorAttachment, effort, ensureThread, generation, pickThread, project, provider, settle]);
+  sendMessageRef.current = sendMessage;
 
   /* ---- commands ---- */
 

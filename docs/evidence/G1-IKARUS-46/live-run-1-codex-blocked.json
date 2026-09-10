@@ -1,0 +1,62 @@
+{
+  "/computer run Prüfe den Zustand von Daedalus: lies den Status, die Struktur und die kaputten Doku-Referenzen des Projekts und fasse in drei Sätzen zusammen, was als Nächstes verbessert werden sollte.": {
+    "ok": true,
+    "generated_at": "2026-09-10T10:19:57.000477+00:00",
+    "project": "agent_env",
+    "warnings": [],
+    "intent": "computer",
+    "shell": "hand",
+    "assistant": "ComputerLoopRefused: configured computer planner returned no usable response\n\nPlanner: codex_cli · Kontext hat den Rechner verlassen: ja\n\nMission: `computer-08e12fa90a844ecd803555e781dfa976`",
+    "provider_used": "computer-policy",
+    "computer": {
+      "ok": false,
+      "state": "blocked",
+      "mission_id": "computer-08e12fa90a844ecd803555e781dfa976",
+      "mission_sha256": "7351cfb38b7080138700fde80ebb95988a02b9d761ceb76c5774fced09924c00",
+      "mission_artifact": {
+        "sha256": "333a61c8f3af94603072f2b51a88793191285b1e7cc18ac8e6c10afd2372912b",
+        "locator": "artifact-locator:sha256:333a61c8f3af94603072f2b51a88793191285b1e7cc18ac8e6c10afd2372912b"
+      },
+      "steps": [],
+      "summary": "ComputerLoopRefused: configured computer planner returned no usable response",
+      "planner_summary": null,
+      "authority_root": "<worktree>",
+      "planner_calls": 1,
+      "tool_steps": 0,
+      "replans": 0,
+      "repair_calls": 0,
+      "plan": null,
+      "proposals": [],
+      "planner": {
+        "provider": "codex_cli",
+        "model": null,
+        "remote_context": true
+      },
+      "plan_progress": null,
+      "prompt_chars_max": 4236,
+      "planner_context_tokens": null,
+      "context_estimate": "chars/4",
+      "prompt_overflow_calls": null,
+      "compaction": {
+        "version": "v1",
+        "applied_calls": 0,
+        "unfit_calls": 0,
+        "elided_chars_max": 0,
+        "elided_steps": [],
+        "verbatim_window": 3,
+        "budget_chars_last": null,
+        "reason": "no known window"
+      },
+      "stall_after_elision": false,
+      "task_success_verified": false,
+      "elapsed_s": 4.610000000000582,
+      "summary_tokens_absent_from_observations": null,
+      "report_artifact": {
+        "sha256": "7dac503298c0e25f2885b097492c7c37916b225ea8bf91be05c003563979d1ed",
+        "locator": "artifact-locator:sha256:7dac503298c0e25f2885b097492c7c37916b225ea8bf91be05c003563979d1ed"
+      }
+    },
+    "delivery_mode": "blocking",
+    "stream_interrupted": false
+  }
+}

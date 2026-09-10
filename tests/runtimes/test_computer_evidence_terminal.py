@@ -30,6 +30,7 @@ import pytest
 from daedalus.kernel.policy.computer import (
     ALL_COMPUTER_TOOLS,
     BROWSER_TOOLS,
+    DAEDALUS_TOOLS,
     DESKTOP_TOOLS,
     FILE_TOOLS,
     VISION_TOOLS,
@@ -84,10 +85,14 @@ def test_a_non_interpreter_application_is_still_admitted(tmp_path):
 
 def test_the_canonical_vocabulary_contains_no_command_execution_tool():
     """No terminal capability may appear without its own packet and adapter."""
-    assert ALL_COMPUTER_TOOLS == frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS)
+    # G1-IKARUS-46 added the read-only `daedalus.*` observation family with its
+    # own packet and adapter (`daedalus.runtimes.computer_daedalus`); the
+    # read-only contract is pinned in tests/runtimes/test_computer_daedalus.py.
+    assert ALL_COMPUTER_TOOLS == frozenset(
+        FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS)
     families = {name.split(".", 1)[0] for name in ALL_COMPUTER_TOOLS}
     # "app" is `app.launch` only, and it is fenced against interpreters above.
-    assert families == {"file", "vision", "desktop", "browser", "app"}
+    assert families == {"file", "vision", "desktop", "browser", "app", "daedalus"}
     assert {n for n in ALL_COMPUTER_TOOLS if n.startswith("app.")} == {"app.launch"}
     forbidden = {"shell", "terminal", "process", "exec", "run", "cmd", "command", "script", "subprocess"}
     assert not families & forbidden

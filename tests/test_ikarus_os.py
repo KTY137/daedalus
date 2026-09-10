@@ -9,6 +9,20 @@ from unittest import mock
 
 from daedalus.orchestration.ikarus import shell as ikarus_os
 
+# G1-IKARUS-46: this module tests the file-bridge queue offer. `_computer_hand`
+# reads the owner's computer policy from the control root, so it is pinned to
+# "no loop" for the whole module; the loop route has its own suite
+# (tests/test_ikarus_computer_dispatch.py).
+_HAND_PIN = mock.patch.object(ikarus_os, "_computer_hand", return_value=None)
+
+
+def setUpModule():
+    _HAND_PIN.start()
+
+
+def tearDownModule():
+    _HAND_PIN.stop()
+
 
 class ClassifyTest(unittest.TestCase):
     def test_intents(self):

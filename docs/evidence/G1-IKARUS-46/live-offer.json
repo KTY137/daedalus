@@ -1,0 +1,67 @@
+{
+  "verbessere Daedalus": {
+    "ok": true,
+    "generated_at": "2026-09-10T10:19:47.887149+00:00",
+    "project": "agent_env",
+    "warnings": [],
+    "intent": "enqueue",
+    "shell": "hand",
+    "assistant": "Ich kann das als Computer-Auftrag im Daedalus-Loop ausführen: „verbessere Daedalus“. Planner: codex_cli (Beobachtungen verlassen den Rechner). Werkzeuge: `daedalus.status`, `daedalus.structure`, `daedalus.slice`, `daedalus.docrefs`, `daedalus.tasks`. Erst dein Klick oder ein „ja“ startet den Lauf; jeder Schritt wird beobachtet, belegt und hier gezeigt. Ein Abschluss des Planners ist ein Vorschlag, kein Beweis.",
+    "action": {
+      "kind": "computer_task",
+      "args": {
+        "project": "agent_env",
+        "objective": "verbessere Daedalus",
+        "lane": "computer",
+        "message": "/computer run verbessere Daedalus",
+        "planner": {
+          "provider": "codex_cli",
+          "model": null,
+          "remote_context": true
+        },
+        "tools": [
+          "daedalus.status",
+          "daedalus.structure",
+          "daedalus.slice",
+          "daedalus.docrefs",
+          "daedalus.tasks"
+        ]
+      },
+      "requires_confirmation": true
+    },
+    "provider_used": "deterministic",
+    "computer": {
+      "planner": {
+        "provider": "codex_cli",
+        "model": null,
+        "remote_context": true
+      },
+      "tools": [
+        "daedalus.status",
+        "daedalus.structure",
+        "daedalus.slice",
+        "daedalus.docrefs",
+        "daedalus.tasks"
+      ],
+      "workspace": "<home>\\.daedalus\\computer-workspaces\\717d5ee9e64f",
+      "policy_sha256": "bf21402f08a9b5b9fccb843ddadb1e277e1381b12f8361cf2d7f880d8f383242",
+      "max_steps": 16,
+      "timeout_s": 300
+    },
+    "act_offer": {
+      "objective": "verbessere Daedalus",
+      "reason": "computer task offered",
+      "signal": "computer_task"
+    },
+    "act": {
+      "allowed": true,
+      "reason": "imperative act request",
+      "signal": "leading German act verb 'verbessere'",
+      "suspected": false,
+      "intent": "enqueue",
+      "confirmation_of": ""
+    },
+    "delivery_mode": "blocking",
+    "stream_interrupted": false
+  }
+}
