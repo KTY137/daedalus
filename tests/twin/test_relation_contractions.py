@@ -456,5 +456,5 @@ def test_reduce_reuses_natural_overflow_contract() -> None:
         natural,
     )
 
-    with pytest.raises(ValueError, match="bounded bit length"):
+    with pytest.raises(ValueError, match="bounded natural bit length"):
         overflow.reduce(natural)
