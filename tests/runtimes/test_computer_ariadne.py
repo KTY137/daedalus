@@ -472,9 +472,17 @@ def test_a_receipt_about_another_campaign_does_not_verify_the_postcondition(tmp_
     evidence.mkdir(parents=True)
     (evidence / "lease-subject.json").write_text("{}", encoding="utf-8")
     result = tool.execute(dict(ARGS))
-    assert result["evidence_present"] is True and result["receipt_matches_request"] is False
+    assert result["evidence_present"] is True and result["receipt_contradicts_request"] is True
     assert result["postcondition_verified"] is False
     assert "somebody-elses-campaign" not in json.dumps(result)
+    # A receipt that asserts NOTHING does not contradict the request: absent is
+    # not matching, and the field name says which of the two it measures
+    # (Cerberus round 3).
+    silent = _receipt()
+    silent.pop("campaign_id"), silent.pop("source_revision")
+    runner, _ = _runner(_Recorder(receipt=silent, echo_request=False))
+    quiet = _tool(tmp_path, monkeypatch, runner).execute(dict(ARGS))
+    assert quiet["receipt_contradicts_request"] is False
 
 
 def test_evidence_with_a_future_timestamp_does_not_verify_forever(tmp_path, monkeypatch):

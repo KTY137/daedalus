@@ -191,6 +191,12 @@ def read_repository_source(
             # checked before opening loses the race: measured 2026-09-10, a
             # writer needed 0.39 ms against a 12.2 ms window and won every
             # attempt (G1-IKARUS-47, Odysseus round 3, D13).
+            # Measured 2026-09-10: no tracked source in this repository has a
+            # second name, but 3810 of 4951 sampled `.venv` files do (uv links
+            # them from its cache), so a subject with a virtual environment or
+            # a pnpm-style node_modules inside it refuses reads THERE. That is
+            # the right answer for a repair campaign, which has no business
+            # rewriting a package cache.
             raise RepositoryTreePathError(
                 f"repository file has more than one name (hard link): {path}"
             )

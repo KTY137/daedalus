@@ -281,9 +281,9 @@ is ASCII, so no Unicode folding route exists at all.
 | # | finding | repair | pinned by |
 | --- | --- | --- | --- |
 | D13 (HIGH, executed) | the `st_nlink` refusal is admission-time, and the campaign's own reader never checked it. A concurrent writer that swapped the admitted file for a HARD LINK during the `git rev-parse` window won every attempt (0.39 ms writer against a 12.2 ms window) and the REAL campaign, through the REAL lease, nominated a candidate carrying `daedalus/spine/killswitch.py` bytes, with those bytes in six control-root files. Nothing was applied (invariant 5 held), but a §8.1 leakage boundary was crossed | the check moves to where the read is atomic: `os.fstat(descriptor).st_nlink > 1` in `read_repository_source`, beside the existing device/inode/size race check. This is a deliberate, minimal extension of this packet's scope into `daedalus/gates/repository/tree.py`, because the hole is reachable through the door this packet opens and closing it at the door only narrows the window | `test_a_hard_link_is_refused_on_the_open_descriptor` (the reader's own suite); M35 |
-| D14 (HIGH/MEDIUM) | a planner-supplied `campaign_id` named the evidence directory with no binding to the operation, so campaign B borrowed campaign A's FRESH evidence and reported a verified postcondition — the round-2 fix closed re-using your own stale directory and left borrowing someone else's open | the id always carries the operation digest: a supplied label becomes `<label>-<digest12>`, the default stays `ikarus-<digest24>` | `test_a_campaign_id_is_held_to_the_filesystem_spelling_of_its_directory`, `test_the_default_campaign_id_is_deterministic_per_operation_and_a_given_label_is_bound_to_it`; M36 |
+| D14 (HIGH/MEDIUM) | a planner-supplied `campaign_id` named the evidence directory with no binding to the operation, so campaign B borrowed campaign A's FRESH evidence and reported a verified postcondition — the round-2 fix closed re-using your own stale directory and left borrowing someone else's open | the id always carries the operation digest: a supplied label is TRUNCATED at 40 characters and COMPOSED as `<label[:40]>-<digest12>` (worst case 53, inside the campaign's own 64-character rule), the default stays `ikarus-<digest24>`. The id in the result is therefore composed, not echoed; two labels differing only after character 40 with the same operation share one directory, which is identical work under two names | `test_a_campaign_id_is_held_to_the_filesystem_spelling_of_its_directory`, `test_the_default_campaign_id_is_deterministic_per_operation_and_a_given_label_is_bound_to_it`; M36 |
 | D15 (MEDIUM) | the freshness floor had no ceiling: one file dated a year ahead verified every later forgery | bounded on both sides (`floor <= mtime <= now + tolerance`) | `test_evidence_with_a_future_timestamp_does_not_verify_forever`; M37 |
-| D16 (MEDIUM) | `_short` passed every integer through, so only CPython's 4300-digit conversion limit bounded the projection — 62 KB out of rules that promise 200 characters — and the packet's own row said otherwise | an integer wider than 256 bits is described, not rendered; the row above is corrected | `test_a_large_integer_in_the_receipt_is_described_not_rendered`; M38 |
+| D16 (MEDIUM) | `_short` passed every integer through, so only CPython's 4300-digit conversion limit bounded the projection — 62 KB out of rules that promise 200 characters — and the packet's own row said otherwise | an integer wider than 256 bits is described, not rendered; the row above is corrected. Stated for completeness: a receipt carrying an integer past CPython's conversion limit cannot be rendered at all, so that campaign is reported as `uncertain` and reconciled rather than nominated — the fail-safe of the round-1 "not renderable" rule, and unreachable through the canonical runner | `test_a_large_integer_in_the_receipt_is_described_not_rendered`; M38 |
 | D17 (LOW-MEDIUM) | two of the three legs of the round-2 repair were mutation-invisible: no test made the evidence check or the projection's gate call fail | both are exercised, so removing either guard is caught | `test_a_failing_evidence_check_reads_as_unverified_never_as_a_refusal`, `test_a_failing_gate_call_in_the_projection_withholds_the_target`; M42, M43 |
 | D18 (LOW) | a Mapping that is not a `dict` renders to a STRING through `default=str`, and every read then raised an unclassified `AttributeError` | classified: "campaign receipt is not an object" | `test_an_unreadable_receipt_shape_is_classified_not_crashed`; M40 |
 | D19 (LOW) | the projection echoes the REQUEST, so a receipt about another campaign was reported under this campaign's id and target | the receipt's own id and revision are compared with the request; a mismatch is reported and fails the postcondition | `test_a_receipt_about_another_campaign_does_not_verify_the_postcondition`; M39 |
@@ -299,6 +299,41 @@ Neither is claimed closed; the junction case exercises the same resolution.
 not causation — no digest ties a receipt to the files it points at. The id now
 binds the directory to the operation, which is what D14 needed, but a dishonest
 runner remains outside what this adapter can verify.
+`receipt_contradicts_request` says what it measures: a receipt that asserts
+nothing does not contradict the request, which is weaker than matching it.
+
+**Cerberus round 3 (`3f7de763`): `approve`, the round-2 block lifts.** The
+CRITICAL was verified closed by executing both revisions against the same
+injected failure. Four low findings, all repaired or written down here: the
+comparison above was named "matches" while it measures "does not contradict";
+the id composition truncates at 40 characters, which the D14 row now states;
+the hard-link refusal also refuses reads inside a `.venv` or a pnpm-style
+`node_modules` in the subject (measured: 3810 of 4951 sampled files there are
+hard links), which is the right answer for a repair campaign and is now stated
+at the check; and a pre-existing one that is NOT this packet's to fix — a
+failure text can name a deny-listed target path that the success projection
+withholds, because `_safe_failure_text` gates host-path SHAPE, not the
+project's deny list. That is recorded on the coordination board beside
+G1-ARIADNE-11. Cerberus also re-stated a standing medium it has raised before:
+on the TRUSTED lane the secret floor alone applies, so a deny-listed path is
+echoed there; the owner should confirm that relaxation is intended.
+
+**Odysseus round 4 (`3f7de763`): every round-3 repair holds under attack.** The
+TOCTOU exploit that won 12 of 12 attempts now wins 0 of 3000 threaded
+iterations; a hard link refuses under both names, and a read-path census found
+that the only subject-tree byte read in the campaign goes through
+`read_repository_source`, so nothing bypasses the new check. The id binding,
+the freshness window on both edges, the integer bound (a fully loaded receipt
+now projects to 44 118 bytes) and the receipt-identity comparison all held, and
+all ten guards were re-measured red, including the two that were
+mutation-invisible in round 3. Two low residues, both at the campaign's OWN
+doors rather than this packet's: an NTFS alternate data stream (`file.py:hidden`)
+is accepted by `campaign._admit_target_path` and by the reader's grammar, which
+treats a stream that git does not track as repository source — a contract
+impurity, not a section 8.1 crossing, since the protected-prefix match still
+uses the base path and the computer-loop door refuses `:`. Recorded on the
+coordination board for the G1-ARIADNE door owners. The other is the 40-character
+label collapse already stated in the D14 row.
 
 ## Evidence, expected failures and review
 

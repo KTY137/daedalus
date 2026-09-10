@@ -49,7 +49,11 @@ TIMEOUT_MAX_S = 120
 TIMEOUT_DEFAULT_S = 30
 #: How much of a planner-supplied campaign label is kept in front of the
 #: operation digest, so that the whole id stays inside the campaign's own
-#: 64-character rule.
+#: 64-character rule (worst case 40 + 1 + 12 = 53). Two labels that differ only
+#: AFTER this many characters and carry the same operation compose to one id
+#: and therefore one evidence directory -- identical operation, identical work,
+#: so the collision costs a shared directory, not a borrowed postcondition
+#: (Cerberus round 3).
 _LABEL_CHARS = 40
 #: The campaign's own rule (``campaign._CAMPAIGN_ID_RE``): first character
 #: alphanumeric, then up to 63 of ``[A-Za-z0-9._-]`` (Odysseus round 1, D3: a
@@ -390,9 +394,12 @@ class AriadneCampaignTool:
         data: Mapping[str, Any] = parsed
         # The projection echoes the REQUEST, so a receipt about another campaign
         # would be reported under this campaign's id and target unless the two
-        # are compared (Odysseus round 3, D19).
-        receipt_matches_request = (data.get("campaign_id") in (None, campaign_id)
-                                   and data.get("source_revision") in (None, source_revision))
+        # are compared (Odysseus round 3, D19). The name says what it measures:
+        # a receipt that asserts nothing does not CONTRADICT the request, and
+        # that is weaker than matching it (Cerberus round 3).
+        receipt_contradicts_request = (
+            (data.get("campaign_id") is not None and data.get("campaign_id") != campaign_id)
+            or (data.get("source_revision") is not None and data.get("source_revision") != source_revision))
         trials = []
         trials_readable = isinstance(data.get("trials"), (list, tuple))
         all_trials = [t for t in (data.get("trials") or ()) if isinstance(t, Mapping)] if trials_readable else []
@@ -438,7 +445,7 @@ class AriadneCampaignTool:
         except Exception:  # noqa: BLE001 - after the runner, a failed check is "not verified", never a refusal
             evidence_present = False
         verified = (outcome == "nominated" and _is_sha256(candidate_sha) and _is_sha256(nomination_sha)
-                    and evidence_present and receipt_matches_request)
+                    and evidence_present and not receipt_contradicts_request)
         result = {
             "schema": RESULT_SCHEMA,
             "kind": "campaign",
@@ -458,7 +465,7 @@ class AriadneCampaignTool:
             "trials_readable": trials_readable,
             "negative_outcomes_readable": isinstance(data.get("negative_outcomes"), (list, tuple))
             or data.get("negative_outcomes") is None,
-            "receipt_matches_request": receipt_matches_request,
+            "receipt_contradicts_request": receipt_contradicts_request,
             "budget_equality": {key: _flag(equality.get(key)) for key in
                                 ("configured_equal", "realized_usage_recorded", "within_budget")},
             "negative_outcomes": negative[:LIST_SHOWN],
