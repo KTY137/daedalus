@@ -151,6 +151,57 @@ def test_empty_digest_scope_does_not_scan_or_hash_forest() -> None:
     assert hashed == 0
 
 
+def test_delta_blocks_cannot_reuse_the_base_fourfold_subject() -> None:
+    """Pin the revision boundary before adding any block-level delta API.
+
+    The synthetic delta keeps relation signature and axis membership fixed, but
+    its candidate block belongs to a different exact Fourfold subject. Existing
+    relation algebra therefore refuses to combine base and candidate blocks.
+    A future delta application must bind the candidate subject explicitly; it
+    cannot safely patch a base block while retaining the base revision/digest.
+    """
+
+    base_forest = _BASE._forest(
+        nodes=10,
+        row_width=2,
+        revision=_BASE.BASE_REVISION,
+        add_delta=False,
+    )
+    candidate_forest = _BASE._forest(
+        nodes=10,
+        row_width=2,
+        revision=_BASE.DELTA_REVISION,
+        add_delta=True,
+    )
+    base_snapshot = _BASE._snapshot(base_forest, revision=_BASE.BASE_REVISION)
+    candidate_snapshot = _BASE._snapshot(
+        candidate_forest,
+        revision=_BASE.DELTA_REVISION,
+    )
+    base_block = _BASE._compile(base_forest, base_snapshot).blocks[0][1]
+    candidate_block = _BASE._compile(candidate_forest, candidate_snapshot).blocks[0][1]
+
+    assert base_block.signature == candidate_block.signature == _BASE.SIGNATURE
+    assert base_block.row_axis == candidate_block.row_axis
+    assert base_block.column_axis == candidate_block.column_axis
+    assert base_block.subject.repository_id == candidate_block.subject.repository_id
+    assert base_block.subject.source_revision == _BASE.BASE_REVISION
+    assert candidate_block.subject.source_revision == _BASE.DELTA_REVISION
+    assert base_block.subject.source_fourfold_sha256 == base_snapshot.digest
+    assert candidate_block.subject.source_fourfold_sha256 == candidate_snapshot.digest
+    assert base_block.subject != candidate_block.subject
+
+    with pytest.raises(
+        ValueError,
+        match="relation blocks must bind the same exact Fourfold subject",
+    ):
+        base_block.hadamard(
+            candidate_block,
+            _PROBE.BooleanSemiring(),
+            relation="delta-overlap",
+        )
+
+
 def test_scan_repeat_bounds_reject_bool_aliases() -> None:
     for value in (0, True, _PROBE.MAX_SCAN_REPEATS + 1):
         with pytest.raises(ValueError):
