@@ -541,9 +541,9 @@ class TypedRelationBlock(Generic[T]):
             axis: TypedAxis,
             requested: Sequence[str] | None,
             field: str,
-        ) -> tuple[TypedAxis, tuple[int, ...]]:
+        ) -> tuple[TypedAxis, Sequence[int]]:
             if requested is None:
-                return axis, tuple(range(len(axis.labels)))
+                return axis, range(len(axis.labels))
             raw_labels = _sequence(requested, field, MAX_BLOCK_AXIS_LABELS)
             positions: list[int] = []
             seen: set[int] = set()
@@ -559,7 +559,7 @@ class TypedRelationBlock(Generic[T]):
                 positions.append(position)
             positions.sort()
             canonical_positions = tuple(positions)
-            if canonical_positions == tuple(range(len(axis.labels))):
+            if len(canonical_positions) == len(axis.labels):
                 return axis, canonical_positions
             return (
                 TypedAxis(axis.name, axis.plane, tuple(axis.labels[position] for position in positions)),
@@ -577,19 +577,29 @@ class TypedRelationBlock(Generic[T]):
         if self.row_axis is self.column_axis and row_positions == column_positions:
             column_axis = row_axis
 
-        column_remap = {
-            old_position: new_position
-            for new_position, old_position in enumerate(column_positions)
-        }
         offsets, indices, values = [0], [], []
-        for old_row in row_positions:
-            for position in range(self.row_offsets[old_row], self.row_offsets[old_row + 1]):
-                new_column = column_remap.get(self.column_indices[position])
-                if new_column is None:
-                    continue
-                indices.append(new_column)
-                values.append(self.values[position])
-            offsets.append(len(values))
+        if column_axis is self.column_axis:
+            # Retaining the full target axis means the existing CSR column
+            # coordinates are already canonical. Copy selected row spans directly
+            # instead of constructing an O(columns) remap and hashing every entry.
+            for old_row in row_positions:
+                start, stop = self.row_offsets[old_row], self.row_offsets[old_row + 1]
+                indices.extend(self.column_indices[start:stop])
+                values.extend(self.values[start:stop])
+                offsets.append(len(values))
+        else:
+            column_remap = {
+                old_position: new_position
+                for new_position, old_position in enumerate(column_positions)
+            }
+            for old_row in row_positions:
+                for position in range(self.row_offsets[old_row], self.row_offsets[old_row + 1]):
+                    new_column = column_remap.get(self.column_indices[position])
+                    if new_column is None:
+                        continue
+                    indices.append(new_column)
+                    values.append(self.values[position])
+                offsets.append(len(values))
         return type(self)(
             self.subject,
             self.signature,
