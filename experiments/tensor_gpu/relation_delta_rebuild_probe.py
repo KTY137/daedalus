@@ -125,6 +125,12 @@ def _snapshot(
         created_at=CREATED_AT,
         trace_id=f"relation-delta-{revision[0]}",
     )
+    # The adapter already binds the exact Forest digest. Reuse that immutable
+    # authority evidence while deriving the probe-only complete-plane snapshot
+    # instead of reserializing the same Forest twice more during fixture setup.
+    # compile_relation_blocks still independently recomputes the Forest digest
+    # at its own authority boundary, so this does not weaken verification.
+    forest_digest = legacy.source_forest_sha256
     planes = tuple(
         (
             PlaneSnapshot(
@@ -146,7 +152,7 @@ def _snapshot(
         source_revision=revision,
         created_at=CREATED_AT,
         input_digests=(
-            forest.content_sha256,
+            forest_digest,
             *(plane.digest for plane in planes),
             *(binding.digest for binding in legacy.bindings),
         ),
@@ -155,7 +161,7 @@ def _snapshot(
     return FourfoldSnapshot(
         repository_id=legacy.repository_id,
         source_revision=revision,
-        source_forest_sha256=forest.content_sha256,
+        source_forest_sha256=forest_digest,
         planes=planes,
         bindings=legacy.bindings,
         provenance=provenance,
