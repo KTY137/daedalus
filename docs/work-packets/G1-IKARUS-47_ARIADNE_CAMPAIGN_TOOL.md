@@ -1,0 +1,211 @@
+# G1-IKARUS-47 — The computer loop can run one Ariadne controlled-repair campaign on the registered project, nominating only
+
+Packet ID: `G1-IKARUS-47`
+Artifact role: `primary`
+Status: `built; packet suites green; mutation table 19/19 caught; one live campaign nominated through the loop and one refused at the leakage boundary; independent review pending; not promoted`
+Active gate: `1`
+Classification: `ALIGNED`
+Owner: `repository owner`
+Base revision: `b29105affb32fdc1f20624e20de1bf4074488786`
+Stacking: on `packet/g1-ikarus-46-daedalus-tools-20260910` at that commit (`b29105af`); rebased onto that packet's final commit before independent review
+Dependencies: `G1-IKARUS-46 (act verbs, computer_task offer, daedalus.* observations, egress gate per lane), G1-ARIADNE-05/06/10 (working-tree base binding, unsupported worktree layout, leakage boundary as code), G1-SELF-00/01 (the campaign as evidence)`
+Master-plan authority: `Revision 13`
+Promotion: not requested; automatic merge, promotion and Gate transition are
+forbidden. The tool NOMINATES. Nothing in this packet applies a candidate to
+any checkout, and the campaign never writes into the subject repository.
+
+Owner instruction (2026-09-10, verbatim): *"doch auch Mutationen der soll sich
+selbst verbessern und code generation starten können"*; *"Genesis und Ariadne
+sollen Teil des Daedalus Kernels sein Ikarus ist sein interface, quasi ein
+SuperAgent"*; 15:05: *"brute force die Hermes Jarvis fähigkeit und die
+selbstverbesserung … der soll völlig autonom meinen PC benutzen können"*. This
+packet is the second of the sequence G1-IKARUS-46 opened: it gives the loop
+the door through which the kernel's self-Renovation campaign is reached. It
+does not claim self-improvement (see "What this packet does not claim").
+
+## Primary acceptance claim
+
+**One** claim: *the Ikarus computer loop, under the owner's computer policy,
+can hand a planner-proposed bounded repair (`target_path`, `before`, `after`)
+of the registered project to the canonical `daedalus.ariadne.run_campaign`
+through one new policy-scoped tool, `daedalus.ariadne_campaign`; the campaign
+runs its three arms under equal budgets in a checkout-external workspace under
+the control root, the subject checkout is untouched, the receipt is retained
+as evidence, the planner sees a projection of the receipt that carries no
+host path, and the nominated candidate is never applied.*
+
+Measured before this packet `[MEASURED 2026-09-10 15:20, worktree jarvis-47 at b29105af]`:
+
+| probe | result |
+| --- | --- |
+| `"daedalus.ariadne_campaign" in ALL_COMPUTER_TOOLS` | `False` |
+| `ComputerPolicy(workspace=…, tools=("daedalus.ariadne_campaign",))` | refused: `tools must be unique known computer tools` |
+| `"daedalus.ariadne_campaign" in TOOL_SPECS` | `False`; `_HOST_MUTATION_TOOLS` has 9 members |
+| `/computer enable ariadne` | (by code, `computer_loop.py` enable branch) refused: `Use /computer enable daedalus [confirm-remote] or /computer disable daedalus` |
+| how G1-SELF-00/01 reached the campaign | the `cli.ariadne_campaign` door and `POST /api/ariadne`; no chat or loop path exists (`grep -rn ariadne daedalus/orchestration/ikarus/` = 0 hits) |
+
+## What this packet does not claim
+
+- **Not "Daedalus improves itself".** The campaign's evaluator is the frozen
+  exact-match evaluator of `daedalus/ariadne/campaign.py`
+  (`EVALUATOR_SOURCE`, sha256 pinned): the repair arm passes iff the target
+  file's bytes equal the `after`-applied bytes; baseline and negative control
+  fail by construction. That proves isolation, provenance, budget equality,
+  nomination and non-application — G1-SELF-01's exact claim — not that the
+  change is better. An evaluator that runs the project's own tests in every
+  arm is an evaluator change and therefore a separate packet (master plan
+  §10: "evaluator change belongs in a separate packet"); it is named in the
+  sequence below as G1-IKARUS-48. The grant text says this in the owner's
+  language.
+- **Not a new runner.** The tool calls `run_campaign` exactly as the CLI and
+  HTTP doors do. No second campaign implementation, no clone, no scheduler.
+- **Not a subject for linked worktrees.** `run_campaign` refuses a subject
+  whose `.git` is a gitdir pointer (G1-ARIADNE-06: bytes a candidate could
+  rewrite). The registered project must be a plain checkout; the refusal is
+  surfaced verbatim. This packet's own worktree therefore cannot be its live
+  subject; the live run uses a plain clone.
+
+## Scope
+
+In scope (files changed or added):
+
+- `daedalus/kernel/policy/computer.py` — `ARIADNE_TOOLS = ("daedalus.ariadne_campaign",)`,
+  in `ALL_COMPUTER_TOOLS`. A fresh `/computer setup` still grants nothing.
+- `daedalus/runtimes/computer.py` — the `TOOL_SPECS` row (`target_path`,
+  `before`, `after`, optional `campaign_id`, optional `timeout_s`); the tool
+  in `_HOST_MUTATION_TOOLS` (it writes under the control root and runs the
+  frozen evaluator); `ComputerService(..., campaign_runner=None)`; capability
+  unavailable without a project, readers or runner; dispatch to the adapter;
+  `filesystem_scope_kind: "control-root-ariadne-campaign"`; the adapter's
+  `effect_state` honoured like the file adapter's (`none` before the campaign
+  was entered, `uncertain` after).
+- `daedalus/runtimes/computer_ariadne.py` (new) — `CampaignRunner`
+  (injected: `run_campaign`, `head_revision`) and `AriadneCampaignTool`:
+  bounds the arguments, refuses the leakage boundary and mandatory-ignored
+  roots BEFORE the runner is called (pure path admission through the same
+  `protected_prefix_for`), resolves the registered project's repository root
+  through the registry, reads HEAD through the injected reader, calls the
+  runner, and projects the receipt: outcome, campaign id, selected arm and
+  seed, trial verdicts with wall time, budget equality, negative outcomes,
+  candidate/nomination/receipt sha256 — never a locator or host path; the
+  target path is echoed only if the lane's gate admits it.
+- `daedalus/orchestration/ikarus/computer_loop.py` — `register_campaign_runner`
+  / `campaign_runner()` (a REGISTRY: the loop itself must not import
+  `daedalus.ariadne` — `[MEASURED 2026-09-10]` one such import merged the
+  cross-domain import cycle from 19 to 22 modules, which the census pins
+  forbid) and `head_revision()` (bounded read-only `git rev-parse`); the
+  runner is handed to the service and to `computer_status`; a process without
+  a registered factory reports the tool unavailable with the reason;
+  `/computer enable ariadne confirm-campaigns` and
+  `/computer disable ariadne` (compare-and-replace on the policy digest; the
+  grant needs a one-use confirmation because model-authored edits are then
+  EXECUTED by the frozen evaluator in an isolated workspace and nominated);
+  the status text lists both.
+- `daedalus/interfaces/http/web_api.py` — `_campaign_runner()` (the same lazy
+  `run_campaign` import `POST /api/ariadne` uses, plus `protected_prefix_for`
+  and the loop's `head_revision`) registered with the loop at import: the
+  cockpit chat's process has the door; a process that never imports the web
+  API (a bare CLI) reports it unavailable.
+- `docs/IKARUS_COMPUTER.md` — the tool, the grant, the honesty notes.
+- Tests: `tests/runtimes/test_computer_ariadne.py` (new),
+  `tests/test_ikarus_computer_dispatch.py` (grant/revoke), pins.
+
+Forbidden paths (not touched): `daedalus/ariadne/`, `daedalus/spine/`,
+`daedalus/kernel/` except `policy/computer.py`, `daedalus/kernel/promotion*`,
+the plan, the amendment chain, `AGENTS.md`, `CLAUDE.md`, `.agentenv/`.
+
+## Contracts and behavior
+
+- Tool `daedalus.ariadne_campaign` arguments: `target_path` (repository-relative,
+  ≤ 1000 chars, no NUL), `before` (non-empty), `after` (may be empty),
+  `campaign_id` (optional; default `ikarus-<sha256 of the operation>[:24]`;
+  1–64 chars of `[A-Za-z0-9._-]`), `timeout_s` (optional integer 1–120,
+  default 30; the campaign's own lease is 3× that).
+- Result (projection, `daedalus-computer-ariadne-result/1`): `outcome`
+  (`nominated` or the negative outcome the receipt names), `campaign_id`,
+  `source_revision`, `target_path` (gated), `selected_variant_id`,
+  `selected_seed`, `selection_mode`, `trials[]` = `{variant_id, status,
+  wall_time_ms, negative_outcomes, blockers}`, `budget_equality`
+  (`configured_equal`, `realized_usage_recorded`, `within_budget`),
+  `negative_outcomes[]`, `candidate_tree_sha256`, `nomination_receipt_sha256`,
+  `campaign_receipt_sha256`, `evaluator: "ariadne-frozen-evaluator (exact match)"`,
+  `applied: False`, `postcondition_verified: True` iff the receipt was retained
+  and its sha256 re-read matches. No locator, no absolute path, no `after`
+  text echoed back.
+- Refusals before any effect (`effect_state = "none"`): tool not granted; no
+  project / readers / runner; argument shape; `target_path` inside the
+  self-Renovation leakage boundary or a mandatory-ignored root; `before ==
+  after`; `timeout_s` out of bounds.
+- Refusals or failures after the runner was entered (`effect_state =
+  "uncertain"`): surfaced with the campaign's own error class name and text
+  (`AriadneRequestError`, `AriadneConflictError`, `AriadneCampaignError`); the
+  computer lease stays STARTED for reconciliation, exactly as for a file
+  adapter failure after the effect.
+
+## Acceptance matrix
+
+| # | check | how |
+| --- | --- | --- |
+| A1 | policy: the tool is a known family; a fresh policy grants nothing | unit |
+| A2 | `TOOL_SPECS` row validates the five arguments; unknown keys refused | unit |
+| A3 | capability unavailable without project / readers / runner, with the exact reason | unit through `ComputerService.capabilities()` |
+| A4 | pre-run refusals: leakage boundary (each `SELF_RENOVATION_PROTECTED_PREFIXES` entry, case-folded), mandatory-ignored root, `before == after`, bounds — the runner is NEVER called (a runner that raises on call proves it) | unit |
+| A5 | the projection carries no locator, no absolute path, no `after` text; the target path goes through the lane's gate | unit with a fake runner returning a real-shaped receipt containing host paths |
+| A6 | the campaign id default is deterministic per operation; a supplied id is validated | unit |
+| A7 | `effect_state` is `none` for pre-run refusals and `uncertain` for a runner failure; the service keeps the lease STARTED in the latter case | unit through `ComputerService.execute` with a fake runner that raises |
+| A8 | **real campaign through the real lease**: a plain-git scratch subject registered as the project, the REAL `run_campaign` as runner, an armed kill switch and a scratch spine for the subject: outcome `nominated`; `git status --porcelain` of the subject empty before and after; the campaign's evidence exists under the subject's control root; the retained computer result carries `host_mutation: True`, `filesystem_scope_kind: "control-root-ariadne-campaign"`, `applied: False`; the result JSON contains no host path | integration (the pattern of `test_the_real_adapter_through_the_real_lease_…`) |
+| A9 | a linked-worktree subject is refused verbatim by the campaign and reported `uncertain`… no: the refusal comes from `_verify_head` BEFORE any lease inside `run_campaign`; it is surfaced with its text and the computer lease is settled as a failed effect (the adapter cannot prove "no effect" once the runner was entered) | integration |
+| A10 | `/computer enable ariadne` without `confirm-campaigns` answers `confirmation_required` and changes nothing; with it, the tool joins the policy through compare-and-replace; `/computer disable ariadne` removes it; the grant text names the frozen exact-match evaluator, the control-root workspace, the untouched subject and non-application | dispatch tests |
+| A11 | the offer of G1-IKARUS-46 lists the tool once granted; a `/computer run` mission can reach the tool (fake planner proposing it) and the mission report shows the outcome | loop test with a fake service |
+| A12 | census pin unchanged (no runtimes→ariadne import); work-packet registry, s02 corpus and imports graph re-pinned | contract suites |
+| A13 | mutation table: every guard above disabled one at a time is caught | driver |
+| A14 | live: one real campaign through the loop with the Claude planner on a plain clone of this repository (target: a docstring), retained under `docs/evidence/G1-IKARUS-47/` with the ledger rows; and one refused attempt on a protected path | measurement |
+
+## Measured
+
+`[MEASURED 2026-09-10 15:20–16:20, this host, worktree jarvis-47, authority
+control root 0c70d5e4cc69, subject = a plain clone of this branch at
+b29105af under %TEMP%\dd47-subject (control root 5b7ca2e5473f), scratch
+ledger runs/jarvis-47/scratch-ledger-47.json, Claude planner]`
+
+| check | result |
+| --- | --- |
+| A1–A7, A10, A11 | `tests/runtimes/test_computer_ariadne.py` (39), `tests/test_ikarus_computer_loop_ariadne.py` (2), `EnableAriadneTest` (5) green; the fifteen packet, neighbouring, Ariadne, census, registry and imports-graph suites: see `docs/evidence/G1-IKARUS-47/acceptance.json` |
+| A8 real campaign through the real lease | nominated; the subject's tracked tree and HEAD unchanged; the only file the campaign adds inside the subject is its record in the subject's canonical spine (`runs/spine/spine.sqlite3`, invariant 1; ignored by this repository's `.gitignore`); evidence under the subject's control root; `host_mutation: True`, `filesystem_scope_kind: control-root-ariadne-campaign`, `applied: False`; no host path in the retained result |
+| A9 linked worktree | refused by the campaign (`AriadneRequestError … linked git worktree`), surfaced verbatim; the subject unchanged |
+| A12 pins | census 521 modules / 2104 edges, components and digest unchanged — after the loop's direct `daedalus.ariadne` import was replaced by the registry (that import had merged the cross-domain cycle 19 → 22); registry 529 tracked files / 463 packet ids; s02 re-pinned after the rebase |
+| A13 mutation table | 19 guards: 18 caught in the first pass; M14 (execution admits the tool without a runner) survived as a guard masked by the dispatch refusal behind it, got a pre-lease pin and was re-run alone: caught (`mutation-table-1.txt`) |
+| A14 live run 1 | **negative evidence, retained.** `daedalus.slice` ok; then the KERNEL refused the campaign step: `ComputerPolicy.admit` applied the workspace path rule to `before`/`after` by KEY NAME (image paths for `vision.changes`, text fragments for the campaign) — "path must remain relative to the computer workspace". Repaired: `_PATH_ARGUMENT_KEYS` names the campaign's path argument (`target_path`, held to the same lexical rule), pinned by `test_the_policy_path_rule_holds_the_target_path_and_leaves_the_text_fragments_alone`. 2 planner calls, $0.20 |
+| A14 live run 2 | same objective ("nominiere per daedalus.ariadne_campaign eine Docstring-Verbesserung in daedalus/build.py …"): `daedalus.slice` → `daedalus.ariadne_campaign` → **`nominated`**, campaign `ikarus-9f205ae3e05ee82b5715ffe4`, `before` "This module is deterministic and additive." → `after` "This module's behaviour is deterministic and purely additive: identical inputs yield an identical plan, and no existing state is mutated.", arms failed/failed/passed, budget equality true; 3 planner calls, 53.9 s, ≈ $0.33; subject clone clean (`git status --porcelain` empty, HEAD unchanged); campaign evidence under the subject's control root; nothing applied |
+| A14 live run 3 | a planner-proposed change to `daedalus/spine/killswitch.py`: refused at step 1 by `_PreRunRefusal` (leakage boundary, master plan §8.1) before the runner was entered; mission `blocked`, no repeat, no campaign evidence written; 1 planner call, 10.9 s |
+| clone trap | a clone under the worktree path fails on Windows (`Filename too long`, MAX_PATH): the subject lives under a short `%TEMP%` path |
+
+Total live spend on the scratch ledger: $0.60 (12 rows, worst-case reserve $3.00 per Claude call, settled $0.07–0.12).
+
+## Evidence, expected failures and review
+
+`docs/evidence/G1-IKARUS-47/acceptance.json` with suites, mutation table,
+pins, the live receipt projection and ledger rows; the packet document's
+tables. Failures are retained.
+
+## Migration and rollback
+
+Revert the packet's commits; no data migration (a stored policy that grants
+`daedalus.ariadne_campaign` would then fail `ComputerPolicy` validation and
+the owner re-runs `/computer setup` — visible, not silent).
+
+## Sequence
+
+- **G1-IKARUS-48** — `run_campaign(..., evaluator="project-tests")`: each arm
+  runs the registered project's `test_command` under the attempt command gate
+  with equal budgets; nomination requires the repair arm to pass and the
+  baseline to be recorded. The evaluator change that makes a nomination mean
+  "the tests still pass". Cerberus BLOCKING.
+- **G1-IKARUS-37** — `terminal.run` with an argv allowlist (forward plan C3).
+- **Skill `daedalus-jarvis`** — the development skill the owner asked for on
+  2026-09-10 15:05: configure the policy with every family, the planner and
+  the grants, run objectives and campaigns without re-confirmation for
+  reversible work. Promotion stays sealed (invariant 5) unless the owner
+  amends it.
+- **G1-IKARUS-49** — Genesis from the chat (`genesis_build` offer over the
+  existing `run_genesis` door with `request_key` idempotency).

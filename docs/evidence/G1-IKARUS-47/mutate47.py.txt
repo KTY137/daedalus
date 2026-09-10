@@ -1,0 +1,110 @@
+"""Mutation table for G1-IKARUS-47: disable one guard, run the packet suites, restore (bytes-safe)."""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PY = ROOT / ".venv" / "Scripts" / "python.exe"
+SUITES = ["tests/runtimes/test_computer_ariadne.py", "tests/test_ikarus_computer_dispatch.py",
+          "tests/test_ikarus_computer_loop_ariadne.py", "tests/runtimes/test_computer_service.py"]
+A = "daedalus/runtimes/computer_ariadne.py"
+S = "daedalus/runtimes/computer.py"
+L = "daedalus/orchestration/ikarus/computer_loop.py"
+K = "daedalus/kernel/policy/computer.py"
+
+MUTATIONS = [
+    ("M1 the leakage boundary is not checked before the runner", A,
+     '        protected = self._runner.protected_prefix_for(relative)\n        if protected is not None:',
+     '        protected = None\n        if protected is not None:'),
+    ("M2 mandatory ignored roots pass", A,
+     '        if relative.split("/", 1)[0].casefold() in _IGNORED_ROOTS:',
+     '        if False:'),
+    ("M3 '..' and absolute prefixes pass", A,
+     '        if _looks_like_host_path(relative) or relative.startswith("/") or ".." in relative.split("/"):',
+     '        if False:'),
+    ("M4 before == after is not refused", A,
+     '        if before == after:\n            raise _PreRunRefusal("repair must replace before with a different value")',
+     '        pass'),
+    ("M5 timeout unbounded", A,
+     '        if isinstance(value, bool) or not isinstance(value, int) or not TIMEOUT_MIN_S <= value <= TIMEOUT_MAX_S:',
+     '        if False:'),
+    ("M6 the HEAD shape is not checked", A,
+     '        if not isinstance(source_revision, str) or len(source_revision) != 40 or any(\n                ch not in "0123456789abcdef" for ch in source_revision):',
+     '        if False:'),
+    ("M7 the raw receipt reaches the planner", A,
+     '        return self._project_receipt(receipt, relative, campaign_id, source_revision)',
+     '        return dict(receipt)'),
+    ("M8 a pre-run refusal claims an uncertain effect", A,
+     '    effect_state = "none"',
+     '    effect_state = "uncertain"'),
+    ("M9 a runner failure is swallowed", A,
+     '        except Exception as exc:  # noqa: BLE001 - classified by name, surfaced, never swallowed\n            raise _CampaignFailure(f"{type(exc).__name__}: {exc}"[:1200]) from exc',
+     '        except Exception as exc:  # noqa: BLE001\n            receipt = {"outcome": "nominated", "nomination_receipt_sha256": "x" * 64}'),
+    ("M10 the target echo is not gated", A,
+     '        target = relative if self._admit_path(relative) else "<withheld>"',
+     '        target = relative'),
+    ("M11 the projection forgets it never applies", A,
+     '            "applied": False,',
+     '            "applied": True,'),
+    ("M12 the tool is not a host mutation", S,
+     '                                  *ARIADNE_TOOLS})\nassert not (_HOST_MUTATION_TOOLS & frozenset(DAEDALUS_TOOLS))\nassert frozenset(ARIADNE_TOOLS) <= _HOST_MUTATION_TOOLS',
+     '                                  })\nassert not (_HOST_MUTATION_TOOLS & frozenset(DAEDALUS_TOOLS))'),
+    ("M13 the capability is offered without a runner", S,
+     '            if not reason and tool in ARIADNE_TOOLS:\n                reason = (_NO_PROJECT_REFUSAL if self._project is None\n                          else _NO_RUNNER_REFUSAL if self._campaign_runner is None else "")',
+     '            pass'),
+    ("M14 execution admits the tool without a runner", S,
+     '        if tool in ARIADNE_TOOLS and self._campaign_runner is None:\n            raise ComputerRefused(_NO_RUNNER_REFUSAL)',
+     '        pass'),
+    ("M15 a pre-run refusal is left for reconciliation", S,
+     '            provably_no_effect = provably_no_effect or (external_started and not dispatched and tool in ARIADNE_TOOLS\n                                                        and isinstance(exc, ComputerRefused)\n                                                        and effect_state == "none")',
+     '            pass'),
+    ("M16 enable ariadne needs no confirmation", L,
+     '            if enabling and not confirm:\n                yield "final", core.envelope(\n                    project, intent="computer", shell="hand", provider_used="deterministic",\n                    assistant=_ARIADNE_GRANT_WARNING_DE',
+     '            if False:\n                yield "final", core.envelope(\n                    project, intent="computer", shell="hand", provider_used="deterministic",\n                    assistant=_ARIADNE_GRANT_WARNING_DE'),
+    ("M17 disable removes every tool", L,
+     '            tools = [tool for tool in current.get("tools", []) if tool not in ARIADNE_TOOLS]',
+     '            tools = []'),
+    ("M18 the family is unknown to the policy", K,
+     'ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS\n                               + ARIADNE_TOOLS)',
+     'ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS)'),
+    ("M19 the registry accepts a non-callable factory", L,
+     '    if factory is not None and not callable(factory):\n        raise ComputerLoopRefused("campaign runner factory must be callable")',
+     '    pass'),
+]
+
+
+def run_suites() -> tuple[int, str]:
+    proc = subprocess.run([str(PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *SUITES, "--no-header", "-rf"],
+                          cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def main() -> int:
+    rows = []
+    for label, rel, old, new in MUTATIONS:
+        path = ROOT / rel
+        original_bytes = path.read_bytes()
+        original = original_bytes.decode("utf-8")
+        if original.count(old) != 1:
+            rows.append((label, "NOT APPLIED (anchor not unique)", ""))
+            continue
+        path.write_bytes(original.replace(old, new, 1).encode("utf-8"))
+        try:
+            code, out = run_suites()
+        finally:
+            path.write_bytes(original_bytes)
+        failed = sorted({line.split(" - ")[0].replace("FAILED ", "").strip()
+                         for line in out.splitlines() if line.startswith("FAILED ") or line.startswith("ERROR ")})
+        summary = [line for line in out.splitlines() if " passed" in line or " failed" in line or " error" in line]
+        rows.append((label, "CAUGHT" if code != 0 else "SURVIVED", "; ".join(failed[:6]) + (" | " + summary[-1] if summary else "")))
+    code, out = run_suites()
+    rows.append(("restored tree", "GREEN" if code == 0 else "RED", out.splitlines()[-1]))
+    for label, verdict, detail in rows:
+        print(f"{verdict:9} | {label} | {detail}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

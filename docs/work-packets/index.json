@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 525,
+    "assigned_artifacts": 526,
     "legacy_artifacts": 204,
-    "packet_artifacts": 527,
-    "packet_ids": 462,
-    "post_index_artifacts": 323,
+    "packet_artifacts": 528,
+    "packet_ids": 463,
+    "post_index_artifacts": 324,
     "registry_artifacts": 1,
-    "tracked_files": 528,
+    "tracked_files": 529,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -6374,6 +6374,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-47_ARIADNE_CAMPAIGN_TOOL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b29105affb32fdc1f20624e20de1bf4074488786",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-46 (act verbs, computer_task offer, daedalus.* observations, egress gate per lane), G1-ARIADNE-05/06/10 (working-tree base binding, unsupported worktree layout, leakage boundary as code), G1-SELF-00/01 (the campaign as evidence)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-47",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-47_ARIADNE_CAMPAIGN_TOOL.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -11150,6 +11166,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-46",
       "path": "docs/work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-47",
+      "path": "docs/work-packets/G1-IKARUS-47_ARIADNE_CAMPAIGN_TOOL.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

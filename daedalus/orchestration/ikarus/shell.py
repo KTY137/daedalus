@@ -712,10 +712,10 @@ def _computer_hand(project: str) -> dict | None:
     """
     try:
         from ...runtimes.computer import computer_status
-        from .computer_loop import project_readers
+        from .computer_loop import campaign_runner, project_readers
 
         caps = computer_status(_COMPUTER_AUTHORITY_ROOT, project=project,
-                               project_readers=project_readers())
+                               project_readers=project_readers(), campaign_runner=campaign_runner())
     except Exception:
         return None
     if caps.get("enabled") is not True:

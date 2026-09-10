@@ -1,0 +1,405 @@
+"""G1-IKARUS-47: ``daedalus.ariadne_campaign`` -- the computer loop's door to
+one Ariadne controlled-repair campaign on the registered project.
+
+What is pinned here:
+
+* the policy family and the tool spec (A1, A2);
+* capability unavailable without project / runner (A3);
+* every pre-run refusal happens BEFORE the runner is called (A4);
+* the projection carries no locator, no host path, no ``after`` text (A5);
+* the campaign id default is deterministic (A6);
+* ``effect_state`` none/uncertain and the service's reconciliation (A7);
+* the REAL ``run_campaign`` through the REAL lease on a plain scratch subject:
+  nominated, subject untouched, evidence under the control root (A8);
+* a linked-worktree subject is refused by the campaign, surfaced verbatim (A9).
+"""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from daedalus.kernel.policy.computer import (
+    ALL_COMPUTER_TOOLS, ARIADNE_TOOLS, DAEDALUS_TOOLS, ComputerPolicy, ComputerRefused, policy_path,
+)
+from daedalus.runtimes import computer as service_module
+from daedalus.runtimes import computer_ariadne as subject
+from daedalus.spine import killswitch
+
+TOOL = "daedalus.ariadne_campaign"
+
+
+# ----------------------------------------------------------------------------- fixtures
+def _policy(tmp_path, **kwargs) -> ComputerPolicy:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
+    return ComputerPolicy(workspace=workspace, tools=ARIADNE_TOOLS + DAEDALUS_TOOLS, **kwargs)
+
+
+def _project(monkeypatch, repo_root: str, *, deny=("tct_app/devices/",)):
+    from daedalus.foundation import projects
+    config = {"name": "fixture", "repo_root": repo_root,
+              "policy": {"deny": list(deny), "deny_content": [], "allow": ["pkg/", "docs/", ".md", "sample.txt"]}}
+    monkeypatch.setattr(projects, "load_project", lambda name: config)
+    monkeypatch.setattr(projects, "resolve_repo_root", lambda repo_root, project: repo_root)
+
+
+class _Recorder:
+    """A runner that records the call and returns a real-shaped receipt."""
+
+    def __init__(self, receipt=None, *, raise_with=None):
+        self.calls = []
+        self.receipt = receipt if receipt is not None else _receipt()
+        self.raise_with = raise_with
+
+    def run_campaign(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.raise_with is not None:
+            raise self.raise_with
+        return self.receipt
+
+
+def _runner(recorder=None, *, head="a" * 40, protected=None):
+    from daedalus.ariadne.campaign import protected_prefix_for
+    recorder = recorder or _Recorder()
+    return subject.CampaignRunner(
+        run_campaign=recorder.run_campaign,
+        head_revision=lambda root: head,
+        protected_prefix_for=protected or protected_prefix_for), recorder
+
+
+def _never_runner():
+    def explode(**kwargs):
+        raise AssertionError("the runner must not be called before admission")
+    from daedalus.ariadne.campaign import protected_prefix_for
+    return subject.CampaignRunner(run_campaign=explode,
+                                  head_revision=lambda root: (_ for _ in ()).throw(AssertionError("HEAD read too early")),
+                                  protected_prefix_for=protected_prefix_for)
+
+
+def _receipt(outcome="nominated"):
+    home = str(Path.home())
+    return {
+        "campaign_id": "ikarus-x", "source_revision": "a" * 40, "outcome": outcome,
+        "selected_seed": 2, "selected_variant_id": "repair", "selection_mode": "best-passed-trial",
+        "candidate_tree_sha256": "c" * 64, "candidate_tree_locator": f"{home}\\.daedalus\\control\\x\\cas\\c",
+        "nomination_receipt_sha256": "n" * 64, "nomination_receipt_locator": f"{home}/control/x/nom.json",
+        "campaign_contract_locator": f"{home}/control/x/contract.json",
+        "trials": [
+            {"variant_id": "baseline", "status": "failed", "usage": {"wall_time_ms": 300},
+             "negative_outcomes": ["frozen-evaluator-rejected"], "blockers": ["exact-match-failed"],
+             "evidence_packet_locator": f"{home}/control/x/ev1.json"},
+            {"variant_id": "negative-control", "status": "failed", "usage": {"wall_time_ms": 310},
+             "negative_outcomes": ["frozen-evaluator-rejected"], "blockers": ["exact-match-failed"]},
+            {"variant_id": "repair", "status": "passed", "usage": {"wall_time_ms": 320},
+             "negative_outcomes": [], "blockers": []},
+        ],
+        "budget_equality": {"configured_equal": True, "realized_usage_recorded": True, "within_budget": True,
+                            "trial_budget_sha256s": ["b" * 64] * 3},
+        "negative_outcomes": ["baseline:frozen-evaluator-rejected", "negative-control:frozen-evaluator-rejected"],
+        "reproducibility_note": "…",
+    }
+
+
+def _tool(tmp_path, monkeypatch, runner, *, provider="claude_code_cli", repo_root="unused-root"):
+    _project(monkeypatch, repo_root)
+    policy = _policy(tmp_path, planner_provider=provider, allow_remote_context=True)
+    return subject.AriadneCampaignTool(policy, "fixture", lambda: None, tmp_path, runner)
+
+
+ARGS = {"target_path": "pkg/mod.py", "before": "return 1", "after": "return 2"}
+
+
+# ----------------------------------------------------------------------------- A1/A2
+def test_the_family_is_known_and_a_fresh_policy_grants_nothing(tmp_path):
+    assert TOOL in ALL_COMPUTER_TOOLS and ARIADNE_TOOLS == (TOOL,)
+    assert TOOL in service_module.TOOL_SPECS and TOOL in service_module._HOST_MUTATION_TOOLS
+    fresh = ComputerPolicy(workspace=tmp_path)
+    assert fresh.tools == ()
+    for bad in ({"target_path": "x"}, {"target_path": "x", "before": "a", "after": "b", "extra": 1},
+                {"target_path": 1, "before": "a", "after": "b"}):
+        with pytest.raises(ComputerRefused):
+            service_module._validate_arguments(TOOL, bad)
+    service_module._validate_arguments(TOOL, {**ARGS, "campaign_id": "c1", "timeout_s": 30})
+
+
+def test_the_policy_path_rule_holds_the_target_path_and_leaves_the_text_fragments_alone(tmp_path):
+    """MEASURED 2026-09-10 (live run 1): the kernel's by-name path rule refused
+    the campaign's ``before``/``after`` TEXT (a docstring sentence with a
+    colon) as "not relative to the workspace". The rule now names the tool's
+    path argument -- and still holds it to the lexical rule."""
+    policy = ComputerPolicy(workspace=tmp_path / "ws", tools=(TOOL, "vision.changes"))
+    policy.admit(TOOL, {"target_path": "daedalus/build.py",
+                        "before": "objective: one feature\n", "after": "objective: exactly one feature\n"})
+    for bad in ("../x.py", "/etc/x", "C:/Users/x.py", "x\x00", "a<b.py"):
+        with pytest.raises(ComputerRefused):
+            policy.admit(TOOL, {"target_path": bad, "before": "a", "after": "b"})
+    # vision.changes keeps its path semantics for the same key names.
+    with pytest.raises(ComputerRefused, match="relative"):
+        policy.admit("vision.changes", {"before": "C:/x.png", "after": "y.png"})
+
+
+# ----------------------------------------------------------------------------- A3
+def test_capability_is_unavailable_without_a_project_or_a_runner(tmp_path, monkeypatch):
+    monkeypatch.setattr(service_module, "load_policy",
+                        lambda root: _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True))
+    monkeypatch.setattr(service_module, "control_root", lambda root: tmp_path / "control")
+    monkeypatch.setattr(service_module.KillSwitch, "__init__", lambda self, **kw: None)
+    without_project = service_module.ComputerService(tmp_path)
+    assert without_project.capabilities()["unavailable"][TOOL] == service_module._NO_PROJECT_REFUSAL
+    without_runner = service_module.ComputerService(tmp_path, project="fixture", project_readers=object())
+    assert without_runner.capabilities()["unavailable"][TOOL] == service_module._NO_RUNNER_REFUSAL
+    runner, _ = _runner()
+    with_runner = service_module.ComputerService(tmp_path, project="fixture", project_readers=object(),
+                                                 campaign_runner=runner)
+    names = {tool["name"]: tool for tool in with_runner.capabilities()["tools"]}
+    assert TOOL in names and "Project: fixture." in names[TOOL]["description"]
+    assert "nomination" in names[TOOL]["description"].lower() and "not improvement" in names[TOOL]["description"]
+
+
+# ----------------------------------------------------------------------------- A4
+@pytest.mark.parametrize("target", [
+    "daedalus/spine/killswitch.py", "DAEDALUS/SPINE/x.py", "daedalus/kernel/policy/computer.py",
+    "daedalus/kernel/promotion.py", "daedalus/kernel/approvals.py", "daedalus/kernel/contracts/x.py",
+    "daedalus/ariadne/campaign.py", "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl", "AGENTS.md", "CLAUDE.md", ".agentenv/x.json",
+    "tests/test_ariadne_leakage_boundary.py",
+])
+def test_the_leakage_boundary_is_refused_before_the_runner_is_called(tmp_path, monkeypatch, target):
+    tool = _tool(tmp_path, monkeypatch, _never_runner())
+    with pytest.raises(ComputerRefused, match="leakage boundary") as refused:
+        tool.execute({**ARGS, "target_path": target})
+    assert refused.value.effect_state == "none"
+
+
+@pytest.mark.parametrize("arguments, reason", [
+    ({**ARGS, "target_path": ".git/config"}, "mandatory ignored root"),
+    ({**ARGS, "target_path": ".daedalus/x"}, "mandatory ignored root"),
+    ({**ARGS, "target_path": "../x.py"}, "repository-relative"),
+    ({**ARGS, "target_path": "/etc/passwd"}, "repository-relative"),
+    ({**ARGS, "target_path": "C:/Users/x/y.py"}, "repository-relative"),
+    ({**ARGS, "target_path": "pkg/mod.py\x00"}, "bounded"),
+    ({**ARGS, "target_path": "x" * 1001}, "bounded"),
+    ({**ARGS, "before": ""}, "before must be non-empty"),
+    ({**ARGS, "after": "return 1"}, "different value"),
+    ({**ARGS, "timeout_s": 0}, "timeout_s"),
+    ({**ARGS, "timeout_s": 121}, "timeout_s"),
+    ({**ARGS, "timeout_s": True}, "timeout_s"),
+    ({**ARGS, "campaign_id": "a/b"}, "campaign_id"),
+    ({**ARGS, "campaign_id": ""}, "campaign_id"),
+])
+def test_every_pre_run_refusal_precedes_the_runner(tmp_path, monkeypatch, arguments, reason):
+    tool = _tool(tmp_path, monkeypatch, _never_runner())
+    with pytest.raises(ComputerRefused, match=reason) as refused:
+        tool.execute(arguments)
+    assert refused.value.effect_state == "none"
+
+
+def test_an_unregistered_project_and_an_unreadable_head_refuse_before_the_runner(tmp_path, monkeypatch):
+    from daedalus.foundation import projects
+    monkeypatch.setattr(projects, "load_project", lambda name: (_ for _ in ()).throw(KeyError("nope")))
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    tool = subject.AriadneCampaignTool(policy, "fixture", lambda: None, tmp_path, _never_runner())
+    with pytest.raises(ComputerRefused, match="registered project is unavailable") as refused:
+        tool.execute(dict(ARGS))
+    assert refused.value.effect_state == "none"
+    recorder = _Recorder()
+    from daedalus.ariadne.campaign import protected_prefix_for
+    bad_head = subject.CampaignRunner(run_campaign=recorder.run_campaign,
+                                      head_revision=lambda root: "not-a-sha", protected_prefix_for=protected_prefix_for)
+    tool = _tool(tmp_path, monkeypatch, bad_head)
+    with pytest.raises(ComputerRefused, match="40-hex") as refused:
+        tool.execute(dict(ARGS))
+    assert refused.value.effect_state == "none" and recorder.calls == []
+
+
+# ----------------------------------------------------------------------------- A5/A6
+def test_the_projection_carries_verdicts_and_hashes_but_no_locator_path_or_after_text(tmp_path, monkeypatch):
+    runner, recorder = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner, repo_root=str(tmp_path / "subject"))
+    result = tool.execute({**ARGS, "after": "return 'ODYSSEUSCHIMERA'"})
+    assert recorder.calls == [{"repo_root": str(tmp_path / "subject"), "source_revision": "a" * 40,
+                               "campaign_id": result["campaign_id"], "target_path": "pkg/mod.py",
+                               "before": "return 1", "after": "return 'ODYSSEUSCHIMERA'", "timeout_s": 30}]
+    assert result["outcome"] == "nominated" and result["applied"] is False
+    assert result["postcondition_verified"] is True and result["host_mutation"] is True
+    assert result["target_path"] == "pkg/mod.py" and result["selected_variant_id"] == "repair"
+    assert [t["status"] for t in result["trials"]] == ["failed", "failed", "passed"]
+    assert result["trials"][0]["wall_time_ms"] == 300
+    assert result["budget_equality"] == {"configured_equal": True, "realized_usage_recorded": True, "within_budget": True}
+    assert result["candidate_tree_sha256"] == "c" * 64 and result["nomination_receipt_sha256"] == "n" * 64
+    assert result["evaluator"] == subject.EVALUATOR_LABEL
+    dumped = json.dumps(result)
+    for forbidden in ("locator", str(Path.home()), "ODYSSEUSCHIMERA", "control\\\\", "evidence_packet"):
+        assert forbidden not in dumped, forbidden
+    assert result["campaign_id"].startswith("ikarus-") and len(result["campaign_id"]) == 7 + 24
+
+
+def test_the_default_campaign_id_is_deterministic_per_operation_and_a_given_id_is_kept(tmp_path, monkeypatch):
+    runner, _ = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+    first = tool.execute(dict(ARGS))["campaign_id"]
+    assert tool.execute(dict(ARGS))["campaign_id"] == first
+    assert tool.execute({**ARGS, "after": "return 3"})["campaign_id"] != first
+    assert tool.execute({**ARGS, "campaign_id": "owner.named-1"})["campaign_id"] == "owner.named-1"
+
+
+def test_the_target_path_is_withheld_on_the_untrusted_lane_when_the_gate_refuses_it(tmp_path, monkeypatch):
+    """The planner named it, but a retained mission report is read by more
+    than the planner: the echo goes through the lane's gate."""
+    runner, _ = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner, provider="codex_cli")
+    result = tool.execute({**ARGS, "target_path": "internal/roadmap.py"})
+    assert result["target_path"] == "<withheld>" and result["lane"] == "untrusted"
+
+
+# ----------------------------------------------------------------------------- A7
+def test_a_runner_failure_is_surfaced_with_its_class_and_marked_uncertain(tmp_path, monkeypatch):
+    class AriadneConflictError(Exception):
+        pass
+    runner, _ = _runner(_Recorder(raise_with=AriadneConflictError("source_revision conflict: HEAD moved")))
+    tool = _tool(tmp_path, monkeypatch, runner)
+    with pytest.raises(ComputerRefused, match="AriadneConflictError: source_revision conflict") as refused:
+        tool.execute(dict(ARGS))
+    assert refused.value.effect_state == "uncertain"
+
+
+def _service(tmp_path, monkeypatch, runner):
+    profile = tmp_path / "profile"
+    profile.mkdir(exist_ok=True)
+    monkeypatch.setenv("USERPROFILE", str(profile))
+    monkeypatch.setattr(killswitch, "OS_PROFILE_DIR", profile)
+    monkeypatch.delenv("DAEDALUS_KILLSWITCH", raising=False)
+    authority = tmp_path / "authority"
+    authority.mkdir(exist_ok=True)
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    path = policy_path(authority)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(policy.to_dict()), encoding="utf-8")
+    switch = killswitch.KillSwitch(repo_root=authority, sweep_managed=False)
+    assert switch.arm(note="ariadne tool fixture").running
+    return service_module.ComputerService(authority, project="fixture", project_readers=object(),
+                                          campaign_runner=runner), authority
+
+
+def test_the_service_keeps_the_lease_started_after_a_runner_failure_and_settles_a_pre_run_refusal(
+        tmp_path, monkeypatch):
+    class AriadneCampaignError(Exception):
+        pass
+    _project(monkeypatch, str(tmp_path / "subject"))
+    runner, _ = _runner(_Recorder(raise_with=AriadneCampaignError("effect lease denied")))
+    service, authority = _service(tmp_path, monkeypatch, runner)
+    outcome = service.execute(TOOL, dict(ARGS), mission_id="m", attempt_id="a1")
+    assert outcome["ok"] is False and outcome["state"] == "reconciliation_required"
+    assert "AriadneCampaignError: effect lease denied" in outcome["error"]
+    refused = service.execute(TOOL, {**ARGS, "target_path": "daedalus/spine/x.py"}, mission_id="m", attempt_id="a2")
+    # A pre-run refusal is provably effect-free: the lease is settled ("blocked"),
+    # not left for reconciliation.
+    assert refused["ok"] is False and refused["state"] == "blocked", refused
+    assert refused["error_type"] == "_PreRunRefusal" and "leakage boundary" in refused["error"]
+
+
+def test_a_session_without_a_runner_is_refused_before_any_lease(tmp_path, monkeypatch):
+    """Mutation M14: admission refuses the tool without a runner BEFORE the
+    lease is issued -- the dispatch refusal behind it would come after."""
+    _project(monkeypatch, str(tmp_path / "subject"))
+    service, authority = _service(tmp_path, monkeypatch, None)
+    outcome = service.execute(TOOL, dict(ARGS), mission_id="m", attempt_id="a1")
+    assert outcome["ok"] is False and "campaign runner" in outcome["error"]
+    evidence = service.control / "computer-effect-evidence"
+    assert not evidence.exists() or not any(evidence.rglob("*")), "refused before any lease evidence"
+
+
+# ----------------------------------------------------------------------------- A8/A9
+def _plain_subject(tmp_path, monkeypatch, name="subject"):
+    root = tmp_path / name
+    root.mkdir()
+    (tmp_path / "empty-git-template").mkdir(exist_ok=True)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_TEMPLATE_DIR", str(tmp_path / "empty-git-template"))
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "ariadne@example.invalid")
+    git("config", "user.name", "Ariadne Test")
+    (root / "sample.txt").write_text("broken\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "seed")
+    return root, git
+
+
+def test_the_real_campaign_through_the_real_lease_nominates_and_leaves_the_subject_untouched(tmp_path, monkeypatch):
+    """A8: the REAL run_campaign as runner, the REAL computer lease, a plain
+    scratch subject registered as the project. Nominated; the subject's
+    working tree and HEAD unchanged; evidence under the subject's control
+    root; the retained result carries no host path and never applies."""
+    from daedalus.ariadne import run_campaign
+    from daedalus.ariadne.campaign import protected_prefix_for
+    from daedalus.orchestration.ikarus.computer_loop import head_revision
+    root, git = _plain_subject(tmp_path, monkeypatch)
+    _project(monkeypatch, str(root))
+    runner = subject.CampaignRunner(run_campaign=run_campaign, head_revision=head_revision,
+                                    protected_prefix_for=protected_prefix_for)
+    service, authority = _service(tmp_path, monkeypatch, runner)
+    subject_switch = killswitch.KillSwitch(repo_root=root)
+    assert subject_switch.arm(note="ariadne tool real subject").running
+    head_before = git("rev-parse", "HEAD")
+    try:
+        outcome = service.execute(TOOL, {"target_path": "sample.txt", "before": "broken", "after": "fixed"},
+                                  mission_id="computer-ariadne-real", attempt_id="attempt-1")
+    finally:
+        subject_switch.stop()
+    assert outcome["ok"] is True, outcome
+    result = outcome["result"]
+    assert result["outcome"] == "nominated" and result["applied"] is False
+    assert [t["status"] for t in result["trials"]] == ["failed", "failed", "passed"]
+    assert result["source_revision"] == head_before and result["postcondition_verified"] is True
+    assert (root / "sample.txt").read_text(encoding="utf-8") == "broken\n"
+    # The tracked tree and HEAD are untouched. The one thing the campaign adds
+    # inside the subject is its record in the subject's CANONICAL SPINE
+    # (``runs/spine/spine.sqlite3``, invariant 1: one event store per
+    # repository; ignored by this repository's .gitignore) -- measured here,
+    # not claimed away.
+    assert git("status", "--porcelain", "--untracked-files=no") == "" and git("rev-parse", "HEAD") == head_before
+    untracked = [line for line in git("status", "--porcelain").splitlines() if line.startswith("??")]
+    assert untracked == ["?? runs/"], untracked
+    assert sorted(p.relative_to(root).as_posix() for p in (root / "runs").rglob("*") if p.is_file()) == [
+        "runs/spine/spine.sqlite3"]
+    evidence = killswitch.control_root(root) / "ariadne" / "effect-evidence" / result["campaign_id"]
+    assert evidence.is_dir() and any(evidence.rglob("*"))
+    stored = [json.loads(p.read_text(encoding="utf-8")) for p in (service.control / "computer-artifacts").glob("*.json")]
+    results = [b for b in stored if b.get("schema") == "daedalus-computer-result/1"]
+    assert len(results) == 1 and results[0]["host_mutation"] is True
+    assert results[0]["filesystem_scope_kind"] == "control-root-ariadne-campaign"
+    dumped = json.dumps(results[0]["result"])
+    assert str(tmp_path) not in dumped and str(Path.home()) not in dumped and "locator" not in dumped
+
+
+def test_a_linked_worktree_subject_is_refused_by_the_campaign_verbatim(tmp_path, monkeypatch):
+    """A9: G1-ARIADNE-06 -- the campaign refuses a gitdir-pointer subject. The
+    refusal is the campaign's own text; the lease cannot claim no effect."""
+    from daedalus.ariadne import run_campaign
+    from daedalus.ariadne.campaign import protected_prefix_for
+    from daedalus.orchestration.ikarus.computer_loop import head_revision
+    root, git = _plain_subject(tmp_path, monkeypatch)
+    linked = tmp_path / "linked"
+    git("worktree", "add", "-q", str(linked), "-b", "side")
+    _project(monkeypatch, str(linked))
+    runner = subject.CampaignRunner(run_campaign=run_campaign, head_revision=head_revision,
+                                    protected_prefix_for=protected_prefix_for)
+    service, _ = _service(tmp_path, monkeypatch, runner)
+    subject_switch = killswitch.KillSwitch(repo_root=linked)
+    assert subject_switch.arm(note="linked worktree subject").running
+    try:
+        outcome = service.execute(TOOL, {"target_path": "sample.txt", "before": "broken", "after": "fixed"},
+                                  mission_id="computer-ariadne-linked", attempt_id="attempt-1")
+    finally:
+        subject_switch.stop()
+    assert outcome["ok"] is False
+    assert "linked git worktree" in outcome["error"] and "AriadneRequestError" in outcome["error"]
+    assert (linked / "sample.txt").read_text(encoding="utf-8") == "broken\n"

@@ -1034,6 +1034,26 @@ def _planner_line(planner: Mapping[str, Any]) -> str:
     return f"Planner: {planner.get('provider')}{model} · Kontext hat den Rechner verlassen: {left}"
 
 
+#: The Ariadne grant texts (G1-IKARUS-47). True sentences only: what the tool
+#: does, where it writes, what its evaluator proves, what never happens.
+_ARIADNE_GRANT_FACTS_DE = (
+    "Das Werkzeug übergibt eine vom Planner vorgeschlagene, begrenzte Reparatur (Zieldatei, exakter Vorher-Text, "
+    "Nachher-Text) an die kanonische Ariadne-Kampagne (`daedalus.ariadne.run_campaign`, dieselbe Funktion wie die "
+    "CLI- und HTTP-Tür): drei Arme (Baseline, Negativkontrolle, Reparatur) mit gleichem Budget in einem "
+    "Arbeitsbereich außerhalb des Checkouts unter dem Control-Root des Projekts; der Projektbaum wird nie "
+    "beschrieben; das Ergebnis ist eine Nominierung mit Hashes, die nie angewendet wird — anwenden bleibt "
+    "deine versiegelte Entscheidung (Invariante 5). Der Evaluator ist der eingefrorene Exakt-Vergleich aus "
+    "G1-SELF-01: eine Nominierung beweist Isolation, Provenienz, Budgetgleichheit und Nichtanwendung, nicht "
+    "dass die Änderung besser ist. Pfade innerhalb der Leakage-Grenze (Spine, Kernel-Policy, Plan, "
+    "Amendment-Kette, AGENTS.md, die Kampagne selbst) werden vor jeder Wirkung verweigert. Jede Ausführung "
+    "wird wie jedes Werkzeug geleast und belegt; ein Subjekt, das ein verlinkter Git-Worktree ist, wird von "
+    "der Kampagne verweigert.")
+_ARIADNE_GRANT_WARNING_DE = (
+    "`daedalus.ariadne_campaign` lässt den Planner Reparaturen vorschlagen, die die Kampagne dann in einem "
+    "isolierten Arbeitsbereich AUSFÜHRT (Evaluator-Prozess) und nominiert. " + _ARIADNE_GRANT_FACTS_DE
+    + " Das ersetzt keine Freigabe. Bestätige ausdrücklich mit `/computer enable ariadne confirm-campaigns`. "
+      "Die Bestätigung gilt nur für diesen einen Befehl und wird nicht gespeichert.")
+
 #: What the daedalus.* family sends to a planner; named in both consent texts
 #: (G1-IKARUS-46, Cerberus MAJOR 3: the earlier list was narrower than what travels).
 _DAEDALUS_OBSERVATIONS_DE = ("Git-Status-Pfade, Strukturübersicht, Doku-Referenzen, Aufgabenberichte und "
@@ -1219,6 +1239,44 @@ def _repeat_request(argument: str) -> tuple[int, int, str]:
     return seconds, count, parts[2]
 
 
+#: The Ariadne campaign runner factory for ``daedalus.ariadne_campaign``
+#: (G1-IKARUS-47), REGISTERED by a composition root that already sits above
+#: the ariadne package (``interfaces.http.web_api``). This module must not
+#: import ``daedalus.ariadne`` itself: ``ariadne.campaign`` imports the
+#: orchestration and runtimes packages, and the one edge from here merged the
+#: cross-domain import cycle from 19 to 22 modules (MEASURED 2026-09-10,
+#: tests/contracts/test_import_scc_hierarchy.py). A process that registers no
+#: factory reports the tool as unavailable, with the reason.
+_CAMPAIGN_RUNNER_FACTORY: Any = None
+
+
+def register_campaign_runner(factory: Any) -> None:
+    """Register the factory that builds the campaign runner (composition roots only)."""
+    global _CAMPAIGN_RUNNER_FACTORY
+    if factory is not None and not callable(factory):
+        raise ComputerLoopRefused("campaign runner factory must be callable")
+    _CAMPAIGN_RUNNER_FACTORY = factory
+
+
+def campaign_runner():
+    """The registered campaign runner, or ``None`` (the tool is then unavailable)."""
+    if _CAMPAIGN_RUNNER_FACTORY is None:
+        return None
+    return _CAMPAIGN_RUNNER_FACTORY()
+
+
+def head_revision(repo_root: str) -> str:
+    """The subject's exact HEAD through a bounded, read-only ``git rev-parse``."""
+    import subprocess
+
+    proc = subprocess.run(["git", "-C", repo_root, "rev-parse", "--verify", "HEAD^{commit}"],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
+                          check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(f"git rev-parse failed: {proc.stderr.strip()[:200]}")
+    return proc.stdout.strip().lower()
+
+
 def project_readers():
     """The status/bridge readers for the daedalus.* observations (G1-IKARUS-46).
 
@@ -1241,7 +1299,8 @@ def _run_objective(project: str | None, root: Path, objective: str,
     """Execute one objective through the loop; the only place a service is built for a task."""
     from ... import core
     from ...runtimes.computer import ComputerService
-    service = ComputerService(root, project=project, project_readers=project_readers())
+    service = ComputerService(root, project=project, project_readers=project_readers(),
+                              campaign_runner=campaign_runner())
     try:
         for event, payload in computer_events(root, objective, service=service, cancelled=cancelled):
             if event == "final":
@@ -1271,6 +1330,51 @@ def conversation_events(project: str | None, message: str, *,
                 raise ComputerLoopRefused("Use /computer run <objective>")
             yield from _run_objective(project, root, objective, cancelled)
             return
+        if verb.casefold() in {"enable", "disable"} and argument.split()[:1] == ["ariadne"]:
+            # G1-IKARUS-47: grant or revoke the campaign door. Its own one-use
+            # confirmation: once granted, model-authored edits are EXECUTED by
+            # the frozen evaluator in an isolated workspace under the subject's
+            # control root and nominated -- never applied, never written into
+            # the subject. The evaluator is the exact-match rehearsal one
+            # (G1-SELF-01); the grant text says so instead of claiming
+            # improvement.
+            from ...interfaces.computer_configuration import configure_computer
+            from ...kernel.policy.computer import ARIADNE_TOOLS
+            from ...runtimes.computer import computer_status
+            words = argument.split()
+            confirm = "confirm-campaigns" in words
+            words = [word for word in words if word != "confirm-campaigns"]
+            if [word.casefold() for word in words] != ["ariadne"]:
+                raise ComputerLoopRefused("Use /computer enable ariadne [confirm-campaigns] or /computer disable ariadne")
+            caps = computer_status(root, project=project, project_readers=project_readers(),
+                                   campaign_runner=campaign_runner())
+            current, digest = caps.get("configuration"), caps.get("policy_sha256")
+            if not isinstance(current, dict) or not digest:
+                raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
+            enabling = verb.casefold() == "enable"
+            if enabling and not confirm:
+                yield "final", core.envelope(
+                    project, intent="computer", shell="hand", provider_used="deterministic",
+                    assistant=_ARIADNE_GRANT_WARNING_DE + "\n\nNichts wurde geändert.",
+                    computer={"ariadne_tools_change": "confirmation_required",
+                              "expected_policy_sha256": digest})
+                return
+            tools = [tool for tool in current.get("tools", []) if tool not in ARIADNE_TOOLS]
+            if enabling:
+                tools.extend(ARIADNE_TOOLS)
+            payload = dict(current)
+            payload["tools"] = tools
+            configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=digest)
+            if enabling:
+                summary = (f"Ariadne-Kampagne für das registrierte Projekt freigegeben (Policy "
+                           f"`{configured.get('policy_sha256')}`): `daedalus.ariadne_campaign`. " + _ARIADNE_GRANT_FACTS_DE)
+            else:
+                summary = f"Ariadne campaign tool removed from the policy (Policy `{configured.get('policy_sha256')}`)."
+            yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
+                                         assistant=summary,
+                                         computer={**configured, "ariadne_tools": enabling,
+                                                   "ariadne_tools_change": "applied"})
+            return
         if verb.casefold() in {"enable", "disable"}:
             # G1-IKARUS-46: an explicit owner grant of the read-only daedalus.*
             # family, through the same compare-and-replace path as /computer
@@ -1284,7 +1388,8 @@ def conversation_events(project: str | None, message: str, *,
             words = [word for word in words if word != "confirm-remote"]
             if [word.casefold() for word in words] != ["daedalus"]:
                 raise ComputerLoopRefused("Use /computer enable daedalus [confirm-remote] or /computer disable daedalus")
-            caps = computer_status(root, project=project, project_readers=project_readers())
+            caps = computer_status(root, project=project, project_readers=project_readers(),
+                                   campaign_runner=campaign_runner())
             current, digest = caps.get("configuration"), caps.get("policy_sha256")
             if not isinstance(current, dict) or not digest:
                 raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
@@ -1491,7 +1596,8 @@ def conversation_events(project: str | None, message: str, *,
             return
         if objective.casefold() in {"status", "help"}:
             from ...runtimes.computer import computer_status
-            caps = computer_status(root, project=project, project_readers=project_readers())
+            caps = computer_status(root, project=project, project_readers=project_readers(),
+                                   campaign_runner=campaign_runner())
             enabled = caps.get("enabled") is True
             summary = ("Computer assistance is configured. Use /computer followed by your task."
                        if enabled else
@@ -1524,7 +1630,8 @@ def conversation_events(project: str | None, message: str, *,
                         "`/computer cancel <schedule_id>`, `/computer tasks`, `/computer task <mission_id>`, "
                         "`/computer schedule <ISO8601> <task>`, `/computer scheduled`, `/computer run-due`, "
                         "`/computer planner <provider> [model] [confirm-remote]`, "
-                        "`/computer run <objective>`, `/computer enable daedalus`, `/computer disable daedalus`.")
+                        "`/computer run <objective>`, `/computer enable daedalus`, `/computer disable daedalus`, "
+                        "`/computer enable ariadne confirm-campaigns`, `/computer disable ariadne`.")
             yield "final", core.envelope(project, intent="computer", shell="hand", assistant=summary,
                                          provider_used="deterministic", computer={"capabilities": caps})
             return
