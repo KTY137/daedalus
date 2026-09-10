@@ -34,6 +34,13 @@ class _BoundedColumnProbe(tuple[int, ...]):
         return super().__getitem__(index)
 
 
+class _NoIntegerColumnReadProbe(tuple[int, ...]):
+    def __getitem__(self, index: int | slice) -> int | tuple[int, ...]:
+        if isinstance(index, int):
+            raise AssertionError("row-only slice remapped an unchanged canonical column axis")
+        return super().__getitem__(index)
+
+
 def _subject() -> ProjectionSubject:
     return ProjectionSubject(
         repository_id="KTY137/daedalus",
@@ -222,6 +229,20 @@ def test_slice_is_deterministic_and_full_selection_reuses_immutable_block() -> N
         row_labels=("src/c.py", "src/b.py", "src/a.py"),
         column_labels=("Widget", "Service", "Adapter"),
     ) is block
+
+
+def test_row_only_slice_copies_canonical_column_coordinates_without_remap() -> None:
+    block = _slice_fixture()
+    probe = _NoIntegerColumnReadProbe(block.column_indices)
+    object.__setattr__(block, "column_indices", probe)
+
+    sliced = block.slice(row_labels=("src/c.py", "src/a.py"))
+
+    assert sliced.column_axis is block.column_axis
+    assert sliced.row_axis.labels == ("src/a.py", "src/c.py")
+    assert sliced.row_offsets == (0, 2, 4)
+    assert sliced.column_indices == (0, 2, 0, 2)
+    assert sliced.values == (True, True, True, True)
 
 
 def test_slice_refuses_unknown_and_duplicate_labels() -> None:
