@@ -239,6 +239,13 @@ def test_compiler_releases_consumed_staging_before_csr_materialization(
         compiler_locals = frame.f_back.f_locals
         assert compiler_locals["edge_records"] == []
         assert compiler_locals["binding_records_by_key"] == {}
+        for released_name in (
+            "node_location",
+            "retained_relation_digests",
+            "requested_by_key",
+            "discovered_by_key",
+        ):
+            assert released_name not in compiler_locals
         facts = compiler_locals["facts"]
         assert isinstance(facts, dict)
         assert signature not in facts
