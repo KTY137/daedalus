@@ -211,7 +211,7 @@ CURRENT_COMPONENTS_SHA256 = (
 # The component count (14), the maximum component size (19) and the component
 # digest asserted below are all unchanged, which is the claim that matters:
 # the four are a layered chain hanging off the supervisor, not a new cycle.
-CENSUS_MODULES = 520  # re-measured 2026-09-10 (G1-IKARUS-46): +daedalus.runtimes.computer_daedalus, outside every cycle
+CENSUS_MODULES = 521  # re-measured 2026-09-10 (G1-IKARUS-47): +daedalus.runtimes.computer_ariadne, outside every cycle
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -520,7 +520,7 @@ CENSUS_MODULES = 520  # re-measured 2026-09-10 (G1-IKARUS-46): +daedalus.runtime
 # the one new supervisor edge to ``...claude_attempt_handoff``, which is
 # function-local inside ``run()`` but counted because the graph is built from
 # the AST.
-CENSUS_EDGES = 2095  # re-measured 2026-09-10 (G1-IKARUS-46): +14 edges, components and their digest unchanged
+CENSUS_EDGES = 2105  # re-measured 2026-09-10 (G1-IKARUS-47 on packet 46's final tree): +10 edges (computer_ariadne, the loop's runner, web_api registration), components and their digest unchanged
 
 
 def _module_name(path: str) -> str:

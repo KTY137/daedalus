@@ -112,6 +112,45 @@ Vergleich-und-Ersetzen-Konfiguration wie `/computer planner`, und ein frisches
 | `daedalus.docrefs` | Doku-Verweise auf Code-Symbole, die der eigene Resolver als kaputt meldet | nichts |
 | `daedalus.tasks` | jüngste Aufgabenberichte des Projekts aus der File-Bridge (Missionshistorie weiterhin über `/computer tasks`) | nichts |
 
+### `daedalus.ariadne_campaign` — eine Ariadne-Kampagne aus dem Loop (G1-IKARUS-47)
+
+Mit `/computer enable ariadne confirm-campaigns` bekommt der Loop ein sechstes,
+effektvolles Werkzeug: `daedalus.ariadne_campaign` übergibt eine vom Planner
+vorgeschlagene, begrenzte Reparatur (`target_path`, exakter `before`-Text,
+`after`-Text) an die kanonische Kampagne `daedalus.ariadne.run_campaign` —
+dieselbe Funktion wie die CLI-Tür `daedalus ariadne` und `POST /api/ariadne`.
+Die Kampagne materialisiert drei Arme (Baseline, Negativkontrolle, Reparatur)
+aus dem CAS in einen Arbeitsbereich unter dem Control-Root des Projekts,
+fährt den eingefrorenen Evaluator pro Arm mit gleichem Budget und schreibt
+eine `CampaignReceipt`; der Projektbaum wird nie beschrieben (die Kampagne
+trägt sich nur in die kanonische Spine des Projekts unter `runs/spine/` ein,
+Invariante 1), und die Nominierung wird nie angewendet — anwenden bleibt die
+versiegelte Owner-Entscheidung (Invariante 5). Der Planner sieht eine
+Projektion der Quittung (Ergebnis, Kampagnen-ID, Arm-Verdikte mit Laufzeit,
+Budgetgleichheit, Hashes von Kandidat, Nominierung und Quittung), nie einen
+Locator oder Host-Pfad; der Zielpfad wird auf der Lane des Planners gegated.
+
+Vor jeder Wirkung verweigert das Werkzeug selbst: Pfade innerhalb der
+Leakage-Grenze der Selbst-Renovation (Spine, Kernel-Policy, Plan,
+Amendment-Kette, `AGENTS.md`, `CLAUDE.md`, `.agentenv/`, die Kampagne und
+ihre Tests — `SELF_RENOVATION_PROTECTED_PREFIXES`, dieselbe Liste wie in der
+Kampagne), Pflicht-Ignorierwurzeln, `before == after`, unzulässige
+Zeitbudgets (1–120 s), ein nicht registriertes Projekt, ein unlesbarer HEAD.
+Was die Kampagne danach verweigert (HEAD-Konflikt, ein verlinkter
+Git-Worktree als Subjekt — G1-ARIADNE-06 —, ein `before`, das nicht genau
+einmal vorkommt), wird mit ihrer eigenen Fehlerklasse wörtlich gemeldet; die
+Lease des Werkzeugs bleibt dann zur Abstimmung offen, weil das Werkzeug
+„keine Wirkung“ nicht mehr beweisen kann.
+
+**Ehrlich gesagt:** der Evaluator der Kampagne ist der eingefrorene
+Exakt-Vergleich aus G1-SELF-01. Eine Nominierung beweist Isolation,
+Provenienz, Budgetgleichheit und Nichtanwendung — nicht, dass die Änderung
+besser ist. Ein Evaluator, der die Tests des Projekts in jedem Arm fährt, ist
+ein eigenes Paket (G1-IKARUS-48). Das Werkzeug steht nur in einem Prozess zur
+Verfügung, der die Web-API geladen hat (dort wird der Runner registriert,
+weil der Loop das Ariadne-Paket nicht importieren darf); ein anderer Prozess
+meldet es als nicht verfügbar.
+
 Diese Beobachtungen **sind** der Planner-Prompt: mit jedem Planner, der nicht
 auf diesem Rechner läuft, verlassen sie ihn. Ob sie ihn verlassen, ist eine
 Frage der Physik (`OLLAMA_HOST` ist eine Loopback-Adresse oder nicht; ein

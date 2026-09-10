@@ -1,0 +1,336 @@
+{
+  "subject_head": "b29105affb32fdc1f20624e20de1bf4074488786",
+  "turns": {
+    "/computer setup": {
+      "ok": true,
+      "generated_at": "2026-09-10T14:11:57.226221+00:00",
+      "project": "jarvis47",
+      "warnings": [],
+      "intent": "computer",
+      "shell": "hand",
+      "assistant": "Computer assistance setup completed for the isolated workspace. Use /computer status to inspect available tools.",
+      "provider_used": "deterministic",
+      "computer": {
+        "ok": true,
+        "created": true,
+        "evidence": {
+          "sha256": "515036719d7e644dc4db0d418259ceca11d9d5f720ff20bd44a6fa3a492ed319",
+          "locator": "artifact-locator:sha256:515036719d7e644dc4db0d418259ceca11d9d5f720ff20bd44a6fa3a492ed319"
+        },
+        "enabled": false,
+        "tools": [],
+        "unavailable": {},
+        "project": null,
+        "path_io_release_lock": "path-based vision: workspace path tools are disabled in v0.1.6 until handle-relative, reparse-safe I/O is independently verified; file.write with expected_sha256: replacing an existing file is disabled in v0.1.6 until the two-rename replacement has a service-owned crash reconciliation; create a new file or move",
+        "workspace": "<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69",
+        "policy_sha256": "2c1cc92af99c6e75ff8140aa323a504ccb2dfef75adb86f70ff5f32571f8e4d2",
+        "planner_provider": "ollama_http",
+        "planner_model": null,
+        "allow_remote_context": false,
+        "max_steps": 16,
+        "timeout_s": 300,
+        "persistent_goals": "canonical mission receipts; interrupted effects require reconciliation",
+        "scheduled_tasks": "durable queue and finite repeated jobs with cancellation; matching File Bridge watcher or /computer run-due required",
+        "planning": "advisory plans, bounded proposal correction and repeated-observation stall detection; existing policy limits apply",
+        "product_context": "explicit owner notes; retained skill metadata is unavailable under the v0.1.6 path-I/O release lock",
+        "browser_limits": "static pages only; JavaScript, submission and downloads unavailable",
+        "desktop_validation": "live foreground input not yet measured; application support requires verification",
+        "configuration_path": "<home>\\.daedalus\\control\\0c70d5e4cc69\\computer-policy.json",
+        "configuration": {
+          "schema": "daedalus-computer-policy/1",
+          "workspace": "<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69",
+          "tools": [],
+          "origins": [],
+          "applications": {},
+          "planner_provider": "ollama_http",
+          "planner_model": null,
+          "allow_remote_context": false,
+          "max_steps": 16,
+          "timeout_s": 300,
+          "max_file_bytes": 1048576
+        }
+      },
+      "delivery_mode": "blocking",
+      "stream_interrupted": false
+    },
+    "/computer planner claude_code_cli confirm-remote": {
+      "ok": true,
+      "generated_at": "2026-09-10T14:11:57.240311+00:00",
+      "project": "jarvis47",
+      "warnings": [],
+      "intent": "computer",
+      "shell": "hand",
+      "provider_used": "deterministic",
+      "assistant": "Planner-Konfiguration gespeichert (Policy `d6769df86ac7b87687e396817dacc5264ae6aa807bbd815b702e29329e7a645e`).\n\nPlanner: claude_code_cli · Kontext hat den Rechner verlassen: ja\n\nJeder Missionsbericht trägt diese Zeile; die Secret-Floor blockiert eine Mission, deren Beobachtung sie auslöst, bevor ein Prompt gebaut wird.",
+      "computer": {
+        "ok": true,
+        "changed": true,
+        "policy_sha256": "d6769df86ac7b87687e396817dacc5264ae6aa807bbd815b702e29329e7a645e",
+        "policy": {
+          "schema": "daedalus-computer-policy/1",
+          "workspace": "<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69",
+          "tools": [],
+          "origins": [],
+          "applications": {},
+          "planner_provider": "claude_code_cli",
+          "planner_model": null,
+          "allow_remote_context": true,
+          "max_steps": 16,
+          "timeout_s": 300,
+          "max_file_bytes": 1048576
+        },
+        "evidence": {
+          "sha256": "8b51f75a919265bfd2b6f7f51b4b1c1894ba662516cdb6725f154b475a3b6a3f",
+          "locator": "artifact-locator:sha256:8b51f75a919265bfd2b6f7f51b4b1c1894ba662516cdb6725f154b475a3b6a3f"
+        },
+        "start_evidence": {
+          "sha256": "7b5520f63da74d536fc72f82ec8f9b3b53eb8974ef7c90cffd42ce7594082195",
+          "locator": "artifact-locator:sha256:7b5520f63da74d536fc72f82ec8f9b3b53eb8974ef7c90cffd42ce7594082195"
+        },
+        "planner_change": "applied",
+        "planner": {
+          "provider": "claude_code_cli",
+          "model": null,
+          "remote_context": true
+        }
+      },
+      "delivery_mode": "blocking",
+      "stream_interrupted": false
+    },
+    "/computer enable daedalus confirm-remote": {
+      "ok": true,
+      "generated_at": "2026-09-10T14:11:57.254309+00:00",
+      "project": "jarvis47",
+      "warnings": [],
+      "intent": "computer",
+      "shell": "hand",
+      "provider_used": "deterministic",
+      "assistant": "Daedalus-Werkzeuge für das registrierte Projekt freigegeben (Policy `1df82e8a9e5db0258ea0446ff132051d1b7df3f6be85fb4971092145ee2bbf97`): `daedalus.status`, `daedalus.structure`, `daedalus.slice`, `daedalus.docrefs`, `daedalus.tasks`. Sie lesen Git-Status-Pfade, die Strukturübersicht, Doku-Referenzen, Aufgabenberichte und Codescheiben des Projekts und geben diese Beobachtungen als Prompt an den konfigurierten Planner `claude_code_cli` — sie verlassen damit den Rechner und gehen an den Anbieter. Auf dieser vertrauten Lane filtert vorher nur die Secret-Floor (Geheimnisse); die Deny-Liste und die deny_content-Wörter aus der Projekt-Policy gelten hier NICHT — wie bei der Voice. Zurückgehaltene Zeilen werden gezählt. Im Arbeitsbereich und im Projektbaum schreiben, starten oder senden die Werkzeuge nichts (Index ohne Cache und ohne Prozess-Pool; `git status`/`git branch` lesen, git darf dabei seinen eigenen Index auffrischen); jede Ausführung wird wie jedes Werkzeug geleast und belegt.",
+      "computer": {
+        "ok": true,
+        "changed": true,
+        "policy_sha256": "1df82e8a9e5db0258ea0446ff132051d1b7df3f6be85fb4971092145ee2bbf97",
+        "policy": {
+          "schema": "daedalus-computer-policy/1",
+          "workspace": "<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69",
+          "tools": [
+            "daedalus.status",
+            "daedalus.structure",
+            "daedalus.slice",
+            "daedalus.docrefs",
+            "daedalus.tasks"
+          ],
+          "origins": [],
+          "applications": {},
+          "planner_provider": "claude_code_cli",
+          "planner_model": null,
+          "allow_remote_context": true,
+          "max_steps": 16,
+          "timeout_s": 300,
+          "max_file_bytes": 1048576
+        },
+        "evidence": {
+          "sha256": "8710446b0c6427bd59b6931e0c6c675c5bcba90ff3fb95f5c2bc45eaac3ef971",
+          "locator": "artifact-locator:sha256:8710446b0c6427bd59b6931e0c6c675c5bcba90ff3fb95f5c2bc45eaac3ef971"
+        },
+        "start_evidence": {
+          "sha256": "e8ee084429cb8c2c969dd4c0052536c07a32ecba5abe1c5ebdb257cc2b761026",
+          "locator": "artifact-locator:sha256:e8ee084429cb8c2c969dd4c0052536c07a32ecba5abe1c5ebdb257cc2b761026"
+        },
+        "daedalus_tools": true,
+        "daedalus_tools_change": "applied"
+      },
+      "delivery_mode": "blocking",
+      "stream_interrupted": false
+    },
+    "/computer enable ariadne confirm-campaigns": {
+      "ok": true,
+      "generated_at": "2026-09-10T14:11:57.268431+00:00",
+      "project": "jarvis47",
+      "warnings": [],
+      "intent": "computer",
+      "shell": "hand",
+      "provider_used": "deterministic",
+      "assistant": "Ariadne-Kampagne für das registrierte Projekt freigegeben (Policy `bd3c070aa99bab06abce87be2a267d071e568e284ed64af20721401fb1bc8abe`): `daedalus.ariadne_campaign`. Das Werkzeug übergibt eine vom Planner vorgeschlagene, begrenzte Reparatur (Zieldatei, exakter Vorher-Text, Nachher-Text) an die kanonische Ariadne-Kampagne (`daedalus.ariadne.run_campaign`, dieselbe Funktion wie die CLI- und HTTP-Tür): drei Arme (Baseline, Negativkontrolle, Reparatur) mit gleichem Budget in einem Arbeitsbereich außerhalb des Checkouts unter dem Control-Root des Projekts; der Projektbaum wird nie beschrieben; das Ergebnis ist eine Nominierung mit Hashes, die nie angewendet wird — anwenden bleibt deine versiegelte Entscheidung (Invariante 5). Der Evaluator ist der eingefrorene Exakt-Vergleich aus G1-SELF-01: eine Nominierung beweist Isolation, Provenienz, Budgetgleichheit und Nichtanwendung, nicht dass die Änderung besser ist. Pfade innerhalb der Leakage-Grenze (Spine, Kernel-Policy, Plan, Amendment-Kette, AGENTS.md, die Kampagne selbst) werden vor jeder Wirkung verweigert. Jede Ausführung wird wie jedes Werkzeug geleast und belegt; ein Subjekt, das ein verlinkter Git-Worktree ist, wird von der Kampagne verweigert.",
+      "computer": {
+        "ok": true,
+        "changed": true,
+        "policy_sha256": "bd3c070aa99bab06abce87be2a267d071e568e284ed64af20721401fb1bc8abe",
+        "policy": {
+          "schema": "daedalus-computer-policy/1",
+          "workspace": "<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69",
+          "tools": [
+            "daedalus.status",
+            "daedalus.structure",
+            "daedalus.slice",
+            "daedalus.docrefs",
+            "daedalus.tasks",
+            "daedalus.ariadne_campaign"
+          ],
+          "origins": [],
+          "applications": {},
+          "planner_provider": "claude_code_cli",
+          "planner_model": null,
+          "allow_remote_context": true,
+          "max_steps": 16,
+          "timeout_s": 300,
+          "max_file_bytes": 1048576
+        },
+        "evidence": {
+          "sha256": "98428eb97dd6a3e10b6481e5f725734bb161f45f5f37edea286187a7a7353f53",
+          "locator": "artifact-locator:sha256:98428eb97dd6a3e10b6481e5f725734bb161f45f5f37edea286187a7a7353f53"
+        },
+        "start_evidence": {
+          "sha256": "dee10a2c48df4672ce772b098327236a4bff007362d2468458fcda6e1d8ce8bb",
+          "locator": "artifact-locator:sha256:dee10a2c48df4672ce772b098327236a4bff007362d2468458fcda6e1d8ce8bb"
+        },
+        "ariadne_tools": true,
+        "ariadne_tools_change": "applied"
+      },
+      "delivery_mode": "blocking",
+      "stream_interrupted": false
+    },
+    "/computer status": {
+      "ok": true,
+      "generated_at": "2026-09-10T14:11:57.270939+00:00",
+      "project": "jarvis47",
+      "warnings": [],
+      "intent": "computer",
+      "shell": "hand",
+      "assistant": "Computer assistance is configured. Use /computer followed by your task.\n\nWorkspace: `<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69`\n\nAvailable tools: daedalus.status, daedalus.structure, daedalus.slice, daedalus.docrefs, daedalus.tasks, daedalus.ariadne_campaign.\n\nPlanner: claude_code_cli · Kontext hat den Rechner verlassen: ja\n\nCurrent configuration. Edit this complete JSON and submit it after `/computer configure `.\n\n```json\n{\n  \"expected_policy_sha256\": \"bd3c070aa99bab06abce87be2a267d071e568e284ed64af20721401fb1bc8abe\",\n  \"policy\": {\n    \"schema\": \"daedalus-computer-policy/1\",\n    \"workspace\": \"<home>\\\\.daedalus\\\\computer-workspaces\\\\0c70d5e4cc69\",\n    \"tools\": [\n      \"daedalus.status\",\n      \"daedalus.structure\",\n      \"daedalus.slice\",\n      \"daedalus.docrefs\",\n      \"daedalus.tasks\",\n      \"daedalus.ariadne_campaign\"\n    ],\n    \"origins\": [],\n    \"applications\": {},\n    \"planner_provider\": \"claude_code_cli\",\n    \"planner_model\": null,\n    \"allow_remote_context\": true,\n    \"max_steps\": 16,\n    \"timeout_s\": 300,\n    \"max_file_bytes\": 1048576\n  }\n}\n```\n\nScheduled tasks: durable queue and finite repeated jobs with cancellation; matching File Bridge watcher or /computer run-due required.\n\nCommands: `/computer remember <note>`, `/computer notes`, `/computer forget <note_id>`, `/computer skill <directory|off>`, `/computer queue <task>`, `/computer every <30m> <count> <task>`, `/computer cancel <schedule_id>`, `/computer tasks`, `/computer task <mission_id>`, `/computer schedule <ISO8601> <task>`, `/computer scheduled`, `/computer run-due`, `/computer planner <provider> [model] [confirm-remote]`, `/computer run <objective>`, `/computer enable daedalus`, `/computer disable daedalus`, `/computer enable ariadne confirm-campaigns`, `/computer disable ariadne`.",
+      "provider_used": "deterministic",
+      "computer": {
+        "capabilities": {
+          "enabled": true,
+          "tools": [
+            {
+              "name": "daedalus.status",
+              "description": "Observe the registered project: git counters (branch, dirty, ahead/behind) and the Daedalus queue/watcher state. Read-only. Project: jarvis47.",
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "daedalus.structure",
+              "description": "Observe the project's structure summary: file/language totals, top hotspots, clone clusters and fan-in. Read-only. Project: jarvis47.",
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "daedalus.slice",
+              "description": "Read the distilled semantic slice of one indexed source module (the file plus its dependency/caller neighbourhood), through the project's egress policy. Name the repository-relative path. Read-only. Project: jarvis47.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "module": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "module"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "daedalus.docrefs",
+              "description": "Observe documentation references to code symbols that the repository's own resolver reports as broken. Read-only. Project: jarvis47.",
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "daedalus.tasks",
+              "description": "Observe the project's recent Daedalus task reports from the file bridge. Read-only. Project: jarvis47.",
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "daedalus.ariadne_campaign",
+              "description": "Run one Ariadne controlled-repair campaign on the registered project: replace the exact text `before` (must occur exactly once in the frozen target file) with `after` in the repository-relative `target_path`, evaluated in three arms (baseline, negative control, repair) under equal budgets in an isolated workspace. The result is a NOMINATION receipt with hashes; nothing is applied to any checkout. The evaluator is the frozen exact-match evaluator: a nomination proves the machinery, not improvement. Paths inside the self-Renovation leakage boundary are refused before any effect. Project: jarvis47.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "before": {
+                    "type": "string"
+                  },
+                  "after": {
+                    "type": "string"
+                  },
+                  "campaign_id": {
+                    "type": "string"
+                  },
+                  "timeout_s": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "target_path",
+                  "before",
+                  "after"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "unavailable": {},
+          "project": "jarvis47",
+          "path_io_release_lock": "path-based vision: workspace path tools are disabled in v0.1.6 until handle-relative, reparse-safe I/O is independently verified; file.write with expected_sha256: replacing an existing file is disabled in v0.1.6 until the two-rename replacement has a service-owned crash reconciliation; create a new file or move",
+          "workspace": "<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69",
+          "policy_sha256": "bd3c070aa99bab06abce87be2a267d071e568e284ed64af20721401fb1bc8abe",
+          "planner_provider": "claude_code_cli",
+          "planner_model": null,
+          "allow_remote_context": true,
+          "max_steps": 16,
+          "timeout_s": 300,
+          "persistent_goals": "canonical mission receipts; interrupted effects require reconciliation",
+          "scheduled_tasks": "durable queue and finite repeated jobs with cancellation; matching File Bridge watcher or /computer run-due required",
+          "planning": "advisory plans, bounded proposal correction and repeated-observation stall detection; existing policy limits apply",
+          "product_context": "explicit owner notes; retained skill metadata is unavailable under the v0.1.6 path-I/O release lock",
+          "browser_limits": "static pages only; JavaScript, submission and downloads unavailable",
+          "desktop_validation": "live foreground input not yet measured; application support requires verification",
+          "configuration_path": "<home>\\.daedalus\\control\\0c70d5e4cc69\\computer-policy.json",
+          "configuration": {
+            "schema": "daedalus-computer-policy/1",
+            "workspace": "<home>\\.daedalus\\computer-workspaces\\0c70d5e4cc69",
+            "tools": [
+              "daedalus.status",
+              "daedalus.structure",
+              "daedalus.slice",
+              "daedalus.docrefs",
+              "daedalus.tasks",
+              "daedalus.ariadne_campaign"
+            ],
+            "origins": [],
+            "applications": {},
+            "planner_provider": "claude_code_cli",
+            "planner_model": null,
+            "allow_remote_context": true,
+            "max_steps": 16,
+            "timeout_s": 300,
+            "max_file_bytes": 1048576
+          }
+        }
+      },
+      "delivery_mode": "blocking",
+      "stream_interrupted": false
+    }
+  }
+}

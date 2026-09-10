@@ -5031,3 +5031,11 @@ as in every prior re-measurement; `marginal_pp` 0.1117 (was 0.1126). Source-size
 only, no retraction. Raw outputs, run twice and identical except wall time,
 are `s02-g1-ikarus-46-corpora-a.json.gz` and `-b.json.gz` under
 `docs/evidence/G1-IKARUS-46` with SHA256 values in `acceptance.json`.
+
+Re-measured again 2026-09-10 for G1-IKARUS-47, which added
+`daedalus/runtimes/computer_ariadne.py`: 7,179 functions and 47,637 type-name
+sites over 521 parsed files; annotation-only 94.46 %, full resolver 94.34 %,
+verified share 90.15 %; `marginal_functions` still exactly 8, `marginal_pp`
+0.1114. Raw outputs, run twice and identical except wall time, are
+`s02-g1-ikarus-47-corpora-a.json.gz` and `-b.json.gz` under
+`docs/evidence/G1-IKARUS-47` with SHA256 values in `acceptance.json`.

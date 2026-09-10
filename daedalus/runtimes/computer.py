@@ -22,7 +22,7 @@ from daedalus.kernel.offload_lease import acquire_effect_lease, WaveLeaseDenied
 from daedalus.kernel.policy import computer as _release_policy
 from daedalus.kernel.policy.computer import (
     ComputerRefused, ComputerPolicy, FILE_TOOLS, VISION_TOOLS, DESKTOP_TOOLS,
-    BROWSER_TOOLS, DAEDALUS_TOOLS, PATH_IO_RELEASE_REFUSAL, FILE_REPLACE_RELEASE_REFUSAL,
+    BROWSER_TOOLS, DAEDALUS_TOOLS, ARIADNE_TOOLS, PATH_IO_RELEASE_REFUSAL, FILE_REPLACE_RELEASE_REFUSAL,
     admit_operation, load_policy, policy_path,
     refuse_workspace_path_io,
 )
@@ -72,14 +72,28 @@ TOOL_SPECS = {
     "daedalus.slice": ("Read the distilled semantic slice of one indexed source module (the file plus its dependency/caller neighbourhood), through the project's egress policy. Name the repository-relative path. Read-only.", _schema({"module": _STRING}, ("module",))),
     "daedalus.docrefs": ("Observe documentation references to code symbols that the repository's own resolver reports as broken. Read-only.", _schema({})),
     "daedalus.tasks": ("Observe the project's recent Daedalus task reports from the file bridge. Read-only.", _schema({})),
+    # G1-IKARUS-47: one controlled-repair campaign on the registered project; nominates, never applies.
+    "daedalus.ariadne_campaign": (
+        "Run one Ariadne controlled-repair campaign on the registered project: replace the exact text `before` "
+        "(must occur exactly once in the frozen target file) with `after` in the repository-relative "
+        "`target_path`, evaluated in three arms (baseline, negative control, repair) under equal budgets in an "
+        "isolated workspace. The result is a NOMINATION receipt with hashes; nothing is applied to any checkout. "
+        "The evaluator is the frozen exact-match evaluator: a nomination proves the machinery, not improvement. "
+        "Paths inside the self-Renovation leakage boundary are refused before any effect.",
+        _schema({"target_path": _STRING, "before": _STRING, "after": _STRING, "campaign_id": _STRING,
+                 "timeout_s": _NUMBER}, ("target_path", "before", "after"))),
 }
 #: The tools whose adapter changes host state. The daedalus.* family is
 #: deliberately absent: it is read-only by contract (tests pin the disjointness).
 _HOST_MUTATION_TOOLS = frozenset({"file.write", "file.mkdir", "file.move", "app.launch", "desktop.click",
-                                  "desktop.type", "desktop.key", "browser.click", "browser.fill"})
+                                  "desktop.type", "desktop.key", "browser.click", "browser.fill",
+                                  # G1-IKARUS-47: writes under the control root and runs the evaluator
+                                  *ARIADNE_TOOLS})
 assert not (_HOST_MUTATION_TOOLS & frozenset(DAEDALUS_TOOLS))
+assert frozenset(ARIADNE_TOOLS) <= _HOST_MUTATION_TOOLS
 _NO_PROJECT_REFUSAL = "computer session has no registered project; run it from a project conversation"
 _NO_READERS_REFUSAL = "computer session carries no project readers; run it from the chat's computer route"
+_NO_RUNNER_REFUSAL = "computer session carries no campaign runner; run it from the chat's computer route"
 
 
 def _release_tool_spec(tool: str) -> tuple[str, dict[str, Any]] | None:
@@ -156,7 +170,7 @@ def _release_unavailable_reason(policy: ComputerPolicy, tool: str) -> str:
 
 class ComputerService:
     def __init__(self, authority_root: Path, workspace: Path | None = None, *,
-                 project: str | None = None, project_readers: Any = None):
+                 project: str | None = None, project_readers: Any = None, campaign_runner: Any = None):
         self.authority_root = Path(authority_root).resolve()
         self.control = control_root(self.authority_root)
         self._policy = load_policy(self.authority_root)
@@ -173,7 +187,13 @@ class ComputerService:
         # by the orchestration caller: this module and that adapter must not
         # import them (SCC census, tests/contracts/test_import_scc_hierarchy.py).
         self._project_readers = project_readers
+        # G1-IKARUS-47: the campaign runner (daedalus.ariadne.run_campaign, the
+        # HEAD reader and the leakage-boundary predicate) is handed in the same
+        # way: the ariadne package imports this layer, so this layer must not
+        # import it (census pin).
+        self._campaign_runner = campaign_runner
         self._daedalus = None
+        self._ariadne = None
         self.policy_digest = self._policy.digest
         self.limit_policy = load_limit_policy()
         self._switch = KillSwitch(repo_root=self.authority_root)
@@ -206,6 +226,9 @@ class ComputerService:
             reason = _release_unavailable_reason(self._policy, tool)
             if not reason and tool in DAEDALUS_TOOLS and (self._project is None or self._project_readers is None):
                 reason = _NO_PROJECT_REFUSAL if self._project is None else _NO_READERS_REFUSAL
+            if not reason and tool in ARIADNE_TOOLS:
+                reason = (_NO_PROJECT_REFUSAL if self._project is None
+                          else _NO_RUNNER_REFUSAL if self._campaign_runner is None else "")
             if reason:
                 unavailable[tool] = reason
             else:
@@ -214,7 +237,7 @@ class ComputerService:
                     parameters["properties"]["application"]["enum"] = list(dict(self._policy.applications))
                 if tool == "browser.navigate":
                     description += " Enabled origins: " + ", ".join(self._policy.origins)
-                if tool in DAEDALUS_TOOLS:
+                if tool in DAEDALUS_TOOLS or tool in ARIADNE_TOOLS:
                     description += f" Project: {self._project}."
                 available.append({"name": tool, "description": description, "parameters": parameters})
         return {"enabled": bool(available), "tools": available, "unavailable": unavailable,
@@ -245,6 +268,14 @@ class ComputerService:
             raise ComputerRefused(_NO_PROJECT_REFUSAL)
         if tool in DAEDALUS_TOOLS and self._project_readers is None:
             raise ComputerRefused(_NO_READERS_REFUSAL)
+        if tool in ARIADNE_TOOLS and self._project is None:
+            raise ComputerRefused(_NO_PROJECT_REFUSAL)
+        if tool in ARIADNE_TOOLS and self._campaign_runner is None:
+            raise ComputerRefused(_NO_RUNNER_REFUSAL)
+        if tool in ARIADNE_TOOLS:
+            from daedalus.runtimes.computer_ariadne import CampaignRunner
+            if not isinstance(self._campaign_runner, CampaignRunner):
+                raise ComputerRefused("campaign runner has the wrong type")
         if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
             if self._desktop is None:
                 raise ComputerRefused("a current policy-scoped desktop observation is required")
@@ -327,6 +358,7 @@ class ComputerService:
                           "host_mutation": tool in _HOST_MUTATION_TOOLS,
                           "filesystem_scope_kind": ("handle-anchored-computer-workspace" if tool in FILE_TOOLS
                                                     else "project-registry-read-only" if tool in DAEDALUS_TOOLS
+                                                    else "control-root-ariadne-campaign" if tool in ARIADNE_TOOLS
                                                     else "computer-policy-workspace-relative")}
                 artifact = store_canonical_json(self.control / "computer-artifacts", output)
                 terminal = granted.authorization.finish_effect(started.receipt, outcome="COMPLETED",
@@ -362,6 +394,12 @@ class ComputerService:
             # effect-free (a read that did not finish is not a mutation).
             provably_no_effect = (external_started and not dispatched and tool in DAEDALUS_TOOLS
                                   and isinstance(exc, ComputerRefused))
+            # G1-IKARUS-47: the campaign adapter marks its own refusals raised
+            # BEFORE the runner was entered ``effect_state = "none"``; anything
+            # after that is the campaign's own effect and stays for reconciliation.
+            provably_no_effect = provably_no_effect or (external_started and not dispatched and tool in ARIADNE_TOOLS
+                                                        and isinstance(exc, ComputerRefused)
+                                                        and effect_state == "none")
             provably_no_effect = provably_no_effect or external_started and not dispatched and tool in FILE_TOOLS and (
                 # A plain refusal is raised by the adapter only before an effect;
                 # an interruption is trusted only when the adapter typed it.
@@ -477,6 +515,18 @@ class ComputerService:
             if self._browser is None:
                 self._browser = BrowserAdapter(self._policy, self.check_cancelled, self.control)
             return self._browser.execute(tool, args)
+        if tool in ARIADNE_TOOLS:
+            # G1-IKARUS-47: the campaign door. The adapter refuses everything it
+            # can before the runner is entered; the runner owns its effect.
+            from daedalus.runtimes.computer_ariadne import AriadneCampaignTool
+            if self._project is None:
+                raise ComputerRefused(_NO_PROJECT_REFUSAL)
+            if self._campaign_runner is None:
+                raise ComputerRefused(_NO_RUNNER_REFUSAL)
+            if self._ariadne is None:
+                self._ariadne = AriadneCampaignTool(self._policy, self._project, self.check_cancelled,
+                                                    self.authority_root, self._campaign_runner)
+            return self._ariadne.execute(args)
         if tool in DAEDALUS_TOOLS:
             # G1-IKARUS-46: read-only project observations. The adapter refuses
             # an unbound or unregistered project itself; nothing here resolves
@@ -497,9 +547,11 @@ class ComputerService:
             self._browser.close()
 
 
-def computer_status(authority_root: Path, *, project: str | None = None, project_readers: Any = None) -> dict:
+def computer_status(authority_root: Path, *, project: str | None = None, project_readers: Any = None,
+                    campaign_runner: Any = None) -> dict:
     try:
-        service = ComputerService(authority_root, project=project, project_readers=project_readers)
+        service = ComputerService(authority_root, project=project, project_readers=project_readers,
+                                  campaign_runner=campaign_runner)
         return {**service.capabilities(), "configuration_path": str(policy_path(authority_root)),
                 "configuration": service._policy.to_dict()}
     except (ComputerRefused, OSError, ValueError) as exc:

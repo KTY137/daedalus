@@ -29,6 +29,7 @@ import pytest
 
 from daedalus.kernel.policy.computer import (
     ALL_COMPUTER_TOOLS,
+    ARIADNE_TOOLS,
     BROWSER_TOOLS,
     DAEDALUS_TOOLS,
     DESKTOP_TOOLS,
@@ -88,8 +89,13 @@ def test_the_canonical_vocabulary_contains_no_command_execution_tool():
     # G1-IKARUS-46 added the read-only `daedalus.*` observation family with its
     # own packet and adapter (`daedalus.runtimes.computer_daedalus`); the
     # read-only contract is pinned in tests/runtimes/test_computer_daedalus.py.
+    # G1-IKARUS-47 added ONE host-mutating member of the same family,
+    # `daedalus.ariadne_campaign` (adapter `daedalus.runtimes.computer_ariadne`,
+    # granted separately with `confirm-campaigns`), which nominates and never
+    # applies; its contract is pinned in tests/runtimes/test_computer_ariadne.py.
+    # Neither family is a command execution tool, which is what this test guards.
     assert ALL_COMPUTER_TOOLS == frozenset(
-        FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS)
+        FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS + ARIADNE_TOOLS)
     families = {name.split(".", 1)[0] for name in ALL_COMPUTER_TOOLS}
     # "app" is `app.launch` only, and it is fenced against interpreters above.
     assert families == {"file", "vision", "desktop", "browser", "app", "daedalus"}

@@ -173,6 +173,37 @@ def test_file_replacement_before_open_is_detected(
         read_repository_source(tmp_path, PATH)
 
 
+def test_a_hard_link_is_refused_on_the_open_descriptor(
+    tmp_path: Path,
+) -> None:
+    """G1-IKARUS-47, Odysseus round 3 (D13): a hard link is a second NAME for
+    one inode, so `realpath`, `relative_to` and `O_NOFOLLOW` all pass for it and
+    a file inside a protected prefix can be read through a name outside it.
+
+    A caller that checks `st_nlink` before calling loses the race: measured on
+    2026-09-10, a writer needed 0.39 ms against the 12.2 ms window between the
+    campaign door's admission and this read, and won every attempt -- the
+    campaign then put trust-kernel bytes into a nominated candidate. The check
+    therefore lives here, on the descriptor this function reads from.
+    """
+    protected = tmp_path / "protected.py"
+    protected.write_bytes(SOURCE)
+    linked = tmp_path / "linked.py"
+    try:
+        os.link(protected, linked)
+    except (OSError, NotImplementedError) as exc:  # pragma: no cover - no hard links here
+        pytest.skip(f"hard links unavailable: {type(exc).__name__}")
+    assert linked.stat().st_nlink > 1
+    with pytest.raises(RepositoryTreePathError, match="more than one name"):
+        read_repository_source(tmp_path, "linked.py")
+    with pytest.raises(RepositoryTreePathError, match="more than one name"):
+        read_repository_source(tmp_path, "protected.py")
+    # The positive control: one name, one read.
+    single = tmp_path / "single.py"
+    single.write_bytes(SOURCE)
+    assert read_repository_source(tmp_path, "single.py") is not None
+
+
 def test_descriptor_identity_change_is_detected(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
