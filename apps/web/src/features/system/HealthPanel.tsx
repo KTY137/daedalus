@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { HealthFact, HealthPayload, HealthSubsystem } from '@/shared/api';
 import { scrimVariants, surfaceVariants, useReducedMotionPref } from '@/shared/ui/motion';
-import { costText, readMode, scopeNote, shallow, totalCost } from './healthread';
+import { costText, readMode, scopeNote, shallow, totalCost, waitText } from './healthread';
 import { useDialogFocus } from '@/shared/ui/useDialogFocus';
 
 /**
@@ -110,8 +110,12 @@ function Subsystem({ subsystem }: { subsystem: HealthSubsystem }) {
             mean something. */}
         <span className="health-asks">{subsystem.asks}</span>
         <span className="health-headline">{subsystem.headline || 'Ohne Schlagzeile'}</span>
-        {/* What this probe cost. Four of the twenty account for most of a
-            ~10.6s read, and the panel gave no way to see which. */}
+        {/* What this probe cost. Four of the twenty account for most of the
+            work (measured 2026-09-10: picker.queue, embed.local,
+            hand.executor and wiring.islands are ~8s of a ~9.7s total), and
+            the panel gave no way to see which. Since they now run
+            concurrently this is the probe's cost, not its share of the wait
+            -- the wait is the separate figure in the footer. */}
         {costText(subsystem.seconds) && (
           <span className="health-cost">{costText(subsystem.seconds)}</span>
         )}
@@ -240,11 +244,28 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
               {snapshot.subsystems?.length || 0} {snapshot.subsystems?.length === 1 ? 'Prüfung' : 'Prüfungen'} · gelesen{' '}
               {snapshot.generated_at || 'unbekannt'}
               {hidden > 0 ? ` · ${hidden} laufende ausgeblendet` : ''}
-              {/* Why the panel took as long as it did, summed from the rows
-                  themselves rather than timed by the browser. */}
-              {totalCost(snapshot.subsystems || []) > 0 && (
-                <span className="health-total">
-                  {' · '}{costText(totalCost(snapshot.subsystems || []))} gemessen
+              {/* TWO DIFFERENT NUMBERS, AND THEY ARE NOT INTERCHANGEABLE.
+                  The probes run concurrently, so the summed row costs are the
+                  probes' own elapsed time and `wall_seconds` is how long the
+                  read took. Measured 2026-09-10: 8,5 s summed inside a 2,4 s
+                  read. The sum is an upper bound on the work -- it still
+                  carries whatever contention the probes cost each other -- so
+                  it is labelled as summed probe time and never as the wait.
+
+                  GATED ON EITHER NUMBER, NOT ON THE SUM. It used to be
+                  `totalCost(...) > 0`, so a board whose rows all rounded to
+                  zero hid the honest wall figure along with them. */}
+              {(totalCost(snapshot.subsystems || []) > 0 || waitText(snapshot.wall_seconds)) && (
+                <span
+                  className="health-total"
+                  title="Die Prüfungen laufen nebenläufig. Die Summe der Einzelzeiten ist deshalb größer als die Wartezeit und enthält, was die Prüfungen sich gegenseitig gekostet haben. Sie ist eine Obergrenze der Arbeit, nicht die Dauer des Aufrufs."
+                >
+                  {totalCost(snapshot.subsystems || []) > 0
+                    ? ` · ${costText(totalCost(snapshot.subsystems || []))} Prüfzeit summiert`
+                    : ''}
+                  {waitText(snapshot.wall_seconds)
+                    ? ` · ${waitText(snapshot.wall_seconds)} Wartezeit`
+                    : ' · Wartezeit nicht gemessen'}
                 </span>
               )}
             </p>
