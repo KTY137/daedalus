@@ -7,10 +7,10 @@
     "broad regression before the reader injection (tests/runtimes tests/interfaces tests/test_ikarus_*.py conversation/queue/llm_client tests/contracts tests/orchestration)": "2661 passed, 122 skipped, 14 xfailed, 3 failed: two fixed by the reader injection and the stream pin, one pre-existing (test_plan_and_replan_are_advisory_mission_bound_artifacts, identical on the untouched primary checkout)",
     "pins, final tree (SCC census, work-packet index, s02 corpus, imports graph)": "see final_pins",
     "cockpit": "tsc --noEmit clean; node src/app/run-spec.mjs 620/620",
-    "packet, neighbouring and pin suites, final tree after review round 1": "435 passed, 4 skipped, 103 subtests (computer_daedalus, dispatch, loop, adversarial, stream, service, evidence_terminal, act, os, shells, schedule, schedule_autonomy, SCC census, work-packet index, s02 corpus, imports graph)"
+    "packet, neighbouring and pin suites, final tree after review round 2": "453 passed, 4 skipped, 103 subtests (same sixteen suites)"
   },
-  "final_pins": "SCC census 520 modules / 2095 edges / 14 components / max 19 / component digest unchanged; work-packet registry 528 tracked files, packet G1-IKARUS-46 post_index; s02 kernel row re-pinned on the final adapter (7141 functions, 47467 type-name sites, annotation-only 94.45 %, full resolver 94.34 %, marginal_functions 8, marginal_pp 0.112, verified share 90.14 %); imports graph",
-  "mutation_table": "round 1: 14/14 caught (mutation-table.txt); after review round 1: 24/24 caught (mutation-table-2.txt)",
+  "final_pins": "SCC census 520 modules / 2095 edges / 14 components / max 19 / component digest unchanged; work-packet registry 528 tracked files, packet G1-IKARUS-46 post_index; s02 kernel row re-pinned on the final adapter (7143 functions, 47477 type-name sites, annotation-only 94.46 %, full resolver 94.34 %, marginal_functions 8, marginal_pp 0.112, verified share 90.14 %); imports graph",
+  "mutation_table": "round 1: 14/14 (mutation-table.txt); after review round 1: 24/24 (mutation-table-2.txt); after review round 2: 29/29 caught (mutation-table-4.txt)",
   "byte_pins": "the four -text modules (runtimes/computer.py, ikarus/shell.py, ikarus/act.py, ikarus/computer_loop.py) carry 0 CR bytes in the follow-up commit; 002c0683 had stored them as CRLF (Odysseus defect 6)",
   "live_run_ledger_rows": {
     "run3": [
@@ -181,19 +181,25 @@
   "files": {
     "mutation-table.txt": "5eadd2cb9164fcbba2e18bcea035ad4e0efb9491ea91b3e7d76b6547b33edfab",
     "mutation-table-2.txt": "6f0b73ca7cf2ba86ab0ccb6109794d4df37982a4274392065dc03cf3a6e1ef67",
-    "mutate.py.txt": "e042691918b6dbd529ab16131539dec11c2da5738f479556142a58320f42d62b",
-    "s02-g1-ikarus-46-corpora-a.json.gz": "9ea3d23eafbecb9808b8633b700267d1a88b8d1f97173329fe73dbcf1e39a7d6",
-    "s02-g1-ikarus-46-corpora-b.json.gz": "8d8d4496920f011fefc5bcbd4f0094d9795ad31a36111b8557026e5ae4206311",
+    "mutation-table-4.txt": "983164f03d969f5146ec290242b7cfd6141d081ff6bf6e879bd72f80265c58e8",
+    "mutate.py.txt": "547c48a03d8c950851ba5a01b0f3e525bf8f39bdec84f1a8f5903ba500f1e116",
+    "s02-g1-ikarus-46-corpora-a.json.gz": "1199ab955ac355c386d805968480825f15fce4ab93aa1861a2a2f4f43cbbfafd",
+    "s02-g1-ikarus-46-corpora-b.json.gz": "cc7df3fc012c3c84605bbfcab8f98c07098074f4bff9865dfc05b63a2901a433",
     "live-offer.json": "5659e2d1fef742e08aecc0224203cc250c5671966b04f353ef19825141f312ff",
     "live-run-1-codex-blocked.json": "77d5f18f06a2eb587b0cfff24b7b3d57f0a22f25b31a27d938240a8b61f4dcbd",
     "live-run-2-claude-budget-refused.json": "c1d9e2159eaadfbd7d2e4e11d36666e3f9d4b1d3bedd2d3575ff94cda534146c",
     "live-run-3-claude.json": "6b025285eaeb7784124cde4354b2d26e798d6b1b378cfcae76abaa1a0b90904e",
     "live-run-4-claude-gated.json": "43351ff209bdb78988491428280b939f7162be582c750bc5a75d12febe8137f7"
   },
-  "live_runs": {
-    "1": "codex_cli blocked (config model gpt-6-astra vs codex-cli 0.152.0); $2.00 worst case booked",
-    "2": "claude_code_cli refused by the process guard ($3.00 medium-effort reservation over a $2.16 scratch ledger)",
-    "3": "claude_code_cli completed: 5 planner calls, 3 tool steps, 64.5 s, $0.438 (pre-repair adapter)",
-    "4": "claude_code_cli completed after review round 1: 5 planner calls, 3 tool steps, 52.2 s, $0.410, fan_in_withheld 2 on the trusted lane"
+  "review_rounds": {
+    "1 (002c0683)": "Cerberus block (2 CRITICAL, 3 MAJOR, 4 minor); Odysseus 6 defects — all repaired in 96e190d2",
+    "2 (96e190d2)": "Cerberus needs_fix, no CRITICAL (N1 high + N2-N8 low); Odysseus D1-D3 residuals — all repaired in the third commit"
+  },
+  "byte_pins_worktree_cr_bytes": {
+    "daedalus/runtimes/computer.py": 0,
+    "daedalus/orchestration/ikarus/shell.py": 0,
+    "daedalus/orchestration/ikarus/act.py": 0,
+    "daedalus/orchestration/ikarus/computer_loop.py": 0,
+    "daedalus/runtimes/computer_daedalus.py": 0
   }
 }

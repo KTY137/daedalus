@@ -114,12 +114,44 @@ class RunCommandTest(unittest.TestCase):
 
 class EnableDaedalusTest(unittest.TestCase):
     def _status(self, tools, *, provider="ollama_http", remote=False):
+        import tempfile
         return {"enabled": True, "policy_sha256": "a" * 64, "tools": [{"name": t} for t in tools],
-                "configuration": {"schema": "daedalus-computer-policy/1", "workspace": "W",
+                "configuration": {"schema": "daedalus-computer-policy/1",
+                                  "workspace": tempfile.gettempdir(),  # absolute: the loop derives the lane from it
                                   "tools": list(tools), "origins": [], "applications": {},
                                   "planner_provider": provider, "planner_model": None,
                                   "allow_remote_context": remote, "max_steps": 16, "timeout_s": 300,
                                   "max_file_bytes": 1048576}}
+
+    def _enable(self, *, provider, remote, message="/computer enable daedalus confirm-remote"):
+        from daedalus.interfaces import computer_configuration
+        from daedalus.runtimes import computer
+        status = lambda root, project=None, project_readers=None: self._status(  # noqa: E731
+            ["file.read"], provider=provider, remote=remote)
+        with mock.patch.object(computer, "computer_status", status), \
+                mock.patch.object(computer_configuration, "configure_computer",
+                                  lambda root, policy, *, owner_confirmed, expected_policy_sha256: {"ok": True, "policy_sha256": "b" * 64}):
+            return list(loop.conversation_events(PROJECT, message))[-1][1]
+
+    def test_the_grant_sentence_is_true_per_lane(self):
+        """Cerberus round 2 (N1/N6): the deny list applies only on the untrusted
+        lane; observations leave only with a remote, non-local planner."""
+        with mock.patch.dict(os.environ, {"OLLAMA_HOST": "http://127.0.0.1:11434"}):
+            claude = self._enable(provider="claude_code_cli", remote=True)["assistant"]
+            codex = self._enable(provider="codex_cli", remote=True)["assistant"]
+            local_flagged = self._enable(provider="ollama_http", remote=True)["assistant"]
+            local = self._enable(provider="ollama_http", remote=False, message="/computer enable daedalus")["assistant"]
+        self.assertIn("verlassen damit den Rechner", claude)
+        self.assertIn("gelten hier NICHT", claude)
+        self.assertNotIn("Deny-Liste, deny_content) und", claude)
+        self.assertIn("verlassen damit den Rechner", codex)
+        self.assertIn("Egress-Policy des Projekts (Deny-Liste, deny_content)", codex)
+        self.assertIn("nichts verlässt ihn", local_flagged)
+        self.assertIn("nichts verlässt ihn", local)
+        self.assertIn("gelten hier NICHT", local)
+        warning = self._enable(provider="claude_code_cli", remote=True, message="/computer enable daedalus")["assistant"]
+        self.assertIn("gelten hier NICHT", warning)
+        self.assertIn("confirm-remote", warning)
 
     def test_enable_adds_the_family_through_compare_and_replace(self):
         from daedalus.interfaces import computer_configuration

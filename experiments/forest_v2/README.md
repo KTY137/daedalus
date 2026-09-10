@@ -5023,8 +5023,8 @@ evidence.
 
 Re-measured 2026-09-10 for G1-IKARUS-46, which added one annotated module
 (`daedalus/runtimes/computer_daedalus.py`) to the kernel package. The kernel
-row moved from 7,107 to 7,141 functions and from 47,257 to 47,467 type-name
-sites over 520 parsed files; the annotation-only control reads 94.45 % (was
+row moved from 7,107 to 7,143 functions and from 47,257 to 47,477 type-name
+sites over 520 parsed files; the annotation-only control reads 94.46 % (was
 94.47 %), the full resolver 94.34 % (was 94.36 %), the verified share of
 internal references 90.14 % (was 90.13 %). `marginal_functions` is exactly 8,
 as in every prior re-measurement; `marginal_pp` 0.112 (was 0.1126). Source-size

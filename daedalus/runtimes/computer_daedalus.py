@@ -15,12 +15,14 @@ Daedalus. These five observations close that gap without opening an effect:
                             resolver calls broken (``spine.docrefs``);
 * ``daedalus.tasks``      -- recent file-bridge reports of the project.
 
-WHAT THEY DO ON THE HOST. Nothing is written, moved, launched or sent by this
-module: the structcore index is built ``effect_free`` (no SQLite cache write
-or eviction under the profile, no process pool, no churn ``git log``), and
-the status reader runs the repository's read-only ``git branch`` / ``git
-status`` exactly as the dashboard does. The service records every result
-with ``host_mutation`` False and scope ``project-registry-read-only``.
+WHAT THEY DO ON THE HOST. Nothing in the workspace or the project tree is
+written, moved, launched or sent by this module: the structcore index is
+built ``effect_free`` (no SQLite cache write or eviction under the profile,
+no process pool, no churn ``git log``), and the status reader runs the
+repository's ``git branch`` / ``git status`` exactly as the dashboard does --
+read-only commands, though ``git status`` may refresh git's own index file
+(Cerberus N8). The service records every result with ``host_mutation``
+False and scope ``project-registry-read-only``.
 
 WHAT THEY SEND. Every observation is the planner's prompt, so with a remote
 planner it leaves the machine. That is why EVERY observation, not only the
@@ -123,8 +125,24 @@ def _looks_like_host_path(value: str) -> bool:
 #: summary): a drive spelling, a UNC prefix, or a POSIX home/system root.
 #: Odysseus 2026-09-10 (defect 3): the whole-value check above let
 #: ``"…: PermissionError: 'C:\\Users\\…'"`` through.
+#: Odysseus round 2 (D3) widened this from a root-name list to the SHAPES of
+#: an absolute location: a drive (``C:\``, ``C:/``), a UNC in either slash
+#: direction (``\\nas\``, ``//nas/``), a ``file://`` URL, ``~/``, an expanded
+#: environment root (``%USERPROFILE%\``, ``$HOME/``), or any POSIX absolute
+#: path of two or more segments (``/usr/lib/x``, ``/proc/self/environ``). A
+#: rooted repository-relative spelling such as ``pkg/mod.py`` has no leading
+#: separator and is not matched; an ``https://…`` URL is (withheld, which is
+#: the safe direction for a text that names a host).
 _EMBEDDED_HOST_PATH = re.compile(
-    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\s\\]+\\|(?:^|[\s'\"(])/(?:home|Users|root|tmp|var|etc|mnt|opt|srv)/")
+    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]"          # drive
+    r"|\\\\[^\s\\]+\\"                          # UNC, backslashes
+    r"|(?<![A-Za-z0-9:])//[^\s/]+/"            # UNC, forward slashes (not after a URL scheme colon)
+    r"|\bfile://"                               # file URL
+    r"|(?<![A-Za-z0-9])~[\\/]"                  # home shorthand
+    r"|%[A-Za-z_][A-Za-z0-9_]*%[\\/]"           # expanded Windows environment root
+    r"|\$[A-Za-z_][A-Za-z0-9_]*/"               # expanded POSIX environment root
+    r"|(?:^|[\s'\"(=<>\[,;:])/[A-Za-z0-9_.-]+/"  # POSIX absolute path, two or more segments
+)
 
 
 def _mentions_host_path(text: str) -> bool:
@@ -168,7 +186,6 @@ class DaedalusObservation:
         self._checkpoint = checkpoint
         self._authority_root = Path(authority_root)
         self._index: dict | None = None
-        self._egress_policy = None
 
     # ------------------------------------------------------------------ project
     @property
@@ -191,17 +208,16 @@ class DaedalusObservation:
             raise ComputerRefused(f"project is not registered or unreadable: {type(exc).__name__}: {exc}") from exc
 
     def _project_policy(self):
-        """The project's egress policy -- refused, never the generic one, when
-        the registry row cannot be read (Cerberus m-4)."""
-        if self._egress_policy is None:
-            from daedalus.foundation.projects import load_project
-            from daedalus.sensitivity import load_policy
-            try:
-                config = load_project(self._project or "")
-            except Exception as exc:
-                raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}: {exc}") from exc
-            self._egress_policy = load_policy(config)
-        return self._egress_policy
+        """The project's egress policy, re-read on every call -- refused, never
+        the generic one, when the registry row cannot be read (Cerberus m-4);
+        never memoised, so a row tightened mid-mission takes effect (N5)."""
+        from daedalus.foundation.projects import load_project
+        from daedalus.sensitivity import load_policy
+        try:
+            config = load_project(self._project or "")
+        except Exception as exc:
+            raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}: {exc}") from exc
+        return load_policy(config)
 
     # ------------------------------------------------------------------ egress gate
     def _admit(self, path: str, text: str = "") -> bool:
@@ -213,9 +229,14 @@ class DaedalusObservation:
         withheld row is attributable and never poisons the observation.
         """
         from daedalus.sensitivity import slice_egress_rule
-        if _looks_like_host_path(path) or _mentions_host_path(text):
+        if _looks_like_host_path(path) or _mentions_host_path(text) or _mentions_host_path(path):
             return False
-        return slice_egress_rule(path, text, lane=self.lane, policy=self._project_policy()) is None
+        # The path itself is also content: ``classify_data`` applies the
+        # project's ``deny_content`` markers to the TEXT argument only, so a
+        # codename inside an allow-listed path would pass without this
+        # (Odysseus round 2, D2).
+        return slice_egress_rule(path, f"{path} {text}".strip(), lane=self.lane,
+                                 policy=self._project_policy()) is None
 
     def _admit_text(self, text: str) -> bool:
         """May this path-less text (a clone name, a report summary) reach the planner?
@@ -226,7 +247,7 @@ class DaedalusObservation:
         would refuse every synthetic name).
         """
         from daedalus.sensitivity import secret_floor_rule
-        if _mentions_host_path(text) or secret_floor_rule("observation.txt", text):
+        if _looks_like_host_path(text) or _mentions_host_path(text) or secret_floor_rule("observation.txt", text):
             return False
         if self.lane != "trusted":
             policy = self._project_policy()
@@ -235,21 +256,38 @@ class DaedalusObservation:
         return True
 
     def _admit_rows(self, rows: Iterable[Mapping[str, Any]], path_keys: tuple[str, ...],
-                    text_keys: tuple[str, ...] = ()) -> tuple[list[dict[str, Any]], int]:
-        """Keep the rows whose named paths and texts the gate admits; count the rest."""
+                    text_keys: tuple[str, ...] = (), *,
+                    keep_keys: tuple[str, ...] = ()) -> tuple[list[dict[str, Any]], int]:
+        """Keep the rows whose named paths and texts the gate admits; count the rest.
+
+        Fail-closed: a row that names neither a path nor a text is withheld,
+        not passed ungated (Cerberus N3). ``keep_keys`` projects each kept row
+        to an allow-listed key set, so a field a producer adds later cannot
+        join the planner's prompt silently (N4).
+        """
         kept: list[dict[str, Any]] = []
         withheld = 0
         for row in rows:
             if not isinstance(row, Mapping):
                 withheld += 1
                 continue
+            projected = {key: row[key] for key in keep_keys if key in row} if keep_keys else dict(row)
             paths = [str(row[key]) for key in path_keys if isinstance(row.get(key), str) and row.get(key)]
-            text = " ".join(str(row[key]) for key in text_keys if isinstance(row.get(key), str))
-            if (paths and not all(self._admit(path, text) for path in paths)) or (
-                    not paths and text and not self._admit_text(text)):
+            # EVERY string that will be handed on is gated, not only the named
+            # text keys: a kept field outside ``text_keys`` (``phase`` on a task
+            # brief) carried a host path to the planner (Odysseus round 2, D1).
+            handed_on = [str(value) for key, value in projected.items()
+                         if key not in path_keys and isinstance(value, str) and value]
+            named = [str(row[key]) for key in text_keys if isinstance(row.get(key), str) and row.get(key)]
+            text = " ".join(dict.fromkeys(named + handed_on))
+            if not paths and not text:
                 withheld += 1
                 continue
-            kept.append(dict(row))
+            if (paths and not all(self._admit(path, text) for path in paths)) or (
+                    not paths and not self._admit_text(text)):
+                withheld += 1
+                continue
+            kept.append(projected)
         return kept, withheld
 
     def _cached_index(self, repo_root: str) -> dict:
@@ -334,23 +372,32 @@ class DaedalusObservation:
                                     top_fanin=TOP * 2, top_renamed=0, top_near=0,
                                     max_graph_nodes=0, max_graph_edges=0)
         ignored = summary.get("ignored") if isinstance(summary.get("ignored"), dict) else {}
-        hotspots, hotspots_withheld = self._admit_rows(summary.get("hotspots", []), ("module",))
-        fan_in, fan_in_withheld = self._admit_rows(summary.get("fan_in", []), ("module",))
+        hotspots, hotspots_withheld = self._admit_rows(
+            summary.get("hotspots", []), ("module",),
+            keep_keys=("module", "score", "loc", "long_functions", "guard_count", "cc_max"))
+        fan_in, fan_in_withheld = self._admit_rows(summary.get("fan_in", []), ("module",),
+                                                   keep_keys=("module", "count"))
         clones: list[dict[str, Any]] = []
         clones_withheld = 0
         for row in summary.get("clones", []):
             if not isinstance(row, Mapping) or not self._admit_text(str(row.get("name", ""))):
                 clones_withheld += 1
                 continue
-            sites, sites_withheld = self._admit_rows(row.get("sites", []), ("module",))
+            sites, sites_withheld = self._admit_rows(row.get("sites", []), ("module",),
+                                                     keep_keys=("module", "line"))
             if not sites:
                 clones_withheld += 1
                 continue
-            clones.append({**dict(row), "sites": sites, "sites_withheld": sites_withheld})
-        # ``ignored.source`` is the absolute path of the ignore file (MEASURED
-        # 2026-09-10, live run 3): only the count and the patterns are observed.
+            clones.append({**{key: row[key] for key in ("name", "language", "count", "loc", "safety") if key in row},
+                           "sites": sites, "sites_withheld": sites_withheld})
+        # ``ignored.source`` is the absolute path of the ignore file and
+        # ``ignored.sample`` names withheld files (MEASURED 2026-09-10, live run
+        # 3): only the counts and the ignore PATTERNS (the project's own policy
+        # strings, key ``ignore_patterns``; Cerberus N7) are observed.
         return {"n_files": summary.get("n_files"),
-                "ignored": {"count": ignored.get("count", 0), "patterns": list(ignored.get("patterns") or [])[:TOP]},
+                "ignored": {"count": ignored.get("count", 0),
+                            "n_files_scanned": ignored.get("n_files_scanned"),
+                            "ignore_patterns": [str(p) for p in (ignored.get("ignore_patterns") or [])][:TOP]},
                 "languages": summary.get("languages"), "totals": summary.get("totals"),
                 "hotspots": hotspots[:TOP], "hotspots_withheld": hotspots_withheld,
                 "clones": clones[:TOP], "clones_withheld": clones_withheld,
@@ -399,7 +446,8 @@ class DaedalusObservation:
         self._checkpoint()
         payload = report.to_dict()
         broken, withheld = self._admit_rows(payload.get("broken", []),
-                                            ("doc_path", "module_path"), ("raw", "symbol"))
+                                            ("doc_path", "module_path"), ("raw", "symbol"),
+                                            keep_keys=("doc_path", "line", "raw", "module_path", "symbol", "state"))
         # Scanner error strings carry the absolute path of the unreadable file
         # (Cerberus MAJOR 2): only their number is observed.
         return {"n_resolving": payload.get("n_resolving"), "n_broken": payload.get("n_broken"),
@@ -417,6 +465,7 @@ class DaedalusObservation:
         # mission history.
         briefs = list(self._readers.report_briefs(self._project))[-TOP:]
         reports, withheld = self._admit_rows(
-            briefs, (), ("summary", "name", "agent", "provider", "lane", "project"))
+            briefs, (), ("summary", "name", "agent", "provider", "lane", "project"),
+            keep_keys=("name", "status", "lane", "project", "agent", "provider", "phase", "summary"))
         return {"reports": reports, "reports_withheld": withheld,
                 "computer_missions": "use /computer tasks in the chat"}

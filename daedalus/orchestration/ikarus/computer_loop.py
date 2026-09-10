@@ -1032,7 +1032,7 @@ def _planner_line(planner: Mapping[str, Any]) -> str:
 #: What the daedalus.* family sends to a planner; named in both consent texts
 #: (G1-IKARUS-46, Cerberus MAJOR 3: the earlier list was narrower than what travels).
 _DAEDALUS_OBSERVATIONS_DE = ("Git-Status-Pfade, Strukturübersicht, Doku-Referenzen, Aufgabenberichte und "
-                             "Codescheiben des registrierten Projekts, gefiltert durch dessen Egress-Policy")
+                             "Codescheiben des registrierten Projekts")
 
 
 def _remote_planner_warning(provider: str, model: str | None) -> str:
@@ -1045,10 +1045,33 @@ def _remote_planner_warning(provider: str, model: str | None) -> str:
             "für diesen einen Befehl und wird nicht gespeichert.")
 
 
-def _daedalus_tools_egress_warning(provider: str) -> str:
+def _egress_filter_sentence(trusted: bool) -> str:
+    """What filters the Daedalus observations on the planner's lane -- true per lane.
+
+    Cerberus round 2 (N1): the project's deny list and ``deny_content`` apply
+    only on the untrusted lane (Codex, DeepSeek, non-loopback Ollama); on the
+    trusted lane (Claude CLI, loopback Ollama) only the secret floor runs,
+    exactly as for the Voice. Saying otherwise at the moment of the grant was
+    the finding.
+    """
+    if trusted:
+        return ("Auf dieser vertrauten Lane filtert vorher nur die Secret-Floor (Geheimnisse); die Deny-Liste und "
+                "die deny_content-Wörter aus der Projekt-Policy gelten hier NICHT — wie bei der Voice.")
+    return ("Jede Beobachtung geht vorher durch die Egress-Policy des Projekts (Deny-Liste, deny_content) und die "
+            "Secret-Floor.")
+
+
+def _planner_lane_of(configuration: Mapping[str, Any]) -> str:
+    """The lane the stored configuration's planner gets, from the one predicate the adapter uses."""
+    from ...kernel.policy.computer import ComputerPolicy
+    from ...runtimes.computer_daedalus import planner_lane
+    return planner_lane(ComputerPolicy.from_dict(dict(configuration)))
+
+
+def _daedalus_tools_egress_warning(provider: str, *, trusted: bool) -> str:
     return (f"Der konfigurierte Planner `{provider}` ist ein entfernter Dienst. Mit den Daedalus-Werkzeugen gehen "
-            f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt an den Anbieter; die Secret-Floor und die Egress-Policy des "
-            "Projekts filtern jede Beobachtung vorher, ersetzen aber keine Freigabe. Bestätige ausdrücklich mit "
+            f"{_DAEDALUS_OBSERVATIONS_DE} als Prompt an den Anbieter. {_egress_filter_sentence(trusted)} "
+            "Das ersetzt keine Freigabe. Bestätige ausdrücklich mit "
             "`/computer enable daedalus confirm-remote`. Die Bestätigung gilt nur für diesen einen Befehl und wird "
             "nicht gespeichert.")
 
@@ -1223,6 +1246,13 @@ def conversation_events(project: str | None, message: str, *,
             enabling = verb.casefold() == "enable"
             remote = current.get("allow_remote_context") is True
             planner_name = str(current.get("planner_provider") or "?")
+            # Cerberus round 2 (N1/N6): the sentences below are TRUE per lane.
+            # ``leaves`` -- observations reach a vendor -- needs the remote flag
+            # AND a non-local planner; ``trusted`` -- Claude or loopback Ollama
+            # -- means the project's deny list does not apply, only the floor,
+            # exactly as for the Voice (``sensitivity.slice_egress_rule``).
+            leaves = remote and planner_name not in _LOCAL_PLANNERS
+            trusted = _planner_lane_of(current) == "trusted"
             if enabling and remote and not confirm:
                 # Cerberus 2026-09-10 (CRITICAL 2 / MAJOR 3 / m-3): with a remote
                 # planner this grant widens egress -- the observations ARE the
@@ -1230,7 +1260,7 @@ def conversation_events(project: str | None, message: str, *,
                 # choosing the remote planner did, naming what leaves.
                 yield "final", core.envelope(
                     project, intent="computer", shell="hand", provider_used="deterministic",
-                    assistant=_daedalus_tools_egress_warning(planner_name) + "\n\nNichts wurde geändert.",
+                    assistant=_daedalus_tools_egress_warning(planner_name, trusted=trusted) + "\n\nNichts wurde geändert.",
                     computer={"daedalus_tools_change": "confirmation_required", "planner": planner_name,
                               "expected_policy_sha256": digest})
                 return
@@ -1248,10 +1278,12 @@ def conversation_events(project: str | None, message: str, *,
                     "Codescheiben des Projekts und geben diese Beobachtungen als Prompt an den konfigurierten "
                     f"Planner `{planner_name}` — "
                     + ("sie verlassen damit den Rechner und gehen an den Anbieter."
-                       if remote else "er läuft auf diesem Rechner, nichts verlässt ihn.")
-                    + " Jede Beobachtung geht vorher durch die Egress-Policy des Projekts und die Secret-Floor; "
-                      "zurückgehaltene Zeilen werden gezählt. Auf dem Host schreiben, starten oder senden die Werkzeuge "
-                      "nichts (Index ohne Cache, nur lesende git-Befehle); jede Ausführung wird wie jedes Werkzeug geleast und belegt.")
+                       if leaves else "er läuft auf diesem Rechner, nichts verlässt ihn.")
+                    + " " + _egress_filter_sentence(trusted)
+                    + " Zurückgehaltene Zeilen werden gezählt. Im Arbeitsbereich und im Projektbaum schreiben, starten "
+                      "oder senden die Werkzeuge nichts (Index ohne Cache und ohne Prozess-Pool; `git status`/`git branch` "
+                      "lesen, git darf dabei seinen eigenen Index auffrischen); jede Ausführung wird wie jedes Werkzeug "
+                      "geleast und belegt.")
             else:
                 summary = f"Daedalus tools removed from the policy (Policy `{configured.get('policy_sha256')}`)."
             yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",

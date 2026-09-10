@@ -338,9 +338,11 @@ def test_structure_rows_go_through_the_path_gate(tmp_path, monkeypatch):
                                           _gated_readers("", []))
     monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
     monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
-        "n_files": 3, "ignored": {"count": 0, "patterns": [], "source": "C:/abs/.daedalusignore"},
+        "n_files": 3, "ignored": {"count": 1, "n_files_scanned": 4, "ignore_patterns": ["@tests"],
+                                  "source": "C:/abs/.daedalusignore", "sample": ["secret/x.py"]},
         "languages": {"python": 3}, "totals": {"unit_clusters": 2},
-        "hotspots": [{"module": "pkg/mod.py", "score": 1.0}, {"module": "tct_app/devices/iseg.py", "score": 9.0}],
+        "hotspots": [{"module": "pkg/mod.py", "score": 1.0, "future_field": "C:/abs/leak"},
+                     {"module": "tct_app/devices/iseg.py", "score": 9.0}],
         "clones": [{"name": "iseg", "count": 2, "loc": 4, "sites": [{"module": "pkg/mod.py", "line": 1}]},
                    {"name": "helper", "count": 2, "loc": 4,
                     "sites": [{"module": "pkg/mod.py", "line": 1}, {"module": "tct_app/devices/x.py", "line": 2}]}],
@@ -348,6 +350,11 @@ def test_structure_rows_go_through_the_path_gate(tmp_path, monkeypatch):
     structure = adapter.execute("daedalus.structure", {})
     assert [row["module"] for row in structure["hotspots"]] == ["pkg/mod.py"]
     assert structure["hotspots_withheld"] == 1
+    # Cerberus N4: rows are projected to an allow-listed key set, so a field a
+    # producer adds later cannot join the prompt; N7: the real ignore keys.
+    assert "future_field" not in structure["hotspots"][0]
+    assert structure["ignored"] == {"count": 1, "n_files_scanned": 4, "ignore_patterns": ["@tests"]}
+    assert "secret/x.py" not in json.dumps(structure)
     assert [row["name"] for row in structure["clones"]] == ["helper"]
     assert structure["clones"][0]["sites"] == [{"module": "pkg/mod.py", "line": 1}]
     assert structure["clones"][0]["sites_withheld"] == 1
@@ -382,10 +389,60 @@ def test_docrefs_rows_go_through_the_gate_and_errors_are_a_count(tmp_path, monke
 @pytest.mark.parametrize("text, embedded", [
     ("failed: PermissionError: 'C:\\Users\\x\\repo\\docs\\a.md'", True),
     ("see /home/x/repo/docs", True), ("(/Users/x/y)", True), (r"\\server\share\x", True),
+    # Odysseus round 2 (D3): the spellings the root-name list missed
+    ("file:///home/kty/projects/daedalus/x.md", True), ("//nas01/team/plans/x.md", True),
+    ("~/projects/daedalus/x.py", True), ("/usr/local/lib/python3.12/site-packages/daedalus/x.py", True),
+    ("/data/corpus/x", True), ("/workspace/x/y", True), ("/proc/self/environ", True),
+    ("%USERPROFILE%\\Desktop\\x.md", True), ("$HOME/x/y", True), ("read C:/Users/x/y.md", True),
     ("renamed the parser", False), ("ratio 1:2 and a/b", False), ("C:", False), ("x/etc/y", False),
+    ("pkg/mod.py", False), ("docs/a.md -> docs/b.md", False), ("50/50", False),
 ])
 def test_embedded_host_paths_are_detected(text, embedded):
     assert subject._mentions_host_path(text) is embedded
+
+
+def test_kept_fields_outside_the_text_keys_are_gated_too(tmp_path, monkeypatch):
+    """Odysseus round 2 (D1): a task brief's ``phase`` (kept, not a text key)
+    carried an absolute host path to the planner through the real service."""
+    _project_with_policy(monkeypatch, deny=[], deny_content=[r"\bODYSSEUSCHIMERA\b"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    briefs = [{"name": "ok.report.json", "summary": "finished", "phase": "done"},
+              {"name": "path.report.json", "summary": "finished",
+               "phase": "failed reading C:\\Users\\someone\\Desktop\\projects\\daedalus\\memory\\todos.local.md"},
+              {"name": "code.report.json", "summary": "finished", "phase": "ODYSSEUSCHIMERA-42"}]
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", briefs))
+    tasks = adapter.execute("daedalus.tasks", {})
+    assert [row["name"] for row in tasks["reports"]] == ["ok.report.json"]
+    assert tasks["reports_withheld"] == 2
+    assert "someone" not in json.dumps(tasks) and "ODYSSEUSCHIMERA" not in json.dumps(tasks)
+
+
+def test_deny_content_applies_to_the_path_itself(tmp_path, monkeypatch):
+    """Odysseus round 2 (D2): a codename INSIDE an allow-listed module path or
+    doc path passed, because classify_data applies deny_content to text only."""
+    _project_with_policy(monkeypatch, deny=[], deny_content=[r"ODYSSEUSCHIMERA"])
+    from daedalus.spine import docrefs as docrefs_module
+    from daedalus.structcore import report as report_module
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
+        "n_files": 2, "ignored": {}, "languages": {}, "totals": {},
+        "hotspots": [{"module": "pkg/test_odysseuschimera.py", "score": 1.0}, {"module": "pkg/plain.py", "score": 1.0}],
+        "clones": [], "fan_in": [{"module": "pkg/ODYSSEUSCHIMERA_core.py", "count": 3}]})
+    structure = adapter.execute("daedalus.structure", {})
+    assert [row["module"] for row in structure["hotspots"]] == ["pkg/plain.py"]
+    assert structure["fan_in"] == [] and structure["fan_in_withheld"] == 1
+
+    class Report:
+        def to_dict(self):
+            return {"n_resolving": 1, "n_broken": 1, "n_skipped": 0, "files_scanned": 1,
+                    "broken": [{"doc_path": "docs/ODYSSEUSCHIMERA-plan.md", "line": 1, "raw": "pkg.x", "module_path": "", "symbol": "x"}],
+                    "errors": []}
+    monkeypatch.setattr(docrefs_module, "scan", lambda repo_root: Report())
+    result = adapter.execute("daedalus.docrefs", {})
+    assert result["broken"] == [] and result["broken_withheld"] == 1
+    assert "ODYSSEUSCHIMERA" not in json.dumps(structure) + json.dumps(result)
 
 
 def test_a_task_summary_with_an_embedded_host_path_is_withheld(tmp_path, monkeypatch):
@@ -419,6 +476,15 @@ def test_the_real_adapter_through_the_real_lease_creates_no_cache_and_launches_n
     monkeypatch.setenv("DAEDALUS_CACHE_DIR", str(cache_dir))
     from daedalus.structcore import index as index_module
     monkeypatch.setattr(index_module, "_INDEX_CACHE", {}, raising=False)
+    # Cerberus N2: the name promises "launches no pool" -- pinned directly. A
+    # pool or a churn ``git log`` inside the observation fails the test here.
+    import concurrent.futures as futures
+
+    def no_pool(*args, **kwargs):
+        raise AssertionError("a process pool was created inside a read-only observation")
+    monkeypatch.setattr(futures, "ProcessPoolExecutor", no_pool)
+    monkeypatch.setattr(index_module, "git_churn",
+                        lambda root: (_ for _ in ()).throw(AssertionError("git log ran inside a read-only observation")))
     authority = tmp_path / "authority"
     authority.mkdir()
     workspace = tmp_path / "scratch"
@@ -451,6 +517,30 @@ def test_dispatch_refuses_the_family_directly_without_a_project_or_readers(confi
         service_module.ComputerService(authority)._dispatch("daedalus.status", {})
     with pytest.raises(ComputerRefused, match="project readers"):
         service_module.ComputerService(authority, project="agent_env")._dispatch("daedalus.status", {})
+
+
+def test_rows_without_a_path_or_a_text_are_withheld_not_passed(tmp_path, monkeypatch):
+    """Cerberus N3: `_admit_rows` must be fail-closed for a row the gate never sees."""
+    _project_with_policy(monkeypatch, deny=[])
+    adapter = _adapter(tmp_path, readers=_gated_readers("", []))
+    kept, withheld = adapter._admit_rows([{"line": 3}, {"doc_path": "docs/a.md", "line": 1}],
+                                         ("doc_path",), ("raw",), keep_keys=("doc_path", "line"))
+    assert kept == [{"doc_path": "docs/a.md", "line": 1}]
+    assert withheld == 1
+
+
+def test_the_project_policy_is_re_read_on_every_call(tmp_path, monkeypatch):
+    """Cerberus N5: a project row tightened mid-mission takes effect on the next call."""
+    from daedalus.foundation import projects
+    monkeypatch.setattr(projects, "resolve_repo_root", lambda repo_root, project: "unused")
+    rows = {"policy": {"deny": [], "deny_content": [], "allow": ["pkg/"]}}
+    monkeypatch.setattr(projects, "load_project", lambda name: {"name": name, **rows})
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path,
+                                          _gated_readers(" M pkg/mod.py", []))
+    assert adapter.execute("daedalus.status", {})["git"]["git_status"] == " M pkg/mod.py"
+    rows["policy"] = {"deny": ["pkg/"], "deny_content": [], "allow": ["pkg/"]}
+    assert adapter.execute("daedalus.status", {})["git"]["git_status"] == ""
 
 
 def test_the_index_is_built_effect_free(tmp_path, monkeypatch):
@@ -507,8 +597,9 @@ def test_structure_and_slice_observations_read_the_scratch_repository(scratch_re
     structure = adapter.execute("daedalus.structure", {})
     assert structure["n_files"] >= 1 and isinstance(structure["totals"], dict)
     # MEASURED 2026-09-10 (live run 3): ``ignored.source`` carried the absolute
-    # ignore-file path; only count and patterns are observed now.
-    assert set(structure["ignored"]) == {"count", "patterns"}
+    # ignore-file path; only the counts and the ignore PATTERNS are observed
+    # now, under the key the index really emits (Cerberus N7).
+    assert set(structure["ignored"]) == {"count", "n_files_scanned", "ignore_patterns"}
     assert str(scratch_repo) not in json.dumps(structure)
     sliced = adapter.execute("daedalus.slice", {"module": "mod.py"})
     assert sliced["focus_file"].endswith("pkg/mod.py")

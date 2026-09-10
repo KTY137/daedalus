@@ -172,7 +172,7 @@ move is a separate mechanical packet if the owner wants it literally).
 
 | Check | Command | Result `[MEASURED 2026-09-10]` |
 | --- | --- | --- |
-| packet and neighbouring suites (final tree) | `python -m pytest -q tests/runtimes/test_computer_daedalus.py tests/test_ikarus_computer_dispatch.py tests/test_ikarus_computer_loop.py tests/test_ikarus_computer_loop_adversarial.py tests/test_ikarus_stream.py tests/runtimes/test_computer_service.py tests/runtimes/test_computer_evidence_terminal.py tests/test_ikarus_act.py tests/test_ikarus_os.py tests/test_ikarus_shells.py tests/test_ikarus_computer_schedule.py tests/test_ikarus_computer_schedule_autonomy.py` | 366 passed, 99 subtests |
+| packet, neighbouring and pin suites (final tree, after review round 2) | `python -m pytest -q tests/runtimes/test_computer_daedalus.py tests/test_ikarus_computer_dispatch.py tests/test_ikarus_computer_loop.py tests/test_ikarus_computer_loop_adversarial.py tests/test_ikarus_stream.py tests/runtimes/test_computer_service.py tests/runtimes/test_computer_evidence_terminal.py tests/test_ikarus_act.py tests/test_ikarus_os.py tests/test_ikarus_shells.py tests/test_ikarus_computer_schedule.py tests/test_ikarus_computer_schedule_autonomy.py tests/contracts/test_import_scc_hierarchy.py tests/contracts/test_work_packet_index.py experiments/forest_v2/s02_types/test_external_corpora.py tests/test_imports_graph.py` | **453 passed, 4 skipped, 103 subtests** (before round 1: 366 passed in the twelve-suite subset) |
 | broad regression (`tests/runtimes tests/interfaces tests/test_ikarus_*.py tests/test_conversation_*.py tests/test_queue_dispatch_identity.py tests/test_llm_client.py tests/contracts tests/orchestration`) | run once before the reader injection and the stream pin | 2661 passed, 122 skipped, 14 xfailed, 3 failed: two were this packet's (the stream module's host-dependent `lane` and the census count/cycle) and are fixed above; `test_plan_and_replan_are_advisory_mission_bound_artifacts` fails identically on the untouched primary checkout (`tmp` path spelling on this host) — baseline, not this packet |
 | pins | `tests/contracts/test_import_scc_hierarchy.py tests/contracts/test_work_packet_index.py experiments/forest_v2/s02_types/test_external_corpora.py tests/test_imports_graph.py` | see the pins row below |
 | cockpit | `tsc --noEmit`; `node src/app/run-spec.mjs` | clean; 620/620 (615 before + 5) |
@@ -218,6 +218,14 @@ Second table (after review round 1, `docs/evidence/G1-IKARUS-46/mutation-table-2
 24 applied, **24 caught**, restored tree green (140 passed in the four packet
 suites). The driver now restores bytes, not text, so it can no longer move
 the byte-pinned modules itself.
+
+Final table (after review round 2, `mutation-table-4.txt`): the 24 above plus
+M25 (`_admit_rows` fail-open for a row without path or text), M26 (the grant
+sentence claims the deny list on the trusted lane), M27 (`deny_content` no
+longer sees the path itself), M28 (kept fields outside the text keys not
+gated), M29 (the embedded-path shapes shrink back to the root-name list) —
+**29 applied, 29 caught**, restored tree green (158 passed in the packet
+suites).
 
 ### Live measurement
 
@@ -348,6 +356,46 @@ five names under the live digest and refuses a concurrent policy write. One
 residual it named and this packet leaves: `pending_offer` has no expiry — a
 "ja" is a confirmation as long as the offer is the immediately preceding
 turn, however old.
+
+### Independent review round 2 (2026-09-10, on `96e190d2`)
+
+**Cerberus — `needs_fix`, no CRITICAL stands, block lifted.** All nine
+round-1 findings judged resolved with file:line citations; eight new,
+one high, repaired in the follow-up commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| N1 (high) | both consent texts said the project's egress policy filters every observation, but on the trusted lane (Claude CLI, loopback Ollama) only the secret floor runs — exactly as for the Voice; the operator-facing German was new and false | `_egress_filter_sentence(trusted)` is lane-conditional in the grant reply and the `confirm-remote` warning; the observation list no longer claims a filter | `test_the_grant_sentence_is_true_per_lane` |
+| N2 | the real-adapter test asserted nothing about a process pool despite its name | `ProcessPoolExecutor` and `git_churn` are patched to raise inside that test | same test |
+| N3 | `_admit_rows` was fail-open for a row naming neither path nor text | such rows are withheld | `test_rows_without_a_path_or_a_text_are_withheld_not_passed` |
+| N4 | kept rows carried every producer field, so a future field would join the prompt silently | every kept row is projected to an allow-listed key set (`keep_keys`) | `test_structure_rows_go_through_the_path_gate` (`future_field` dropped) |
+| N5 | the project policy was memoised for the adapter's lifetime (a row tightened mid-mission had no effect) | `_project_policy` re-reads the registry row on every call | `test_the_project_policy_is_re_read_on_every_call` |
+| N6 | `allow_remote_context: true` with a loopback Ollama said "verlassen den Rechner" | "leaves" requires the flag AND a non-local planner | `test_the_grant_sentence_is_true_per_lane` |
+| N7 | `ignored.patterns` read a key the index never emits (always `[]`) | `ignore_patterns`, `count`, `n_files_scanned`; `sample`/`source` never travel | `test_structure_rows_go_through_the_path_gate`, scratch-repository structure test |
+| N8 | "nur lesende git-Befehle" is stronger than the fact (`git status` may refresh git's own index) | wording in the grant reply and the module docstring | — |
+
+**Odysseus round 2** (pristine `git archive` of `96e190d2`, byte-verified):
+defects 1, 4, 5, 6 RESOLVED with executed evidence (no cache file, no
+eviction of 20 planted victims, no pool, only `git branch`/`git status`
+launched across all five tools; a question's "ja" → proposal; a changed
+digest → re-offer; four blobs at 0 CR bytes); defects 2 and 3 NARROWED, with
+three executed residuals, all repaired in the follow-up commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D1 | `_admit_rows` gated only the named keys but handed the whole row on; a task brief's `phase` carried an absolute host path (and, before `keep_keys`, an AWS key in `runtime_id`) to an untrusted planner through the real service | every string in the PROJECTED row is gated, not only the named text keys | `test_kept_fields_outside_the_text_keys_are_gated_too`; mutation M28 |
+| D2 | `classify_data` applies `deny_content` to the text argument only, so a codename INSIDE an allow-listed path (`tests/test_odysseuschimera.py`, `docs/ODYSSEUSCHIMERA-plan.md`) passed via `structure`/`docrefs` | `_admit` hands the path itself into the content check (`f"{path} {text}"`) | `test_deny_content_applies_to_the_path_itself`; mutation M27 |
+| D3 | `_mentions_host_path` matched a root-name list; `file:///home/…`, `//nas01/…`, `~/…`, `/usr/…`, `/data/…`, `/proc/…`, `%USERPROFILE%\…` passed | the regex matches the SHAPES of an absolute location (drive, UNC in either slash direction, `file://`, `~/`, expanded environment roots, any two-segment POSIX absolute path); `_admit_text` also refuses a whole-value path | `test_embedded_host_paths_are_detected` (20 spellings); mutation M29 |
+
+Odysseus refuted: a forged `computer_task` offer is not chat-reachable (only
+`_computer_offer` writes that signal and it always carries the live digest;
+a writer into the conversation store is the ledger trust boundary, not this
+gate); a `git mv docs/a.md .env` rename line is withheld on both paths; clone
+names carrying a codename are withheld. Its round-2 mutation table: 21 rows,
+all load-bearing guards caught (M1 benign-redundant, M24 dead behind the
+signal check). It also corrected its own round-1 `a13` fixture (top-level
+`deny_content` instead of `policy.deny_content`), so that row was a fixture
+artifact — the real gap was D2.
 
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file
