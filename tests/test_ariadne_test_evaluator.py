@@ -205,6 +205,114 @@ def test_every_evaluator_refusal_precedes_the_repository(tmp_path):
     assert first == TestCommandEvaluator(argv=("python", "-m", "pytest")).digest
 
 
+def test_a_session_configuring_target_is_refused_at_any_depth(tmp_path):
+    """Cerberus round 1 (CRITICAL 2), EXECUTED: a candidate whose target was
+    `conftest.py` installed a collection hook that skipped every item. The arms
+    still read baseline-passed / control-failed / repair-passed and the campaign
+    NOMINATED a candidate whose winning arm ran zero assertions. Refusing test
+    roots was never enough: the files that CONFIGURE a session decide the
+    verdict without being tests."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    for target in ("conftest.py", "pkg/conftest.py", "deep/nested/conftest.py",
+                   "pytest.ini", "pyproject.toml", "setup.cfg", "setup.py", "tox.ini",
+                   "sitecustomize.py", "usercustomize.py", "pkg/anything.pth"):
+        with pytest.raises(AriadneCampaignError, match="configures the test session"):
+            _campaign(root, revision, campaign_id="a8-config", target=target)
+    # The same names are admissible when the exact-match evaluator judges: it
+    # never executes them, so they are ordinary files there.
+    with pytest.raises(Exception, match="unavailable|before text must occur"):
+        _campaign(root, revision, campaign_id="a8-exact", target="conftest.py", evaluator=None)
+
+
+def test_a_suite_that_executed_nothing_cannot_pass(tmp_path):
+    """The second half of the same repair: an exit code cannot tell "the tests
+    passed" from "no test ran", so the campaign reads the counts from a report
+    it appends itself."""
+
+    from daedalus.ariadne.campaign import _read_test_report
+
+    report = tmp_path / "report.xml"
+    report.write_text('<testsuites><testsuite tests="7" failures="0" errors="0" skipped="7"/></testsuites>',
+                      encoding="utf-8")
+    counts = _read_test_report(report)
+    assert counts["tests"] == 7 and counts["skipped"] == 7
+    assert counts["executed"] == 0  # everything was skipped: nothing was proven
+
+    report.write_text('<testsuite tests="4" failures="1" errors="0" skipped="1"/>', encoding="utf-8")
+    assert _read_test_report(report) == {"tests": 4, "failures": 1, "errors": 0,
+                                         "skipped": 1, "executed": 3}
+
+
+def test_the_report_is_hostile_input_and_is_bounded(tmp_path):
+    """The report is written by a process the candidate influenced. A doctype, an
+    entity declaration, a missing file, unreadable XML and an oversized file are
+    all refusals, not crashes."""
+
+    from daedalus.ariadne.campaign import MAX_TEST_REPORT_BYTES, _read_test_report
+
+    report = tmp_path / "report.xml"
+    with pytest.raises(AriadneCampaignError, match="wrote no report"):
+        _read_test_report(report)
+    report.write_bytes(b'<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "aa">]><testsuite tests="1"/>')
+    with pytest.raises(AriadneCampaignError, match="doctype or an XML entity"):
+        _read_test_report(report)
+    report.write_bytes(b"<testsuite tests='1'")
+    with pytest.raises(AriadneCampaignError, match="not readable XML"):
+        _read_test_report(report)
+    report.write_bytes(b"<testsuite tests='x'/>")
+    with pytest.raises(AriadneCampaignError, match="non-numeric count"):
+        _read_test_report(report)
+    report.write_bytes(b"<testsuite/>" + b" " * (MAX_TEST_REPORT_BYTES + 1))
+    with pytest.raises(AriadneCampaignError, match="exceeds its bound"):
+        _read_test_report(report)
+
+
+def test_the_observation_retains_counts_and_never_the_output(tmp_path):
+    """Cerberus round 1 (CRITICAL 1), EXECUTED: the retained observation carried
+    the operator's API key, because the contained child inherits the environment
+    and the candidate printed it. The output is no longer retained at all."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    receipt = _campaign(root, revision, campaign_id="a9-noleak")
+    payload = json.dumps(receipt)
+    assert "sk-ant" not in payload and "ANTHROPIC" not in payload
+    from daedalus.spine.killswitch import control_root
+    control = control_root(root)
+    hits = []
+    for path in control.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            blob = json.loads(path.read_bytes().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, OSError):
+            continue
+        if isinstance(blob, dict) and str(blob.get("schema", "")).startswith(
+                "daedalus-ariadne-test-evaluator-observation"):
+            hits.append(blob)
+    assert hits, "the campaign wrote no test observation"
+    for blob in hits:
+        assert blob["output"] == ""  # the text stays in the gate's scratch
+        assert len(blob["output_sha256"]) == 64  # the digest still binds what the gate saw
+        assert set(blob["report"]) >= {"tests", "failures", "errors", "skipped", "executed"}
+        assert "sk-ant" not in json.dumps(blob)
+
+
+def test_the_campaign_identity_binds_its_judge(tmp_path):
+    """Cerberus round 1 (high 1), EXECUTED: the replay key excluded the
+    evaluator, so a second run that asked for the test suite was handed the
+    exact-match run's nomination and ran nothing."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    exact = _campaign(root, revision, campaign_id="a10-identity", evaluator=None)
+    assert exact["metric_names"] == ["exact_match"]
+    with pytest.raises(Exception) as caught:
+        _campaign(root, revision, campaign_id="a10-identity")
+    # A different judge is a different campaign, and the conflict says so
+    # rather than returning the other judge's receipt.
+    assert "exact_match" not in str(caught.value)
+
+
 def test_the_module_says_what_a_green_run_does_not_prove():
     """A guarantee that reads stronger than the mechanism is this repository's
     most expensive recurring defect, so the docstring is pinned."""
@@ -213,6 +321,15 @@ def test_the_module_says_what_a_green_run_does_not_prove():
 
     text = subject.TestCommandEvaluator.__doc__ or ""
     assert "cannot pick its judge" in text
-    assert "cannot weaken the judge" in text
     assert "cannot tell the difference is reported" in text
+    # Cerberus round 1 refuted the round-0 wording "cannot weaken the judge":
+    # the overwritten file MUST influence the run, or the negative control could
+    # never fail. What the mechanism actually guarantees is narrower, and the
+    # docstring now says the narrower thing plus the hole that was proven.
+    assert "cannot weaken the judge" not in text
+    assert "cannot rewrite the TEST FILES or the session configuration" in text
+    assert "It is NOT true that" in text and "conftest.py" in text
+    # And it does not claim a sandbox it does not have.
+    assert "NOT a sandbox claim" in text
+    assert "DENYLIST" in text and "no network fence" in text
     assert sys.version_info >= (3, 12)

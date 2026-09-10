@@ -1,6 +1,7 @@
 # G1-IKARUS-48 — a campaign evaluator that runs the project's tests
 
 Packet ID: `G1-IKARUS-48`
+Artifact role: `primary`
 Active gate: Gate 1
 Classification: `ALIGNED`
 Owner: repository owner (standing merge authorization of 2026-09-10, `CLAUDE.md`)
@@ -30,25 +31,50 @@ packet replaces the verdict source, and nothing else.
   the change is an improvement is not measured, and no receipt says it is.
 - **Not promotion.** Invariant 5 is untouched: a nomination stays a nomination
   and still needs a one-use `OwnerApproval` bound to the candidate.
-- **Not a new sandbox.** The run uses the existing contained gate (Low-Integrity
-  token plus Job Object on Windows, rootless OCI on Linux, refusal elsewhere).
-  This packet adds no containment and claims none.
+- **Not a new sandbox, and the existing one is narrower than it sounds.** The
+  run uses the existing contained gate (Low-Integrity token plus Job Object on
+  Windows, rootless OCI on Linux, refusal elsewhere). Its environment is a
+  DENYLIST of three prefixes, not an allowlist, and it has no network fence.
+  Measured by Cerberus on 2026-09-10: a candidate that prints its environment
+  sees the operator's provider API key, and a socket to a public address
+  connects. The approval secret is scrubbed; nothing else is. This packet does
+  not fix that — it belongs to the kernel owners — but it is what makes it
+  reachable from candidate-authored code, so: the command's output is no longer
+  retained at all (it carried a live key into content-addressed storage), and
+  every trial observation states `child_environment: inherited-except-denylist`
+  and `child_network: unrestricted` instead of implying a fence.
 - **Not a research result.** Gate-3 obligations (frozen tasks, budget-equal
   baselines, seeds, uncertainty) are untouched.
 - **Not a general test runner.** One command, one workspace, one timeout, no
   network grant, no dependency installation.
 
-## The three properties that make it an evaluator rather than a formality
+## The four properties that make it an evaluator rather than a formality
 
 1. **The candidate cannot pick its judge.** The command and its timeout are
    caller-supplied, frozen into the `ExperimentSpec` before any arm runs, and
    recorded in every trial's evidence. They never come from the candidate tree.
-2. **The candidate cannot weaken the judge.** The evaluation workspace is built
-   from the pinned `source_revision` by `git archive`, and exactly one file —
-   the campaign's declared target — is overwritten per arm. Every other byte,
-   including every test, is the base revision's. A target path inside a declared
-   test root is refused before the runner.
-3. **A judge that cannot tell the difference is reported, not hidden.** The
+2. **The candidate cannot rewrite the test files or the session
+   configuration.** The evaluation workspace is built from the pinned
+   `source_revision` by `git archive`, and exactly one file — the campaign's
+   declared target — is overwritten per arm. A target inside a declared test
+   root is refused, and so is one whose NAME configures a session
+   (`conftest.py` at any depth, `pytest.ini`, `pyproject.toml`, `setup.cfg`,
+   `setup.py`, `tox.ini`, `sitecustomize.py`, `usercustomize.py`, `*.pth`).
+   **It is not true that the overwritten file cannot influence the run**, and
+   the first version of this packet claimed it was: the file must be one the
+   suite exercises, or the negative control could never fail. Cerberus round 1
+   proved the difference by targeting `conftest.py` with a collection hook that
+   skipped every item — the arms read green, red, green and the campaign
+   nominated a candidate whose winning arm ran zero assertions.
+3. **An exit code is not a verdict.** The campaign appends its own JUnit
+   report to the command and reads the counts: a trial passes only when tests
+   were actually EXECUTED (`tests` minus `skipped` above zero) with no failures
+   and no errors, and the repair arm must not execute fewer tests than the
+   baseline did. A suite that was switched off cannot pass any more. The report
+   is hostile input — a candidate influenced the process that wrote it — so it
+   is size-bounded and a doctype or entity declaration is refused before parsing.
+
+4. **A judge that cannot tell the difference is reported, not hidden.** The
    negative-control arm exists to fail. If the command passes on the negative
    control too, the evidence says the suite is blind to this file and the
    campaign nominates nothing.
@@ -89,16 +115,25 @@ No new entrypoint, no new event store, no change to containment.
 - `run_campaign(..., evaluator=...)` gains one frozen argument. Its default is
   the existing exact-match evaluator, so no existing caller changes behavior.
 - The test evaluator is described by an immutable record: the argv tuple, the
-  working directory relative to the workspace, the timeout, and the digest of
-  all three. That digest replaces `EVALUATOR_SHA256` in the spec's frozen
-  components for this mode.
+  timeout, the declared test roots, and their digest. That digest replaces
+  `EVALUATOR_SHA256` in the spec's frozen components for this mode. It carries
+  no working directory: the kernel's command gate requires `gate_cwd="."` and
+  runs at the workspace root, so offering one would be a promise the kernel
+  refuses.
 - The evaluation workspace is built per arm from `git archive <source_revision>`
-  and removed after the arm. Peak disk is one tree; the receipt, not the
-  workspace, is the evidence.
+  and removed after the arm, with `workspace_removed` recorded. Peak disk is one
+  tree; the receipt, not the workspace, is the evidence. The first version of
+  this packet claimed the removal before implementing it: three trees of this
+  repository are about 852 MiB per campaign, retained under the user's home.
 - The trial observation records the command digest, the exit code, wall time,
-  containment, and a **bounded, gated** excerpt of the output. Test output can
-  carry host paths, so it goes through the same redaction the observation
-  adapter uses, and the excerpt is capped.
+  containment, the report counts, and the digest of the output. It does **not**
+  record the output itself. The first version stored a bounded excerpt and
+  claimed it was redacted; no redaction existed, and the excerpt carried the
+  operator's API key into content-addressed storage.
+- The campaign's identity binds its judge. The evaluator digest is part of the
+  operation digest, so a replay of the same id and edit under a different
+  evaluator is a different campaign. Without that, the permissive judge's
+  nomination answered the strict judge's request.
 - Budgets: the arm's `ResourceBudget.max_wall_time_s` becomes the test timeout,
   identical for all three arms, and the outer lease and the spec expiry are
   widened to fit three arms plus workspace construction.
@@ -117,12 +152,11 @@ Deterministic tests, all offline:
    baseline failed;
 5. the target path inside a declared test root is refused before the runner;
 6. the workspace's test files equal the base revision's after the overlay;
-7. the command comes from the caller, never from the candidate tree: a candidate
-   that writes a `conftest.py` or a `pytest.ini` cannot change what runs
-   (it cannot: only one file is overwritten, and the test asserts the digest of
-   every other file);
+7. a target that configures the session is refused by name at any depth, and a
+   run in which nothing executed cannot pass;
 8. a timeout is a failure with `timed_out` recorded, not a crash;
-9. the output excerpt is bounded and carries no host path;
+9. the output is not retained at all, and the observation states the child's
+    environment and network reach rather than implying a fence;
 10. cancellation through the kill switch stops between arms;
 11. refusal tests: unknown mode, empty argv, an argv naming an absolute path,
     a timeout outside the allowed range.
@@ -135,6 +169,22 @@ Rollback is reverting the packet's commits. No stored artifact changes shape:
 receipts written by the exact-match evaluator keep their fields, and the new
 fields are additive. A campaign started under one evaluator never switches mode
 mid-run, because the mode is frozen in the spec.
+
+## Evidence, expected failures and review
+
+Evidence: `tests/test_ariadne_test_evaluator.py` (13 tests, including the
+end-to-end campaigns on real fixture repositories and the pinned reproduction of
+the round-1 attack); the Ariadne, campaign-door and contract suites for
+regression; the measurements recorded above and in the review-round section.
+
+Expected failures, retained rather than hidden: a suite blind to the target
+file, a suite that is already red, a target that configures the session, a
+report that declares an entity, and a run in which nothing executed. Each has a
+named refusal and a test.
+
+Review: Cerberus round 1 blocked this packet with two CRITICAL findings, both
+introduced by it, and both are repaired above. The doors that would let a
+planner or an HTTP caller reach this evaluator are deliberately still unbuilt.
 
 ## Measured before implementation (baseline, 2026-09-10)
 
@@ -153,3 +203,33 @@ mid-run, because the mode is frozen in the spec.
   output is never empty. This evaluator therefore does not rely on that rule; it
   requires the exit code and records the excerpt. Reported to the kernel owners
   on the coordination board.
+
+## Review round 1 (2026-09-10, `e387fcfd`)
+
+**Cerberus: `block`, two CRITICAL, both introduced by this packet.**
+
+CRITICAL 2 was the one that made the evidence a lie. A candidate whose target
+was `conftest.py` — outside every declared test root — installed a collection
+hook that skipped every item. The arms read baseline-passed, control-failed,
+repair-passed, the arm-shape rule held perfectly, and the campaign nominated a
+candidate whose winning arm ran **zero assertions**. Two repairs, because one is
+not enough: the session-configuring file names are refused as targets, and the
+verdict now reads a JUnit report the campaign appends itself, requiring that
+tests actually executed and that the repair arm did not shrink the suite.
+
+CRITICAL 1: the retained observation carried the operator's API key, because the
+contained child inherits the environment and a candidate can print it. Cerberus
+also opened a socket from inside the "contained" child. The environment denylist
+and the missing network fence are pre-existing kernel properties and not this
+packet's to fix, but this packet is what makes them reachable from
+candidate-authored code. The output is no longer retained, and the reach is
+stated in every observation.
+
+Also repaired: the campaign identity now binds the evaluator digest (a replay
+returned the other judge's receipt); the evaluation workspace is removed after
+each arm; the interpreter provenance is verified on replay, not only recorded.
+Still open and named rather than claimed away: the doors at
+`daedalus/runtimes/computer_ariadne.py`, `daedalus/ariadne/__main__.py` and
+`daedalus/interfaces/http/web_api.py` are **not built**, so no planner and no
+HTTP caller can reach this evaluator yet. That is the largest mitigating fact
+today and the packet no longer reads as if those doors existed.
