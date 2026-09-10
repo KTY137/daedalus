@@ -59,3 +59,66 @@ def test_probe_snapshot_reuses_adapter_owned_forest_digest() -> None:
     compiled = _PROBE._compile(forest, snapshot)
     assert compiled.source_forest_sha256 == snapshot.source_forest_sha256
     assert compiled.subject.source_fourfold_sha256 == snapshot.digest
+
+
+def test_adapter_then_compiler_keeps_two_distinct_forest_digest_owners() -> None:
+    """Reject cross-owner digest reuse unless a trust boundary can be deleted.
+
+    The adapter must hash the supplied Forest to bind the Fourfold snapshot.
+    The relation compiler must independently hash the supplied Forest again to
+    prove that it is the object bound by that snapshot before relation
+    admission. Across the real adapter -> compiler chain that is therefore two
+    aggregate digest calls owned by two different authority boundaries, not a
+    duplicate inside either owner.
+
+    Replacing the compiler call with ``snapshot.source_forest_sha256`` would
+    remove the mismatch check; passing a caller-trusted digest would add a new
+    trust/receipt surface. This call-scope contract intentionally records the
+    negative gardener result instead of introducing either abstraction. It is
+    not a latency or performance-superiority claim.
+    """
+
+    forest = _PROBE._forest(
+        nodes=12,
+        row_width=2,
+        revision=_PROBE.DELTA_REVISION,
+        add_delta=True,
+    )
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        snapshot = _PROBE._snapshot(
+            forest,
+            revision=_PROBE.DELTA_REVISION,
+        )
+        compiled = _PROBE._compile(forest, snapshot)
+    finally:
+        profiler.disable()
+
+    stats = tuple(profiler.getstats())
+    forest_digest_code = _PROBE.KnowledgeForest.content_sha256.fget.__code__
+    total_digest = _PROBE._code_metrics(stats, (forest_digest_code,))
+    adapter_digest = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=_PROBE.fourfold_from_knowledge_forest.__code__,
+        callee_codes=(forest_digest_code,),
+    )
+    compiler_digest = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=_PROBE.compile_relation_blocks.__code__,
+        callee_codes=(forest_digest_code,),
+    )
+    wrapper_digest = _PROBE._direct_callee_metrics(
+        stats,
+        caller_code=_PROBE._snapshot.__code__,
+        callee_codes=(forest_digest_code,),
+    )
+
+    assert total_digest["calls"] == 2
+    assert adapter_digest["calls"] == 1
+    assert compiler_digest["calls"] == 1
+    assert wrapper_digest["calls"] == 0
+    assert adapter_digest["calls"] + compiler_digest["calls"] == total_digest["calls"]
+    assert compiled.source_forest_sha256 == snapshot.source_forest_sha256
+    assert compiled.subject.source_fourfold_sha256 == snapshot.digest
