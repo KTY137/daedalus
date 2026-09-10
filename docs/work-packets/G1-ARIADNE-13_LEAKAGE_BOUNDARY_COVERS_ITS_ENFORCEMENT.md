@@ -13,9 +13,11 @@ Stacked on G1-IKARUS-49 (PR #368) because both change `campaign.py`.
 ## Primary acceptance claim
 
 Every module that **enforces** the self-Renovation leakage boundary is behind
-it, and the guard is bound to the load-bearing symbol rather than to a path
-string, so moving `promote_candidates` — or any of the five others — turns a
-test red instead of silently un-protecting it.
+it — including the package door in front of it and the conftest under its
+tests — and the guard is bound to the **defining module** of each load-bearing
+symbol, so moving `promote_candidates` out of a protected file turns a test red
+instead of silently un-protecting it, *including* the move-plus-re-export shape
+that a name-presence check misses.
 
 ## What was measured
 
@@ -56,13 +58,31 @@ policy" as release-blocking; this is the same defect one indirection out.
    `SELF_RENOVATION_PROTECTED_PREFIXES`. Protection is by file where the risk is
    a specific constant or callable, and by directory (`tests/kernel/`) where the
    whole thing is boundary machinery.
-2. **The guard is bound to the symbol.** `LOAD_BEARING` names six
-   `(module, symbol, what it does)` triples; the test asks the interpreter which
-   file defines each name and requires that file to be protected. A path list
-   goes stale in silence — this does not. It earned its keep immediately: it
-   caught a stale reference in its own first run, because
-   `_admit_release_capability` is a method on `ComputerService`, not a
-   module-level function.
+2. **The guard is bound to the defining module of the symbol.**
+   `LOAD_BEARING` names six `(module, symbol, what it does)` triples; the test
+   walks the dotted name, reads `__module__` off what it finds, and requires
+   the file of *that* module to be protected. A path list goes stale in
+   silence — this does not.
+
+   The first version asked `imported.__file__`, which is the file of the module
+   *named in the tuple* rather than the file that *defines* the symbol. It was
+   a name-**presence** test wearing a definition-site test's description, and an
+   adversarial pass defeated it in the ordinary way: move `promote_candidates`
+   into a new admissible module and re-export it from the old one — the only
+   shape that keeps existing imports working — and 82 tests stayed green with
+   the promotion callable sitting where a candidate may edit it. Now the same
+   mutation fails and names the file.
+
+   It earned its keep twice over: on its very first run it caught a stale
+   reference in its own list, because `_admit_release_capability` is a method on
+   `ComputerService`, not a module-level function.
+
+3. **The values are pinned, not only the file.** Nothing in the repository
+   asserted `WRITE_WAVE_POLICY_LEVELS` or `DEFAULT_WRITE_WAVE_POLICY`. Opening
+   the closed set to `("never", "apply")` and flipping the default left every
+   test green, so `LOAD_BEARING`'s description — "the closed set that has no
+   level except 'never'" — was a claim no test made. Protecting the file that
+   holds a constant is worth little if nothing notices the constant changing.
 
 ## The cost, stated
 
@@ -117,12 +137,31 @@ prefixes proven load-bearing — removing any one of them turns the suite red.
 ## What this does NOT close
 
 **The list is still an enumeration**, and an enumeration of a growing tree
-drifts. The symbol-bound test converts *one* class of drift — a symbol moving
-out of a protected file — into a red test. It does not catch a *new* file
-acquiring boundary responsibility. The structural answer is to derive the set
-from what the code does rather than from a literal, which needs an import trace
-this packet does not build. Recorded as the next question, not patched with a
-longer list.
+drifts. The symbol-bound test converts one class of drift — a symbol moving out
+of a protected file, with or without a re-export — into a red test. It does not
+catch a *new* file acquiring boundary responsibility. The structural answer is
+to derive the set from what the code does rather than from a literal, which
+needs an import trace this packet does not build. Recorded as the next question,
+not patched with a longer list.
+
+**Two enforcement surfaces are admissible by design and cannot be prefix-closed
+here** (adversarial round 1, D3 and D4):
+
+- the `CampaignRunner` **composition root**. `web_api.py:222` builds it with
+  `protected_prefix_for` and `computer_loop.py:1254` registers it, and
+  `computer_loop.py` is on this packet's own must-stay-admissible list, so a
+  prefix covering it would contradict acceptance item 4. `web_api.py` also
+  carries `POST /api/ariadne`, a second door with no boundary check of its own;
+- `tests/runtimes/test_computer_service.py` is the suite that *directly* proves
+  the release fence refuses. The protected `test_computer_ariadne.py` catches it
+  only incidentally. Protecting the incidental guard and leaving the direct one
+  admissible is an accident of which file the author happened to look at.
+
+**`tests/kernel/` is over-broad in the safe direction.** It covers 87 files for
+a justification naming four kernel areas, and roughly thirty of them import no
+protected module. That costs self-Renovation subjects rather than safety, but it
+produces an odd asymmetry worth naming: `daedalus/kernel/attempts.py` is
+editable while `tests/kernel/test_attempt_lease.py` is not.
 
 **`python.promote_candidates` remains `Wiring.LOCAL_GUARDS`** in the effect
 registry rather than `CENTRAL`, with a stated migration debt. That is
@@ -134,3 +173,37 @@ Revert the commit. No stored artifact changes shape; the boundary is computed,
 never persisted. A campaign that named one of these paths would previously have
 run and would now refuse before any effect — the correct direction, and no
 existing campaign in the tree names one.
+
+
+## Adversarial round 1 (2026-09-11, `83b2d139`)
+
+**Odysseus: may merge, after correcting the primary acceptance claim.** The
+change is purely additive, all nine prefixes reproduced load-bearing in an
+isolated copy, and 204 tests across the newly protected suites pass. Both doors
+were confirmed to refuse before the repository, HEAD or any effect lease is
+observed — 18 executed probes with `read_repository_source`, `subprocess`,
+`os.stat`, `Path.exists` and `Path.open` all booby-trapped. No unintended
+`startswith` extension exists across all 6379 tracked files.
+
+| # | finding | repair |
+| --- | --- | --- |
+| defeated claim | the symbol test asked `imported.__file__` — the module *named*, not the module that *defines*. Move-plus-re-export left it green with the callable in an admissible file | binds to `__module__` via `sys.modules`; the same mutation now fails and names the file |
+| D1 (high) | `daedalus/ariadne/__init__.py` was **admissible** and re-exports `run_campaign`. Both the HTTP door and the tool-door runner resolve through it, so one conditional shim there disabled the entire boundary — all nine additions included — with this suite green | the whole `daedalus/ariadne/` package is protected |
+| D2 (high) | `tests/conftest.py` was **admissible** and every protected suite loads it. One edit and the protected suites collected nothing: "no tests ran in 0.23s" — it removes the evidence rather than changing it | protected |
+| mutation C | nothing in the tree pinned the write-wave policy **values**; opening the closed set and flipping the default left 82 tests green | pinned |
+
+D1 and D2 are not the "a new file acquires boundary responsibility" case this
+packet excused itself from. Neither file is new or peripheral: one is the
+package door in front of the protected module, the other the conftest root under
+every protected suite. They are the same class this packet set out to close,
+findable the same way — ask what *enforces*, not what *defines* — and they were
+missed.
+
+**Severity assessment confirmed.** All three legs of "defence in depth, not a
+breach" hold on measurement: `promote_candidates` fails closed without an
+approval ledger and re-authenticates under the promotion lock against a freshly
+resolved live HEAD; the planner's tool inventory contains no promotion tool
+(worth stating precisely: `FILE_TOOLS` *does* include `file.write`, so "no
+promotion tool" is true and "no write capability" is not); `applied: False` is a
+literal, not derived. That assessment stood for the six paths the packet found —
+it did **not** stand for D1 and D2, where the bypass needs no promotion at all.

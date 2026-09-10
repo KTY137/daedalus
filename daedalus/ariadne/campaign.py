@@ -895,7 +895,13 @@ SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     "daedalus/kernel/promotion",
     "daedalus/kernel/approvals.py",
     "daedalus/kernel/contracts/",
-    "daedalus/ariadne/campaign.py",
+    # The WHOLE package, not just `campaign.py`. `__init__.py` re-exports
+    # `run_campaign`, and both the HTTP door and the tool-door runner resolve
+    # through it -- so one conditional shim in an admissible `__init__` used to
+    # disable this entire boundary, all nine additions included, with the
+    # boundary's own suite green (Odysseus round 1, D1). Protecting the
+    # definition and leaving the package door open protects nothing.
+    "daedalus/ariadne/",
     # The door that enforces this boundary, and the fence that admits the tool.
     "daedalus/runtimes/computer_ariadne.py",
     "daedalus/runtimes/computer.py",
@@ -921,6 +927,11 @@ SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     # `approvals.py` and `contracts/` are protected, so a candidate must not
     # reach the tests that prove they work either.
     "tests/kernel/",
+    # Every protected suite loads it. One edit to the admissible root conftest
+    # and the protected suites collect NOTHING -- "no tests ran in 0.23s" --
+    # which removes the evidence a reviewer reads rather than changing what it
+    # says (Odysseus round 1, D2).
+    "tests/conftest.py",
 )
 
 
