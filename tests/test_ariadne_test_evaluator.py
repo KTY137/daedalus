@@ -313,13 +313,69 @@ def test_the_campaign_identity_binds_its_judge(tmp_path):
     assert "exact_match" not in str(caught.value)
 
 
+@pytest.mark.slow
+def test_a_forged_report_with_inflated_counts_is_refused(tmp_path):
+    """Cerberus round 2 (CRITICAL), EXECUTED by the reviewer: the JUnit report
+    the count-rule reads lives in the workspace the candidate's own code runs
+    in. A repair that wrote the report itself, claiming 41 tests, and exited
+    zero before pytest finished, was NOMINATED.
+
+    The repair arm must now execute exactly as many tests as the baseline, and
+    a forger cannot read the baseline's count off its own arm. What this test
+    does NOT claim: that a forger who counts the suite itself and reports that
+    number is caught. It is not, and `verdict_is_self_reported` says so on
+    every observation."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    forged = (
+        "return a + b\n\n"
+        "import os as _o, pathlib as _p\n"
+        "_p.Path('daedalus-ariadne-report.xml').write_text(\n"
+        "    '<testsuite name=\"pytest\" tests=\"41\" failures=\"0\" errors=\"0\" skipped=\"0\"/>')\n"
+        "_o._exit(0)\n"
+    )
+    with pytest.raises(AriadneCampaignError, match="different number of tests"):
+        run_campaign(
+            repo_root=str(root), source_revision=revision, campaign_id="a11-forge",
+            target_path="pkg/mod.py", before=BEFORE, after=forged, timeout_s=60,
+            evaluator=EVALUATOR,
+        )
+
+
+def test_every_observation_says_the_verdict_is_self_reported(tmp_path):
+    """The receipt must not let a reader assume an independent evaluator. The
+    counts come from a process that ran candidate code."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    _campaign(root, revision, campaign_id="a12-selfreport")
+    from daedalus.spine.killswitch import control_root
+
+    seen = 0
+    for path in control_root(root).rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            blob = json.loads(path.read_bytes().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, OSError):
+            continue
+        if isinstance(blob, dict) and str(blob.get("schema", "")).startswith(
+                "daedalus-ariadne-test-evaluator-observation"):
+            assert blob["verdict_is_self_reported"] is True
+            assert blob["child_environment"] == "inherited-except-denylist"
+            assert blob["child_network"] == "unrestricted"
+            seen += 1
+    assert seen >= 3  # one per arm
+
+
 def test_the_module_says_what_a_green_run_does_not_prove():
     """A guarantee that reads stronger than the mechanism is this repository's
     most expensive recurring defect, so the docstring is pinned."""
 
     from daedalus.ariadne import campaign as subject
 
-    text = subject.TestCommandEvaluator.__doc__ or ""
+    # Collapsed, because a pinned sentence must not depend on where the line
+    # wrapped: the round-2 assertion below failed for exactly that reason.
+    text = " ".join((subject.TestCommandEvaluator.__doc__ or "").split())
     assert "cannot pick its judge" in text
     assert "cannot tell the difference is reported" in text
     # Cerberus round 1 refuted the round-0 wording "cannot weaken the judge":
@@ -332,4 +388,9 @@ def test_the_module_says_what_a_green_run_does_not_prove():
     # And it does not claim a sandbox it does not have.
     assert "NOT a sandbox claim" in text
     assert "DENYLIST" in text and "no network fence" in text
+    # Round 2: the verdict is a self-report from a process that ran candidate
+    # code, and the docstring must say so where a reader cannot miss it.
+    assert "NOT PROOF AGAINST A HOSTILE GENERATOR" in text
+    assert "SELF-REPORT" in text and "verdict_is_self_reported" in text
+    assert "nomination is not promotion" in text
     assert sys.version_info >= (3, 12)

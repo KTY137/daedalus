@@ -12,9 +12,26 @@ Dependencies: G1-IKARUS-47 (the campaign door), G1-ARIADNE-10 (the leakage bound
 
 A campaign arm passes only when a **frozen, project-declared test command**,
 run in the existing contained gate against an evaluation workspace built from
-the pinned source revision plus that arm's candidate file, exits zero within a
-declared timeout — and the candidate can neither choose the command nor change
-what it asserts.
+the pinned source revision plus that arm's candidate file, reports through its
+own JUnit report that it executed the same number of tests as the baseline
+arm, with no failures and no errors, within a declared timeout — and the
+candidate cannot choose the command, the test files or the session
+configuration.
+
+**The sharpest limit, stated first because two review rounds found it twice.**
+The target file must be one the suite imports, or the negative control could
+never fail. So the candidate's code runs inside the judging process, and
+everything the harness reads back afterwards — the exit code, the output, the
+JUnit report — is produced by that process. Round 1 forged the exit code by
+switching the suite off; round 2 forged the report itself, claiming 41 tests,
+and was nominated. Requiring the repair arm to execute *exactly* as many tests
+as the baseline closes both, and a forger cannot read the baseline's count off
+its own arm. It does **not** close a forger that counts the suite itself and
+reports that number. **The verdict is a self-report**, every observation carries
+`verdict_is_self_reported: true`, and observing the run from outside the child
+is a separate packet. What stands between a forged verdict and the repository is
+unchanged: nomination is not promotion, and promotion needs a one-use owner
+approval.
 
 ## Why this packet exists
 
@@ -66,13 +83,15 @@ packet replaces the verdict source, and nothing else.
    proved the difference by targeting `conftest.py` with a collection hook that
    skipped every item — the arms read green, red, green and the campaign
    nominated a candidate whose winning arm ran zero assertions.
-3. **An exit code is not a verdict.** The campaign appends its own JUnit
-   report to the command and reads the counts: a trial passes only when tests
-   were actually EXECUTED (`tests` minus `skipped` above zero) with no failures
-   and no errors, and the repair arm must not execute fewer tests than the
-   baseline did. A suite that was switched off cannot pass any more. The report
+3. **An exit code is not a verdict, and neither is a self-written report.**
+   The campaign appends its own JUnit report to the command and reads the
+   counts: a trial passes only when tests were actually EXECUTED (`tests` minus
+   `skipped` above zero) with no failures and no errors, and the repair arm must
+   execute EXACTLY as many tests as the baseline did. A suite that was switched
+   off cannot pass, and neither can one that inflates its own count. The report
    is hostile input — a candidate influenced the process that wrote it — so it
-   is size-bounded and a doctype or entity declaration is refused before parsing.
+   is size-bounded and a doctype or entity declaration is refused before
+   parsing. What remains open is stated in the acceptance claim above.
 
 4. **A judge that cannot tell the difference is reported, not hidden.** The
    negative-control arm exists to fail. If the command passes on the negative
@@ -233,3 +252,37 @@ Still open and named rather than claimed away: the doors at
 `daedalus/interfaces/http/web_api.py` are **not built**, so no planner and no
 HTTP caller can reach this evaluator yet. That is the largest mitigating fact
 today and the packet no longer reads as if those doors existed.
+
+## Review round 2 (2026-09-10, `e9339e12`)
+
+**Cerberus: `block`, one CRITICAL. Odysseus, in parallel, on the same commit:
+one dead fix, two false claims, and a workspace that is not the revision.**
+
+Cerberus proved that round 1's repair relocated its hole rather than closing it.
+The JUnit report the count-rule trusts lives in the workspace the candidate's own
+code runs in, so a repair that wrote the report itself — 41 tests, no failures —
+and exited zero before pytest finished was nominated. The repair arm must now
+execute exactly as many tests as the baseline, which closes that attack and the
+whole "more but weaker" class, and the packet stops claiming what a self-report
+cannot deliver.
+
+Odysseus found four more, all repaired here:
+
+| # | finding | repair |
+| --- | --- | --- |
+| dead fix (high) | `_judge_labels` was written for the failure paths in round 1 and never called, so a timeout still crashed the campaign with `receipt metrics differ from campaign` while the packet claimed a timeout is not a crash | wired into the failed-campaign receipt and the faulted trial, both of which now name the judge that actually ran |
+| lease (medium) | the packet claimed the outer lease and the spec expiry were widened for three arms; they were not, and an 11.4 s campaign completed under a 3 s declared lease | both derive from the evaluator's timeout plus a measured workspace-build allowance |
+| workspace (medium-high) | `_extract_revision` silently dropped every non-regular member (four tracked symlinks in this repository) and let two case-folding paths report more files than exist | both are refusals now; the workspace either equals what it claims or the campaign stops |
+| replay (medium) | the command digest was compared against the same value as the evaluator digest, so the check could not fail; a failing arm accepted any return code; negative counts passed | the digest is read from the ExperimentSpec, a different artifact; the return code must agree with the verdict; counts must be non-negative |
+
+Odysseus also refuted two things worth recording as negative evidence: writes
+outside the workspace ARE blocked (Low-Integrity token, measured on the control
+root, the user profile and the evaluator's own source), and a forged receipt
+cannot pass replay while the retained lease-terminal record exists — that
+defence is pre-existing and independent of this packet.
+
+One correction to the earlier claim that the workspace is the pinned revision:
+`git archive` applies this host's `core.autocrlf`, so text files are not
+byte-identical to their blobs. No working-tree content leaks, which is what the
+claim is for, but the wording "every byte is the base revision's" was too
+strong.
