@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 527,
+    "assigned_artifacts": 528,
     "legacy_artifacts": 204,
-    "packet_artifacts": 529,
-    "packet_ids": 464,
-    "post_index_artifacts": 325,
+    "packet_artifacts": 530,
+    "packet_ids": 465,
+    "post_index_artifacts": 326,
     "registry_artifacts": 1,
-    "tracked_files": 530,
+    "tracked_files": 531,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -6406,6 +6406,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-49_VACUITY_AND_WORKSPACE_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "6fecb1340b88076b7c20bc4fc2583652bc3a9c5a",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-48 (the test-running evaluator, merged)",
+        "owner": "repository owner (standing merge authorization of 2026-09-10, `CLAUDE.md`)"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-49",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-49_VACUITY_AND_WORKSPACE_BINDING.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -11210,6 +11226,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-48",
       "path": "docs/work-packets/G1-IKARUS-48_TEST_RUNNING_EVALUATOR.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-49",
+      "path": "docs/work-packets/G1-IKARUS-49_VACUITY_AND_WORKSPACE_BINDING.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

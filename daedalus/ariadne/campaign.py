@@ -118,6 +118,12 @@ _TEST_OBSERVATION_KEYS = (
     "command_sha256", "timed_out", "workspace_files", "workspace_bytes", "report",
     "workspace_removed", "child_environment", "child_network", "verdict_is_self_reported",
 )
+#: An inline program is not a test command: it is a way to run anything at all
+#: under the campaign's lease, and the argv is caller-supplied.
+#: -m pytest is how a test command starts, so the module switch stays. An
+#: INLINE program does not: it is a way to run anything at all under the
+#: campaign's lease from a caller-supplied argv.
+_TEST_ARGV_FORBIDDEN_FLAGS = frozenset({"-c", "--command"})
 #: Only this interpreter token may open a test command. It is replaced by the
 #: interpreter the campaign resolved, so an argv can never name a binary path.
 _TEST_ARGV_INTERPRETER = "python"
@@ -239,6 +245,23 @@ def _admit_test_evaluator(value: object) -> TestCommandEvaluator:
     for item in argv:
         if not item or len(item) > MAX_TEST_ARG_CHARS or "\x00" in item:
             raise AriadneCampaignError("evaluator argv entries must be short, non-empty text")
+    # The packet claimed an argv naming an absolute path was refused. It was
+    # not: `python -c "import os; os.system(...)"` was admitted, and so was a
+    # path outside the workspace (Odysseus round 2 on the merged packet, O2-4).
+    # A test command names things INSIDE the workspace and nothing else.
+    for item in argv[1:]:
+        if item in _TEST_ARGV_FORBIDDEN_FLAGS:
+            raise AriadneCampaignError(
+                f"evaluator argv may not carry an inline program: {item}")
+        candidate = item.split("=", 1)[-1] if item.startswith("--") else item
+        if not candidate or candidate.startswith("-"):
+            continue
+        if candidate.startswith(("/", "\\")) or (len(candidate) > 1 and candidate[1] == ":"):
+            raise AriadneCampaignError(
+                f"evaluator argv may not name an absolute path: {item}")
+        if any(part == ".." for part in candidate.replace("\\", "/").split("/")):
+            raise AriadneCampaignError(
+                f"evaluator argv may not leave the workspace: {item}")
     # No working directory: the kernel's command gate requires ``gate_cwd='.'``
     # and runs at the workspace root, so offering one would be a promise the
     # kernel refuses. The argv carries the selection instead.
@@ -317,6 +340,38 @@ def _read_test_report(path: Path) -> dict[str, int]:
     return counts
 
 
+def _read_test_identities(path: Path) -> tuple[str, ...]:
+    """Which tests ran and what each said, as sorted `id=outcome` pairs.
+
+    A cardinal count cannot tell a suite that ran from a suite that was
+    neutered in place: `Function.runtest = lambda self: None` collects and
+    "runs" exactly the same tests and reports the same number (Odysseus round 2
+    on the merged packet, O2-1b). The identities can.
+    """
+
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return ()
+    if len(raw) > MAX_TEST_REPORT_BYTES or b"<!doctype" in raw[:4096].lower() or b"<!entity" in raw.lower():
+        return ()
+    try:
+        root_element = ElementTree.fromstring(raw)
+    except (ElementTree.ParseError, ValueError):
+        return ()
+    identities: list[str] = []
+    for case in root_element.iter("testcase"):
+        name = f"{case.get('classname', '')}::{case.get('name', '')}"
+        outcome = "passed"
+        for child in case:
+            tag = child.tag.rsplit("}", 1)[-1]
+            if tag in ("failure", "error", "skipped"):
+                outcome = tag
+                break
+        identities.append(f"{name}={outcome}")
+    return tuple(sorted(identities))
+
+
 def _remove_evaluation_workspace(workspace: Path) -> bool:
     """Remove one arm's evaluation workspace. The receipt is the evidence."""
 
@@ -365,14 +420,38 @@ def _refuse_target_inside_test_roots(target_path: str, test_roots: tuple[str, ..
         )
 
 
+def _revision_file_list(root: Path, revision: str) -> tuple[str, ...]:
+    """Every blob path the revision itself declares, from the object database.
+
+    `git archive` honours `$GIT_DIR/info/attributes`, which is untracked, in no
+    revision, and invisible to `git status`. One `export-ignore` line removed
+    the test that guarded a target and turned a refusal into a nomination
+    (Odysseus round 2 on the merged packet, O2-2). The tree listing does not
+    read that file, so comparing the two is what makes "the workspace is the
+    pinned revision" a checked statement instead of a hope.
+    """
+
+    try:
+        listing = subprocess.run(
+            ["git", "-C", str(root), "ls-tree", "-r", "-z", "--name-only", revision],
+            capture_output=True, check=True,
+        ).stdout.decode("utf-8", errors="strict")
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as exc:
+        raise AriadneCampaignError(
+            f"the pinned revision's file list is unreadable: {type(exc).__name__}"
+        ) from exc
+    return tuple(sorted(name for name in listing.split("\x00") if name))
+
+
 def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
     """Build an evaluation workspace from one Git revision, deterministically.
 
     ``git archive`` reads the REVISION, never the working tree, so a dirty
     checkout cannot leak into a trial, and the extraction is byte-identical
     across runs (measured on this repository: two extractions, one digest).
-    Only regular files are written: a link in an archive is not source this
-    evaluator will read.
+    A member that is not a regular file is REFUSED, not skipped: dropping it
+    silently made the workspace differ from the revision while the count said
+    otherwise.
     """
 
     try:
@@ -427,6 +506,18 @@ def _extract_revision(root: Path, revision: str, into: Path) -> tuple[int, int]:
         raise AriadneCampaignError(
             f"evaluation workspace archive is unreadable: {type(exc).__name__}"
         ) from exc
+    # The workspace must be what the revision says it is, not what an untracked
+    # attributes file decided to hand over (O2-2).
+    declared = set(_revision_file_list(root, revision))
+    present = {p.relative_to(into).as_posix() for p in into.rglob("*") if p.is_file()}
+    if declared != present:
+        missing = sorted(declared - present)[:5]
+        extra = sorted(present - declared)[:5]
+        raise AriadneCampaignError(
+            "the evaluation workspace does not match the pinned revision's own file "
+            f"list (missing {len(declared - present)}, unexpected {len(present - declared)}"
+            f"): {missing or extra}"
+        )
     return files, total
 
 
@@ -1934,6 +2025,9 @@ def run_campaign(
         evidence_by_key: dict[tuple[str, int], EvidencePacket] = {}
         #: How many tests each arm actually EXECUTED, per the report it wrote.
         executed_by_variant: dict[str, int] = {}
+        #: WHICH tests each arm ran and what each said. A count cannot tell a
+        #: suite that ran from one that was neutered in place (O2-1b).
+        identities_by_variant: dict[str, tuple[str, ...]] = {}
         arms = (("baseline", "baseline", 0), ("negative-control", "candidate", 1), ("repair", "candidate", 2))
         # Resolved once per campaign so every arm runs under the same
         # interpreter; the observation records its identity, never its path.
@@ -2145,6 +2239,9 @@ def run_campaign(
                         and report_counts["errors"] == 0
                     )
                     executed_by_variant[variant] = report_counts["executed"]
+                    identities_by_variant[variant] = _read_test_identities(
+                        evaluation_workspace / TEST_REPORT_RELATIVE
+                    )
                     # A tree of the pinned revision per arm is ~284 MiB on this
                     # repository; three of them per campaign, retained forever,
                     # is not evidence, it is disk (Cerberus round 1, high 3).
@@ -2607,6 +2704,43 @@ def run_campaign(
                     "the repair arm executed a different number of tests than the "
                     f"baseline ({repair_executed} against {baseline_executed}), so it "
                     "did not pass the same suite"
+                )
+            baseline_ids = identities_by_variant.get("baseline", ())
+            repair_ids = identities_by_variant.get("repair", ())
+            control_ids = identities_by_variant.get("negative-control", ())
+            if not baseline_ids:
+                raise AriadneCampaignError(
+                    "the baseline arm reported no test identities, so there is nothing "
+                    "for the repair to have passed"
+                )
+            if repair_ids != baseline_ids:
+                # Same count, different tests or different outcomes: that is not
+                # the same suite passing (O2-1b: the count matched exactly while
+                # every assertion had been neutered in place).
+                raise AriadneCampaignError(
+                    "the repair arm did not report the same tests with the same "
+                    "outcomes as the baseline"
+                )
+            if control_ids == baseline_ids:
+                # The control must DISAGREE with the baseline somewhere.
+                raise AriadneCampaignError(
+                    "the negative control reported the same tests and outcomes as the "
+                    "baseline, so the suite does not exercise the changed region and a "
+                    "passing repair proves nothing about it"
+                )
+            if not any(identity.endswith("=failure") for identity in control_ids):
+                # A test that ERRORED did not run: the mangled file failed to
+                # import or collect, so the control proved the suite LOADS the
+                # file and nothing about whether it exercises the changed region
+                # (Odysseus round 2 on the merged packet, O2-1a: a real
+                # behaviour change no test reads was nominated on exactly this).
+                # A test that FAILED ran and disagreed, which is the evidence
+                # this arm exists to produce. Refusing here means many campaigns
+                # will not nominate; that is correct, because they prove nothing.
+                raise AriadneCampaignError(
+                    "no test FAILED against the negative control -- they errored or were "
+                    "skipped, so the suite only showed that the file still loads, not "
+                    "that it exercises the changed region"
                 )
         selected = repair_trial
         selected_packet = evidence_by_key[(selected.variant_id, selected.seed)]

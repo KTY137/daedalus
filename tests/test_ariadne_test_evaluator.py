@@ -497,6 +497,142 @@ def test_an_unreadable_spec_fails_the_replay_closed(tmp_path, monkeypatch):
         _campaign(root, revision, campaign_id="a16-nospec")
 
 
+@pytest.mark.slow
+def test_a_change_no_test_reads_is_not_nominated(tmp_path):
+    """Odysseus round 2 (O2-1a), EXECUTED: `LIMIT = 10` -> `LIMIT = 999`, a real
+    behaviour change, was NOMINATED although no test read LIMIT. Nothing was
+    forged: the negative control failed because the mangled file no longer
+    parsed, so its failure proved the suite LOADS the file and nothing about
+    whether it exercises the changed region.
+
+    A test that ERRORED did not run. A test that FAILED ran and disagreed. Only
+    the second is evidence, and demanding it means many campaigns will refuse --
+    correctly, because they prove nothing."""
+
+    root = tmp_path / "subject"
+    (root / "pkg").mkdir(parents=True)
+    (root / "tests").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "mod.py").write_text("LIMIT = 10\n\n\ndef add(a, b):\n    return a + b\n",
+                                         encoding="utf-8")
+    (root / "tests" / "test_mod.py").write_text(
+        "from pkg.mod import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n",
+        encoding="utf-8")
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+    for argv in (["init", "-q"], ["add", "-A"], ["commit", "-qm", "fixture"]):
+        subprocess.run(["git", "-C", str(root), *argv], check=True, env=env, capture_output=True)
+    KillSwitch(repo_root=root).arm(note="G1-IKARUS-49 fixture")
+    revision = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+
+    with pytest.raises(AriadneCampaignError, match="no test FAILED against the negative control"):
+        run_campaign(
+            repo_root=str(root), source_revision=revision, campaign_id="a17-uncovered",
+            target_path="pkg/mod.py", before="LIMIT = 10", after="LIMIT = 999",
+            timeout_s=60, evaluator=EVALUATOR,
+        )
+
+
+@pytest.mark.slow
+def test_a_repair_that_neuters_the_suite_in_place_is_still_nominated(tmp_path):
+    """NEGATIVE EVIDENCE, retained (Odysseus round 2 on the merged packet, O2-1b).
+
+    Two lines inside the candidate -- replacing pytest's own `runtest` with a
+    no-op -- neuter every assertion while the SAME tests are collected and
+    "run". The counts match, the identities match, the outcomes match, pytest
+    writes the report truthfully, and a wrong repair IS NOMINATED.
+
+    This is the sharpest instance of the limit the packet states: the target
+    must be a file the suite imports, so candidate code runs inside the judging
+    process, and no inspection of what that process reports can tell a run from
+    a performance of a run. Comparing identities closed the cases where the
+    outcomes differ; it cannot close this one, and pretending otherwise would be
+    the exact defect this repository blocks on.
+
+    What still holds is the only thing that ever protected the repository: the
+    receipt says the verdict is self-reported, and a nomination is not a
+    promotion."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    neutered = (
+        "return a * 1000 + b\n"
+        "import _pytest.python as _p\n"
+        "_p.Function.runtest = lambda self: None\n"
+    )
+    receipt = run_campaign(
+        repo_root=str(root), source_revision=revision, campaign_id="a18-neutered",
+        target_path="pkg/mod.py", before=BEFORE, after=neutered,
+        timeout_s=60, evaluator=EVALUATOR,
+    )
+    assert receipt["outcome"] == "nominated"  # measured, not desired
+
+    from daedalus.spine.killswitch import control_root
+
+    hedged = 0
+    for path in control_root(root).rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            blob = json.loads(path.read_bytes().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, OSError):
+            continue
+        if isinstance(blob, dict) and str(blob.get("schema", "")).startswith(
+                "daedalus-ariadne-test-evaluator-observation"):
+            assert blob["verdict_is_self_reported"] is True
+            hedged += 1
+        if isinstance(blob, dict) and blob.get("nomination_status") == "nominated":
+            assert "SELF-REPORTED" in " ".join(blob.get("reasons", ()))
+            hedged += 1
+    assert hedged >= 4  # three arms plus the nomination
+
+
+def test_an_untracked_attributes_file_cannot_choose_what_is_judged(tmp_path):
+    """Odysseus round 2 (O2-2), EXECUTED: `git archive` honours
+    `$GIT_DIR/info/attributes`, which is untracked, in no revision and invisible
+    to `git status`. One `export-ignore` line removed the test that guarded a
+    target and flipped a refusal into a nomination.
+
+    The workspace is now compared with the revision's own tree listing, which
+    does not read that file."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    clean_files, _ = _extract_revision(root, revision, tmp_path / "ws-clean")
+    assert clean_files == 3
+
+    (root / ".git" / "info").mkdir(parents=True, exist_ok=True)
+    (root / ".git" / "info" / "attributes").write_text(
+        "tests/test_mod.py export-ignore\n", encoding="utf-8")
+    porcelain = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                               capture_output=True, text=True, check=True).stdout
+    assert porcelain == ""  # invisible to every ordinary check
+
+    with pytest.raises(AriadneCampaignError, match="does not match the pinned revision"):
+        _extract_revision(root, revision, tmp_path / "ws-attrs")
+
+
+def test_an_evaluator_argv_may_not_name_an_absolute_path_or_an_inline_program():
+    """Odysseus round 2 (O2-4): the packet's acceptance row claimed this refusal
+    existed. It did not -- `python -c "import os; ..."` was admitted, and so was
+    a path outside the workspace."""
+
+    for bad, expected in (
+        (("python", "-c", "import os"), "inline program"),
+        (("python", "--command", "x"), "inline program"),
+        (("python", "-m", "pytest", "C:/Windows/Temp"), "absolute path"),
+        (("python", "-m", "pytest", "/etc"), "absolute path"),
+        (("python", "-m", "pytest", "../../.."), "leave the workspace"),
+        (("python", "-m", "pytest", "--rootdir=/etc"), "absolute path"),
+    ):
+        with pytest.raises(AriadneCampaignError, match=expected):
+            _admit_test_evaluator(TestCommandEvaluator(argv=bad))
+    # The ordinary shape still passes.
+    _admit_test_evaluator(TestCommandEvaluator(argv=("python", "-m", "pytest", "-q", "tests")))
+
+
 def test_the_module_says_what_a_green_run_does_not_prove():
     """A guarantee that reads stronger than the mechanism is this repository's
     most expensive recurring defect, so the docstring is pinned."""
