@@ -76,12 +76,14 @@ den Nachrichten-Anhang.
   (Codex-Planner blockiert, MEASURED 2026-09-10); Owner: lokaler `main` ist
   238 Commits hinter `origin/main` (`git merge --ff-only origin/main` im
   Primär-Checkout, dann App neu starten).
-- Herzschlag: 2026-09-10 14:10 — Review-Runde 2 ausgewertet (Cerberus
-  `needs_fix`, kein CRITICAL; Odysseus: Defekte 1/4/5/6 behoben, 2/3 verengt
-  mit drei Restlücken D1–D3). Alle Runde-2-Befunde (N1–N8, D1–D3) repariert
-  und gepinnt; 453 Tests grün; Mutationstabelle 29 Guards läuft; Commit 3
-  folgt, danach kompakte Cerberus-Runde 3 auf dem Diff. PR #364 bleibt Draft
-  bis zum Verdikt.
+- Herzschlag: 2026-09-10 14:50 — Commit 4 (Reparaturen aus Cerberus Runde 3
+  C1/H1/H2 und Odysseus Runde 3 D4–D8: Egress nach Host-Lane statt
+  Provider-Name, `ignore_patterns` gefiltert, `withheld`-Zeilen nur noch
+  Rolle+Regel, Regel-Marker geschwärzt, verschachtelte Strings gefiltert,
+  36 Pfad-Schreibweisen) wird gepusht. Sechzehn Suiten 476 grün, s02-Pin
+  auf 7145/47482/94.35 nachgezogen, Mutationstabelle 33/33 gefangen
+  (`mutation-table-6.txt`), 0 CR-Bytes. Danach Cerberus Runde 4 und Odysseus
+  Runde 4; PR #364 bleibt Draft bis Cerberus `approve`.
 
 ### Lane `codex-desktop` — Desktop-Packaging (Codex, direkt im Primär-Checkout)
 

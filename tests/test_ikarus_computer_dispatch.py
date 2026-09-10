@@ -153,6 +153,27 @@ class EnableDaedalusTest(unittest.TestCase):
         self.assertIn("gelten hier NICHT", warning)
         self.assertIn("confirm-remote", warning)
 
+    def test_a_networked_ollama_is_egress_and_needs_the_confirmation(self):
+        """Cerberus round 3 (C1): decided by HOST, not by provider name. An
+        Ollama on a tailnet address with the remote flag set is untrusted, its
+        observations leave, the grant must say so and must ask first."""
+        from daedalus.interfaces import computer_configuration
+        from daedalus.runtimes import computer
+        status = lambda root, project=None, project_readers=None: self._status(  # noqa: E731
+            ["file.read"], provider="ollama_http", remote=True)
+        with mock.patch.dict(os.environ, {"OLLAMA_HOST": "http://100.119.126.9:11434"}), \
+                mock.patch.object(computer, "computer_status", status), \
+                mock.patch.object(computer_configuration, "configure_computer",
+                                  side_effect=AssertionError("must not configure without the confirmation")):
+            final = list(loop.conversation_events(PROJECT, "/computer enable daedalus"))[-1][1]
+        self.assertEqual(final["computer"]["daedalus_tools_change"], "confirmation_required")
+        self.assertIn("Egress-Policy des Projekts (Deny-Liste, deny_content)", final["assistant"])
+        with mock.patch.dict(os.environ, {"OLLAMA_HOST": "http://100.119.126.9:11434"}):
+            granted = self._enable(provider="ollama_http", remote=True)["assistant"]
+        self.assertIn("verlassen damit den Rechner", granted)
+        self.assertNotIn("nichts verlässt ihn", granted)
+        self.assertNotIn("gelten hier NICHT", granted)
+
     def test_enable_adds_the_family_through_compare_and_replace(self):
         from daedalus.interfaces import computer_configuration
         from daedalus.runtimes import computer

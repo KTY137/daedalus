@@ -353,7 +353,8 @@ def test_structure_rows_go_through_the_path_gate(tmp_path, monkeypatch):
     # Cerberus N4: rows are projected to an allow-listed key set, so a field a
     # producer adds later cannot join the prompt; N7: the real ignore keys.
     assert "future_field" not in structure["hotspots"][0]
-    assert structure["ignored"] == {"count": 1, "n_files_scanned": 4, "ignore_patterns": ["@tests"]}
+    assert structure["ignored"] == {"count": 1, "n_files_scanned": 4, "ignore_patterns": ["@tests"],
+                                    "ignore_patterns_withheld": 0}
     assert "secret/x.py" not in json.dumps(structure)
     assert [row["name"] for row in structure["clones"]] == ["helper"]
     assert structure["clones"][0]["sites"] == [{"module": "pkg/mod.py", "line": 1}]
@@ -394,11 +395,93 @@ def test_docrefs_rows_go_through_the_gate_and_errors_are_a_count(tmp_path, monke
     ("~/projects/daedalus/x.py", True), ("/usr/local/lib/python3.12/site-packages/daedalus/x.py", True),
     ("/data/corpus/x", True), ("/workspace/x/y", True), ("/proc/self/environ", True),
     ("%USERPROFILE%\\Desktop\\x.md", True), ("$HOME/x/y", True), ("read C:/Users/x/y.md", True),
+    # Cerberus round 3 (d): the shapes the two-segment rule and the root list missed
+    ("${HOME}/lab/driver.py", True), ("$env:USERPROFILE\\Desktop\\x", True), ("C:temp\\x", True),
+    ("smb://nas01/share/x", True), ("open /etc failed", True), ("could not read /tmp", True),
+    ("cd /src && make", True), ("https://example.com/a/b", True), ("see [guide](/docs/guide.md)", True),
+    # Odysseus round 3 (D7): tilde-user, non-ASCII first segment, bare UNC host, drive after a word
+    ("~kty/projects/x.py", True), ("/дом/kty/secret.txt", True), ("share \\\\nas01 down", True),
+    ("checkoutC:\\Users\\x", True), ("/Program Files/App/config.ini", True),
     ("renamed the parser", False), ("ratio 1:2 and a/b", False), ("C:", False), ("x/etc/y", False),
     ("pkg/mod.py", False), ("docs/a.md -> docs/b.md", False), ("50/50", False),
+    ("M  src/app.ts", False), ("2026/09/10", False), ("and/or", False), ("n/a", False),
 ])
 def test_embedded_host_paths_are_detected(text, embedded):
     assert subject._mentions_host_path(text) is embedded
+
+
+def test_ignore_patterns_are_gated_and_counted(tmp_path, monkeypatch):
+    """Cerberus round 3 (H1): ignore patterns name the trees a project withholds."""
+    _project_with_policy(monkeypatch, deny=[], deny_content=[r"acme_hv"])
+    from daedalus.structcore import report as report_module
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
+        "n_files": 1, "ignored": {"count": 2, "n_files_scanned": 3,
+                                  "ignore_patterns": ["@tests", "vendor/acme_hv/", "C:/abs/leak/"]},
+        "languages": {}, "totals": {}, "hotspots": [], "clones": [], "fan_in": []})
+    structure = adapter.execute("daedalus.structure", {})
+    assert structure["ignored"] == {"count": 2, "n_files_scanned": 3, "ignore_patterns": ["@tests"],
+                                    "ignore_patterns_withheld": 2}
+
+
+def test_slice_withheld_rows_name_the_rule_never_the_file(tmp_path, monkeypatch):
+    """Cerberus round 3 (H2): the withheld rows enumerated exactly the files the
+    project keeps from the vendor; only role and rule travel, plus the count,
+    and the slicer's own breadcrumb lines are scrubbed to the same shape."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 3, "n_included": 1,
+        "slice_text": ("def present():\n    return 1\n\n# ===== WITHHELD (egress gate) =====\n"
+                       "# tct_app/devices/iseg.py  (egress policy: tct_app/devices/)  [neighbor]\n"
+                       "# configs/secrets/lab.yaml  (secret path)  [neighbor]\n"),
+        "withheld": [{"file": "tct_app/devices/iseg.py", "role": "neighbor", "rule": "egress policy: tct_app/devices/"},
+                     {"file": "configs/secrets/lab.yaml", "role": "neighbor", "rule": "secret path"}]})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert sliced["withheld"] == [{"role": "neighbor", "rule": "egress policy: tct_app/devices/"},
+                                  {"role": "neighbor", "rule": "secret path"}]
+    assert sliced["withheld_count"] == 2
+    assert "iseg" not in json.dumps(sliced) and "lab.yaml" not in json.dumps(sliced)
+    assert "# <withheld>  (secret path)  [neighbor]" in sliced["text"]
+    assert "# ===== WITHHELD (egress gate) =====" in sliced["text"]
+
+
+def test_slice_gate_rules_never_quote_the_marker_they_fired_on(tmp_path, monkeypatch):
+    """Odysseus round 3 (D6): ``content matches sensitive marker /CODENAME/`` in a
+    withheld row or in the focus refusal line disclosed the codename itself."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=[], deny_content=[r"ODYSSEUSCHIMERA"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"tests/test_two.py": {}}})
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 0, "n_included": 0,
+        "slice_text": "# ===== WITHHELD: tests/test_two.py (content matches sensitive marker /ODYSSEUSCHIMERA/) =====\n",
+        "withheld": [{"file": "tests/test_two.py", "role": "focus",
+                      "rule": "content matches sensitive marker /ODYSSEUSCHIMERA/"}]})
+    sliced = adapter.execute("daedalus.slice", {"module": "tests/test_two.py"})
+    assert sliced["withheld"] == [{"role": "focus", "rule": "content matches sensitive marker /<marker>/"}]
+    assert sliced["text"] == "# ===== WITHHELD: <withheld> (content matches sensitive marker /<marker>/) =====\n"
+    assert "ODYSSEUSCHIMERA" not in json.dumps({k: v for k, v in sliced.items() if k != "focus_file"})
+
+
+def test_nested_strings_in_a_kept_field_are_gated(tmp_path, monkeypatch):
+    """Cerberus round 3 (b): a kept key holding a list or dict of strings is gated."""
+    _project_with_policy(monkeypatch, deny=[], deny_content=[r"ODYSSEUSCHIMERA"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    kept, withheld = adapter._admit_rows(
+        [{"doc_path": "docs/a.md", "extra": ["fine", {"deep": "ODYSSEUSCHIMERA"}]},
+         {"doc_path": "docs/b.md", "extra": ["fine", {"deep": "C:\\Users\\x\\y"}]},
+         {"doc_path": "docs/c.md", "extra": ["fine"]}],
+        ("doc_path",), (), keep_keys=("doc_path", "extra"))
+    assert [row["doc_path"] for row in kept] == ["docs/c.md"]
+    assert withheld == 2
 
 
 def test_kept_fields_outside_the_text_keys_are_gated_too(tmp_path, monkeypatch):
@@ -599,7 +682,7 @@ def test_structure_and_slice_observations_read_the_scratch_repository(scratch_re
     # MEASURED 2026-09-10 (live run 3): ``ignored.source`` carried the absolute
     # ignore-file path; only the counts and the ignore PATTERNS are observed
     # now, under the key the index really emits (Cerberus N7).
-    assert set(structure["ignored"]) == {"count", "n_files_scanned", "ignore_patterns"}
+    assert set(structure["ignored"]) == {"count", "n_files_scanned", "ignore_patterns", "ignore_patterns_withheld"}
     assert str(scratch_repo) not in json.dumps(structure)
     sliced = adapter.execute("daedalus.slice", {"module": "mod.py"})
     assert sliced["focus_file"].endswith("pkg/mod.py")

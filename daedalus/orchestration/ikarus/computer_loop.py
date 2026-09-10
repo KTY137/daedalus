@@ -1251,9 +1251,15 @@ def conversation_events(project: str | None, message: str, *,
             # AND a non-local planner; ``trusted`` -- Claude or loopback Ollama
             # -- means the project's deny list does not apply, only the floor,
             # exactly as for the Voice (``sensitivity.slice_egress_rule``).
-            leaves = remote and planner_name not in _LOCAL_PLANNERS
-            trusted = _planner_lane_of(current) == "trusted"
-            if enabling and remote and not confirm:
+            # Cerberus round 3 (C1): decided by HOST, through the one predicate
+            # the adapter uses -- a networked Ollama (OLLAMA_HOST on a tailnet
+            # address, allow_remote_context set) is untrusted, its observations
+            # leave, and the grant must say so and ask. The flag alone is not
+            # egress: loopback Ollama with the flag set stays on this machine.
+            lane = _planner_lane_of(current)
+            trusted = lane == "trusted"
+            leaves = planner_name not in _LOCAL_PLANNERS or lane != "trusted"
+            if enabling and leaves and not confirm:
                 # Cerberus 2026-09-10 (CRITICAL 2 / MAJOR 3 / m-3): with a remote
                 # planner this grant widens egress -- the observations ARE the
                 # prompt -- so it needs the same transient confirmation as

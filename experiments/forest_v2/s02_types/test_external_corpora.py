@@ -109,12 +109,12 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     # claim did not drift at all.
     #
     # Re-pinned 2026-09-10 (G1-IKARUS-46) after one annotated module,
-    # daedalus/runtimes/computer_daedalus.py, joined the corpus: 7107 -> 7143
-    # functions, 47257 -> 47477 type-name sites, 520 files parsed. Probe run
+    # daedalus/runtimes/computer_daedalus.py, joined the corpus: 7107 -> 7145
+    # functions, 47257 -> 47482 type-name sites, 520 files parsed. Probe run
     # twice, identical except wall time (docs/evidence/G1-IKARUS-46). Again
     # ``marginal_functions`` is exactly 8; the rates moved by 0.01-0.02pp.
     assert entry["annotation_only_pct"] == 94.46  # the control
-    assert entry["full_resolver_pct"] == 94.34
+    assert entry["full_resolver_pct"] == 94.35
     assert entry["marginal_functions"] == 8
     assert entry["marginal_pp"] == 0.112
     # Preserve the repo-unverified bucket and all earlier negative/retracted rows.

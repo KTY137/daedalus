@@ -128,25 +128,58 @@ def _looks_like_host_path(value: str) -> bool:
 #: Odysseus round 2 (D3) widened this from a root-name list to the SHAPES of
 #: an absolute location: a drive (``C:\``, ``C:/``), a UNC in either slash
 #: direction (``\\nas\``, ``//nas/``), a ``file://`` URL, ``~/``, an expanded
-#: environment root (``%USERPROFILE%\``, ``$HOME/``), or any POSIX absolute
-#: path of two or more segments (``/usr/lib/x``, ``/proc/self/environ``). A
-#: rooted repository-relative spelling such as ``pkg/mod.py`` has no leading
-#: separator and is not matched; an ``https://…`` URL is (withheld, which is
-#: the safe direction for a text that names a host).
+#: environment root (``%USERPROFILE%\``, ``${HOME}/``, ``$env:X\``), a
+#: scheme'd host URL (``file://``, ``smb://``, ``https://`` -- withheld, the
+#: safe direction for a text that names a host), or any POSIX absolute path
+#: (``/usr/lib/x``, ``/proc/self/environ``, a bare ``/etc``). A repository-
+#: relative spelling such as ``pkg/mod.py``, ``docs/a.md -> docs/b.md`` or
+#: ``50/50`` has no leading separator and is not matched; a root-anchored
+#: markdown link (``](/docs/x.md)``) is, and lands in the withheld count.
 _EMBEDDED_HOST_PATH = re.compile(
-    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]"          # drive
-    r"|\\\\[^\s\\]+\\"                          # UNC, backslashes
-    r"|(?<![A-Za-z0-9:])//[^\s/]+/"            # UNC, forward slashes (not after a URL scheme colon)
-    r"|\bfile://"                               # file URL
-    r"|(?<![A-Za-z0-9])~[\\/]"                  # home shorthand
+    r"[A-Za-z]:[\\/]"                           # drive, anywhere (``checkoutC:\`` included; Odysseus round 3)
+    r"|(?<![A-Za-z0-9])[A-Z]:[A-Za-z_.]"        # drive-relative (``C:temp\x``; Cerberus round 3)
+    r"|\\\\[^\s\\]+"                            # UNC host, with or without a share
+    r"|(?<![A-Za-z0-9:])//[^\s/]+/"            # UNC, forward slashes
+    r"|\b[A-Za-z][A-Za-z0-9+.-]*://[^\s/]+/"    # any scheme'd host URL (file://, smb://, https://): a host is named
+    r"|(?<![A-Za-z0-9])~[^\s/\\]*[\\/]"         # home shorthand, ``~/`` or ``~user/``
     r"|%[A-Za-z_][A-Za-z0-9_]*%[\\/]"           # expanded Windows environment root
-    r"|\$[A-Za-z_][A-Za-z0-9_]*/"               # expanded POSIX environment root
-    r"|(?:^|[\s'\"(=<>\[,;:])/[A-Za-z0-9_.-]+/"  # POSIX absolute path, two or more segments
+    r"|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[\\/]"     # expanded POSIX environment root, ``$HOME/`` or ``${HOME}/``
+    r"|\$env:[A-Za-z_][A-Za-z0-9_]*[\\/]"       # PowerShell environment root
+    r"|(?:^|[\s'\"(=<>\[,;:])/[^\s/\\'\"()<>\[\],;:]+(?=[\\/\s'\")\]>,;:]|$)"  # POSIX absolute path, any first segment
 )
 
 
 def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
+
+
+#: The slicer's per-file breadcrumb under ``# ===== WITHHELD (egress gate) =====``:
+#: ``# <file>  (<rule>)  [<role>]`` (structcore/slice.py). The file name is
+#: replaced; rule and role stay, so the planner still sees that and why a
+#: neighbour is missing without learning which file the project withholds.
+_WITHHELD_BREADCRUMB = re.compile(r"^# (?!=====)(\S+)  \((.*?)\)  \[(\w+)\]$", re.MULTILINE)
+#: The slicer's FOCUS refusal line: ``# ===== WITHHELD: <file> (<rule>) =====``.
+_WITHHELD_FOCUS_LINE = re.compile(r"^# ===== WITHHELD: (\S+) \((.*)\) =====$", re.MULTILINE)
+#: A gate rule that quotes the marker it fired on -- ``content matches
+#: sensitive marker /<pattern>/`` -- would disclose the very word the project
+#: keeps from the vendor (Odysseus round 3, D6). The pattern is replaced.
+_RULE_MARKER = re.compile(r"(sensitive marker )/.*/$")
+
+
+def _redact_rule(rule: str) -> str:
+    return _RULE_MARKER.sub(r"\1/<marker>/", str(rule))
+
+
+def _strings_in(value: Any) -> list[str]:
+    """Every non-empty string inside a value, nested lists and dicts included
+    (Cerberus round 3, (b): a kept key holding a list of strings is gated too)."""
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, Mapping):
+        return [text for item in value.values() for text in _strings_in(item)]
+    if isinstance(value, (list, tuple)):
+        return [text for item in value for text in _strings_in(item)]
+    return []
 
 
 def _bounded_text(value: object, limit: int = MAX_TEXT_CHARS) -> tuple[str, bool]:
@@ -276,8 +309,8 @@ class DaedalusObservation:
             # EVERY string that will be handed on is gated, not only the named
             # text keys: a kept field outside ``text_keys`` (``phase`` on a task
             # brief) carried a host path to the planner (Odysseus round 2, D1).
-            handed_on = [str(value) for key, value in projected.items()
-                         if key not in path_keys and isinstance(value, str) and value]
+            handed_on = [text for key, value in projected.items() if key not in path_keys
+                         for text in _strings_in(value)]
             named = [str(row[key]) for key in text_keys if isinstance(row.get(key), str) and row.get(key)]
             text = " ".join(dict.fromkeys(named + handed_on))
             if not paths and not text:
@@ -380,7 +413,8 @@ class DaedalusObservation:
         clones: list[dict[str, Any]] = []
         clones_withheld = 0
         for row in summary.get("clones", []):
-            if not isinstance(row, Mapping) or not self._admit_text(str(row.get("name", ""))):
+            if not isinstance(row, Mapping) or not self._admit_text(
+                    " ".join(str(row.get(key, "")) for key in ("name", "language", "safety") if row.get(key))):
                 clones_withheld += 1
                 continue
             sites, sites_withheld = self._admit_rows(row.get("sites", []), ("module",),
@@ -392,12 +426,17 @@ class DaedalusObservation:
                            "sites": sites, "sites_withheld": sites_withheld})
         # ``ignored.source`` is the absolute path of the ignore file and
         # ``ignored.sample`` names withheld files (MEASURED 2026-09-10, live run
-        # 3): only the counts and the ignore PATTERNS (the project's own policy
-        # strings, key ``ignore_patterns``; Cerberus N7) are observed.
+        # 3): only the counts and the ignore PATTERNS (key ``ignore_patterns``;
+        # Cerberus N7) are observed -- and the patterns name exactly the trees
+        # a project wants withheld, so each one passes the text gate like any
+        # other string (Cerberus round 3, H1).
+        patterns = [str(p) for p in (ignored.get("ignore_patterns") or [])]
+        admitted_patterns = [p for p in patterns if self._admit_text(p)]
         return {"n_files": summary.get("n_files"),
                 "ignored": {"count": ignored.get("count", 0),
                             "n_files_scanned": ignored.get("n_files_scanned"),
-                            "ignore_patterns": [str(p) for p in (ignored.get("ignore_patterns") or [])][:TOP]},
+                            "ignore_patterns": admitted_patterns[:TOP],
+                            "ignore_patterns_withheld": len(patterns) - len(admitted_patterns)},
                 "languages": summary.get("languages"), "totals": summary.get("totals"),
                 "hotspots": hotspots[:TOP], "hotspots_withheld": hotspots_withheld,
                 "clones": clones[:TOP], "clones_withheld": clones_withheld,
@@ -432,11 +471,20 @@ class DaedalusObservation:
                                 policy=self._project_policy(), max_tokens=SLICE_MAX_TOKENS)
         text, elided = _bounded_text(result.get("slice_text", ""))
         withheld = result.get("withheld") or []
-        rows = [dict(row) for row in withheld] if isinstance(withheld, list) else []
+        # The withheld rows name the FILES the gate refused -- on the untrusted
+        # lane exactly the paths the project keeps from the vendor (Cerberus
+        # round 3, H2). Only the role and the rule travel; the count says how
+        # many. The in-text ``# ===== WITHHELD`` breadcrumbs are the slicer's own
+        # and carry the file names too, so they are scrubbed to the rule.
+        rows = [{"role": str(row.get("role", "")), "rule": _redact_rule(row.get("rule", ""))}
+                for row in withheld if isinstance(row, Mapping)] if isinstance(withheld, list) else []
+        text = _WITHHELD_BREADCRUMB.sub(lambda m: f"# <withheld>  ({_redact_rule(m.group(2))})  [{m.group(3)}]", text)
+        text = _WITHHELD_FOCUS_LINE.sub(lambda m: f"# ===== WITHHELD: <withheld> ({_redact_rule(m.group(2))}) =====", text)
         return {"focus_file": result.get("focus_file"), "lane": lane,
                 "slice_tokens": result.get("slice_tokens"), "n_included": result.get("n_included"),
                 "trimmed_count": result.get("trimmed_count", 0),
-                "withheld": rows[:TOP], "withheld_elided": max(0, len(rows) - TOP),
+                "withheld": rows[:TOP], "withheld_count": len(rows),
+                "withheld_elided": max(0, len(rows) - TOP),
                 "text": text, "text_elided": elided}
 
     def _docrefs(self, arguments: Mapping[str, Any]) -> dict[str, Any]:

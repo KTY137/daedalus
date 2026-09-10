@@ -172,7 +172,7 @@ move is a separate mechanical packet if the owner wants it literally).
 
 | Check | Command | Result `[MEASURED 2026-09-10]` |
 | --- | --- | --- |
-| packet, neighbouring and pin suites (final tree, after review round 2) | `python -m pytest -q tests/runtimes/test_computer_daedalus.py tests/test_ikarus_computer_dispatch.py tests/test_ikarus_computer_loop.py tests/test_ikarus_computer_loop_adversarial.py tests/test_ikarus_stream.py tests/runtimes/test_computer_service.py tests/runtimes/test_computer_evidence_terminal.py tests/test_ikarus_act.py tests/test_ikarus_os.py tests/test_ikarus_shells.py tests/test_ikarus_computer_schedule.py tests/test_ikarus_computer_schedule_autonomy.py tests/contracts/test_import_scc_hierarchy.py tests/contracts/test_work_packet_index.py experiments/forest_v2/s02_types/test_external_corpora.py tests/test_imports_graph.py` | **453 passed, 4 skipped, 103 subtests** (before round 1: 366 passed in the twelve-suite subset) |
+| packet, neighbouring and pin suites (final tree, after review round 3) | `python -m pytest -q tests/runtimes/test_computer_daedalus.py tests/test_ikarus_computer_dispatch.py tests/test_ikarus_computer_loop.py tests/test_ikarus_computer_loop_adversarial.py tests/test_ikarus_stream.py tests/runtimes/test_computer_service.py tests/runtimes/test_computer_evidence_terminal.py tests/test_ikarus_act.py tests/test_ikarus_os.py tests/test_ikarus_shells.py tests/test_ikarus_computer_schedule.py tests/test_ikarus_computer_schedule_autonomy.py tests/contracts/test_import_scc_hierarchy.py tests/contracts/test_work_packet_index.py experiments/forest_v2/s02_types/test_external_corpora.py tests/test_imports_graph.py` | **470 passed, 4 skipped, 103 subtests** (before round 1: 366 passed in the twelve-suite subset; after round 2: 453) |
 | broad regression (`tests/runtimes tests/interfaces tests/test_ikarus_*.py tests/test_conversation_*.py tests/test_queue_dispatch_identity.py tests/test_llm_client.py tests/contracts tests/orchestration`) | run once before the reader injection and the stream pin | 2661 passed, 122 skipped, 14 xfailed, 3 failed: two were this packet's (the stream module's host-dependent `lane` and the census count/cycle) and are fixed above; `test_plan_and_replan_are_advisory_mission_bound_artifacts` fails identically on the untouched primary checkout (`tmp` path spelling on this host) — baseline, not this packet |
 | pins | `tests/contracts/test_import_scc_hierarchy.py tests/contracts/test_work_packet_index.py experiments/forest_v2/s02_types/test_external_corpora.py tests/test_imports_graph.py` | see the pins row below |
 | cockpit | `tsc --noEmit`; `node src/app/run-spec.mjs` | clean; 620/620 (615 before + 5) |
@@ -226,6 +226,14 @@ longer sees the path itself), M28 (kept fields outside the text keys not
 gated), M29 (the embedded-path shapes shrink back to the root-name list) —
 **29 applied, 29 caught**, restored tree green (158 passed in the packet
 suites).
+
+After review round 3 (`mutation-table-6.txt`): plus M30 (egress decided by
+provider name, not host), M31 (ignore patterns ungated), M32 (slice withheld
+rows name the file), M33 (slice gate rules quote the marker) — **33 applied,
+33 caught**, restored tree green (181 passed in the packet suites). M32 was
+not applied in the first pass because its anchor had moved to `_redact_rule`;
+it was re-run alone with the same driver after the anchor fix, and the table
+records both passes. Table 5 is superseded and not retained.
 
 ### Live measurement
 
@@ -396,6 +404,38 @@ all load-bearing guards caught (M1 benign-redundant, M24 dead behind the
 signal check). It also corrected its own round-1 `a13` fixture (top-level
 `deny_content` instead of `policy.deny_content`), so that row was a fixture
 artifact — the real gap was D2.
+
+### Independent review round 3 (2026-09-10, on `35c6484e`)
+
+**Cerberus — `block`** on one finding, C1, plus two highs, all repaired in the
+fourth commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| C1 (CRITICAL) | "leaves this machine" and the `confirm-remote` requirement were decided by provider NAME; an Ollama on a tailnet address with `allow_remote_context` set is `untrusted` for the adapter, its observations leave, and the grant said "nichts verlässt ihn" without asking (the configuration `sensitivity.lane_for_host` was written against) | `leaves = planner not local OR lane != trusted`, both derived from the one predicate the adapter uses; the confirmation gates on `leaves` | `test_a_networked_ollama_is_egress_and_needs_the_confirmation`; mutation M30 |
+| H1 (high) | fixing the `ignore_patterns` key (N7) turned a dead read into live, ungated egress of exactly the trees a project withholds | each pattern passes the text gate; `ignore_patterns_withheld` counts the rest | `test_ignore_patterns_are_gated_and_counted`; mutation M31 |
+| H2 (high, pre-existing) | the slice's `withheld` rows and the slicer's breadcrumb lines enumerate the FILES the gate refused — on the untrusted lane the vendor learns the denied set | only `role` and `rule` travel plus `withheld_count`; breadcrumb file names are scrubbed to `<withheld>` | `test_slice_withheld_rows_name_the_rule_never_the_file`; mutation M32 |
+| (d) | `${HOME}/`, `$env:X\`, `C:temp\x`, `smb://host/`, single-segment `/etc`, `/tmp` still passed; the comment claimed `https://` was withheld while it passed | the regex covers brace/PowerShell environment roots, drive-relative spellings, any scheme'd host URL and one-segment POSIX absolutes; the comment is true | `test_embedded_host_paths_are_detected` (31 spellings) |
+| (b) | nested lists/dicts of strings in a kept field were not gated; the inline clone projection left `language`/`safety` ungated | `_strings_in` flattens kept values; clone `name`, `language`, `safety` go through the text gate together | `test_nested_strings_in_a_kept_field_are_gated` |
+
+N2 was the two host-path hardenings (`_mentions_host_path(path)` in
+`_admit`, `_looks_like_host_path(text)` in `_admit_text`); Cerberus could not
+map the label and asked — recorded here. Precision cost it named and this
+packet accepts: a root-anchored markdown link (`](/docs/x.md)`) in a broken
+reference is withheld and counted, never silently dropped.
+
+**Odysseus round 3** (pinned snapshot of `35c6484e` and of the in-flight
+tree): D1 and D2 RESOLVED with the retained probes through the real service;
+D3 RESOLVED for the fifteen spellings filed. Four new items, all repaired in
+the fourth commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D4 | the D1 repair was type-scoped: a LIST or dict of strings under a kept key (`phase`, `bridge_status`) bypassed the gate through the real service (host path and codename reached the planner; the service's final floor is secret-only) | `_strings_in` flattens every kept value; the codename and the path in a list are withheld | `test_nested_strings_in_a_kept_field_are_gated`, Odysseus `r3_c1`/`r3_c3` re-run |
+| D5 | `.daedalusignore` patterns copied verbatim (same as Cerberus H1) | gated and counted | `test_ignore_patterns_are_gated_and_counted` |
+| D6 | the slice's gate RULE quotes the marker it fired on (`content matches sensitive marker /CODENAME/`) in the withheld rows AND in the focus refusal line the slicer writes into the text; scrubbing file names alone moved the disclosure | `_redact_rule` replaces the quoted pattern with `/<marker>/` in rows, breadcrumbs and the focus line; the focus file name is scrubbed too | `test_slice_gate_rules_never_quote_the_marker_they_fired_on`; mutation M33 |
+| D7 | `~user/`, a non-ASCII first segment, a bare UNC host (`\\nas01`), a drive after a word (`checkoutC:\`) still passed | the regex admits any first segment, `~user/`, a bare UNC host, and a drive anywhere | `test_embedded_host_paths_are_detected` (36 spellings) |
+| D8 | the module comment claimed `https://` URLs were withheld while they passed | the code now matches the comment (a scheme'd host URL is withheld) | `test_embedded_host_paths_are_detected` |
 
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file
