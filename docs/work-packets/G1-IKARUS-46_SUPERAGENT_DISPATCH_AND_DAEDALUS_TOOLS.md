@@ -349,7 +349,7 @@ a `__str__` that raises could escape `execute` with its message.
 | F1 | the continuation looks ahead over two runs, so ONE separator-free run inside a path is bridged; the backtick-quoted docstring case is closed by F2's repair | `test_an_unquoted_path_continues_across_a_separator_free_word`; M64 |
 | F1 residue | a path that ENDS in a separator-free run (`see C:\Users\First Last`) or needs two bridges keeps that run: walking further would swallow the prose after every path. Named here, pinned as negative evidence, and the marker plus the count still say a redaction happened | `test_the_tail_of_an_unquoted_path_after_two_separator_free_words` |
 | A/B | an opening quote whose partner never arrives used the plain walk and so redacted LESS than the same text unquoted (104 of 200 000 inputs in this round's own A/B) — both branches now use one `_walk_token` | the same test; M65 |
-| F3 | the unknown shape is the `else` branch (the dead one is gone) and states that the count is a floor; a withheld block that cannot be rebuilt withholds the text (fail-closed) unless the adapter's own bound cut it off | `test_a_withheld_block_that_cannot_be_rebuilt_withholds_the_text`; M66 |
+| F3 | the unknown shape is the `else` branch (the dead one is gone) and states that the count is a floor; a withheld block that cannot be rebuilt withholds the text (fail-closed) unless the adapter's own bound cut it off — that exception was itself a hole, see round 11 F-A: a truncated text can still carry a divergent block, because the block need not be last | `test_a_withheld_block_under_a_diverged_header_never_travels`; M66 |
 | hypothesis | rendering the result is consumption too: it is inside the try and refuses by class | M67 |
 
 **Measured this round.** The A/B against the ninth commit's function on one
@@ -357,6 +357,28 @@ generated corpus of 200 000 inputs: 13 110 inputs differ, all of them redacting
 MORE, none redacting less. Cerberus's ten reported inputs are clean, including
 both producer-reachable ones. Mutation table 13: 67 guards applied, 67 caught,
 restored tree green.
+
+## Review round 11 (2026-09-10, `c2100e1e`)
+
+**Cerberus: `approve`, blocking false — nothing blocks the PR.** All four
+round-10 points verified closed with executed inputs, including the reviewer's
+own differential over 200 000 generated inputs: against the tenth commit, zero
+inputs let anything through that the older function had redacted; against the
+ninth, 3098 differences of which every single extra survivor is a backtick
+character, none of it content. Determinism was checked under three hash seeds.
+Four findings, none blocking, two of them repaired here anyway because this
+repository's review rules class a lying count and a fail-open as defects.
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| F-A (medium) | the round-10 `elided` exception assumed a truncated text has no breadcrumbs left. A slicer that both truncates AND diverges keeps them, because the divergent block need not be last: the withheld file name, the project's own deny fragment and the full rule text travelled, while the payload showed a gated summary beside them. Not a regression (round 9 leaked in both cases) and not reachable from today's slicer, which emits the pinned spelling | one rule replaces the exception: when the pinned header is absent, every withheld-looking line — the word in any spelling, or the breadcrumb shape — is dropped and counted, and the gated block is appended. The ordinary slice text survives, which the round-10 rule sacrificed | `test_a_diverged_withheld_block_is_dropped_even_when_the_text_was_bounded`, `test_a_withheld_block_under_a_diverged_header_never_travels`; M69 |
+| F-B (low, pre-existing) | a `withheld` LIST whose elements are not Mappings filtered to nothing, so no branch fired, the raw block passed, and the payload reported `withheld_count: 0` while carrying the file name and the rule. The one place in eleven rounds where the output lied about what it withheld | an unreadable element counts as one unknown row, so the count matches what was dropped and the rebuild fires | `test_a_withheld_element_of_an_unreadable_shape_is_counted_not_dropped`; M68 |
+| F-C (low) | the named F1 residue leaks a real name component and `_mentions_host_path` does not re-detect it | accepted and documented, unchanged: walking further would swallow the prose after every path; the marker and the count still fire | `test_the_tail_of_an_unquoted_path_after_two_separator_free_words` |
+| F-D (low) | the round-10 table's qualifier read as "then there is nothing to leak" | the row now says what the exception actually let through, and F-A closed the exception | this document |
+
+**Measured this round.** Seventeen suites 690 passed, 4 skipped, 153 subtests;
+mutation table 14: 69 guards, 69 caught, restored tree green; s02 kernel row
+unchanged (7161 functions, 47562 type-name sites, probe run twice).
 
 ## Evidence, expected failures and review
 

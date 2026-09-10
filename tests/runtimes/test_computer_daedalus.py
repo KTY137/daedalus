@@ -911,13 +911,58 @@ def test_a_withheld_field_of_an_unknown_shape_still_rebuilds_the_block(tmp_path,
         assert "iseg" not in json.dumps(sliced) and sliced["withheld_count"] >= 1
 
 
-def test_a_withheld_block_that_cannot_be_rebuilt_withholds_the_text(tmp_path, monkeypatch):
-    """Cerberus round 10 (F3): the rebuild was conditional on the header
-    spelling pinned here. A slicer that reports withheld files under a
-    DIFFERENT header passed its raw tail -- its own breadcrumbs -- through.
-    Unbounded text without a rebuildable block now answers like a withheld
-    hit; a bounded text (the bound cut the block off) keeps its head and gets
-    the gated rows appended."""
+def test_a_withheld_element_of_an_unreadable_shape_is_counted_not_dropped(tmp_path, monkeypatch):
+    """Cerberus round 11 (F-B): a list whose ELEMENTS are not Mappings filtered
+    to nothing, so no rebuild fired, the slicer's raw block passed, and the
+    payload said ``withheld_count: 0`` while carrying the file name and the
+    rule. That is the output lying about what it withheld."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    text = ("x = 1\n# ===== WITHHELD (egress gate) =====\n"
+            "# tct_app/devices/iseg.py  (denylisted path fragment 'tct_app/devices/')  [context]")
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": text,
+        "withheld": ["tct_app/devices/iseg.py", 7]})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert "iseg" not in json.dumps(sliced) and "devices" not in json.dumps(sliced)
+    assert sliced["withheld_count"] == 2  # what the payload claims matches what it dropped
+
+
+def test_a_diverged_withheld_block_is_dropped_even_when_the_text_was_bounded(tmp_path, monkeypatch):
+    """Cerberus round 11 (F-A): round 10 excepted the bounded case on the
+    assumption that truncation takes the slicer's breadcrumbs with it. A
+    divergent block need not be last, so the file name, the project's own deny
+    fragment and the rule text travelled. Withheld-looking lines never travel
+    when the pinned header is absent, bounded or not."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    row = {"file": "tct_app/devices/iseg.py", "role": "context", "rule": "denylisted path fragment"}
+    diverged = ("x = 1\n#### WITHHELD BLOCK v2 ####\n"
+                "# tct_app/devices/iseg.py  (denylisted path fragment 'tct_app/devices/')  [context]\n"
+                "y = 2\n" + "z = 3\n" * 40000)
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": diverged, "withheld": [row]})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    payload = json.dumps(sliced)
+    assert sliced["text_elided"] is True  # the bound fired: this is the excepted path
+    assert "iseg" not in payload and "denylisted path fragment" not in payload
+    assert "x = 1" in sliced["text"] and "y = 2" in sliced["text"]  # ordinary slice text survives
+    assert sliced["withheld_count"] == 1 and "unreadable withheld line" in sliced["text"]
+
+
+def test_a_withheld_block_under_a_diverged_header_never_travels(tmp_path, monkeypatch):
+    """Cerberus round 10 (F3) and round 11 (F-A): the rebuild was conditional on
+    the header spelling pinned here, so a slicer reporting withheld files under
+    a DIFFERENT header passed its raw tail -- its own breadcrumbs -- through.
+    Round 10 withheld the whole text and excepted the bounded case; round 11
+    replaced both with one rule: a withheld-looking line never travels when the
+    pinned header is absent, and ordinary slice text does."""
     from daedalus.structcore import slice as slicer
     _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
     policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
@@ -928,8 +973,11 @@ def test_a_withheld_block_that_cannot_be_rebuilt_withholds_the_text(tmp_path, mo
     monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
         "focus_file": target, "slice_tokens": 3, "n_included": 1, "slice_text": diverged, "withheld": [row]})
     sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
-    assert "iseg" not in json.dumps(sliced) and "x = 1" not in sliced["text"]
-    assert "fail-closed" in sliced["text"] and sliced["withheld_count"] == 1
+    payload = json.dumps(sliced)
+    assert "iseg" not in payload and "denylisted path fragment" not in payload
+    assert "x = 1" in sliced["text"]  # ordinary slice text is not collateral
+    assert sliced["withheld_count"] == 1 and "unreadable withheld line" in sliced["text"]
+    assert subject._WITHHELD_HEADER in sliced["text"]  # the gated block is there instead
 
 
 def test_a_failure_while_consuming_a_payload_is_a_class_only_refusal(tmp_path, monkeypatch):

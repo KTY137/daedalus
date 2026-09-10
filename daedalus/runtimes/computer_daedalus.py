@@ -190,6 +190,14 @@ _EMBEDDED_HOST_PATH = re.compile(
 )
 
 
+#: A line that talks about withholding, in ANY spelling, and the shape of the
+#: slicer's per-file breadcrumb. Used only when the pinned header is absent:
+#: such a line is the slicer's own record of what it refused, so it never
+#: travels (Cerberus round 11, F-A).
+_WITHHELD_MARKER = re.compile(r"withheld", re.IGNORECASE)
+_BREADCRUMB = re.compile(r"^\s*#\s*\S+\s*\(.*\)\s*(\[[^\]]*\])?\s*$")
+
+
 def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
 
@@ -813,8 +821,15 @@ class DaedalusObservation:
         # marker again (Odysseus round 4, D9). Only the role and a rule CLASS
         # travel; the count says how many.
         if isinstance(withheld, (list, tuple)):
+            # An element that is not a Mapping is not dropped: filtering it out
+            # left NO rows, so no branch below fired, the slicer's raw block
+            # passed, and the payload said ``withheld_count: 0`` while carrying
+            # the file name and the rule -- the output lying about what it
+            # withheld (Cerberus round 11, F-B). An unreadable element counts
+            # as one unknown withheld row.
             rows = [{"role": str(row.get("role", "")), "rule": _rule_class(row.get("rule", ""))}
-                    for row in withheld if isinstance(row, Mapping)]
+                    if isinstance(row, Mapping) else {"role": "unknown", "rule": "egress_rule"}
+                    for row in withheld]
         else:
             # A shape the slicer never produces is not trusted either way: ONE
             # unknown withheld row, so the block below is rebuilt and the
@@ -843,19 +858,25 @@ class DaedalusObservation:
             trimmed = [line.rstrip("\r") for line in tail.splitlines() if line.startswith(_TRIMMED_MARKER)]
             text = (head + _WITHHELD_HEADER + rebuilt
                     + "".join("\n" + line for line in trimmed))
-        elif rows and elided:
-            # This adapter's own bound cut the slicer's block off the end, so
-            # its breadcrumbs went with it. The gated rows are appended.
-            text = text + "\n" + _WITHHELD_HEADER + rebuilt
         elif rows:
-            # Files were withheld, the text was NOT bounded, and still carries
-            # no block this rebuild knows: the slicer's header spelling has
-            # diverged from the one pinned here, so the tail may be ungated
-            # breadcrumbs. The text then answers like a withheld hit instead of
-            # passing raw (Cerberus round 10, F3, fail-closed).
-            text = (_WITHHELD_HEADER + rebuilt
-                    + "\n# slice text withheld: the withheld block could not be rebuilt (fail-closed).")
-            elided = False
+            # Files were withheld and the text carries no block this rebuild
+            # knows: this adapter's bound cut it off, or the slicer's header
+            # spelling diverged from the one pinned here. Round 10 excepted the
+            # bounded case on the assumption that truncation takes the
+            # breadcrumbs with it -- it does not, because a divergent block
+            # need not be last (Cerberus round 11, F-A: the file name, the
+            # project's own deny fragment and the rule text all travelled).
+            # One rule for both: every withheld-looking line is dropped and
+            # counted, and the gated block is appended.
+            kept, dropped = [], 0
+            for line in text.splitlines():
+                if _WITHHELD_MARKER.search(line) or _BREADCRUMB.match(line):
+                    dropped += 1
+                    continue
+                kept.append(line)
+            elided = elided or bool(dropped)
+            text = ("\n".join(kept).rstrip("\n") + "\n" + _WITHHELD_HEADER + rebuilt
+                    + (f"\n# ... {dropped} unreadable withheld line(s) dropped" if dropped else ""))
         # The resolved focus path is disclosed only if the gate admits it: a
         # basename resolves to its full indexed path, which on the untrusted
         # lane may be exactly the directory the project withholds (Cerberus
