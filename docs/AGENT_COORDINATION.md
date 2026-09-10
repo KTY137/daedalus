@@ -97,6 +97,38 @@ den Nachrichten-Anhang.
   Skill `daedalus-jarvis`; Karte der Anschlussstellen liegt vor (Ariadne
   `run_campaign` als Python-API, `POST /api/genesis`, kein `terminal.run`,
   kein Chat-Genesis-Intent, keine Code-Durchsetzung von „irreversibel“).
+- Herzschlag: 2026-09-10 15:50 — Runde 5 (`b29105af`): Cerberus `needs_fix`,
+  kein CRITICAL (H4 behoben; Rest von H3: Statuszeile, Missionsbericht und
+  Chat-Angebot leiteten „verlassen“ vom Konsens-Flag ab); Odysseus D9/D12/H3
+  behoben, neu D14 (Set-Rendering, latent), D15/D16/D18/D19 klein. Alles in
+  Commit 6 `ed71c8d1` repariert und gepusht: `leaves_machine` (Physik) neben
+  `remote_context` auf jeder Fläche inkl. Cockpit-Vertrag; Gate prüft exakt
+  das gerenderte JSON; nicht renderbare Werte werden gezählt statt zu
+  crashen; ein zurückgehaltener Treffer antwortet wie ein Fehltreffer.
+  Siebzehn Suiten 654 grün, Cockpit tsc + 620/620, Mutationstabelle 47/47,
+  s02-Pin 7154/47526/0.1118. Cerberus/Odysseus Runde 6 laufen.
+- Lane-Erweiterung: Worktree `.claude/worktrees/jarvis-47`, Branch
+  `packet/g1-ikarus-47-ariadne-tool-20260910` (gestapelt auf #364), Packet
+  **G1-IKARUS-47** (`daedalus.ariadne_campaign`-Werkzeug → kanonisches
+  `run_campaign`, `/computer enable ariadne confirm-campaigns`, nominierend).
+  Besitzt dort zusätzlich `daedalus/runtimes/computer_ariadne.py`,
+  `tests/runtimes/test_computer_ariadne.py`, `docs/work-packets/G1-IKARUS-47_*`,
+  `docs/evidence/G1-IKARUS-47/`. Fasst `daedalus/ariadne/` nicht an.
+- Herzschlag: 2026-09-10 16:20 — Runde 6 (`ed71c8d1`): **Cerberus
+  `approve`** (blocking false; zwei latente Lows, ein vorbestehendes Medium
+  für ein eigenes Packet: `/computer planner` entscheidet die Bestätigung nach
+  Provider-Name). Odysseus D15/D19 behoben, Reste D20–D23 (zweimal gerendert;
+  Reader-Fehler ungefiltert in die Historie; Mehrdeutigkeits-Zähler als
+  Existenz-Orakel; Zähler ungefiltert). Alles in Commit 7 `233b463e`
+  geschlossen und gepusht: ein Renderer für Gate und Emitter, jeder
+  Reader/Producer verweigert nur mit Klassenname, kein Zähler in der
+  Mehrdeutigkeit, jeder Zähler gegated. Siebzehn Suiten 658 grün,
+  Mutationstabelle 51/51, s02-Pin 7159/47553. Runde 7 (kompakter
+  Diff-Check) läuft; danach PR #364 „ready“. Packet 47: Code, Tests
+  (105 grün), Mutationstabelle 19/19, Registry- und Zensus-Pins nachgezogen;
+  Live-Lauf 1 deckte auf, dass die Kernel-Policy `before`/`after` per
+  Schlüsselname als Pfade prüfte (Text mit Doppelpunkt verweigert) —
+  per-Tool-Pfadargumente eingeführt; Live-Lauf 2 läuft.
 
 ### Lane `codex-desktop` — Desktop-Packaging (Codex, direkt im Primär-Checkout)
 

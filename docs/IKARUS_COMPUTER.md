@@ -136,11 +136,17 @@ Scheibe erscheint nur als Rolle plus Regel-Klasse (`denylisted_path`,
 `default_deny`, `secret_path`, `secret_content`, `deny_content`) — weder ihr
 Pfad noch das Deny-Fragment noch das Marker-Wort, auch nicht in den
 Breadcrumb-Zeilen der Scheibe, in einer mehrdeutigen Modulauflösung oder in
-`focus_file`; jeder Wert einer Beobachtung wird über alle darin enthaltenen
-Strings geprüft (Listen, Dicts, Sets, Pfadobjekte, Fehlertexte); Fehlertexte
-des Doku-Scanners werden nur gezählt; kein absoluter Host-Pfad erreicht den
-Planner; ein Modulname wird nur innerhalb des Index aufgelöst; der Index wird
-ohne Cache-Schreibzugriff, Prozess-Pool und `git log` gebaut (`effect_free`). Eine Sitzung ohne registriertes Projekt
+`focus_file`; jeder Wert einer Beobachtung wird genau einmal gerendert, über
+alle Strings dieses Renderings geprüft (Listen, Dicts, Sets, Pfadobjekte,
+Fehlertexte) und in genau dieser Form weitergegeben; Zähler werden wie jeder
+andere Wert geprüft; ein absoluter Host-Pfad in einem Quelltext-Literal der
+Scheibe wird zu `<host-path>` geschwärzt und gezählt
+(`text_host_paths_redacted`); Fehlertexte des Doku-Scanners werden nur
+gezählt; ein Reader- oder Producer-Fehler wird nur mit seinem Klassennamen
+gemeldet, nie mit seiner Meldung (die trüge den Pfad); ein Modulname wird nur
+innerhalb des Index aufgelöst, und ein Treffer, den die Gate zurückhält,
+antwortet wie ein Fehltreffer; der Index wird ohne Cache-Schreibzugriff,
+Prozess-Pool und `git log` gebaut (`effect_free`). Eine Sitzung ohne registriertes Projekt
 (etwa ein geplanter Auftrag) meldet die Familie als nicht verfügbar und
 verweigert sie vor jeder Lease; ein Projekt, dessen Policy-Zeile nicht lesbar
 ist, wird verweigert statt mit der generischen Policy bedient. Der Loop kann

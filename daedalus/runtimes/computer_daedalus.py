@@ -188,6 +188,40 @@ def _mentions_host_path(text: str) -> bool:
     return bool(_EMBEDDED_HOST_PATH.search(text or ""))
 
 
+_PATH_TOKEN_END = frozenset(" \t\r\n'\"()<>[]{},;")
+_LEADING_DELIMITERS = _PATH_TOKEN_END | frozenset("=:")
+
+
+def _redact_host_paths(text: str) -> tuple[str, int]:
+    """Replace every absolute-location shape in a text by ``<host-path>`` and
+    return the text and the number of spans replaced.
+
+    The detector matches the SHAPE (a drive, a UNC head, a first segment);
+    redaction must cover the whole token, so each match is extended to the
+    next whitespace, quote or bracket, and a leading delimiter the shape
+    matched is kept.
+    """
+    text = text or ""
+    out: list[str] = []
+    cursor = 0
+    count = 0
+    for match in _EMBEDDED_HOST_PATH.finditer(text):
+        start = match.start()
+        while start < match.end() and text[start] in _LEADING_DELIMITERS:
+            start += 1
+        if start < cursor:
+            continue
+        end = max(match.end(), start)
+        while end < len(text) and text[end] not in _PATH_TOKEN_END:
+            end += 1
+        out.append(text[cursor:start])
+        out.append("<host-path>")
+        cursor = end
+        count += 1
+    out.append(text[cursor:])
+    return "".join(out), count
+
+
 _MODULE_UNAVAILABLE = ("module is not available to this planner: not in the project's index or withheld by "
                        "the egress gate; name an indexed source file")
 #: The slicer's withheld block header; the block is kept LAST in the slice
@@ -329,7 +363,9 @@ class DaedalusObservation:
         try:
             return resolve_repo_root(None, self._project)
         except Exception as exc:  # unknown row, unreadable registry, unsafe root
-            raise ComputerRefused(f"project is not registered or unreadable: {type(exc).__name__}: {exc}") from exc
+            # Class only: the message may carry the registry file's host path
+            # (Odysseus round 7, D25; Cerberus round 7, L3).
+            raise ComputerRefused(f"project is not registered or unreadable: {type(exc).__name__}") from exc
 
     def _project_policy(self):
         """The project's egress policy, re-read on every call -- refused, never
@@ -340,8 +376,11 @@ class DaedalusObservation:
         try:
             config = load_project(self._project or "")
         except Exception as exc:
-            raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}: {exc}") from exc
-        return load_policy(config)
+            raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}") from exc
+        try:
+            return load_policy(config)
+        except Exception as exc:  # noqa: BLE001 - a malformed row is a refusal naming the class
+            raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}") from exc
 
     # ------------------------------------------------------------------ egress gate
     def _admit(self, path: str, text: str = "") -> bool:
@@ -407,8 +446,10 @@ class DaedalusObservation:
                 withheld += 1
                 continue
             paths = [str(row[key]) for key in path_keys if isinstance(row.get(key), str) and row.get(key)]
+            # Without ``keep_keys`` the producer chose the KEY names too: they are
+            # strings handed on and gated like the values (Cerberus round 7, L1).
             handed_on = [text for key, value in projected.items() if key not in path_keys
-                         for text in _rendered_strings(value)]
+                         for text in _rendered_strings(value) + ([] if keep_keys else [key])]
             named = [str(row[key]) for key in text_keys if isinstance(row.get(key), str) and row.get(key)]
             text = " ".join(dict.fromkeys(named + handed_on))
             if not paths and not text:
@@ -570,8 +611,20 @@ class DaedalusObservation:
         clones: list[dict[str, Any]] = []
         clones_withheld = 0
         for row in summary.get("clones", []):
-            if not isinstance(row, Mapping) or not self._admit_text(
-                    " ".join(str(row.get(key, "")) for key in ("name", "language", "safety") if row.get(key))):
+            # The clone row is rendered ONCE and every string of that rendering
+            # is gated -- ``count``/``loc`` included, which are counters only by
+            # convention (Odysseus round 7, D24: the row was copied raw, so the
+            # emitter rendered a second time and two fields passed ungated).
+            if not isinstance(row, Mapping):
+                clones_withheld += 1
+                continue
+            try:
+                head = {key: _render_value(row[key]) for key in ("name", "language", "count", "loc", "safety")
+                        if key in row}
+            except _Unrenderable:
+                clones_withheld += 1
+                continue
+            if not all(self._admit_text(text) for text in _rendered_strings(head)) or not head.get("name"):
                 clones_withheld += 1
                 continue
             sites, sites_withheld = self._admit_rows(row.get("sites", []), ("module",),
@@ -579,8 +632,7 @@ class DaedalusObservation:
             if not sites:
                 clones_withheld += 1
                 continue
-            clones.append({**{key: row[key] for key in ("name", "language", "count", "loc", "safety") if key in row},
-                           "sites": sites, "sites_withheld": sites_withheld})
+            clones.append({**head, "sites": sites, "sites_withheld": sites_withheld})
         # ``ignored.source`` is the absolute path of the ignore file and
         # ``ignored.sample`` names withheld files (MEASURED 2026-09-10, live run
         # 3): only the counts and the ignore PATTERNS (key ``ignore_patterns``;
@@ -636,6 +688,11 @@ class DaedalusObservation:
             # No count either (Odysseus round 6, D22): "2 candidates, all
             # withheld" confirmed the existence the unique branch denies.
             admitted = [hit for hit in hits if self._admit(hit, "")]
+            if len(admitted) == 1:
+                # One admitted candidate resolves as if it were unique: saying
+                # "ambiguous" with one name would reveal that a withheld
+                # second exists (Odysseus round 7, D27).
+                return admitted[0]
             if admitted:
                 raise ComputerRefused("module is ambiguous; name one of: " + ", ".join(admitted[:TOP]))
             raise ComputerRefused(_MODULE_UNAVAILABLE)
@@ -692,10 +749,15 @@ class DaedalusObservation:
         focus = target if self._admit(target, "") else "<withheld>"
         counters, counters_withheld = self._gated_fields(
             {**result, "trimmed_count": result.get("trimmed_count", 0)}, ("slice_tokens", "n_included", "trimmed_count"))
+        # Source text is the one string this observation hands on that the
+        # per-file gate did not judge by shape: an absolute host path in a
+        # string literal would leave with it (Odysseus round 7, D26). Each such
+        # span is redacted and counted; the file's other text stays useful.
+        text, redacted = _redact_host_paths(text)
         return {"focus_file": focus, "lane": lane, **counters, "fields_withheld": counters_withheld,
                 "withheld": shown, "withheld_count": len(rows),
                 "withheld_elided": max(0, len(rows) - TOP),
-                "text": text, "text_elided": elided}
+                "text": text, "text_elided": elided, "text_host_paths_redacted": redacted}
 
     def _docrefs(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         repo_root = self._repo_root()
@@ -716,7 +778,8 @@ class DaedalusObservation:
         return {**counters, "fields_withheld": counters_withheld,
                 "broken": broken[:TOP], "broken_elided": max(0, len(broken) - TOP),
                 "broken_withheld": withheld,
-                "errors_count": len(errors) if isinstance(errors, (list, tuple)) else 0}
+                "errors_count": (len(errors) if isinstance(errors, (list, tuple, set, frozenset, Mapping))
+                                 else 1 if errors else 0)}
 
     def _tasks(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         self._repo_root()  # a task list is still scoped to a registered project

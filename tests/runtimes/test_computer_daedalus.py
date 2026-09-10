@@ -207,10 +207,9 @@ def test_an_ambiguous_module_names_only_the_candidates_the_gate_admits(tmp_path,
     policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
     adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
     idx = {"modules": {"lib/laser.py": {}, "tct_app/devices/laser.py": {}, "vendor/acme/laser.py": {}}}
-    with pytest.raises(ComputerRefused) as refused:
-        adapter._resolve_module(idx, "laser.py")
-    message = str(refused.value)
-    assert message == "module is ambiguous; name one of: lib/laser.py"
+    # One admitted candidate among withheld ones resolves silently (Odysseus
+    # round 7, D27): "ambiguous" with one name would reveal the withheld rest.
+    assert adapter._resolve_module(idx, "laser.py") == "lib/laser.py"
     # No count either (Odysseus round 6, D22): two withheld files sharing a
     # basename answer exactly like a miss.
     with pytest.raises(ComputerRefused) as refused:
@@ -724,6 +723,103 @@ def test_the_gate_and_the_emitter_share_one_renderer(tmp_path, monkeypatch):
     assert "someone" not in json.dumps(status)
     for value in (Sneaky(), b"x", bytearray(b"y"), {PureWindowsPath("C:/a")}, [{"n": (1, b"z")}]):
         assert subject._strings_in(value) == subject._rendered_strings(json.loads(subject._render(value)))
+
+
+def test_clone_rows_are_rendered_once_and_gated_in_every_field(tmp_path, monkeypatch):
+    """Odysseus round 7 (D24): the clone rows were copied raw from the
+    producer, so the emitter rendered a second time (a stateful ``__str__``
+    slipped through) and ``count``/``loc`` were never gated."""
+    from daedalus.structcore import report as report_module
+
+    class Shifty:
+        def __init__(self):
+            self.calls = 0
+
+        def __str__(self):
+            self.calls += 1
+            return "benign_clone" if self.calls == 1 else "C:\\Users\\victim\\secrets\\id_rsa"
+
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {}})
+    monkeypatch.setattr(report_module, "structure_summary", lambda idx, **kw: {
+        "n_files": 3, "languages": {}, "totals": {}, "hotspots": [], "fan_in": [],
+        "clones": [{"name": Shifty(), "language": "python", "count": 2, "loc": 7, "safety": "low",
+                    "sites": [{"module": "pkg/a.py", "line": 1}]},
+                   {"name": "fine", "language": "python", "count": "C:\\Users\\victim\\.ssh\\id_ed25519", "loc": 7,
+                    "sites": [{"module": "pkg/b.py", "line": 2}]}],
+        "ignored": {"count": 0, "n_files_scanned": 3, "ignore_patterns": []}})
+    structure = adapter.execute("daedalus.structure", {})
+    assert [clone["name"] for clone in structure["clones"]] == ["benign_clone"]
+    assert structure["clones_withheld"] == 1
+    assert "victim" not in json.dumps(structure)
+
+
+def test_registry_refusals_name_the_class_never_the_message(tmp_path, monkeypatch):
+    """Odysseus round 7 (D25), Cerberus round 7 (L3): the two registry
+    producers still interpolated the exception message, which carries the
+    registry file's host path, into a refusal the planner's history sees."""
+    from daedalus.foundation import projects
+    boom = PermissionError(13, "Permission denied", "C:\\Users\\victim\\projects\\fixture.json")
+    monkeypatch.setattr(projects, "resolve_repo_root", lambda repo_root, project: (_ for _ in ()).throw(boom))
+    monkeypatch.setattr(projects, "load_project", lambda name: (_ for _ in ()).throw(boom))
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    with pytest.raises(ComputerRefused) as refused:
+        adapter._repo_root()
+    assert str(refused.value) == "project is not registered or unreadable: PermissionError"
+    with pytest.raises(ComputerRefused) as refused:
+        adapter._project_policy()
+    assert str(refused.value) == "project policy is unavailable: PermissionError"
+    monkeypatch.setattr(projects, "load_project", lambda name: {"name": name, "policy": {"deny": 17}})
+    with pytest.raises(ComputerRefused, match="project policy is unavailable: ") as refused:
+        adapter._project_policy()
+    assert "victim" not in str(refused.value)
+
+
+def test_absolute_host_paths_inside_the_slice_text_are_redacted_and_counted(tmp_path, monkeypatch):
+    """Odysseus round 7 (D26): the slice TEXT is source, and a string literal
+    holding an absolute path left with it on every lane while the module
+    promised no host path reaches the planner. Redacted span by span."""
+    from daedalus.structcore import slice as slicer
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    monkeypatch.setattr(adapter, "_cached_index", lambda repo_root: {"modules": {"pkg/mod.py": {}}})
+    body = ('CACHE = "C:\\Users\\victim\\AppData\\Local\\daedalus\\cache"\n'
+            'SOCKET = "/home/victim/run/daedalus.sock"\nPLAIN = "relative/path.txt"\n'
+            'UNC = "\\\\nas01\\share\\victim.txt"\n')
+    monkeypatch.setattr(slicer, "semantic_slice", lambda root, target, **kw: {
+        "focus_file": target, "slice_tokens": 9, "n_included": 1, "slice_text": body, "withheld": []})
+    sliced = adapter.execute("daedalus.slice", {"module": "pkg/mod.py"})
+    assert "victim" not in json.dumps(sliced)
+    assert sliced["text_host_paths_redacted"] == 3
+    assert sliced["text"] == ('CACHE = "<host-path>"\nSOCKET = "<host-path>"\nPLAIN = "relative/path.txt"\n'
+                              'UNC = "<host-path>"\n')
+
+
+def test_one_admitted_candidate_resolves_without_naming_ambiguity(tmp_path, monkeypatch):
+    """Odysseus round 7 (D27): "ambiguous; name one of: pkg/mod.py" with ONE
+    admitted name told the planner a withheld second exists."""
+    _project_with_policy(monkeypatch, deny=["tct_app/devices/"])
+    policy = _policy(tmp_path, planner_provider="codex_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    idx = {"modules": {"pkg/mod.py": {}, "tct_app/devices/mod.py": {}}}
+    assert adapter._resolve_module(idx, "mod.py") == "pkg/mod.py"
+    with pytest.raises(ComputerRefused, match="name one of: lib/x.py, pkg/x.py"):
+        adapter._resolve_module({"modules": {"pkg/x.py": {}, "lib/x.py": {}, "tct_app/devices/x.py": {}}}, "x.py")
+
+
+def test_row_keys_from_a_producer_are_gated_when_no_projection_is_given(tmp_path, monkeypatch):
+    """Cerberus round 7 (L1): without ``keep_keys`` the producer chose the key
+    names; a key whose text is a host path was emitted ungated."""
+    _project_with_policy(monkeypatch, deny=[])
+    policy = _policy(tmp_path, planner_provider="claude_code_cli", allow_remote_context=True)
+    adapter = subject.DaedalusObservation(policy, "fixture", lambda: None, tmp_path, _gated_readers("", []))
+    kept, withheld = adapter._admit_rows([{"C:\\Users\\victim\\SECRET\\key.pem": "x", "name": "a"},
+                                          {"name": "b", "note": "fine"}], (), ("name",))
+    assert kept == [{"name": "b", "note": "fine"}] and withheld == 1
 
 
 def test_what_is_emitted_is_the_rendering_that_was_gated(tmp_path, monkeypatch):

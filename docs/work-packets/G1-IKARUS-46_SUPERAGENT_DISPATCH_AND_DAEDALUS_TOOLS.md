@@ -249,7 +249,19 @@ local planner never leaves, whatever its host), M43 (the offer sentence
 follows the consent flag again), M44 (an exact withheld path confirms its
 existence), M45 (tasks bounded before the gate), M46 (the rebuild splits at
 the first header), M47 (an unrenderable value is admitted); M6, M34, M38 and
-M40 re-anchored — **47 applied**; result recorded in
+M40 re-anchored — **47 applied, 47 caught** (M37 and M43 survived the first
+pass as untested guards, got pins and were re-run alone).
+
+After review round 6 (`mutation-table-9.txt`): plus M48 (the raw value is
+emitted instead of the gated rendering), M49 (a producer failure passes its
+message through), M50 (the ambiguity refusal counts the withheld again), M51
+(the structure counters bypass the gate) — **51 applied, 51 caught**.
+
+After review round 7 (`mutation-table-10.txt`): plus M52 (clone rows copied
+raw again), M53 (the registry refusal carries the message), M54 (host paths
+inside the slice text pass), M55 (one admitted candidate is announced as
+ambiguous), M56 (producer-chosen row keys pass ungated); M18 and M20
+re-anchored — **56 applied**; result recorded in
 `docs/evidence/G1-IKARUS-46/acceptance.json` (`mutation_table`).
 
 ### Live measurement
@@ -537,6 +549,27 @@ residues and the Cerberus lows, all repaired in the seventh commit:
 | D21 (medium) | a raising reader or producer escaped `execute` with its message intact — a `PermissionError` from `collect_status` carries the absolute path — and the service put that text into the planner's history, past every gate | every reader and producer runs through `_produce`: a failure is a refusal naming the CLASS only; a non-mapping result is a refusal | `test_a_reader_or_producer_failure_names_its_class_never_its_message`; M49 |
 | D22 (low-medium) | the ambiguity branch counted the withheld ("2 candidates, all withheld"), confirming the existence the unique branch denies | no count: admitted candidates are listed, otherwise the same text as a miss | `test_an_ambiguous_module_names_only_the_candidates_the_gate_admits`; M50 |
 | D23 (low) | `n_files`, `languages`, `totals`, the ignored, docrefs and slice counters passed ungated | every counter goes through `_gated_fields`, withheld ones counted in `fields_withheld` | `test_counters_are_gated_like_every_other_value`; M51 |
+
+**Cerberus round 7** (`233b463e`): **`approve` confirmed**, `blocking:
+false`; no message, locator, host path or withheld name survives on any of
+the five tools (6/6 raising readers refused by class, odd shapes refused as
+"no mapping"); emitted == gated in every shape; no new reach. Three lows.
+**Odysseus round 7**: D20/D21/D23 PARTIAL on paths the repair had not
+covered, D22 NARROWED; all four round-6 guards die under mutation. The lows
+and residues, all repaired in the eighth commit:
+
+| # | finding | repair | pinned by |
+| --- | --- | --- | --- |
+| D24 (medium) | the `clones` rows of `daedalus.structure` were copied raw from the producer: rendered a second time by the emitter (a stateful `__str__` passed) and `count`/`loc` never gated | the clone row is rendered ONCE and every string of the rendering is gated, `count`/`loc` included | `test_clone_rows_are_rendered_once_and_gated_in_every_field`; M52 |
+| D25 (medium) / Cerberus L3 | `_repo_root` and `_project_policy` still interpolated the exception message — the registry file's host path — into a refusal the planner's history sees | class only, and a malformed row is a refusal of the same shape | `test_registry_refusals_name_the_class_never_the_message`; M53 |
+| D26 (low-medium) | the slice TEXT is source, and a string literal holding an absolute path left with it on every lane while the module promised no host path reaches the planner | every absolute-location span in the text is redacted to `<host-path>` and counted (`text_host_paths_redacted`); the file's other text stays useful | `test_absolute_host_paths_inside_the_slice_text_are_redacted_and_counted`; M54 |
+| D27 (low) | "ambiguous; name one of: pkg/mod.py" with ONE admitted name told the planner a withheld second exists | one admitted candidate resolves as if unique; the list needs two | `test_one_admitted_candidate_resolves_without_naming_ambiguity`; M55 |
+| Cerberus L1 (low, latent) | without `keep_keys` the producer chose the row KEYS, which were emitted ungated | producer-chosen keys are gated like the values | `test_row_keys_from_a_producer_are_gated_when_no_projection_is_given`; M56 |
+| Cerberus L2 (low) | `errors_count` reported 0 for a dict/set of errors | any sized container is counted; a truthy scalar counts 1 | (docrefs test) |
+
+Accepted residue, stated: the loopback clause names `localhost` and `::1`
+"nicht auf diesem Rechner" because the host predicate accepts numeric
+literals only (deliberate, errs strict).
 
 Review questions for the independent reviewer (Cerberus for egress, Odysseus
 for the guards): (1) can any argument shape of `daedalus.slice` read a file
