@@ -449,6 +449,8 @@ class TypedRelationBlock(Generic[T]):
             raise ValueError(f"block entries exceed bounded limit {MAX_BLOCK_ENTRIES}")
         row_count = len(row_axis.labels)
         column_count = len(column_axis.labels)
+        keys_are_canonical = type(entries) is dict
+        previous_key: tuple[int, int] | None = None
         for row, column in entries:
             if type(row) is not int:
                 raise ValueError("indexed block row indices must contain integers")
@@ -458,15 +460,27 @@ class TypedRelationBlock(Generic[T]):
                 raise ValueError("indexed block column indices must contain integers")
             if not 0 <= column < column_count:
                 raise ValueError("indexed block contains an out-of-range column index")
-        ordered = sorted(entries)
-        offsets, indices, values, cursor = [0], [], [], 0
-        for row in range(row_count):
-            while cursor < len(ordered) and ordered[cursor][0] == row:
-                key = ordered[cursor]
-                indices.append(key[1])
-                values.append(entries[key])
-                cursor += 1
+            key = (row, column)
+            if keys_are_canonical and previous_key is not None and key < previous_key:
+                keys_are_canonical = False
+            previous_key = key
+
+        # The canonical compiler and ``from_coordinates`` both build exact dicts.
+        # Reuse their insertion order when validation proves it is already CSR
+        # order; arbitrary mappings and out-of-order dicts retain the generic sort.
+        ordered_keys = entries if keys_are_canonical else sorted(entries)
+        offsets, indices, values = [0], [], []
+        current_row = 0
+        for key in ordered_keys:
+            row, column = key
+            while current_row < row:
+                offsets.append(len(values))
+                current_row += 1
+            indices.append(column)
+            values.append(entries[key])
+        while current_row < row_count:
             offsets.append(len(values))
+            current_row += 1
         return cls(
             subject,
             signature,
