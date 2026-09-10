@@ -317,7 +317,10 @@ def compile_relation_blocks(
     repeated retained rows reuse one record instead of reconstructing it per
     row. Verified cross-plane binding admission and later fact materialization
     share one key-indexed staging owner instead of retaining a second full key
-    set beside the staged records. The compiler does not readmit already-authoritative
+    set beside the staged records. Admission staging is released immediately
+    after its facts are materialized, and each per-signature fact bucket is
+    consumed as its CSR block is built instead of overlapping every compiled
+    block until function return. The compiler does not readmit already-authoritative
     labels through a second coordinate validation pass. The evidence observer
     retains canonical provenance alternatives; scalar observers keep their final
     semiring scalars in the same bounded per-signature coordinate map and do not
@@ -582,6 +585,7 @@ def compile_relation_blocks(
             scalar_value=scalar_value,
             evidence_atoms=atoms,
         )
+    edge_records.clear()
 
     for signature, source_index, target_index, binding in binding_records:
         if retain_evidence:
@@ -598,6 +602,7 @@ def compile_relation_blocks(
             scalar_value=scalar_value,
             evidence_atoms=atoms,
         )
+    binding_records_by_key.clear()
 
     subject = ProjectionSubject(
         repository_id=snapshot.repository_id,
@@ -622,7 +627,7 @@ def compile_relation_blocks(
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
     semantic_fact_count = 0
     for signature in selected:
-        entries = facts.get(signature)
+        entries = facts.pop(signature, None)
         if entries is None:
             entries = {}
         if retain_evidence:
@@ -639,6 +644,7 @@ def compile_relation_blocks(
         )
         compiled.append((relation_block_name(signature), block))
         semantic_fact_count += block.entry_count
+        del entries
 
     return CompiledRelationBlocks(
         subject=subject,
