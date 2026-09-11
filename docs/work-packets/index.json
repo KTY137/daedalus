@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 528,
+    "assigned_artifacts": 530,
     "legacy_artifacts": 204,
-    "packet_artifacts": 530,
-    "packet_ids": 465,
-    "post_index_artifacts": 326,
+    "packet_artifacts": 532,
+    "packet_ids": 467,
+    "post_index_artifacts": 328,
     "registry_artifacts": 1,
-    "tracked_files": 531,
+    "tracked_files": 533,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -7063,6 +7063,38 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-SETTINGS-01_SETTINGS_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "a05f4b266471e09fbfcafd3302ee18e146c8d720",
+        "classification": "ALIGNED",
+        "dependencies": "G1-CAPS-13, G1-BUDGET-12",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SETTINGS-01",
+      "primary_artifact": "docs/work-packets/G1-SETTINGS-01_SETTINGS_CONTRACT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-SETTINGS-02_ADMITTED_EXECUTION_LIMITS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "77c9a672791a9a8c6dfc39e7ed32bc50902b9a99",
+        "classification": "ALIGNED",
+        "dependencies": "G1-SETTINGS-01, G1-CAPS-13, G1-BUDGET-12",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SETTINGS-02",
+      "primary_artifact": "docs/work-packets/G1-SETTINGS-02_ADMITTED_EXECUTION_LIMITS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
       ],
       "metadata": {
@@ -11737,6 +11769,34 @@
       "format": "markdown",
       "packet_id": "G1-SELF-01",
       "path": "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SETTINGS-01",
+      "path": "docs/work-packets/G1-SETTINGS-01_SETTINGS_CONTRACT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SETTINGS-02",
+      "path": "docs/work-packets/G1-SETTINGS-02_ADMITTED_EXECUTION_LIMITS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
