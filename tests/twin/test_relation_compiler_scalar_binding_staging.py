@@ -109,13 +109,22 @@ def test_scalar_binding_staging_keeps_no_cross_plane_binding_object(
         if kwargs.get("signature") == SIGNATURE:
             frame = inspect.currentframe()
             assert frame is not None and frame.f_back is not None
-            binding_records = frame.f_back.f_locals["binding_records"]
-            assert binding_records
+            compiler_locals = frame.f_back.f_locals
+            assert "included_binding_keys" not in compiler_locals
+            binding_records_by_key = compiler_locals["binding_records_by_key"]
+            binding_records = compiler_locals["binding_records"]
+            assert isinstance(binding_records_by_key, dict)
+            records = tuple(binding_records)
+            assert records == tuple(binding_records_by_key.values())
+            assert tuple(binding_records_by_key) == (
+                ("code", "src/worker.py", "type", "type:Event", "declares"),
+            )
+            assert records
             assert all(
                 not any(isinstance(value, CrossPlaneBinding) for value in record)
-                for record in binding_records
+                for record in records
             )
-            assert all(record[-1] is None for record in binding_records)
+            assert all(record[-1] is None for record in records)
             assert kwargs.get("evidence_atoms") is None
             inspected = True
         original_record_fact(*args, **kwargs)  # type: ignore[arg-type]

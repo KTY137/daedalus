@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -179,15 +180,21 @@ def main(argv: list[str] | None = None) -> int:
         print_counters(status)
         return 0
 
+    # MONOTONIC, not wall clock: a clock step mid-read would otherwise
+    # produce a negative duration, and the cockpit renders a negative
+    # `wall_seconds` as "nicht gemessen" -- which would report a bad
+    # clock as an untimed caller. Those are different facts.
+    _t0 = time.monotonic()
     reports = health.assess(args.only, repo_root=repo_root,
                             probe_remote=args.probe_remote, deep=args.deep)
+    wall = time.monotonic() - _t0
     code = health.verdict(reports)
 
     if args.json:
         # Legacy keys first and untouched, so every existing consumer keeps
         # working; the assessment rides along under one new key.
         payload = dict(status)
-        payload["health"] = health.to_payload(reports)
+        payload["health"] = health.to_payload(reports, wall_seconds=wall)
         print(json.dumps(payload, indent=2, default=str))
         # ALWAYS 0 -- see the module docstring. The verdict lives in
         # payload["health"]["verdict"], where a program can branch on it

@@ -34,6 +34,17 @@ def read_budget_environment(
     except budget_kernel.BudgetError as exc:
         # Keep the desktop repairable, but do not silently replace an invalid
         # monetary policy with a spend-authorising default.
+        #
+        # THIS IS THE CODE-DEFAULT FALLBACK G1-SETTINGS-02 ARGUES AGAINST, AND
+        # IT IS FINE HERE.  The argument there is that resolving a CAP by
+        # falling back to the code default can widen -- a document that set
+        # $1.00 would become $5.00.  Nothing is resolved here: the returned
+        # values only seed the settings form so the owner can see and repair
+        # something, the caller sets ``_budget_policy_error`` from the third
+        # element, and that error makes every ledger read fail closed and the
+        # status project ``available: false``.  No spend is admitted against
+        # these numbers.  If that ever stops being true, this fallback becomes
+        # the defect the packet describes.
         return (
             dict(default_config["budget"]),
             json_module.loads(json_module.dumps(default_config["caps"])),

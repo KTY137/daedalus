@@ -449,6 +449,8 @@ class TypedRelationBlock(Generic[T]):
             raise ValueError(f"block entries exceed bounded limit {MAX_BLOCK_ENTRIES}")
         row_count = len(row_axis.labels)
         column_count = len(column_axis.labels)
+        keys_are_canonical = type(entries) is dict
+        previous_key: tuple[int, int] | None = None
         for row, column in entries:
             if type(row) is not int:
                 raise ValueError("indexed block row indices must contain integers")
@@ -458,15 +460,33 @@ class TypedRelationBlock(Generic[T]):
                 raise ValueError("indexed block column indices must contain integers")
             if not 0 <= column < column_count:
                 raise ValueError("indexed block contains an out-of-range column index")
-        ordered = sorted(entries)
-        offsets, indices, values, cursor = [0], [], [], 0
-        for row in range(row_count):
-            while cursor < len(ordered) and ordered[cursor][0] == row:
-                key = ordered[cursor]
-                indices.append(key[1])
-                values.append(entries[key])
-                cursor += 1
+            key = (row, column)
+            if keys_are_canonical and previous_key is not None and key < previous_key:
+                keys_are_canonical = False
+            previous_key = key
+
+        # The canonical compiler and ``from_coordinates`` both build exact dicts.
+        # Reuse their insertion order when validation proves it is already CSR
+        # order. Consume exact-dict values from the same iterator so the hot path
+        # does not re-hash every validated key; arbitrary/out-of-order mappings
+        # retain the generic sorted-key fallback and its original lookup semantics.
+        ordered_items = (
+            entries.items()
+            if keys_are_canonical
+            else ((key, entries[key]) for key in sorted(entries))
+        )
+        offsets, indices, values = [0], [], []
+        current_row = 0
+        for key, value in ordered_items:
+            row, column = key
+            while current_row < row:
+                offsets.append(len(values))
+                current_row += 1
+            indices.append(column)
+            values.append(value)
+        while current_row < row_count:
             offsets.append(len(values))
+            current_row += 1
         return cls(
             subject,
             signature,
@@ -505,6 +525,119 @@ class TypedRelationBlock(Generic[T]):
         if position < stop and self.column_indices[position] == column_position:
             return self.values[position]
         return reference.zero
+
+    def slice(
+        self,
+        *,
+        row_labels: Sequence[str] | None = None,
+        column_labels: Sequence[str] | None = None,
+    ) -> "TypedRelationBlock[T]":
+        """Return one deterministic axis subset of this exact Fourfold subject.
+
+        Slicing is a pure CSR projection: it does not reinterpret values, change
+        relation semantics, or mint a new source identity. Requested labels are
+        canonicalized by their existing typed-axis order; unknown and duplicate
+        labels fail closed. A full-axis selection reuses the immutable block.
+        """
+
+        if row_labels is None and column_labels is None:
+            return self
+
+        def resolve_axis(
+            axis: TypedAxis,
+            requested: Sequence[str] | None,
+            field: str,
+        ) -> tuple[TypedAxis, Sequence[int]]:
+            if requested is None:
+                return axis, range(len(axis.labels))
+            raw_labels = _sequence(requested, field, MAX_BLOCK_AXIS_LABELS)
+            positions: list[int] = []
+            seen: set[int] = set()
+            singular = "row" if field == "row_labels" else "column"
+            for index, raw in enumerate(raw_labels):
+                label = _label(raw, f"{field}[{index}]")
+                position = _label_position(axis.labels, label)
+                if position is None:
+                    raise ValueError(f"unknown {singular} label {label!r}")
+                if position in seen:
+                    raise ValueError(f"{field} must not contain duplicates")
+                seen.add(position)
+                positions.append(position)
+            positions.sort()
+            canonical_positions = tuple(positions)
+            if len(canonical_positions) == len(axis.labels):
+                return axis, canonical_positions
+            return (
+                TypedAxis(axis.name, axis.plane, tuple(axis.labels[position] for position in positions)),
+                canonical_positions,
+            )
+
+        row_axis, row_positions = resolve_axis(self.row_axis, row_labels, "row_labels")
+        column_axis, column_positions = resolve_axis(
+            self.column_axis,
+            column_labels,
+            "column_labels",
+        )
+        if row_axis is self.row_axis and column_axis is self.column_axis:
+            return self
+        if self.row_axis is self.column_axis and row_positions == column_positions:
+            column_axis = row_axis
+
+        offsets, indices, values = [0], [], []
+        if column_axis is self.column_axis:
+            # Retaining the full target axis means the existing CSR column
+            # coordinates are already canonical. Copy selected row spans directly
+            # instead of constructing an O(columns) remap and hashing every entry.
+            for old_row in row_positions:
+                start, stop = self.row_offsets[old_row], self.row_offsets[old_row + 1]
+                indices.extend(self.column_indices[start:stop])
+                values.extend(self.values[start:stop])
+                offsets.append(len(values))
+        else:
+            column_remap = {
+                old_position: new_position
+                for new_position, old_position in enumerate(column_positions)
+            }
+            for old_row in row_positions:
+                for position in range(self.row_offsets[old_row], self.row_offsets[old_row + 1]):
+                    new_column = column_remap.get(self.column_indices[position])
+                    if new_column is None:
+                        continue
+                    indices.append(new_column)
+                    values.append(self.values[position])
+                offsets.append(len(values))
+        return type(self)(
+            self.subject,
+            self.signature,
+            row_axis,
+            column_axis,
+            self.semiring_name,
+            tuple(offsets),
+            tuple(indices),
+            tuple(values),
+        )
+
+    def reduce(
+        self,
+        semiring: Semiring[T],
+        *,
+        max_operations: int = MAX_REFERENCE_OPERATIONS,
+    ) -> T:
+        """Fold all retained sparse values with canonical semiring addition.
+
+        CSR order is already canonical, and implicit sparse zeros are the additive
+        identity, so reduction needs no dense materialization, index, or second
+        execution path. The result is a pure observer of this exact subject.
+        """
+
+        reference = self._require_semiring(semiring)
+        limit = _operation_limit(max_operations)
+        result = reference.zero
+        for operations, value in enumerate(self.values, start=1):
+            if operations > limit:
+                raise ValueError("reference reduction exceeds bounded operation limit")
+            result = reference.add(result, value)
+        return result
 
     def matmul(
         self,

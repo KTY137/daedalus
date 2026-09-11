@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import cProfile
 import importlib
+from dataclasses import replace
 
 import pytest
 
@@ -58,6 +60,61 @@ def test_probe_maps_one_digest_delta_without_new_authority() -> None:
     assert report["claim_boundaries"]["performance_superiority"] is False
 
 
+def test_selected_signature_prunes_unrequested_same_plane_edges_before_hashing() -> None:
+    nodes = 10
+    imports_forest = _BASE._forest(
+        nodes=nodes,
+        row_width=2,
+        revision=_BASE.DELTA_REVISION,
+        add_delta=False,
+    )
+    unrelated_edges = tuple(
+        _BASE.ForestEdge(
+            _BASE._node_id(index),
+            _BASE._node_id((index + 3) % nodes),
+            "references",
+            True,
+            evidence=(f"probe.references.{index}",),
+        )
+        for index in range(nodes)
+    )
+    forest = replace(imports_forest, edges=imports_forest.edges + unrelated_edges)
+    snapshot = _BASE._snapshot(forest, revision=_BASE.DELTA_REVISION)
+
+    def compile_with(signatures):
+        profiler = cProfile.Profile()
+        profiler.enable()
+        try:
+            compiled = _PROBE.compile_relation_blocks(
+                forest,
+                snapshot,
+                _PROBE.BooleanSemiring(),
+                signatures=signatures,
+                include_verified_bindings=False,
+            )
+        finally:
+            profiler.disable()
+        metric = _BASE._direct_callee_metrics(
+            tuple(profiler.getstats()),
+            caller_code=_PROBE.compile_relation_blocks.__code__,
+            callee_codes=(_BASE._relation_compiler.canonical_sha.__code__,),
+        )
+        return compiled, int(metric["calls"])
+
+    selected, selected_hashes = compile_with((_BASE.SIGNATURE,))
+    discovered, discovered_hashes = compile_with(None)
+
+    assert selected.semantic_fact_count == len(imports_forest.edges)
+    assert len(selected.blocks) == 1
+    assert selected.blocks[0][1].signature == _BASE.SIGNATURE
+    assert selected_hashes == len(imports_forest.edges)
+
+    assert discovered.semantic_fact_count == len(forest.edges)
+    assert len(discovered.blocks) == 2
+    assert discovered_hashes == len(forest.edges)
+    assert selected_hashes < discovered_hashes
+
+
 def test_changed_digest_locator_fails_closed_when_digest_is_not_in_forest() -> None:
     forest = _BASE._forest(
         nodes=8,
@@ -92,6 +149,57 @@ def test_empty_digest_scope_does_not_scan_or_hash_forest() -> None:
     assert signatures == ()
     assert examined == 0
     assert hashed == 0
+
+
+def test_delta_blocks_cannot_reuse_the_base_fourfold_subject() -> None:
+    """Pin the revision boundary before adding any block-level delta API.
+
+    The synthetic delta keeps relation signature and axis membership fixed, but
+    its candidate block belongs to a different exact Fourfold subject. Existing
+    relation algebra therefore refuses to combine base and candidate blocks.
+    A future delta application must bind the candidate subject explicitly; it
+    cannot safely patch a base block while retaining the base revision/digest.
+    """
+
+    base_forest = _BASE._forest(
+        nodes=10,
+        row_width=2,
+        revision=_BASE.BASE_REVISION,
+        add_delta=False,
+    )
+    candidate_forest = _BASE._forest(
+        nodes=10,
+        row_width=2,
+        revision=_BASE.DELTA_REVISION,
+        add_delta=True,
+    )
+    base_snapshot = _BASE._snapshot(base_forest, revision=_BASE.BASE_REVISION)
+    candidate_snapshot = _BASE._snapshot(
+        candidate_forest,
+        revision=_BASE.DELTA_REVISION,
+    )
+    base_block = _BASE._compile(base_forest, base_snapshot).blocks[0][1]
+    candidate_block = _BASE._compile(candidate_forest, candidate_snapshot).blocks[0][1]
+
+    assert base_block.signature == candidate_block.signature == _BASE.SIGNATURE
+    assert base_block.row_axis == candidate_block.row_axis
+    assert base_block.column_axis == candidate_block.column_axis
+    assert base_block.subject.repository_id == candidate_block.subject.repository_id
+    assert base_block.subject.source_revision == _BASE.BASE_REVISION
+    assert candidate_block.subject.source_revision == _BASE.DELTA_REVISION
+    assert base_block.subject.source_fourfold_sha256 == base_snapshot.digest
+    assert candidate_block.subject.source_fourfold_sha256 == candidate_snapshot.digest
+    assert base_block.subject != candidate_block.subject
+
+    with pytest.raises(
+        ValueError,
+        match="relation blocks must bind the same exact Fourfold subject",
+    ):
+        base_block.hadamard(
+            candidate_block,
+            _PROBE.BooleanSemiring(),
+            relation="delta-overlap",
+        )
 
 
 def test_scan_repeat_bounds_reject_bool_aliases() -> None:

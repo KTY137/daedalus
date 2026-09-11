@@ -464,6 +464,34 @@ daedalus/twin/semiring.py -text
 daedalus/twin/tensor.py -text
 daedalus/twin/two_category.py -text
 
+# The attempt spine, the Ikarus composition modules and the two computer
+# runtimes that packets G1-IKARUS-46 and -47 added grew the closure again.
+# MEASURED 2026-09-11: the Gate 1 Ignition workflow was red on main across
+# all four matrix legs with '13 of 254 Gate-1 evaluator-bundle files have no
+# explicit, non-autocrlf-dependent .gitattributes declaration', and for
+# nothing else.
+#
+# Their INDEX blobs were already LF, so `-text` pins the bytes that are
+# there. Their WORKING COPIES were CRLF, checked out under core.autocrlf
+# before this declaration existed -- and `-text` stops git normalising, so
+# the next `git add` of one would have committed CRLF and broken every byte
+# pin that depends on it, silently, because git's stat cache hides the
+# difference. All thirteen were converted to LF in the same commit, which is
+# why the diff is this file alone.
+daedalus/kernel/attempt_clock.py -text
+daedalus/kernel/attempt_contracts.py -text
+daedalus/kernel/attempt_ledger.py -text
+daedalus/kernel/attempt_spine_reader.py -text
+daedalus/kernel/attempt_workspace.py -text
+daedalus/kernel/attempts.py -text
+daedalus/orchestration/ikarus/claude_attempt_handoff.py -text
+daedalus/orchestration/ikarus/claude_composition.py -text
+daedalus/orchestration/ikarus/effect_bridge.py -text
+daedalus/orchestration/ikarus/oneshot.py -text
+daedalus/orchestration/ikarus/tool_scope.py -text
+daedalus/runtimes/computer_ariadne.py -text
+daedalus/runtimes/computer_daedalus.py -text
+
 # Evidence directories that carry a digest manifest (MANIFEST.json pins the
 # sha256 of every sibling file): the digests are over the committed LF bytes,
 # so a translating checkout would make 19/19 of them mismatch on Windows

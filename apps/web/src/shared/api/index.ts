@@ -394,7 +394,8 @@ export interface AcceleratorHardware {
 
 export interface AcceleratorFramework {
   /** On the SHALLOW answer this is a live `importlib.util.find_spec` result,
-   *  not a placeholder — it is evidence either way. */
+   *  not a placeholder — it is evidence either way, BUT only in a process that
+   *  can see the machine. See `host_visible`. */
   installed: boolean;
   /** TRI-STATE. `null` means the question is open, never "no". */
   cuda_ready: boolean | null;
@@ -404,6 +405,16 @@ export interface AcceleratorFramework {
   detail: string;
   /** false on the shallow answer: nothing was executed for this row. */
   probed: boolean;
+  /** Could the process that produced `installed` see the machine's Python
+   *  environment? `false` in the packaged desktop backend: a frozen build
+   *  imports from its own bundle, and the build strips the accelerator
+   *  runtimes out of it, so `installed: false` there is guaranteed by
+   *  construction and is NOT the measured absence it looks like.
+   *
+   *  Optional because a backend older than 2026-09-11 does not send it;
+   *  `undefined` therefore has to mean "assume the answer was measured", which
+   *  is what those backends meant. */
+  host_visible?: boolean;
 }
 
 /** A configured remote Ollama endpoint. Its `warning` names transport
@@ -557,6 +568,16 @@ export interface HealthSnapshot {
    * ever rendered it. Measured against the live endpoint 2026-09-03.
    */
   asked?: { deep: boolean; probe_remote: boolean; only: string | null };
+  /**
+   * HOW LONG THE READ ACTUALLY TOOK, timed by the backend around the whole
+   * probe fan-out.
+   *
+   * The probes run concurrently, so summing `subsystems[].seconds` gives the
+   * WORK, not the wait -- measured 2026-09-10 those were 8.3s and 2.2s. `null`
+   * means this caller did not time the read; it is never the sum and never a
+   * guess.
+   */
+  wall_seconds?: number | null;
 }
 
 export interface HealthPayload extends ApiEnvelope {
@@ -573,7 +594,12 @@ export interface HealthPayload extends ApiEnvelope {
  * surface that was working. A timeout shorter than the work turns a slow
  * answer into a reported failure, which is the same lie as the reverse.
  *
- * 90s is the budget, not the expectation: callers should render "wird gelesen"
+ * MEASURED AGAIN 2026-09-10, after the backend stopped running its probes one
+ * after another: 2.16-2.24s, cold and warm alike, against 6.2s warm / 11.3s
+ * cold before. THE 90s BUDGET STAYS. It is the ceiling for the pathological
+ * case the comment above describes -- a bench host that accepts a connection
+ * and then hangs -- and shrinking it to fit the good case is how a slow answer
+ * became a reported failure the last time. Callers still render "wird gelesen"
  * meanwhile and must not block anything else on it.
  */
 export function getHealth(timeoutMs = 90_000) {

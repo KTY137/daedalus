@@ -42,7 +42,7 @@ else:  # direct ``python experiments/tensor_gpu/relation_delta_rebuild_probe.py`
     from boolean_probe_contract import write_report
     from cpu_bitset_baseline import MAX_REPEATS, MAX_WARMUP, _measure_repeated
 
-SCHEMA = "daedalus-tensor-relation-delta-rebuild/3"
+SCHEMA = "daedalus-tensor-relation-delta-rebuild/4"
 MAX_NODES = 2_048
 MAX_PROFILE_REPEATS = 5
 BASE_REVISION = "a" * 40
@@ -125,6 +125,12 @@ def _snapshot(
         created_at=CREATED_AT,
         trace_id=f"relation-delta-{revision[0]}",
     )
+    # The adapter already binds the exact Forest digest. Reuse that immutable
+    # authority evidence while deriving the probe-only complete-plane snapshot
+    # instead of reserializing the same Forest twice more during fixture setup.
+    # compile_relation_blocks still independently recomputes the Forest digest
+    # at its own authority boundary, so this does not weaken verification.
+    forest_digest = legacy.source_forest_sha256
     planes = tuple(
         (
             PlaneSnapshot(
@@ -146,7 +152,7 @@ def _snapshot(
         source_revision=revision,
         created_at=CREATED_AT,
         input_digests=(
-            forest.content_sha256,
+            forest_digest,
             *(plane.digest for plane in planes),
             *(binding.digest for binding in legacy.bindings),
         ),
@@ -155,7 +161,7 @@ def _snapshot(
     return FourfoldSnapshot(
         repository_id=legacy.repository_id,
         source_revision=revision,
-        source_forest_sha256=forest.content_sha256,
+        source_forest_sha256=forest_digest,
         planes=planes,
         bindings=legacy.bindings,
         provenance=provenance,
@@ -261,6 +267,16 @@ def _profile_compile_once(
         "forest_partition_validation": _code_metrics(
             stats,
             (_relation_compiler._forest_node_partition.__code__,),
+        ),
+        "forest_binding_digest": _direct_callee_metrics(
+            stats,
+            caller_code=compiler_code,
+            callee_codes=(KnowledgeForest.content_sha256.fget.__code__,),
+        ),
+        "fourfold_subject_digest": _direct_callee_metrics(
+            stats,
+            caller_code=compiler_code,
+            callee_codes=(FourfoldSnapshot.digest.fget.__code__,),
         ),
         "edge_signature_construction": _direct_callee_metrics(
             stats,
@@ -383,11 +399,19 @@ def run_probe(
     fact_aggregation_direct_cumulative = float(
         profile_metrics["fact_aggregation_direct"]["cumulative_ms_median"]
     )
-    remaining_non_block = max(
+    identity_binding_digest_cumulative = sum(
+        float(profile_metrics[name]["cumulative_ms_median"])
+        for name in ("forest_binding_digest", "fourfold_subject_digest")
+    )
+    remaining_non_block_after_edge_and_fact = max(
         0.0,
         non_block_residual
         - observed_edge_admission_cumulative
         - fact_aggregation_direct_cumulative,
+    )
+    remaining_non_block = max(
+        0.0,
+        remaining_non_block_after_edge_and_fact - identity_binding_digest_cumulative,
     )
 
     base_entries = _entries(base_compiled)
@@ -403,6 +427,10 @@ def run_probe(
         raise AssertionError("every bounded same-plane Forest edge must compile exactly once")
 
     delta_edge_count = len(delta_forest.edges)
+    if int(profile_metrics["forest_binding_digest"]["calls"]) != 1:
+        raise AssertionError("compiler lost its single aggregate Forest binding digest")
+    if int(profile_metrics["fourfold_subject_digest"]["calls"]) != 1:
+        raise AssertionError("compiler lost its single Fourfold subject digest")
     if int(profile_metrics["edge_signature_construction"]["calls"]) != 0:
         raise AssertionError(
             "explicit selected compilation reconstructed a RelationSignature per edge"
@@ -451,9 +479,9 @@ def run_probe(
             "No production delta path, trusted constructor, cache, second graph authority, "
             "backend registry or validation bypass is introduced or simulated. Profiling "
             "observes the real selected-block reconstruction and direct compiler callees for "
-            "the same-plane edge-admission seam, including the now-zero explicit-plan "
-            "RelationSignature construction bucket, then leaves all inline and unobserved "
-            "work inside an explicit residual rather than inventing a second projection path."
+            "the same-plane edge-admission seam plus the existing aggregate Forest binding "
+            "digest and Fourfold subject digest, then leaves all inline and unobserved work "
+            "inside an explicit residual rather than inventing a second projection path."
         ),
         "case": {
             "nodes": nodes,
@@ -497,7 +525,13 @@ def run_probe(
             "fact_aggregation_direct_cumulative_ms_median": (
                 fact_aggregation_direct_cumulative
             ),
+            "identity_binding_digest_cumulative_ms_median": (
+                identity_binding_digest_cumulative
+            ),
             "remaining_non_block_after_observed_edge_and_fact_cumulative_ms_median": (
+                remaining_non_block_after_edge_and_fact
+            ),
+            "remaining_non_block_after_observed_edge_fact_and_identity_cumulative_ms_median": (
                 remaining_non_block
             ),
             "selected_block_fraction_of_profiled_compiler_cumulative": (
@@ -520,6 +554,11 @@ def run_probe(
                 if compiler_cumulative > 0.0
                 else None
             ),
+            "identity_binding_digest_fraction_of_profiled_compiler_cumulative": (
+                identity_binding_digest_cumulative / compiler_cumulative
+                if compiler_cumulative > 0.0
+                else None
+            ),
             "remaining_non_block_fraction_of_profiled_compiler_cumulative": (
                 remaining_non_block / compiler_cumulative
                 if compiler_cumulative > 0.0
@@ -533,6 +572,8 @@ def run_probe(
                 "mode, RelationSignature.__init__ is expected to have zero direct per-edge "
                 "calls because the already-validated requested signature is reused; "
                 "ForestEdge.to_dict and canonical_sha remain observed per retained edge. "
+                "The aggregate KnowledgeForest.content_sha256 binding and FourfoldSnapshot.digest "
+                "subject binding are attributed separately as direct one-call identity work. "
                 "Endpoint dictionary lookup, retained-set membership, branching, list append "
                 "and other inline compiler work remain in the residual. fact_aggregation_direct "
                 "is the direct _record_fact call from the same owner. These selected direct "

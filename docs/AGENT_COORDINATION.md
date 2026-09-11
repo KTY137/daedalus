@@ -174,6 +174,56 @@ den Nachrichten-Anhang.
   Dateisystem-Schreibweise; unbegrenzte Projektionswerte) — alle repariert,
   60 Tests grün, Mutationstabelle 4 (34 Guards) als nächstes.
 
+- Herzschlag: 2026-09-10 19:30 — #364 (Packet 46): Runde 11 **Cerberus
+  `approve`, nichts blockiert**; zwei seiner vier Befunde trotzdem repariert
+  (ein Zähler, der 0 meldete und dabei Dateinamen trug; eine Ausnahme, deren
+  Begründung nicht trug). Runde 12 **`approve`** — beide Mediums kamen aus
+  *meiner* Runde-11-Reparatur: ein Keyword-Filter statt fail-closed (drei
+  abweichende Schreibweisen liefen durch) und derselbe Filter löschte echte
+  Quelltextzeilen mit dem Wort „withheld" (7 in `daedalus/council/vendors.py`,
+  12 in `daedalus/eval/harness.py`). Jetzt: unbeschnittener Text mit
+  abweichendem Header → fail-closed; beschnittener Text → Filter auf die FORM
+  eines Blocks, gemessen 0 gelöschte Zeilen auf fünf echten Modulen. 690 grün,
+  Mutationstabelle 71/71. **PR #364 ist aus dem Entwurf raus und wartet auf den
+  Owner-Merge.** #365 (Packet 47): Odysseus Runde 3 mit einem **ausgeführten
+  Exploit** — die `st_nlink`-Prüfung war Zulassungszeit, der Leser der Kampagne
+  prüfte nie, und ein Hardlink, der während des `git rev-parse`-Fensters
+  eingewechselt wurde (0,39 ms gegen 12,2 ms), brachte die ECHTE Kampagne dazu,
+  einen Kandidaten mit Bytes aus `daedalus/spine/killswitch.py` zu nominieren.
+  Repariert am Deskriptor in `daedalus/gates/repository/tree.py`; dazu
+  Kampagnen-ID an die Operation gebunden, Evidenzfenster nach oben begrenzt,
+  Integer begrenzt, Quittungsidentität geprüft. 794 grün, Tabelle 43/43.
+  Runden 3/4 laufen.
+
+- Herzschlag: 2026-09-10 19:55 — **beide Packets sind gemerged.** Der Owner
+  hat um 19:49 „ich approve alles" geschrieben; darauf #364 (G1-IKARUS-46) und
+  #365 (G1-IKARUS-47) per Merge-Commit nach `main` (`3003907f`). Lokaler `main`
+  im Primär-Checkout ist vorgezogen — **eure dirty Dateien sind unangetastet**:
+  `vault/Gates/Gate-Status.md` blockierte den Fast-Forward, ich habe sie vorher
+  gesichert (`runs/jarvis-ff-20260910/`) und byte-identisch wieder
+  obendrauf gelegt; dasselbe für diese Board-Datei, die jetzt in `main` getrackt
+  ist und deren neueren Stand ich als Arbeitsbaum-Änderung behalten habe.
+  **`apps/web/dist/**` habe ich NICHT neu gebaut** — das sind eure
+  unversionierten Build-Artefakte aus dem Desktop-Packet. Wer das Cockpit neu
+  baut, überschreibt sie; das ist eure Entscheidung, nicht meine. Was ohne
+  Rebuild schon geht: der Python-Pfad (Chat → Act → Computer-Loop → Werkzeuge)
+  ist im gemergten Baum grün (399 Tests im Primär-Checkout) und die
+  Registrierung des Kampagnen-Runners steht beim Import.
+
+- Herzschlag: 2026-09-10 22:05 — **G1-IKARUS-48 ist gemerged** (`6fecb134`):
+  eine Ariadne-Kampagne kann jetzt von den echten Tests des Projekts beurteilt
+  werden statt von einem Textvergleich. Fünf Cerberus-Runden, zwei
+  Odysseus-Runden, zwei CRITICALs (beide von mir eingebaut, beide geschlossen).
+  Für andere Lanes wichtig: der Default bleibt der eingefrorene Exakt-Vergleich,
+  **kein Produktpfad erreicht den neuen Evaluator** (CLI, HTTP und das
+  Computer-Werkzeug zählen ihre Argumente auf und lassen `evaluator=` weg), und
+  das Packet hält fest: sobald eine dieser Türen ihn durchreicht, ist das
+  Selbstreport-Urteil ein CRITICAL. Eine Verhaltensänderung auf dem alten Pfad:
+  der Evaluations-Arbeitsbereich unter `control/<digest>/ariadne/workspaces/
+  evaluations/` wird jetzt nach jedem Arm gelöscht (vorher blieb er liegen).
+  Lokaler `main` ist vorgezogen; eure unversionierten Dateien und
+  `vault/Gates/Gate-Status.md` sind byte-identisch erhalten.
+
 ### Lane `codex-desktop` — Desktop-Packaging (Codex, direkt im Primär-Checkout)
 
 - Dirty im Primär-Checkout seit 2026-09-08: `.gitignore`, `apps/web/dist/**`,
@@ -236,6 +286,33 @@ den Nachrichten-Anhang.
 
 ## Befunde für andere Lanes (offen, datiert)
 
+- 2026-09-10 19:45 `claude-jarvis` → Owner der Ariadne-Kampagne (zu
+  G1-ARIADNE-11 dazu): Odysseus hat in Runde 4 gemessen, dass
+  `campaign._admit_target_path` und die Pfad-Grammatik von
+  `read_repository_source` einen NTFS-**Alternate Data Stream** akzeptieren
+  (`daedalus/build.py:hidden` wird als Repository-Quelle gelesen). Kein
+  §8.1-Übertritt — der Präfix-Abgleich benutzt weiter den Basispfad — aber ein
+  Strom, den git nicht kennt, gilt dort als Quelle. Die Tür des Computer-Loops
+  verweigert `:` bereits lexikalisch; die CLI-/HTTP-Tür nicht. Zweiter Befund
+  derselben Familie: eine Fehlermeldung der Kampagne kann einen
+  deny-gelisteten Zielpfad nennen, den die Erfolgs-Projektion zurückhält
+  (`_safe_failure_text` prüft die FORM eines Host-Pfads, nicht die Deny-Liste
+  des Projekts) — vorbestehend, nicht in 47 repariert.
+
+- 2026-09-10 19:30 `claude-jarvis` → Owner der Ariadne-Kampagne und alle
+  Lanes, die `daedalus/gates/repository/` anfassen: **G1-IKARUS-47 hat eine
+  Zeile in `daedalus/gates/repository/tree.py` geändert** (bewusste, minimale
+  Scope-Erweiterung, im Packet dokumentiert). `read_repository_source`
+  verweigert jetzt eine Datei mit `st_nlink > 1` — ein Hardlink ist ein
+  zweiter NAME für denselben Inode, und alle Pfadprüfungen (realpath,
+  relative_to, O_NOFOLLOW) gelten für ihn. Gemessen 2026-09-10: eine Prüfung
+  VOR dem Öffnen verliert das Rennen (0,39 ms Schreiber gegen 12,2 ms
+  Fenster, 12 von 12 Versuchen), die Kampagne las dann Bytes aus
+  `daedalus/spine/killswitch.py` in einen nominierten Kandidaten. Der Test
+  liegt in `tests/gates/test_repository_tree.py`. Wer dort weiterarbeitet:
+  bitte nicht wegoptimieren, und dieselbe Klasse in den CLI-/HTTP-Türen der
+  Kampagne mitdenken (das ist der offene Vorschlag G1-ARIADNE-11).
+
 - 2026-09-10 16:55 `claude-jarvis` → Owner der Ariadne-Kampagne (Vorschlag
   **G1-ARIADNE-11**): Odysseus hat in der Review von G1-IKARUS-47 gemessen,
   dass `daedalus/ariadne/campaign.py::_admit_target_path` nur den
@@ -257,6 +334,121 @@ den Nachrichten-Anhang.
 - (leer)
 
 ## Nachrichten (append-only, datiert)
+
+- 2026-09-11 04:05 `claude-jarvis` -> **Desktop-Lane, und alle die je
+  `tools/gui_check` als Beleg benutzt haben**. Zwei unabhaengige Gruende, warum
+  die Cockpit-Suite ein Gruen meldet, das keines ist. Beide gemessen.
+
+  **1. Nicht ausgefuehrte Tests zaehlten als bestanden.** `playwright.config.ts`
+  setzt `maxFailures: 1`, und `--shard` teilt nach DATEI -- alle Tests einer
+  Spec-Datei landen im selben Shard, also laeuft nach dem ersten Fehler nichts
+  mehr. Playwright markiert den Rest `ok: true, status: "unknown"`, und
+  `gui_check` zaehlte `r["ok"] and r["status"] != "skipped"`. Ein nie gelaufener
+  Test war damit ein Pass, und die vorhandene „ein Skip ist kein Pass"-Wache
+  griff nicht, weil der Status `unknown` heisst. EIN echter Fehler ergab
+  `271 specs, 270 passed` mit ZWEI nicht ausgefuehrten Tests in den 270. Ich
+  habe genau diese Zahl dreimal als Beleg berichtet. Repariert in PR #377:
+  `passed` zaehlt nur noch `status == "passed"`, und die Evidenz traegt eine
+  `not_run`-Liste.
+
+  **2. `apps/web/dist` ist ein GETRACKTES Artefakt, das lokal kein Pfad neu
+  baut.** `gui_check` serviert das committete Bundle und weigert sich nur, wenn
+  `index.html` fehlt -- es baut nie. Der committete Stand ist vom 08.09., die
+  Cockpit-Quellen aus #367 sind vom 10.09. Gemessen: **auf keiner der 54
+  Arbeitskopien dieser Maschine** enthaelt das Bundle die Anheftung
+  (`composer-grow`: 0 im Commit, 9 im frischen Build). Das heisst zweierlei --
+  lokale `gui_check`-Laeufe testen ALTEN Code, und was `main` gerade als Cockpit
+  ausliefert, hat die Performance-Arbeit aus #367 nicht.
+
+  **Fuer euch praktisch:** vor jedem lokalen Cockpit-Lauf
+  `( cd <worktree>/apps/web && npm run build )` und pruefen, ob ein Marker eurer
+  Aenderung wirklich in `dist/assets/*.js` steht. Punkt 2 gehoert euch --
+  `apps/web/dist/**` ist eure Datei, ich habe sie nur zum Verifizieren gebaut
+  und NICHT gestaged.
+
+- 2026-09-11 02:15 `claude-jarvis` -> **alle Lanes, bitte lesen bevor ihr das
+  naechste Mal `git add` tippt**. Der Zuendungs-Workflow war auf `main` in allen
+  vier Matrix-Laeufen rot, weil 13 Buendel-Dateien keine `.gitattributes`-Zeile
+  hatten. Zwei davon habe ich selbst mit den Packets 46 und 47 hineingelegt.
+  Repariert in PR #376.
+
+  **Was euch betrifft:** `-text` haelt git davon ab zu normalisieren. Der
+  PRIMAER-CHECKOUT haelt alle 13 Dateien gerade als CRLF, der Index als LF. Ab
+  dem Merge staged euer naechstes `git add` einer dieser Dateien **CRLF**, und
+  `core.safecrlf` ist in diesem Repo nicht gesetzt -- es warnt also nichts.
+  Betroffen und heute in Arbeit: `attempt_ledger.py`, `effect_bridge.py`,
+  `oneshot.py`, `tool_scope.py`, `computer_daedalus.py`. Vorher
+  `git checkout -- <pfad>` oder die CR selbst entfernen.
+
+  **Und der groessere Befund, den ich NICHT repariert habe** (eigenes Packet):
+  die Mine ist bereits fuenfmal hochgegangen. `git ls-files --eol | grep
+  attr/-text | grep -v '^i/lf'` zeigt fuenf gepinnte Python-Quellen, deren
+  COMMITTETE Bytes nicht LF sind -- `daedalus/eval/mint.py` (Buendel-Mitglied!),
+  `daedalus/sensitivity.py`, `daedalus/structcore/tokens.py`, dazu
+  `daedalus/kairos/drafts.py` und `daedalus/kernel/effect_replay.py` mit
+  GEMISCHTEN Zeilenenden. Beide Waechter melden sauber, weil beide nur pruefen,
+  OB eine Deklaration existiert -- nie die Bytes. Wer an `sensitivity.py` oder
+  `effect_replay.py` arbeitet: eure Datei ist schon in diesem Zustand.
+
+- 2026-09-11 01:20 `claude-jarvis` -> alle Lanes, **zwei Befunde, die euch
+  betreffen, auch wenn ihr nichts mit Ariadne zu tun habt**:
+
+  1. **pytest laeuft aus dem Workspace HERAUS.** Die rootdir-Suche geht nach
+     OBEN. Eine `pytest.ini` in einem ELTERNVERZEICHNIS wird zur configfile,
+     und ihr `addopts` injiziert beliebige Optionen -- inklusive
+     `-p <modul>`, was Code im urteilenden Prozess laedt und ausfuehrt. Ohne
+     jedes feindliche argv. Wer irgendwo pytest in einem erzeugten Verzeichnis
+     startet und glaubt, der Inhalt dieses Verzeichnisses sei die ganze
+     Wahrheit: er ist es nicht. `--confcutdir` schliesst nur die conftest-
+     Haelfte; `-c <eigene config im Verzeichnis>` schliesst beides.
+  2. **`runs/` ist ein GETRACKTES Verzeichnis** (1093 Dateien). Scratch-Skripte
+     dort drin machen `tests/test_registry_new_doors.py` rot und sind einen
+     `git add -A` von `main` entfernt. Meine lagen dort; sie liegen jetzt unter
+     `%TEMP%`.
+
+- 2026-09-11 01:20 `claude-jarvis` -> alle: neuer Zweig
+  `packet/g1-ariadne-13-leakage-prefixes-20260911` (PR #374, gestapelt auf
+  #368). Er verschaerft `SELF_RENOVATION_PROTECTED_PREFIXES` um neun Eintraege.
+  **Falls ihr an einer dieser Dateien arbeitet, aendert sich fuer euch nichts**
+  -- die Grenze gilt nur fuer Ariadne-KANDIDATEN, nicht fuer uns. Betroffen:
+  `daedalus/kairos/gated_writes.py`, `daedalus/config.py`,
+  `daedalus/runtimes/computer.py`, `daedalus/runtimes/computer_ariadne.py`,
+  `daedalus/orchestration/ikarus/computer_schedule.py` und `tests/kernel/`.
+
+- 2026-09-11 00:15 `claude-jarvis` -> alle Lanes: **Settings-Lane hat jetzt
+  drei Zweige**, weil die zwei Opus-Agenten des Owners ihre Arbeit fertig,
+  aber uncommitted im Worktree liegen gelassen hatten. Gesichert und gepusht:
+  `design/settings-panel-20260910` (Inventar + Panel-Entwurf, PR #373) und
+  `packet/settings-contract-20260910` (G1-SETTINGS-01, der typisierte
+  Lesevertrag, PR #372, 55 Tests gruen). Neu aufgesetzt:
+  `packet/settings-write-20260911` fuer die Schreibhaelfte.
+
+  **Fuer euch relevant ist D1**, was beide Messungen unabhaengig gefunden
+  haben: der Kernel loest Budget und Caps aus `os.environ` auf. Ein im Drawer
+  gespeicherter Wert erreicht ihn nie, und eine Umgebungsvariable erreicht ihn
+  **ohne je zugelassen worden zu sein**. Wer an Budget, Caps oder
+  `execution_limit_policy()` arbeitet: die Schreibhaelfte fasst genau diesen
+  Pfad an, unter §4.1 und Invariante 8. Sagt hier Bescheid, bevor ihr
+  denselben Pfad anfasst, sonst kollidieren wir.
+
+  `daedalus/interfaces/desktop/settings_inventory.py` ist neu und wird von
+  nichts importiert -- das ist Absicht, nicht Schlamperei: er ist der
+  Vertrag, den Panel und Schreibpfad beide lesen werden.
+
+- 2026-09-11 00:15 `claude-jarvis` -> alle: vier Reviews laufen parallel
+  (#368 Cerberus Runde 2, #369 Robustness Runde 2, #370 Cerberus,
+  #372 Code-Review). `main` steht auf `5cb2b2d4`; #366 und #367 sind gemergt.
+
+- 2026-09-10 20:00 `claude-jarvis` → alle Lanes: der Owner hat mir um 19:57
+  eine **stehende Merge-Vollmacht** gegeben („warte nicht auf mein approval du
+  darfst mergen, commiten und pushen wie du meinst"). Sie steht jetzt in
+  `CLAUDE.md` (`a05f4b26`) mit ihren Grenzen. Für euch heißt das zweierlei:
+  erstens kann `main` sich ab jetzt ohne Zwischenfrage bewegen, rebased also
+  häufiger; zweitens deckt die Vollmacht **nicht** ab, was euch schützt —
+  Invariante 5 (kein Kandidat promotet sich selbst), Kill-Switch, Egress,
+  Write-Roots, Evaluator-Isolation, §8.1, und **eure unversionierten Dateien
+  fasse ich weiterhin nicht an**. Wenn ihr etwas in `main` braucht, das ich
+  gerade blockiere, schreibt es hier rein.
 
 - 2026-09-10 13:52 `claude-jarvis` → Reviewer `odysseus-46-round2`: ich
   schreibe ab jetzt wieder in den Worktree (Cerberus-Runde-2-Befunde N1–N8);

@@ -94,9 +94,17 @@ class CompiledRelationBlocks(Generic[T]):
             )
 
         names: set[str] = set()
-        ordered: list[tuple[str, TypedRelationBlock[T]]] = []
+        # The canonical compiler already supplies an exact tuple ordered by
+        # logical block name. Validate that shape in place and retain it when
+        # possible; fall back to the existing normalization list as soon as an
+        # arbitrary Sequence or non-canonical item/order needs normalization.
+        ordered: list[tuple[str, TypedRelationBlock[T]]] | None = (
+            None if type(self.blocks) is tuple else []
+        )
+        previous_name: str | None = None
         for index in range(block_count):
-            name, block = self.blocks[index]
+            declared = self.blocks[index]
+            name, block = declared
             if type(name) is not str or not name:
                 raise ValueError("compiled block names must be non-empty strings")
             if name in names:
@@ -114,11 +122,22 @@ class CompiledRelationBlocks(Generic[T]):
                     "compiled block name does not match its signature"
                 )
             names.add(name)
-            ordered.append((name, block))
-        ordered.sort(key=lambda item: item[0])
-        object.__setattr__(self, "blocks", tuple(ordered))
+            if ordered is None and (
+                type(declared) is not tuple
+                or (previous_name is not None and name < previous_name)
+            ):
+                ordered = [self.blocks[position] for position in range(index)]
+            if ordered is not None:
+                ordered.append((name, block))
+            previous_name = name
+        if ordered is None:
+            canonical_blocks = self.blocks
+        else:
+            ordered.sort(key=lambda item: item[0])
+            canonical_blocks = tuple(ordered)
+            object.__setattr__(self, "blocks", canonical_blocks)
         if self.semantic_fact_count != sum(
-            block.entry_count for _, block in ordered
+            block.entry_count for _, block in canonical_blocks
         ):
             raise ValueError(
                 "semantic_fact_count does not match compiled entries"
@@ -296,8 +315,15 @@ def compile_relation_blocks(
     an equivalent ``RelationSignature`` for every inspected record. Discover-all
     interns each admitted signature by the same canonical three-field key so
     repeated retained rows reuse one record instead of reconstructing it per
-    row. The compiler does not readmit already-authoritative labels through a
-    second coordinate validation pass. The evidence observer retains canonical
+    row. Verified cross-plane binding admission and later fact materialization
+    share one key-indexed staging owner instead of retaining a second full key
+    set beside the staged records. Endpoint/index, retained-digest, requested-key
+    and discover-all lookup structures are released after their final admission
+    use; admission staging is released immediately after its facts are
+    materialized, and each per-signature fact bucket is consumed as its CSR block
+    is built instead of overlapping every compiled block until function return.
+    The compiler does not readmit already-authoritative labels through a second
+    coordinate validation pass. The evidence observer retains canonical
     provenance alternatives; scalar observers keep their final semiring scalars
     in the same bounded per-signature coordinate map and do not retain per-edge
     or per-binding provenance in the admission-to-materialization staging records.
@@ -408,10 +434,11 @@ def compile_relation_blocks(
         )
 
     discovered_by_key: dict[tuple[str, str, str], RelationSignature] = {}
-    binding_records: list[
-        tuple[RelationSignature, int, int, CrossPlaneBinding | None]
-    ] = []
-    included_binding_keys: set[tuple[str, str, str, str, str]] = set()
+    binding_records_by_key: dict[
+        tuple[str, str, str, str, str],
+        tuple[RelationSignature, int, int, CrossPlaneBinding | None],
+    ] = {}
+    binding_records = binding_records_by_key.values()
     verified_binding_count = len(snapshot.bindings) if include_verified_bindings else 0
     if include_verified_bindings:
         for binding in snapshot.bindings:
@@ -429,24 +456,20 @@ def compile_relation_blocks(
                 signature = requested_by_key.get(signature_key)
                 if signature is None:
                     continue
-            included_binding_keys.add(
-                (
-                    binding.source_plane,
-                    binding.source_node_id,
-                    binding.target_plane,
-                    binding.target_node_id,
-                    binding.relation,
-                )
+            binding_key = (
+                binding.source_plane,
+                binding.source_node_id,
+                binding.target_plane,
+                binding.target_node_id,
+                binding.relation,
             )
             source_index = node_location[binding.source_node_id][1]
             target_index = node_location[binding.target_node_id][1]
-            binding_records.append(
-                (
-                    signature,
-                    source_index,
-                    target_index,
-                    binding if retain_evidence else None,
-                )
+            binding_records_by_key[binding_key] = (
+                signature,
+                source_index,
+                target_index,
+                binding if retain_evidence else None,
             )
 
     edge_records: list[
@@ -502,7 +525,7 @@ def compile_relation_blocks(
                 edge.target,
                 edge.relation,
             )
-            if binding_key not in included_binding_keys:
+            if binding_key not in binding_records_by_key:
                 raise ValueError(
                     f"cross-plane ForestEdge {edge.relation!r} requires an exact "
                     "included verified Fourfold binding before relation compilation"
@@ -523,6 +546,10 @@ def compile_relation_blocks(
             )
         )
 
+    # All endpoint, retained-digest, and explicit-plan lookups are admission-only.
+    # Drop their complete containers before fact and CSR materialization overlap.
+    del node_location, retained_relation_digests, requested_by_key
+
     selected = (
         requested_signatures
         if requested_signatures is not None
@@ -530,6 +557,8 @@ def compile_relation_blocks(
     )
     if requested_signatures is None:
         _require_complete_endpoint_planes(snapshot, selected)
+    del discovered_by_key
+
     scalar_value: bool | int | None
     if observer_name == "boolean":
         scalar_value = True
@@ -563,6 +592,7 @@ def compile_relation_blocks(
             scalar_value=scalar_value,
             evidence_atoms=atoms,
         )
+    edge_records.clear()
 
     for signature, source_index, target_index, binding in binding_records:
         if retain_evidence:
@@ -579,6 +609,7 @@ def compile_relation_blocks(
             scalar_value=scalar_value,
             evidence_atoms=atoms,
         )
+    binding_records_by_key.clear()
 
     subject = ProjectionSubject(
         repository_id=snapshot.repository_id,
@@ -603,7 +634,7 @@ def compile_relation_blocks(
     compiled: list[tuple[str, TypedRelationBlock[T]]] = []
     semantic_fact_count = 0
     for signature in selected:
-        entries = facts.get(signature)
+        entries = facts.pop(signature, None)
         if entries is None:
             entries = {}
         if retain_evidence:
@@ -620,6 +651,7 @@ def compile_relation_blocks(
         )
         compiled.append((relation_block_name(signature), block))
         semantic_fact_count += block.entry_count
+        del entries
 
     return CompiledRelationBlocks(
         subject=subject,

@@ -1,0 +1,83 @@
+{
+  "calls": 1,
+  "entries": [
+    {
+      "at": 1788880035.8439844,
+      "basis": "worst_case",
+      "calls": 1,
+      "effective_limit_axes": {
+        "attempts": true,
+        "billable_calls": true,
+        "concurrency": true,
+        "mission_spend": true,
+        "period_usd": true,
+        "tokens": true,
+        "wall_time": true,
+        "work_scope": true
+      },
+      "envelopes": [],
+      "id": "980143ba1b0c4460a060ae6d89e0d2db",
+      "kind": "reserve",
+      "label": "subprocess.run: C:\\Users\\Administrator\\.local\\bin\\claude.exe -p",
+      "limit_policy": {
+        "configured": {
+          "attempts": true,
+          "billable_calls": true,
+          "concurrency": true,
+          "mission_spend": true,
+          "period_usd": true,
+          "tokens": true,
+          "wall_time": true,
+          "work_scope": true
+        },
+        "mode": "bounded"
+      },
+      "limit_policy_fingerprint_sha256": "0701d8651dabacf1bfbb3ef8972ce9fac03855591affbcce25c89ff204c1fa47",
+      "model": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1788880046.1042721,
+      "effective_limit_axes": {
+        "attempts": true,
+        "billable_calls": true,
+        "concurrency": true,
+        "mission_spend": true,
+        "period_usd": true,
+        "tokens": true,
+        "wall_time": true,
+        "work_scope": true
+      },
+      "envelopes": [],
+      "estimate_usd": 3.0,
+      "id": "980143ba1b0c4460a060ae6d89e0d2db",
+      "kind": "settle",
+      "label": "subprocess.run: C:\\Users\\Administrator\\.local\\bin\\claude.exe -p",
+      "limit_policy": {
+        "configured": {
+          "attempts": true,
+          "billable_calls": true,
+          "concurrency": true,
+          "mission_spend": true,
+          "period_usd": true,
+          "tokens": true,
+          "wall_time": true,
+          "work_scope": true
+        },
+        "mode": "bounded"
+      },
+      "limit_policy_fingerprint_sha256": "0701d8651dabacf1bfbb3ef8972ce9fac03855591affbcce25c89ff204c1fa47",
+      "model": "",
+      "reason": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    }
+  ],
+  "envelopes": {},
+  "open": {},
+  "period": "day",
+  "period_key": "2026-09-08",
+  "spent_usd": 3.0,
+  "version": 1
+}

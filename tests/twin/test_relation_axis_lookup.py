@@ -34,11 +34,44 @@ class _BoundedColumnProbe(tuple[int, ...]):
         return super().__getitem__(index)
 
 
+class _NoIntegerColumnReadProbe(tuple[int, ...]):
+    def __getitem__(self, index: int | slice) -> int | tuple[int, ...]:
+        if isinstance(index, int):
+            raise AssertionError("row-only slice remapped an unchanged canonical column axis")
+        return super().__getitem__(index)
+
+
 def _subject() -> ProjectionSubject:
     return ProjectionSubject(
         repository_id="KTY137/daedalus",
         source_revision=REVISION,
         source_fourfold_sha256=FOURFOLD,
+    )
+
+
+def _slice_fixture() -> TypedRelationBlock[bool]:
+    semiring = BooleanSemiring()
+    return TypedRelationBlock.from_coordinates(
+        subject=_subject(),
+        signature=RelationSignature("code", "declares", "type"),
+        row_axis=TypedAxis(
+            "code",
+            "code",
+            ("src/c.py", "src/a.py", "src/b.py"),
+        ),
+        column_axis=TypedAxis(
+            "type",
+            "type",
+            ("Widget", "Adapter", "Service"),
+        ),
+        coordinates=(
+            ("src/a.py", "Adapter", True),
+            ("src/a.py", "Widget", True),
+            ("src/b.py", "Service", True),
+            ("src/c.py", "Adapter", True),
+            ("src/c.py", "Widget", True),
+        ),
+        semiring=semiring,
     )
 
 
@@ -155,3 +188,99 @@ def test_coordinate_build_still_refuses_unknown_axis_labels() -> None:
             coordinates=(("src/a.py", "Missing", True),),
             semiring=semiring,
         )
+
+
+def test_slice_canonicalizes_requested_axes_and_preserves_exact_subject() -> None:
+    block = _slice_fixture()
+
+    sliced = block.slice(
+        row_labels=("src/c.py", "src/a.py"),
+        column_labels=("Widget", "Adapter"),
+    )
+
+    assert sliced.subject is block.subject
+    assert sliced.signature is block.signature
+    assert sliced.semiring_name == block.semiring_name
+    assert sliced.row_axis.labels == ("src/a.py", "src/c.py")
+    assert sliced.column_axis.labels == ("Adapter", "Widget")
+    assert tuple(sliced.iter_entries()) == (
+        ("src/a.py", "Adapter", True),
+        ("src/a.py", "Widget", True),
+        ("src/c.py", "Adapter", True),
+        ("src/c.py", "Widget", True),
+    )
+
+
+def test_slice_is_deterministic_and_full_selection_reuses_immutable_block() -> None:
+    block = _slice_fixture()
+
+    left = block.slice(
+        row_labels=("src/c.py", "src/a.py"),
+        column_labels=("Widget", "Adapter"),
+    )
+    right = block.slice(
+        row_labels=("src/a.py", "src/c.py"),
+        column_labels=("Adapter", "Widget"),
+    )
+
+    assert left == right
+    assert left.digest == right.digest
+    assert block.slice(
+        row_labels=("src/c.py", "src/b.py", "src/a.py"),
+        column_labels=("Widget", "Service", "Adapter"),
+    ) is block
+
+
+def test_row_only_slice_copies_canonical_column_coordinates_without_remap() -> None:
+    block = _slice_fixture()
+    probe = _NoIntegerColumnReadProbe(block.column_indices)
+    object.__setattr__(block, "column_indices", probe)
+
+    sliced = block.slice(row_labels=("src/c.py", "src/a.py"))
+
+    assert sliced.column_axis is block.column_axis
+    assert sliced.row_axis.labels == ("src/a.py", "src/c.py")
+    assert sliced.row_offsets == (0, 2, 4)
+    assert sliced.column_indices == (0, 2, 0, 2)
+    assert sliced.values == (True, True, True, True)
+
+
+def test_slice_refuses_unknown_and_duplicate_labels() -> None:
+    block = _slice_fixture()
+
+    with pytest.raises(ValueError, match="unknown row label"):
+        block.slice(row_labels=("src/missing.py",))
+    with pytest.raises(ValueError, match="unknown column label"):
+        block.slice(column_labels=("Missing",))
+    with pytest.raises(ValueError, match="row_labels must not contain duplicates"):
+        block.slice(row_labels=("src/a.py", "src/a.py"))
+    with pytest.raises(ValueError, match="column_labels must not contain duplicates"):
+        block.slice(column_labels=("Adapter", "Adapter"))
+
+
+def test_slice_preserves_shared_same_plane_axis_identity_and_empty_csr() -> None:
+    axis = TypedAxis("code", "code", ("src/a.py", "src/b.py", "src/c.py"))
+    block = TypedRelationBlock.from_coordinates(
+        subject=_subject(),
+        signature=RelationSignature("code", "imports", "code"),
+        row_axis=axis,
+        column_axis=axis,
+        coordinates=(
+            ("src/a.py", "src/b.py", True),
+            ("src/b.py", "src/c.py", True),
+        ),
+        semiring=BooleanSemiring(),
+    )
+
+    sliced = block.slice(
+        row_labels=("src/b.py", "src/a.py"),
+        column_labels=("src/a.py", "src/b.py"),
+    )
+    empty = block.slice(row_labels=())
+
+    assert sliced.row_axis is sliced.column_axis
+    assert tuple(sliced.iter_entries()) == (("src/a.py", "src/b.py", True),)
+    assert empty.row_axis.labels == ()
+    assert empty.row_offsets == (0,)
+    assert empty.column_indices == ()
+    assert empty.values == ()

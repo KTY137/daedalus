@@ -187,13 +187,14 @@ def test_every_evaluator_refusal_precedes_the_repository(tmp_path):
 
     for bad, expected in (
         (TestCommandEvaluator(argv=()), "1-32 text arguments"),
-        (TestCommandEvaluator(argv=("sh", "-c", "rm -rf /")), "must start with 'python'"),
-        (TestCommandEvaluator(argv=("python", "x" * 500)), "short, non-empty text"),
-        (TestCommandEvaluator(argv=("python",), timeout_s=0), "between 1 and"),
-        (TestCommandEvaluator(argv=("python",), timeout_s=MAX_TEST_TIMEOUT_S + 1), "between 1 and"),
-        (TestCommandEvaluator(argv=("python",), test_roots=()), "non-empty text prefixes"),
-        (TestCommandEvaluator(argv=("python",), test_roots=("../escape",)), "relative segments"),
-        (TestCommandEvaluator(argv=("python",), test_roots=("C:/abs",)), "relative to the workspace"),
+        (TestCommandEvaluator(argv=("sh", "-c", "rm -rf /")), "must be exactly python -m pytest"),
+        (TestCommandEvaluator(argv=("python", "x" * 500)), "must be exactly python -m pytest"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest", "x" * 500)), "short, non-empty text"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), timeout_s=0), "between 1 and"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), timeout_s=MAX_TEST_TIMEOUT_S + 1), "between 1 and"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), test_roots=()), "non-empty text prefixes"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), test_roots=("../escape",)), "relative segments"),
+        (TestCommandEvaluator(argv=("python", "-m", "pytest"), test_roots=("C:/abs",)), "relative to the workspace"),
     ):
         with pytest.raises(AriadneCampaignError, match=expected):
             _admit_test_evaluator(bad)
@@ -336,7 +337,11 @@ def test_a_forged_report_with_inflated_counts_is_refused(tmp_path):
         "    '<testsuite name=\"pytest\" tests=\"41\" failures=\"0\" errors=\"0\" skipped=\"0\"/>')\n"
         "_o._exit(0)\n"
     )
-    with pytest.raises(AriadneCampaignError, match="different number of tests"):
+    # A containment backend may refuse the import-time forgery before the
+    # cardinality check. Both are fail-closed; never require an attack to run.
+    with pytest.raises(AriadneCampaignError, match=(
+        "different number of tests|the repair does not pass the test command"
+    )):
         run_campaign(
             repo_root=str(root), source_revision=revision, campaign_id="a11-forge",
             target_path="pkg/mod.py", before=BEFORE, after=forged, timeout_s=60,
@@ -497,6 +502,291 @@ def test_an_unreadable_spec_fails_the_replay_closed(tmp_path, monkeypatch):
         _campaign(root, revision, campaign_id="a16-nospec")
 
 
+@pytest.mark.slow
+def test_a_change_no_test_reads_is_not_nominated(tmp_path):
+    """Odysseus round 2 (O2-1a), EXECUTED: `LIMIT = 10` -> `LIMIT = 999`, a real
+    behaviour change, was NOMINATED although no test read LIMIT. Nothing was
+    forged: the negative control failed because the mangled file no longer
+    parsed, so its failure proved the suite LOADS the file and nothing about
+    whether it exercises the changed region.
+
+    A test that ERRORED did not run. A test that FAILED ran and disagreed. Only
+    the second is evidence, and demanding it means many campaigns will refuse --
+    correctly, because they prove nothing."""
+
+    root = tmp_path / "subject"
+    (root / "pkg").mkdir(parents=True)
+    (root / "tests").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "mod.py").write_text("LIMIT = 10\n\n\ndef add(a, b):\n    return a + b\n",
+                                         encoding="utf-8")
+    (root / "tests" / "test_mod.py").write_text(
+        "from pkg.mod import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n",
+        encoding="utf-8")
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+    for argv in (["init", "-q"], ["add", "-A"], ["commit", "-qm", "fixture"]):
+        subprocess.run(["git", "-C", str(root), *argv], check=True, env=env, capture_output=True)
+    KillSwitch(repo_root=root).arm(note="G1-IKARUS-49 fixture")
+    revision = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+
+    # `LIMIT = 10` mangles to `LIMIT = 10__ariadne_negative__`, which is a SYNTAX
+    # error, so the control does not parse. That is a different situation from
+    # "the suite is blind" and the campaign now says which one it met -- the
+    # first version of this test used the wrong one as its demonstration
+    # (Cerberus round 1 of G1-IKARUS-49, high 2).
+    with pytest.raises(AriadneCampaignError, match="did not parse or collect"):
+        run_campaign(
+            repo_root=str(root), source_revision=revision, campaign_id="a17-uncovered",
+            target_path="pkg/mod.py", before="LIMIT = 10", after="LIMIT = 999",
+            timeout_s=60, evaluator=EVALUATOR,
+        )
+
+
+@pytest.mark.slow
+def test_a_repair_that_neuters_the_suite_in_place_is_still_nominated(tmp_path):
+    """NEGATIVE EVIDENCE, retained (Odysseus round 2 on the merged packet, O2-1b).
+
+    Two lines inside the candidate -- replacing pytest's own `runtest` with a
+    no-op -- neuter every assertion while the SAME tests are collected and
+    "run". The counts match, the identities match, the outcomes match, pytest
+    writes the report truthfully, and a wrong repair IS NOMINATED.
+
+    This is the sharpest instance of the limit the packet states: the target
+    must be a file the suite imports, so candidate code runs inside the judging
+    process, and no inspection of what that process reports can tell a run from
+    a performance of a run. Comparing identities closed the cases where the
+    outcomes differ; it cannot close this one, and pretending otherwise would be
+    the exact defect this repository blocks on.
+
+    What still holds is the only thing that ever protected the repository: the
+    receipt says the verdict is self-reported, and a nomination is not a
+    promotion."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    neutered = (
+        "return a * 1000 + b\n"
+        "import _pytest.python as _p\n"
+        "_p.Function.runtest = lambda self: None\n"
+    )
+    receipt = run_campaign(
+        repo_root=str(root), source_revision=revision, campaign_id="a18-neutered",
+        target_path="pkg/mod.py", before=BEFORE, after=neutered,
+        timeout_s=60, evaluator=EVALUATOR,
+    )
+    assert receipt["outcome"] == "nominated"  # measured, not desired
+
+    from daedalus.spine.killswitch import control_root
+
+    hedged = 0
+    for path in control_root(root).rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            blob = json.loads(path.read_bytes().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, OSError):
+            continue
+        if isinstance(blob, dict) and str(blob.get("schema", "")).startswith(
+                "daedalus-ariadne-test-evaluator-observation"):
+            assert blob["verdict_is_self_reported"] is True
+            hedged += 1
+        if isinstance(blob, dict) and blob.get("nomination_status") == "nominated":
+            assert "SELF-REPORTED" in " ".join(blob.get("reasons", ()))
+            hedged += 1
+    assert hedged >= 4  # three arms plus the nomination
+
+
+def test_an_untracked_attributes_file_cannot_choose_what_is_judged(tmp_path):
+    """Odysseus round 2 (O2-2), EXECUTED: `git archive` honours
+    `$GIT_DIR/info/attributes`, which is untracked, in no revision and invisible
+    to `git status`. One `export-ignore` line removed the test that guarded a
+    target and flipped a refusal into a nomination.
+
+    The workspace is now compared with the revision's own tree listing, which
+    does not read that file."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    clean_files, _ = _extract_revision(root, revision, tmp_path / "ws-clean")
+    assert clean_files == 3
+
+    (root / ".git" / "info").mkdir(parents=True, exist_ok=True)
+    (root / ".git" / "info" / "attributes").write_text(
+        "tests/test_mod.py export-ignore\n", encoding="utf-8")
+    porcelain = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                               capture_output=True, text=True, check=True).stdout
+    assert porcelain == ""  # invisible to every ordinary check
+
+    files, _ = _extract_revision(root, revision, tmp_path / "ws-attrs")
+    assert files == 3  # the export filter cannot remove what is read by digest
+
+
+def test_the_evaluator_argv_head_is_an_allowlist():
+    """Cerberus round 1 of G1-IKARUS-49 (CRITICAL 2): the rule was a denylist of
+    spellings, and CPython bundles short options. `python -Ic "import os;
+    os.system(...)"` was admitted, and so were `-Sc`, `--command=`, `-` (the
+    program on stdin), `-m pip install requests` (which writes the interpreter
+    that judges every later campaign) and `--pyargs` (which runs an INSTALLED
+    package's tests instead of the workspace's).
+
+    A denylist of an option parser this module does not own cannot be closed.
+    The head is an allowlist: the command IS `python -m pytest`."""
+
+    for bad in (
+        ("python", "-Ic", "import os; os.system('whoami')"),
+        ("python", "-Sc", "import os"),
+        ("python", "--command=import os"),
+        ("python", "-"),
+        ("python", "-c", "import os"),
+        ("python", "-m", "pip", "install", "requests"),
+        ("python", "-m", "http.server", "8000"),
+        ("python", "-X", "importtime", "-m", "pytest"),
+        ("pytest",),
+        ("python", "-m"),
+    ):
+        with pytest.raises(AriadneCampaignError, match="must be exactly python -m pytest"):
+            _admit_test_evaluator(TestCommandEvaluator(argv=bad))
+
+    # The ARGUMENTS are an allowlist too. Round 1 defeated the head denylist
+    # with `-Ic`; round 2 defeated the argument denylist exactly the same way,
+    # one token to the right, because the loop SKIPPED any `-`-leading token it
+    # did not recognise. Both bundled forms below were admitted and both are
+    # honoured by the real pytest: `-pNAME` imports and EXECUTES a module
+    # before conftest, and `-c<path>` reads a config file outside the workspace
+    # whose `addopts` re-injects anything -- including the plugin load.
+    for bad, expected in (
+        (("python", "-m", "pytest", "-pevilplugin", "tests"), "only DISABLE a plugin"),
+        (("python", "-m", "pytest", "-cC:/Windows/win.ini", "tests"), "by name only"),
+        (("python", "-m", "pytest", "-c../../evil.ini", "tests"), "by name only"),
+        (("python", "-m", "pytest", "-foo=/etc/x", "tests"), "by name only"),
+        (("python", "-m", "pytest", "-Ic", "import os"), "by name only"),
+        (("python", "-m", "pytest", "-o", "addopts=-pevil"), "by name only"),
+        (("python", "-m", "pytest", "-W", "error"), "by name only"),
+        (("python", "-m", "pytest", "-X", "dev"), "by name only"),
+        (("python", "-m", "pytest", "--import-mode=importlib"), "by name only"),
+        (("python", "-m", "pytest", "--basetemp=/tmp/x"), "by name only"),
+        (("python", "-m", "pytest", "--pyargs", "daedalus"), "by name only"),
+        (("python", "-m", "pytest", "--rootdir=/etc"), "by name only"),
+        (("python", "-m", "pytest", "--tb=evil"), "unknown traceback style"),
+        (("python", "-m", "pytest", "--maxfail=x"), "unusable --maxfail"),
+        (("python", "-m", "pytest", "--maxfail=0"), "unusable --maxfail"),
+        (("python", "-m", "pytest", "C:/Windows/Temp"), "relative to the workspace"),
+        (("python", "-m", "pytest", "/etc"), "relative to the workspace"),
+        (("python", "-m", "pytest", "../../.."), "no empty or relative segments"),
+        (("python", "-m", "pytest", "-p", "sitecustomize"), "only DISABLE a plugin"),
+        (("python", "-m", "pytest", "-p=evil"), "only DISABLE a plugin"),
+        (("python", "-m", "pytest", "-pno:"), "only DISABLE a plugin"),
+        # Round 3, CRITICAL 3. `@x` is NOT a path: pytest builds its parser
+        # with `fromfile_prefix_chars="@"`, so argparse opens the named file
+        # and splices its lines in as arguments -- before pytest sees them,
+        # with no path restriction. Measured through `run_campaign`, a
+        # `conftest.py` outside the workspace and in no revision was imported
+        # and EXECUTED inside the contained gate in all three arms.
+        (("python", "-m", "pytest", "@C:/Windows/Temp/pwn.txt"), "argument FILE"),
+        (("python", "-m", "pytest", "@/etc/pwn.txt"), "argument FILE"),
+        (("python", "-m", "pytest", "@//server/share/pwn.txt"), "argument FILE"),
+        (("python", "-m", "pytest", "@pwn.txt"), "argument FILE"),
+        # pytest has no `--plugin`; `-p` is registered short-only.
+        (("python", "-m", "pytest", "--plugin=no:randomly"), "by name only"),
+        (("python", "-m", "pytest", "--plugin=evil"), "by name only"),
+        # `str.isdigit()` is true for these and `int()` raises on the first,
+        # so without the ascii guard this escapes as a bare ValueError.
+        (("python", "-m", "pytest", "--maxfail=\u00b2"), "unusable --maxfail"),
+        (("python", "-m", "pytest", "--maxfail=\u0663"), "unusable --maxfail"),
+        # A path token now goes through `_admit_workspace_relative` -- the same
+        # primitive the revision entries use -- instead of four hand-written
+        # shape checks. That is what closes the class rather than the spelling.
+        (("python", "-m", "pytest", "tests/NUL"), "no Windows filesystem can hold"),
+        (("python", "-m", "pytest", "tests/x:y"), "relative to the workspace"),
+        (("python", "-m", "pytest", "tests/t.py::test_a"), "relative to the workspace"),
+        (("python", "-m", "pytest", "tests//unit"), "no empty or relative segments"),
+        # The argv IS the campaign identity: it is frozen into the
+        # ExperimentSpec and its digest. So a path cannot be normalised on the
+        # way through -- that would change the digest -- and the only
+        # consistent rule is to refuse a spelling that is not already the
+        # admitted one, saying which spelling to write (round 4, low 2).
+        (("python", "-m", "pytest", "tests/unit/"), "already be in their admitted spelling"),
+        (("python", "-m", "pytest", "tests\\unit"), "already be in their admitted spelling"),
+    ):
+        with pytest.raises(AriadneCampaignError, match=expected):
+            _admit_test_evaluator(TestCommandEvaluator(argv=bad))
+
+    # The shapes a real campaign uses still pass, including disabling the cache
+    # writer so pytest does not dirty the tree it is judging, including the
+    # bundled `-pno:NAME`, because refusing that would break a real command
+    # while refusing nothing. `--plugin` is NOT among them: pytest has no such
+    # option, and this list had pinned it as a good shape (round 3, low).
+    for good in (
+        ("python", "-m", "pytest", "-q", "tests"),
+        ("python", "-m", "pytest", "-q", "-p", "no:cacheprovider"),
+        ("python", "-m", "pytest", "-pno:cacheprovider", "tests"),
+        ("python", "-m", "pytest", "--tb=short", "--maxfail=1", "tests/unit"),
+        ("python", "-m", "pytest", "-x", "--no-header", "tests"),
+    ):
+        _admit_test_evaluator(TestCommandEvaluator(argv=good))
+
+
+def test_a_revision_naming_a_windows_device_is_refused_on_every_host():
+    """Cerberus round 2 (high 1), MEASURED: `_admit_workspace_relative` promised
+    "no device name" in its docstring and had no such check. A tree of `NUL` and
+    `ok.txt` extracted as TWO files with ONE on disk -- the write to `NUL`
+    silently succeeds and stores nothing, and the counter still says two. That
+    is the O2-2 shape, the workspace silently differing from the revision, at a
+    smaller scale.
+
+    Refused on every platform, not only Windows: the guarantee is that the
+    workspace IS the revision on every supported host, and a name that cannot
+    be materialised identically everywhere makes it false wherever it is
+    admitted."""
+
+    for name in ("NUL", "nul.txt", "sub/CON.py", "a/b/LPT9", "com1", "PRN.md", "CONIN$"):
+        with pytest.raises(AriadneCampaignError, match="no Windows filesystem can hold"):
+            subject._admit_workspace_relative(name, label="revision entry")
+    # And names that merely LOOK like devices are still ordinary files, because
+    # a false refusal makes real repositories inadmissible.
+    for name in ("a/nulls.py", "console.py", "aux2/x", "tests/test_com.py", "NULL.py"):
+        assert subject._admit_workspace_relative(name, label="revision entry") == name
+
+
+def test_the_workspace_is_built_from_objects_not_from_git_archive(tmp_path):
+    """Cerberus round 1 of G1-IKARUS-49 (CRITICAL 1): the workspace comparison
+    checked NAMES. `git archive` also applies attribute-selected export AND
+    smudge filters -- the latter an arbitrary shell command from an untracked
+    config. The reviewer rewrote the guarding test's body while the file list
+    stayed identical, and ran a command on the host on the way.
+
+    Reading blobs by digest has no attribute, filter or end-of-line input at
+    all, which is why this is now a construction rather than a check."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    guard = (root / "tests" / "test_mod.py").read_text(encoding="utf-8")
+
+    (root / ".git" / "info").mkdir(parents=True, exist_ok=True)
+    (root / ".git" / "info" / "attributes").write_text(
+        "tests/test_mod.py filter=neutered\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "config", "filter.neutered.smudge",
+                    "sed s/assert/assert True or/"], check=True, capture_output=True)
+    porcelain = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                               capture_output=True, text=True, check=True).stdout
+    assert porcelain == ""  # invisible to every ordinary check
+
+    files, _ = _extract_revision(root, revision, tmp_path / "ws")
+    assert files == 3
+    # The bytes are the revision's, not the filter's.
+    assert (tmp_path / "ws" / "tests" / "test_mod.py").read_text(encoding="utf-8") == guard
+    assert "assert True or" not in (tmp_path / "ws" / "tests" / "test_mod.py").read_text(encoding="utf-8")
+
+    # And the export filter that removed a file entirely is equally inert.
+    (root / ".git" / "info" / "attributes").write_text(
+        "tests/test_mod.py export-ignore\n", encoding="utf-8")
+    files_again, _ = _extract_revision(root, revision, tmp_path / "ws2")
+    assert files_again == 3
+    assert (tmp_path / "ws2" / "tests" / "test_mod.py").read_text(encoding="utf-8") == guard
+
+
 def test_the_module_says_what_a_green_run_does_not_prove():
     """A guarantee that reads stronger than the mechanism is this repository's
     most expensive recurring defect, so the docstring is pinned."""
@@ -524,3 +814,191 @@ def test_the_module_says_what_a_green_run_does_not_prove():
     assert "SELF-REPORT" in text and "verdict_is_self_reported" in text
     assert "nomination is not promotion" in text
     assert sys.version_info >= (3, 12)
+
+
+def test_the_workspace_refuses_an_object_the_revision_did_not_name(tmp_path, monkeypatch):
+    """The payload is bound to the digest the TREE named, not to the oid git
+    echoed back (Cerberus round 2, low).
+
+    Checking a blob against git's own echo verifies that git is self-consistent
+    and nothing else. Here `cat-file --batch` answers every request with a
+    different, internally consistent object -- the shape a compromised object
+    store or a substituted alternate would produce -- and the extraction
+    refuses instead of writing it."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    payload = b"# not what the revision names\n"
+    frame = b"%s blob %d\n%s\n" % (
+        hashlib.sha1(b"blob %d\x00" % len(payload) + payload).hexdigest().encode("ascii"),
+        len(payload), payload)
+    real = subject._git_out
+
+    def substituted(root_arg, args, *, stdin=None):
+        if args and args[0] == "cat-file":
+            return frame * (stdin.count(b"\n") if stdin else 1)
+        return real(root_arg, args, stdin=stdin)
+
+    monkeypatch.setattr(subject, "_git_out", substituted)
+    with pytest.raises(AriadneCampaignError, match="does not match its digest"):
+        _extract_revision(root, revision, tmp_path / "workspace")
+
+
+def test_the_workspace_refuses_a_filesystem_that_stores_nothing(tmp_path, monkeypatch):
+    """A write that silently succeeds and stores nothing (Cerberus round 2,
+    high 1).
+
+    That is what `NUL` did: the counter said two files, one was on disk, and
+    nothing refused. The name check refuses the device names this module
+    enumerates; this refuses whatever the enumeration misses, because a
+    workspace whose file count is not the revision's file count is not the
+    revision, and every later comparison rests on that count."""
+
+    root, revision = _subject(tmp_path, TEST_SEEING)
+    monkeypatch.setattr(Path, "write_bytes", lambda self, data: len(data))
+    with pytest.raises(AriadneCampaignError, match="did not materialise"):
+        _extract_revision(root, revision, tmp_path / "workspace")
+
+
+@pytest.mark.slow
+def test_a_content_sensitive_test_supplies_the_control_failure_without_executing(tmp_path):
+    """NEGATIVE EVIDENCE, retained (Cerberus round 1 of this packet, high 1).
+
+    The gate this packet added asks the negative control to contain a test that
+    the baseline PASSED and that FAILED. A content-sensitive test -- a style,
+    lint, census or byte-pin test that reads the source as TEXT rather than
+    executing it -- supplies that failure without ever running the changed
+    region. Here the suite never imports `pkg.mod` at all: it only asserts that
+    no line is longer than 32 characters. The control's mutation appends
+    `__ariadne_negative__`, taking the line to 36, so the test fails; the
+    repair's line is 28, so it passes; and NOTHING called `add()` in any arm.
+
+    Every new gate passes and the nomination is vacuous. This is the second
+    vacuity route the packet leaves open, and the packet says so rather than
+    claiming a closure: closing it needs the failing control test to be one
+    that IMPORTS the target, which the baseline arm could record and this
+    packet does not.
+
+    The acceptance matrix asserted this pin before it existed (Cerberus round 2,
+    high 2). It exists now, and it asserts the measured outcome."""
+
+    root = tmp_path / "subject"
+    (root / "pkg").mkdir(parents=True)
+    (root / "tests").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "mod.py").write_text(MODULE, encoding="utf-8")
+    # A style test. It reads the file; it never imports it.
+    (root / "tests" / "test_style.py").write_text(
+        "from pathlib import Path\n\n\n"
+        "def test_lines_are_short():\n"
+        "    source = Path(__file__).resolve().parents[1] / 'pkg' / 'mod.py'\n"
+        "    for line in source.read_text(encoding='utf-8').splitlines():\n"
+        "        assert len(line) <= 32, line\n",
+        encoding="utf-8")
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+    for argv in (["init", "-q"], ["add", "-A"], ["commit", "-qm", "fixture"]):
+        subprocess.run(["git", "-C", str(root), *argv], check=True, env=env, capture_output=True)
+    KillSwitch(repo_root=root).arm(note="G1-IKARUS-49 content-sensitive fixture")
+    revision = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+    receipt = run_campaign(
+        repo_root=str(root), source_revision=revision, campaign_id="a19-content",
+        target_path="pkg/mod.py", before=BEFORE, after=AFTER,
+        timeout_s=60, evaluator=EVALUATOR,
+    )
+    assert receipt["outcome"] == "nominated"  # measured, not desired
+    arms = {trial["variant_id"]: trial["status"] for trial in receipt["trials"]}
+    assert arms == {"baseline": "passed", "negative-control": "failed", "repair": "passed"}
+
+    # The only thing that protects the reader is the hedge, so it must be on
+    # every observation and on the nomination.
+    from daedalus.spine.killswitch import control_root
+
+    hedged = 0
+    for path in control_root(root).rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            blob = json.loads(path.read_bytes().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, OSError):
+            continue
+        if isinstance(blob, dict) and str(blob.get("schema", "")).startswith(
+                "daedalus-ariadne-test-evaluator-observation"):
+            assert blob["verdict_is_self_reported"] is True
+            hedged += 1
+        if isinstance(blob, dict) and blob.get("nomination_status") == "nominated":
+            assert "SELF-REPORTED" in " ".join(blob.get("reasons", ()))
+            hedged += 1
+    assert hedged >= 4
+
+
+def test_a_config_in_an_ancestor_cannot_reach_into_the_workspace(tmp_path):
+    """Cerberus round 4 (high 1), MEASURED: pytest's rootdir discovery walks
+    UPWARD out of the workspace.
+
+    An ini file in an ANCESTOR directory becomes the configfile, and its
+    `addopts` re-injects any option -- including `-p <module>`, which loads and
+    executes an arbitrary module inside the judging process. That is round 2's
+    CRITICAL reproduced with no hostile argv at all, so no argv rule can close
+    it. `--confcutdir` closes only the conftest half; the campaign's own `-c`
+    closes both, which is why the campaign appends one beside `--junitxml=`.
+
+    This is a property test, not an enumeration: it booby-traps the
+    surroundings and asserts no tripwire fires. Four review rounds established
+    that an enumeration lasts exactly as long as the author's imagination."""
+
+    outer = tmp_path / "outer"
+    workspace = outer / "ws"
+    (workspace / "tests").mkdir(parents=True)
+    (workspace / "tests" / "test_ok.py").write_text(
+        "def test_ok():\n    assert True\n", encoding="utf-8")
+
+    # The traps: a config whose addopts loads a plugin, the plugin itself, and
+    # a conftest. All OUTSIDE the workspace, all in no revision.
+    marker = tmp_path / "TRIPWIRE.txt"
+    payload = (
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('outside the workspace ran', encoding='utf-8')\n"
+    )
+    (outer / "canary.py").write_text(payload, encoding="utf-8")
+    (outer / "conftest.py").write_text(payload, encoding="utf-8")
+    (outer / "pytest.ini").write_text(
+        "[pytest]\naddopts = -p canary\n", encoding="utf-8")
+
+    def run(*extra: str) -> subprocess.CompletedProcess:
+        if marker.exists():
+            marker.unlink()
+        return subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+             *extra, "tests"],
+            cwd=workspace, capture_output=True, text=True,
+            env={**os.environ, "PYTHONPATH": str(outer)},
+        )
+
+    # Without the campaign's config the ancestor wins: this is the finding.
+    unguarded = run()
+    assert marker.exists(), (
+        "the ancestor config did not fire, so this test proves nothing on this "
+        f"host: {unguarded.stdout[-400:]}")
+
+    # With it, nothing outside the workspace is read or executed.
+    config = workspace / subject.TEST_CONFIG_RELATIVE
+    config.write_bytes(subject.TEST_CONFIG_BODY)
+    guarded = run("-c", subject.TEST_CONFIG_RELATIVE)
+    assert not marker.exists(), (
+        "a file outside the workspace ran despite the campaign's own config: "
+        f"{guarded.stdout[-400:]}")
+    assert guarded.returncode == 0, guarded.stdout[-400:]
+
+
+def test_the_campaign_owns_its_config_name(tmp_path):
+    """A revision that already carries that name would have its own file
+    overwritten, and the fence would be whatever the revision put there."""
+
+    assert subject.TEST_CONFIG_RELATIVE.startswith("daedalus-ariadne-")
+    assert subject.TEST_CONFIG_BODY == b"[pytest]\n"  # a fence, not a config

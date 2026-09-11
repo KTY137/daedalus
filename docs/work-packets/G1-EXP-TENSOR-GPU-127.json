@@ -1,0 +1,151 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-127",
+  "title": "Consolidate verified-binding admission and materialization staging",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-10",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "blob_sha": "49e54f15cc5019ce63f1fddb2e9e31b7c85a459b"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "aae675f463d8334d09fa0f1fbd74fb30979280fc",
+  "implementation_head": "0a2135a53124efa5b910598e48f83d57d9cae64f",
+  "contract_head": "ed6d754464003bb5c9b06bcbed700b9baa3d007e",
+  "scope": "Delete the duplicate full per-binding staging ownership inside compile_relation_blocks without changing Forest/Fourfold authority, cross-plane admission, refusal ordering, discover-all behavior, Evidence-DAG provenance, scalar semantics, or public API.",
+  "implementation": {
+    "owner": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "before": "Each included verified CrossPlaneBinding occupied both a binding_records list entry for later fact materialization and an included_binding_keys set entry for exact cross-plane ForestEdge admission.",
+    "after": "A single insertion-ordered binding_records_by_key dictionary owns the exact five-field admission key and the staged materialization record. binding_records is a live dict_values view, so later materialization and the existing instrumentation seam do not allocate a second full per-binding container.",
+    "production_path": "daedalus/twin/relation_compiler.py",
+    "production_blob": "93feafed33ccafce362dca12765fa6ed9103369b",
+    "semantic_reasoning": "FourfoldSnapshot already rejects repeated semantic binding claims and binds every CrossPlaneBinding to the snapshot revision. The replacement therefore reuses canonical validated uniqueness rather than inventing another deduplication authority. The admission key intentionally retains the pre-existing five-field identity because all snapshot bindings share the snapshot source_revision.",
+    "scalar_provenance": "Boolean and Natural records continue to stage provenance=None.",
+    "evidence_provenance": "Evidence-DAG records continue to retain the exact CrossPlaneBinding until post-admission evidence materialization."
+  },
+  "focused_contract": {
+    "path": "tests/twin/test_relation_compiler_scalar_binding_staging.py",
+    "blob": "ccce47b3ca44d90c0b422266121ca52c365d0d91",
+    "behavior": "At the existing _record_fact boundary, the old included_binding_keys owner is absent; binding_records_by_key and binding_records expose the same staged records; the exact code->type declares key remains present; scalar staged records contain no CrossPlaneBinding and retain provenance=None; the canonical cross-plane fact and verified_binding_count remain unchanged."
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; the Tensor relation compiler remains a regenerable projection.",
+    "cross_plane_admission": "A cross-plane ForestEdge still requires the exact included verified Fourfold binding before relation compilation.",
+    "fail_closed_ordering": "Binding and edge staging remain separate from final fact materialization so existing admission/refusal/completeness checks finish before facts are emitted.",
+    "determinism": "The mapping is populated in canonical snapshot.bindings iteration order and Python dict insertion order preserves the prior materialization order.",
+    "public_api": "No public API, persisted schema, receipt family, cache, index service, classifier, compiler, fact store, or graph authority is added."
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "documentation_files_changed": 1,
+    "duplicate_full_binding_container_deleted": true,
+    "new_remote_branch": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "verification": {
+    "exact_code_test_head": "ed6d754464003bb5c9b06bcbed700b9baa3d007e",
+    "fourfold_tensor_run": {
+      "id": 34410700407,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "ed6d754464003bb5c9b06bcbed700b9baa3d007e"
+    },
+    "tauri_run": {
+      "id": 34410700432,
+      "name": "Tauri Desktop",
+      "status_at_closure_record": "in_progress",
+      "head_sha": "ed6d754464003bb5c9b06bcbed700b9baa3d007e"
+    },
+    "manual_full_suite_green": false,
+    "repository_wide_all_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "evidence": {
+    "pull_request": 363,
+    "campaign_issue": 239,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "branch_hygiene": {
+    "canonical_branch_reused": true,
+    "non_force_fast_forward_to_main_before_new_work": true,
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": "GPU-127 proves a structural duplicate-container deletion and exact-head contract success only. It does not establish a wall-time, RSS, memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, manual-full-suite, or repository-wide all-checks win.",
+  "bounded_next_step": "GPU-128 should inspect the next measured or full-container retention bucket in the existing relation compiler. Do not optimize arbitrary tuple slots; implement only a delete/reuse within an existing owner, otherwise close the candidate as negative gardener evidence.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-127",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "aae675f463d8334d09fa0f1fbd74fb30979280fc",
+    "dependencies": "G1-EXP-TENSOR-GPU-126 and the exact base_head/implementation_head/contract_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "focused_contract"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "implementation"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "semantic_invariants"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "gardener_result"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence. The packet's own rollback is a revert of the staging-owner consolidation, which restores the duplicate included_binding_keys container without touching Forest/Fourfold authority."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "claim_boundaries",
+          "governance"
+        ]
+      }
+    }
+  }
+}
