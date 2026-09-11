@@ -14,10 +14,15 @@ Stacked on G1-IKARUS-49 (PR #368) because both change `campaign.py`.
 
 The modules this packet found to **enforce** the self-Renovation leakage
 boundary are behind it, together with the package doors in front of it and the
-conftests under its protected suites; and a test proves that **the name of each
-load-bearing symbol is bound in a protected file**, by `__code__.co_filename`
-where there is one and by a top-level binding in the named module's source
-where there is not.
+conftests under its protected suites; and a test checks that, for each load-bearing symbol, **either its code object
+reports a protected file as its compilation site, or the named module's source
+contains a top-level binding statement for the name and that module is
+protected**.
+
+Two clauses, both mechanically checkable, neither claiming a millimetre more.
+Note what each does *not* carry: `co_filename` is forgeable in one statement, so
+the first clause reports a compilation site rather than proving one; and a
+binding statement can be present and dead, shadowed by an import below it.
 
 That is all it proves, and the wording is deliberate. It does **not** prove the
 behaviour lives there: `def promote_candidates(*a, **k): return
@@ -353,26 +358,40 @@ direction, with no deception. And "a C-implemented callable raises rather than
 asserts" is **wrong**: with no `__code__` it lands in the source-binding branch
 and can pass.
 
-**Two of the six rows have no other guard anywhere in the tree.**
-`_repeat_permission` — the gate deciding whether an unattended recurring
-campaign series continues — and `ComputerService._admit_release_capability` are
-named only by this packet's test and their own module. Measured with each
-delegated into an admissible module carrying an environment-gated bypass:
+**Delegation with an ACTIVE bypass is caught for all three callable rows.**
+An earlier version of this section said two of the six had no other guard
+anywhere in the tree. That was false, and the way it was arrived at is worth
+recording: the instrument was `grep -rln "_repeat_permission"` — and a name-grep
+is the wrong instrument for a **behaviour pin**, because a behaviour pin tests
+through the public surface and never names the symbol. The absence of the name
+was read as the absence of the guard. Re-measured with the bypasses
+unconditional rather than environment-gated:
 
 ```
-_repeat_permission   bypass fires -> (True, 'series continues')  on {'ok': False}
-  baseline 240 passed, 2 skipped   |   with the bypass 240 passed, 2 skipped
-_admit_release_capability
-  baseline 187 passed, 1 skipped   |   with the bypass 187 passed, 1 skipped
+_repeat_permission delegated, bypass unconditional
+  11 failed, 231 passed   — 5 in test_ikarus_computer_schedule_autonomy.py,
+  including test_uncertain_failed_or_unverified_occurrence_never_continues
+_admit_release_capability delegated, fence open
+  3 failed, 186 passed    — test_unavailable_release_capability_refuses_before_
+  lease_or_state, test_missing_current_observation_..., and
+  test_a_session_without_a_runner_is_refused_before_any_lease
+promote_candidates delegated, approval skipped
+  6 failed — 5 in tests/kernel/test_live_promotion_seam_review.py, which pins
+  source ORDER rather than a name
 ```
 
-The other four do have backstops, and that narrows the finding rather than
-excusing it: delegating `promote_candidates` with an approval-skipping bypass
-turns six `tests/kernel/` tests red, five of them in
-`test_live_promotion_seam_review.py`, because that suite pins source ORDER
-rather than a name. Moving this boundary's own tuple is green, but a second
-campaign that actually drops `daedalus/spine/` from it turns five tests red —
-two nominations, two owner approvals.
+Every one of those suites is already behind this boundary. So the behaviour
+pins this packet's author was about to write as a follow-up already exist.
+
+**What is genuinely uncaught is a DORMANT conditional bypass** — delegation
+plus a branch that stays inactive while the evaluator runs. No behaviour pin
+catches that, in any file, protected or not: it is conditional dead code, and
+it belongs to the same residual as the admissible-file shims below rather than
+being a property of these rows.
+
+Moving this boundary's own tuple is likewise green, but a second campaign that
+actually drops `daedalus/spine/` from it turns five tests red — two
+nominations, two owner approvals.
 
 **The D2 class is not closed, and stops one level below where it could.**
 `pyproject.toml` is admissible and silences every protected suite:
@@ -428,3 +447,30 @@ and `tests/runtimes/test_computer_service.py` as the right second file, verified
 by grep rather than argument: `test_computer_ariadne.py` names
 `_admit_release_capability` nowhere, while `test_computer_service.py` carries
 its three direct tests.
+
+
+## Round 3's own correction (2026-09-11, `86ac8271`)
+
+**Odysseus: `pass` on the code and the claim**, and it opened by killing one of
+its own findings. "Two of the six rows have no other guard anywhere in the tree"
+was false, and the reason is the same error class this packet was blocked for
+twice: the instrument was a name-grep, and a behaviour pin never names the
+symbol it pins. Corrected above with the re-measured numbers.
+
+Verified at this head: 222 passed / 1 skipped on the claimed six-suite set;
+**1797 passed, 159 skipped, 14 xfailed** across `tests/runtimes`, both schedule
+suites, `test_ikarus_computer_loop_ariadne` and `tests/contracts`; the new
+prefix load-bearing (3 failures on removal); `daedalus/__init__.py` catching
+exactly one file and no sibling; 6380 tracked files swept with zero surprising
+matches and 157 protected; and the new failure message executed under a
+conditional binding, naming the check and asserting no cause.
+
+One measurement added rather than acted on: `daedalus/__init__.py` closes a
+file, not the import-lever class. `computer_loop.py` reaches the same
+`sys.modules` pre-seed and acceptance item 4 requires it to stay admissible.
+Recorded at the prefix.
+
+**This packet was blocked three times, every time on the claim rather than the
+code.** What changed at the end was not the mechanism getting bigger — it was
+the sentence coming down to what the mechanism does, and the eleven defeats
+becoming *instances* of the claim instead of counterexamples to it.

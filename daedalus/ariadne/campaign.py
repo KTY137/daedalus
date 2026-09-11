@@ -898,6 +898,12 @@ SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     # D1's parent, 35 lines. A conditional shim here that pre-seeds
     # `sys.modules["daedalus.ariadne"]` removes the boundary entirely, measured
     # with four suites at 193 passed either way (Odysseus round 3).
+    #
+    # This closes a FILE, not the class. The same pre-seed works from
+    # `computer_loop.py`, which acceptance item 4 REQUIRES to stay admissible,
+    # and reaches the same lever -- measured, the campaign then dies past the
+    # boundary on a missing `.git` rather than being stopped by it. Nothing
+    # here claims the import-lever class is closed.
     "daedalus/__init__.py",
     # The WHOLE package, not just `campaign.py`. `__init__.py` re-exports
     # `run_campaign`, and both the HTTP door and the tool-door runner resolve
