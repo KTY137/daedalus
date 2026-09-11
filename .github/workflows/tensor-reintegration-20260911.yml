@@ -65,20 +65,33 @@ jobs:
           steps = yaml.safe_load(raw)['jobs']['acceptance']['steps']
           script, = [step['run'] for step in steps if step.get('name') == 'Prepare bounded mainline acceptance change']
 
-          # The exact-head Windows run 34601228085 proved the bootstrap itself
-          # executed, then the old acceptance fixture failed closed because its
-          # negative control appended an identifier to a complete return
-          # statement, which cannot parse. Keep the reviewed preparation script
-          # unchanged except for its content-addressed test fixture. The new
-          # fixture uses an expression fragment so the negative arm can be
-          # judged, and it asserts the retained/redacted failure contract rather
-          # than requiring a host-path-bearing internal error message.
+          # The first exact-head Windows run proved the original whole-statement
+          # fixture could not produce a parseable negative arm. Run 34620373402
+          # then showed that the first expression repair was not unique in the
+          # semiring oracle: `first + second` also exists in Tropical multiply.
+          # Derive a second bounded fixture from the immutable repaired blob by
+          # selecting Boolean addition instead. `first or second` occurs once,
+          # its suffixed negative arm stays valid Python, and the existing
+          # semiring-law suite observes OR -> AND regressions.
           old_test_blob = '7816e8f47bcf643bb4739f6d73a004b47b60df08'
-          corrected_test_blob = '8ae808398441b7663aaa277bb674cb4096ef0b94'
+          repaired_test_blob = '8ae808398441b7663aaa277bb674cb4096ef0b94'
           old_binding = "test_blob = '" + old_test_blob + "'"
-          new_binding = "test_blob = '" + corrected_test_blob + "'"
+          new_binding = "test_blob = '" + repaired_test_blob + "'"
           assert script.count(old_binding) == 1
           script = script.replace(old_binding, new_binding)
+          old_write = 'target.write_bytes(raw)'
+          derived_write = '''fixture = raw.decode("utf-8")
+          replacements = (
+              ('BEFORE = "first + second"', 'BEFORE = "first or second"'),
+              ('REFACTOR = "(first + second)"', 'REFACTOR = "(first or second)"'),
+              ('REGRESSION = "first * second"', 'REGRESSION = "first and second"'),
+          )
+          for old_fixture, new_fixture in replacements:
+              assert fixture.count(old_fixture) == 1
+              fixture = fixture.replace(old_fixture, new_fixture)
+          target.write_text(fixture, encoding="utf-8", newline="\\n")'''
+          assert script.count(old_write) == 1
+          script = script.replace(old_write, derived_write)
           Path(os.environ['RUNNER_TEMP'], 'acceptance-prepare.sh').write_text(script, encoding='utf-8', newline='\n')
           PY
           # The immutable preparation script was written for a main push and
