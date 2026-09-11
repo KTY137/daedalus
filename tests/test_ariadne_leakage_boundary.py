@@ -9,6 +9,11 @@ discipline the ignored-root refusal already has.
 """
 from __future__ import annotations
 
+import ast
+import importlib
+import sys
+from pathlib import Path
+
 import pytest
 
 import daedalus.ariadne.campaign as module
@@ -41,17 +46,46 @@ PROTECTED = (
     "tests/test_ariadne_leakage_boundary.py",
     "DAEDALUS/SPINE/ledger.py",
     "Docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "daedalus/__init__.py",
+    "daedalus/ariadne/__init__.py",
+    "daedalus/ariadne/__main__.py",
+    "tests/conftest.py",
+    "tests/runtimes/conftest.py",
+    "tests/runtimes/test_computer_service.py",
+    # G1-ARIADNE-13: the boundary covered `campaign.py` and not the code that
+    # ENFORCES it. Each of these answered UNPROTECTED before this packet.
+    "daedalus/runtimes/computer_ariadne.py",
+    "daedalus/runtimes/computer.py",
+    "daedalus/orchestration/ikarus/computer_schedule.py",
+    "daedalus/kairos/gated_writes.py",
+    "daedalus/config.py",
+    "tests/kernel/test_sealed_promotion.py",
+    "tests/runtimes/test_computer_ariadne.py",
+    "tests/test_ikarus_computer_loop_ariadne.py",
+    "tests/test_ikarus_computer_schedule_autonomy.py",
 )
 
 ADMITTED = (
     "daedalus/providers/codex_cli.py",
     "daedalus/orchestration/ikarus/shell.py",
-    "daedalus/ariadne/__init__.py",
     "daedalus/kernel/artifacts.py",
     "docs/STATUS.md",
     "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md",
     "tests/test_eval.py",
     "README.md",
+    # The widening must stay narrow. These are ordinary self-Renovation
+    # subjects and a prefix that swallowed them would make the strand useless:
+    # `daedalus/runtimes/computer.py` must not take its siblings with it, and
+    # `daedalus/config.py` must not take the package.
+    "daedalus/runtimes/computer_files.py",
+    "daedalus/runtimes/computer_desktop.py",
+    "daedalus/runtimes/computer_daedalus.py",
+    "daedalus/orchestration/ikarus/computer_loop.py",
+    "daedalus/orchestration/loop.py",
+    "daedalus/kairos/scheduler.py",
+    "daedalus/health.py",
+    "tests/test_health_surface.py",
+    "tests/runtimes/test_computer_files.py",
 )
 
 
@@ -117,6 +151,177 @@ def test_the_tuple_covers_every_class_the_plan_names() -> None:
         "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
         "AGENTS.md",
         "tests/test_ariadne",
-        "daedalus/ariadne/campaign.py",
+        # The package, not the module alone (Odysseus round 1, D1).
+        #
+        # NOTE this is a WEAKER needle than `daedalus/ariadne/campaign.py`, not
+        # a stronger one: `assert needle in joined` gets looser as the needle
+        # gets shorter, and round 2 proved it -- narrowing the prefix back to
+        # the file left THIS test green while five others went red. The
+        # narrowing is covered by
+        # `test_the_package_door_is_protected_with_the_module_it_guards` and by
+        # the two PROTECTED rows, which is why the edit stays; the earlier
+        # comment here claiming a strengthening was simply wrong.
+        "daedalus/ariadne/",
     ):
         assert needle in joined
+
+
+#: What each newly protected module HOLDS. The boundary is expressed as paths,
+#: so a refactor that moves one of these callables or constants would silently
+#: un-protect it while every path test stayed green. Binding the assertion to
+#: the symbol makes the move turn this red instead (G1-ARIADNE-13).
+LOAD_BEARING = (
+    ("daedalus.kairos.gated_writes", "promote_candidates",
+     "the callable that promotes a candidate into the checkout"),
+    ("daedalus.config", "DEFAULT_WRITE_WAVE_POLICY",
+     "the constant that makes the write wave policy 'never' by default"),
+    ("daedalus.config", "WRITE_WAVE_POLICY_LEVELS",
+     "the closed set that has no level except 'never'"),
+    ("daedalus.orchestration.ikarus.computer_schedule", "_repeat_permission",
+     "the gate deciding whether a recurring campaign series continues"),
+    ("daedalus.runtimes.computer", "ComputerService._admit_release_capability",
+     "the fence that admits the campaign tool at all"),
+    ("daedalus.ariadne.campaign", "SELF_RENOVATION_PROTECTED_PREFIXES",
+     "this boundary itself"),
+)
+
+
+@pytest.mark.parametrize("module_name,symbol,what", LOAD_BEARING)
+def test_the_module_defining_each_load_bearing_name_is_protected(
+    module_name, symbol, what
+) -> None:
+    """Ask the interpreter where the name lives, then require that file to be
+    behind the boundary.
+
+    Before G1-ARIADNE-13 four of these six answered UNPROTECTED, so a
+    self-Renovation candidate could NOMINATE an edit to the callable that
+    promotes, to the constant that forbids writing, to the gate that continues
+    a series, and to the fence that admits its own tool. Promotion still
+    required an owner approval -- this was defence in depth, not a breach --
+    but a candidate one approval away from removing its own door is not a
+    boundary anyone should rely on while campaigns run unattended."""
+
+    imported = importlib.import_module(module_name)
+    holder = imported
+    for part in symbol.split("."):
+        assert hasattr(holder, part), (
+            f"{module_name}.{symbol} moved or was renamed: {what}")
+        holder = getattr(holder, part)
+    # Where the thing is DEFINED, established without trusting anything the
+    # object says about itself.
+    #
+    # Round 1 replaced `imported.__file__` with `__module__`, and round 2
+    # defeated that four ways: `__module__` is a writable string that lies in
+    # one line; a `functools.wraps` decorator copies it from an admissible
+    # module without lying at all; and three of the six rows below are
+    # CONSTANTS, which have no `__module__`, so the fallback preserved the old
+    # name-presence behaviour verbatim -- including for this boundary's own
+    # tuple.
+    # WHAT THIS PROVES, exactly: that the NAME is bound in a protected file.
+    # Not that the behaviour lives there. No definition-site test can prove
+    # that -- `def promote_candidates(*a, **k): return _impl.promote_candidates(*a, **k)`
+    # is the ordinary extract-the-implementation refactor and passes every
+    # check below (Odysseus round 3, eleven such shapes). The uncovered set is
+    # enumerated in the packet; catching it needs an import trace or a
+    # behaviour pin, not a third attribute.
+    code = getattr(holder, "__code__", None)
+    if code is not None:
+        # `co_filename` is the file that COMPILED this code object. It is not
+        # authoritative -- `f.__code__ = f.__code__.replace(co_filename=...)`
+        # forges it in one statement -- but unlike `__module__` it at least
+        # requires a deliberate lie rather than a decorator.
+        source = Path(code.co_filename).resolve()
+    else:
+        # NOT "the constant branch": a `functools.partial`, a callable class
+        # instance and a `@property` are callables with no `__code__` and land
+        # here too. Callable-versus-constant is not a partition.
+        #
+        # Whatever lands here carries no origin, so nothing attribute-based can
+        # work. Ask the SOURCE of the named module whether it BINDS the name at
+        # top level.
+        source = Path(imported.__file__).resolve()
+        leaf = symbol.split(".")[-1]
+        tree = ast.parse(source.read_bytes().decode("utf-8"))
+        bound = any(
+            (isinstance(node, ast.Assign)
+             and any(isinstance(t, ast.Name) and t.id == leaf for t in node.targets))
+            or (isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name) and node.target.id == leaf)
+            for node in tree.body
+        )
+        # Report the CHECK, not a diagnosis. The earlier message asserted
+        # "it is re-exported from somewhere else", which this test never
+        # established -- and which is false for a conditional binding in the
+        # same file, sending the reader after a module that does not exist
+        # (Odysseus round 3).
+        assert bound, (
+            f"no top-level Assign/AnnAssign of {symbol} in {source.name} "
+            f"({what}). That can mean a re-export, a conditional or generated "
+            f"binding, or a binding inside a function; this test cannot tell "
+            f"which. Name the module that assigns it at top level.")
+    repo_root = Path(module.__file__).resolve().parents[2]
+    relative = source.relative_to(repo_root).as_posix()
+    named = protected_prefix_for(relative)
+    assert named is not None, (
+        f"{relative} holds {symbol} ({what}) and is NOT behind the leakage "
+        f"boundary. Either add a prefix covering it, or say in the packet why "
+        f"a candidate may nominate a change to it.")
+
+
+def test_the_write_wave_policy_values_are_pinned() -> None:
+    """`LOAD_BEARING` names these two and says what they mean; until now nothing
+    in the tree asserted their VALUES.
+
+    Measured (Odysseus round 1, mutation C): opening the closed set to
+    `('never', 'apply')` and flipping the default to `apply` left all 82 tests
+    green. A grep for either name over the whole repository returns only
+    `config.py` itself and the two name strings in `LOAD_BEARING` -- so the
+    description "the closed set that has no level except 'never'" was a claim
+    no test made. Protecting the file that holds a constant is worth little if
+    nothing notices the constant changing."""
+
+    from daedalus import config
+
+    assert config.WRITE_WAVE_POLICY_LEVELS == ("never",)
+    assert config.DEFAULT_WRITE_WAVE_POLICY == "never"
+
+
+def test_the_package_door_is_protected_with_the_module_it_guards() -> None:
+    """`daedalus/ariadne/__init__.py` re-exports `run_campaign`, and both the
+    HTTP door and the tool-door runner resolve through it (Odysseus round 1,
+    D1). A conditional shim there disabled the whole boundary with this suite
+    green."""
+
+    for relative in (
+        # D1's parent: a conditional shim in the package root pre-seeding
+        # `sys.modules["daedalus.ariadne"]` removed the whole boundary with
+        # four suites unchanged at 193 passed (Odysseus round 3).
+        "daedalus/__init__.py",
+        "daedalus/ariadne/__init__.py",
+        "daedalus/ariadne/__main__.py",
+        "daedalus/ariadne/campaign.py",
+        "tests/conftest.py",
+        # A conftest under a protected suite is part of that suite's evidence:
+        # eleven lines here took `test_computer_ariadne.py` from 66 passed to
+        # no tests ran (Odysseus round 2).
+        "tests/runtimes/conftest.py",
+        "tests/runtimes/test_computer_service.py",
+    ):
+        assert protected_prefix_for(relative) is not None, relative
+
+
+def test_the_boundary_covers_its_own_enforcement_not_only_its_definition() -> None:
+    """The measurement that produced this packet, kept as a test.
+
+    `daedalus/ariadne/campaign.py` DEFINES the boundary; these enforce it. A
+    boundary that protects its definition and not its enforcement protects a
+    document."""
+
+    for relative in (
+        "daedalus/runtimes/computer_ariadne.py",
+        "daedalus/runtimes/computer.py",
+        "daedalus/orchestration/ikarus/computer_schedule.py",
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/config.py",
+    ):
+        assert protected_prefix_for(relative) is not None, relative

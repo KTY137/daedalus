@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 530,
+    "assigned_artifacts": 531,
     "legacy_artifacts": 204,
-    "packet_artifacts": 532,
-    "packet_ids": 467,
-    "post_index_artifacts": 328,
+    "packet_artifacts": 533,
+    "packet_ids": 468,
+    "post_index_artifacts": 329,
     "registry_artifacts": 1,
-    "tracked_files": 533,
+    "tracked_files": 534,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -1955,6 +1955,22 @@
       "origin": "post_index",
       "packet_id": "G1-ARIADNE-10",
       "primary_artifact": "docs/work-packets/G1-ARIADNE-10_LEAKAGE_BOUNDARY.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-13_LEAKAGE_BOUNDARY_COVERS_ITS_ENFORCEMENT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "02c2c527e936c17f62f84bc54d8cbfd13c4b154c",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-10, G1-IKARUS-49",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-13",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-13_LEAKAGE_BOUNDARY_COVERS_ITS_ENFORCEMENT.md"
     },
     {
       "artifacts": [
@@ -7898,6 +7914,20 @@
       "format": "markdown",
       "packet_id": "G1-ARIADNE-10",
       "path": "docs/work-packets/G1-ARIADNE-10_LEAKAGE_BOUNDARY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-13",
+      "path": "docs/work-packets/G1-ARIADNE-13_LEAKAGE_BOUNDARY_COVERS_ITS_ENFORCEMENT.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
