@@ -9,6 +9,7 @@ discipline the ignored-root refusal already has.
 """
 from __future__ import annotations
 
+import ast
 import importlib
 import sys
 from pathlib import Path
@@ -48,6 +49,8 @@ PROTECTED = (
     "daedalus/ariadne/__init__.py",
     "daedalus/ariadne/__main__.py",
     "tests/conftest.py",
+    "tests/runtimes/conftest.py",
+    "tests/runtimes/test_computer_service.py",
     # G1-ARIADNE-13: the boundary covered `campaign.py` and not the code that
     # ENFORCES it. Each of these answered UNPROTECTED before this packet.
     "daedalus/runtimes/computer_ariadne.py",
@@ -147,10 +150,16 @@ def test_the_tuple_covers_every_class_the_plan_names() -> None:
         "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
         "AGENTS.md",
         "tests/test_ariadne",
-        # The whole package, not the module alone: `__init__.py` re-exports
-        # `run_campaign` and both effectful doors resolve through it, so
-        # protecting the definition and leaving the door open protected
-        # nothing (Odysseus round 1, D1). A wider needle than before.
+        # The package, not the module alone (Odysseus round 1, D1).
+        #
+        # NOTE this is a WEAKER needle than `daedalus/ariadne/campaign.py`, not
+        # a stronger one: `assert needle in joined` gets looser as the needle
+        # gets shorter, and round 2 proved it -- narrowing the prefix back to
+        # the file left THIS test green while five others went red. The
+        # narrowing is covered by
+        # `test_the_package_door_is_protected_with_the_module_it_guards` and by
+        # the two PROTECTED rows, which is why the edit stays; the earlier
+        # comment here claiming a strengthening was simply wrong.
         "daedalus/ariadne/",
     ):
         assert needle in joined
@@ -197,14 +206,41 @@ def test_the_module_defining_each_load_bearing_name_is_protected(
         assert hasattr(holder, part), (
             f"{module_name}.{symbol} moved or was renamed: {what}")
         holder = getattr(holder, part)
-    # The DEFINING module, not the one named above. Asking `imported.__file__`
-    # was a name-PRESENCE test wearing a definition-site test's description:
-    # moving `promote_candidates` into a new admissible module and re-exporting
-    # it -- the normal, compatible way anyone moves a public callable -- left
-    # this green with the callable outside the boundary (Odysseus round 1).
-    owner = getattr(holder, "__module__", None) or module_name
-    defining = sys.modules.get(owner, imported)
-    source = Path(defining.__file__).resolve()
+    # Where the thing is DEFINED, established without trusting anything the
+    # object says about itself.
+    #
+    # Round 1 replaced `imported.__file__` with `__module__`, and round 2
+    # defeated that four ways: `__module__` is a writable string that lies in
+    # one line; a `functools.wraps` decorator copies it from an admissible
+    # module without lying at all; and three of the six rows below are
+    # CONSTANTS, which have no `__module__`, so the fallback preserved the old
+    # name-presence behaviour verbatim -- including for this boundary's own
+    # tuple.
+    code = getattr(holder, "__code__", None)
+    if code is not None:
+        # `co_filename` is baked into the code object at compile time and is
+        # not forgeable by assignment. This is the whole mechanism for
+        # callables.
+        source = Path(code.co_filename).resolve()
+    else:
+        # A constant carries no origin, so nothing attribute-based can work.
+        # Ask the SOURCE of the named module whether it BINDS the name at top
+        # level: a re-export is an `ImportFrom`, not an `Assign`, so moving the
+        # constant elsewhere and re-exporting it fails here.
+        source = Path(imported.__file__).resolve()
+        leaf = symbol.split(".")[-1]
+        tree = ast.parse(source.read_bytes().decode("utf-8"))
+        bound = any(
+            (isinstance(node, ast.Assign)
+             and any(isinstance(t, ast.Name) and t.id == leaf for t in node.targets))
+            or (isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name) and node.target.id == leaf)
+            for node in tree.body
+        )
+        assert bound, (
+            f"{module_name} no longer BINDS {symbol} at top level ({what}); it is "
+            f"re-exported from somewhere else, and a constant carries no origin "
+            f"for this test to follow. Name the module that assigns it.")
     repo_root = Path(module.__file__).resolve().parents[2]
     relative = source.relative_to(repo_root).as_posix()
     named = protected_prefix_for(relative)
@@ -243,6 +279,11 @@ def test_the_package_door_is_protected_with_the_module_it_guards() -> None:
         "daedalus/ariadne/__main__.py",
         "daedalus/ariadne/campaign.py",
         "tests/conftest.py",
+        # A conftest under a protected suite is part of that suite's evidence:
+        # eleven lines here took `test_computer_ariadne.py` from 66 passed to
+        # no tests ran (Odysseus round 2).
+        "tests/runtimes/conftest.py",
+        "tests/runtimes/test_computer_service.py",
     ):
         assert protected_prefix_for(relative) is not None, relative
 

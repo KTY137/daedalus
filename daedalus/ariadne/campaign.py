@@ -932,6 +932,15 @@ SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     # which removes the evidence a reviewer reads rather than changing what it
     # says (Odysseus round 1, D2).
     "tests/conftest.py",
+    # One directory down, the same defect: `tests/runtimes/conftest.py` was
+    # admissible while `tests/runtimes/test_computer_ariadne.py` is protected
+    # here. Eleven lines of `pytest_collection_modifyitems` took that suite from
+    # `66 passed` to `no tests ran` (Odysseus round 2).
+    "tests/runtimes/conftest.py",
+    # And with the conftest closed, this costs one consistent line: it is the
+    # suite that DIRECTLY proves the release fence refuses, while the protected
+    # `test_computer_ariadne.py` only catches it incidentally.
+    "tests/runtimes/test_computer_service.py",
 )
 
 
