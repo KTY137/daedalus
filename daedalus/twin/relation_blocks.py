@@ -467,17 +467,23 @@ class TypedRelationBlock(Generic[T]):
 
         # The canonical compiler and ``from_coordinates`` both build exact dicts.
         # Reuse their insertion order when validation proves it is already CSR
-        # order; arbitrary mappings and out-of-order dicts retain the generic sort.
-        ordered_keys = entries if keys_are_canonical else sorted(entries)
+        # order. Consume exact-dict values from the same iterator so the hot path
+        # does not re-hash every validated key; arbitrary/out-of-order mappings
+        # retain the generic sorted-key fallback and its original lookup semantics.
+        ordered_items = (
+            entries.items()
+            if keys_are_canonical
+            else ((key, entries[key]) for key in sorted(entries))
+        )
         offsets, indices, values = [0], [], []
         current_row = 0
-        for key in ordered_keys:
+        for key, value in ordered_items:
             row, column = key
             while current_row < row:
                 offsets.append(len(values))
                 current_row += 1
             indices.append(column)
-            values.append(entries[key])
+            values.append(value)
         while current_row < row_count:
             offsets.append(len(values))
             current_row += 1
