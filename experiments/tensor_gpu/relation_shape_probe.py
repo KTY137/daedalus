@@ -232,6 +232,17 @@ def run_probe(
             item["fourfold_sha256"],
         )
     )
+    for previous, current in zip(projects, projects[1:]):
+        if (
+            previous["repository_id"],
+            previous["fourfold_sha256"],
+        ) == (
+            current["repository_id"],
+            current["fourfold_sha256"],
+        ):
+            raise ValueError(
+                "project_roots must compile to distinct Fourfold project identities"
+            )
     return {
         "schema": SCHEMA,
         "status": "completed",
