@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 530,
+    "assigned_artifacts": 532,
     "legacy_artifacts": 204,
-    "packet_artifacts": 532,
-    "packet_ids": 467,
-    "post_index_artifacts": 328,
+    "packet_artifacts": 534,
+    "packet_ids": 469,
+    "post_index_artifacts": 330,
     "registry_artifacts": 1,
-    "tracked_files": 533,
+    "tracked_files": 535,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2118,6 +2118,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24e229c0f34e5404bc219637b646386529f82035",
+        "classification": "ALIGNED",
+        "dependencies": "none (standalone local build-driver repair)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908",
+      "primary_artifact": "docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-DESKTOP-PRERELEASE-011.md"
       ],
       "metadata": {
@@ -2915,6 +2931,22 @@
       "origin": "post_index",
       "packet_id": "G1-EXP-TENSOR-GPU-125",
       "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-125.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EXP-TENSOR-GPU-127.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "aae675f463d8334d09fa0f1fbd74fb30979280fc",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-EXP-TENSOR-GPU-126 and the exact base_head/implementation_head/contract_head retained in this packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EXP-TENSOR-GPU-127",
+      "primary_artifact": "docs/work-packets/G1-EXP-TENSOR-GPU-127.json"
     },
     {
       "artifacts": [
@@ -7952,6 +7984,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908",
+      "path": "docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-DESKTOP-PRERELEASE-016",
       "path": "docs/work-packets/G1-DESKTOP-PRERELEASE-016-ASAE.md",
       "sections": [
@@ -8570,6 +8616,20 @@
       "format": "json",
       "packet_id": "G1-EXP-TENSOR-GPU-125",
       "path": "docs/work-packets/G1-EXP-TENSOR-GPU-125.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "json",
+      "packet_id": "G1-EXP-TENSOR-GPU-127",
+      "path": "docs/work-packets/G1-EXP-TENSOR-GPU-127.json",
       "sections": [
         "primary_acceptance_claim",
         "scope",

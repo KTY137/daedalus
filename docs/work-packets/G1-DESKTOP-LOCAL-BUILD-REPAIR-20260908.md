@@ -1,3 +1,35 @@
+Packet ID: G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908
+Artifact role: primary
+Active gate: 1
+Classification: ALIGNED
+Owner: repository owner
+Base revision: 24e229c0f34e5404bc219637b646386529f82035
+Dependencies: none (standalone local build-driver repair)
+
+Registry projection added during owner-requested integration on 2026-09-11.
+The original report below is retained verbatim; its historical claims have
+not been re-executed or upgraded by this metadata repair.
+
+## Primary acceptance claim
+Repair the owner-selected local desktop build driver; not release admission.
+
+## Scope
+The frozen scope and actual files are documented in the original report below.
+
+## Contracts and behavior
+Preserve canonical backend/smoke entrypoints, package identity, policy and version equality.
+
+## Acceptance matrix
+The original Actual final build and Independent and adversarial review sections
+record measured checks, skips and platform limitations; this projection adds no results.
+
+## Migration and rollback
+Restore only the scoped script backup and edits documented below; never reset unrelated work.
+
+## Evidence expected failures and review
+Original logs, hashes, expected refusals, independent review and unsigned-local-build
+limitations remain in the unchanged historical report below.
+
 # G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908
 
 Iron Plan: ALIGNED. Iron Gate: 1.

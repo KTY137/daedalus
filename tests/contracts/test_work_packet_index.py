@@ -189,29 +189,22 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
 
     clean, message = subject.check(ROOT)
     assert clean is True
-    # Moving census: every packet that adds a Work Packet document changes
-    # these totals. Re-measure them with `tools/index_work_packets.py --render`
-    # in the packet that moves them. The invariants that must not weaken are
-    # the frozen legacy baseline below and the post-index metadata completeness
-    # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    # 481 -> 504 -> 507 on 2026-09-09: +22 tensor probes, +1 G3-SEAL-02, then
-    # +3 for the tensor lane's second wave (GPU-109/110/111).
-    assert "533 tracked files" in message  # measured 2026-09-11, +G1-SETTINGS-01/02
-    # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
-    # or retires an artifact. These values were re-derived from the staged
-    # complete 2026-09-06 post-index artifact set with
-    # `tools/index_work_packets.py --render`.
-    assert payload["counts"] == {
-        "assigned_artifacts": 530,
-        "legacy_artifacts": 204,
-        "packet_artifacts": 532,
-        "packet_ids": 467,
-        "post_index_artifacts": 328,
-        "registry_artifacts": 1,
-        "tracked_files": 533,
-        "unassigned_artifacts": 2,
-    }
-    assert len(payload["legacy_baseline"]["paths"]) == 204
+
+    # The checker already re-enumerates the tracked Git index, rebuilds the
+    # registry, validates internally derived counts, and byte-compares the
+    # canonical JSON. Keep only invariant assertions here: hard-coding the
+    # moving census duplicates generator authority and forces unrelated packet
+    # branches to serialize on this test file.
+    counts = payload["counts"]
+    assert message == (
+        "Work Packet registry clean: "
+        f"{counts['tracked_files']} tracked files, "
+        f"{counts['packet_ids']} packet IDs, "
+        f"{counts['unassigned_artifacts']} unassigned legacy artifacts"
+    )
+    assert counts["legacy_artifacts"] == subject.LEGACY_PATH_COUNT
+    assert counts["registry_artifacts"] == 1
+    assert len(payload["legacy_baseline"]["paths"]) == subject.LEGACY_PATH_COUNT
     assert payload["legacy_baseline"]["paths_sha256"] == subject.LEGACY_PATHS_SHA256
 
 
@@ -256,368 +249,11 @@ def test_legacy_unknowns_and_unassigned_artifacts_remain_explicit() -> None:
 def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() -> None:
     payload = _index()
     packets = {packet["packet_id"]: packet for packet in payload["packets"]}
-    expected_primary_ids = {
-        "G1-ARIADNE-10",
-        "G1-IKARUS-46",
-        "G1-IKARUS-47",
-        "G1-IKARUS-48",
-        "G1-IKARUS-49",
-        "G1-EVAL-CORPUS-01",
-        "G1-EVAL-USAGE-01",
-        "G1-IGNITION-04",
-        "G1-IGNITION-03",
-        "G1-ACCEL-01",
-        "G1-ARIADNE-02",
-        "G1-ARIADNE-03",
-        "G1-ARIADNE-04",
-        "G1-ARIADNE-05",
-        "G1-ARIADNE-06",
-        "G1-ARIADNE-07",
-        "G1-ARIADNE-08",
-        "G1-ARIADNE-09",
-        "G1-EDA-HOST-STATUS-01",
-        "G1-EDA-HOST-STATUS-02",
-        "G1-GENESIS-REHEARSAL-01",
-        "G1-IKARUS-26",
-        "G1-IKARUS-27",
-        "G1-IKARUS-28",
-        "G1-IKARUS-29",
-        "G1-IKARUS-30",
-        "G1-IKARUS-31",
-        "G1-IKARUS-32",
-        "G1-IKARUS-33",
-        "G1-IKARUS-34",
-        "G1-IKARUS-35",
-        "G1-IKARUS-36",
-        "G1-IKARUS-42",
-        "G1-IKARUS-43",
-        "G1-IKARUS-44",
-        "G1-IKARUS-45",
-        "G1-PROJECTS-01",
-        "G1-SELF-00",
-        "G1-SELF-01",
-        "G1-TESTS-01",
-        "G1-COUNCIL-01",
-        "G1-COUNCIL-02",
-        "G1-DESKTOP-15",
-        "G1-DESKTOP-PRERELEASE-016",
-        "G1-ENV-01",
-        "G1-HW-01",
-        "G1-KERNEL-02",
-        "G1-EXP-FOURFOLD-HYBRID-01",
-        "G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01",
-        "G1-EXP-GPU-ENV-01",
-        "G1-EXP-TENSOR-GPU-01",
-        "G1-EXP-TENSOR-GPU-02",
-        "G1-EXP-TENSOR-GPU-03",
-        "G1-EXP-TENSOR-GPU-04",
-        "G1-EXP-TENSOR-GPU-05",
-        "G1-EXP-TENSOR-GPU-06",
-        "G1-EXP-TENSOR-GPU-07",
-        "G1-EXP-TENSOR-GPU-08",
-        "G1-EXP-TENSOR-GPU-09",
-        "G1-EXP-TENSOR-GPU-10",
-        "G1-EXP-TENSOR-GPU-11",
-        "G1-EXP-TENSOR-GPU-12",
-        "G1-EXP-TENSOR-GPU-13",
-        "G1-EXP-TENSOR-GPU-14",
-        "G1-EXP-TENSOR-GPU-15",
-        "G1-EXP-TENSOR-GPU-16",
-        "G1-EXP-TENSOR-GPU-17",
-        "G1-EXP-TENSOR-GPU-18",
-        "G1-EXP-TENSOR-GPU-19",
-        "G1-EXP-TENSOR-GPU-20",
-        "G1-EXP-TENSOR-GPU-21",
-        "G1-EXP-TENSOR-GPU-22",
-        "G1-EXP-TENSOR-GPU-23",
-        "G1-EXP-TENSOR-GPU-24",
-        "G1-EXP-TENSOR-GPU-25",
-        "G1-EXP-TENSOR-GPU-26",
-        "G1-EXP-TENSOR-GPU-27",
-        "G1-EXP-TENSOR-GPU-28",
-        "G1-EXP-TENSOR-GPU-29",
-        "G1-EXP-TENSOR-GPU-30",
-        "G1-EXP-TENSOR-GPU-31",
-        "G1-EXP-TENSOR-GPU-32",
-        "G1-EXP-TENSOR-GPU-33",
-        "G1-EXP-TENSOR-GPU-34",
-        "G1-EXP-TENSOR-GPU-35",
-        "G1-EXP-TENSOR-GPU-36",
-        "G1-EXP-TENSOR-GPU-37",
-        "G1-EXP-TENSOR-GPU-38",
-        "G1-EXP-TENSOR-GPU-39",
-        "G1-EXP-TENSOR-GPU-40",
-        "G1-EXP-TENSOR-GPU-41",
-        "G1-EXP-TENSOR-GPU-42",
-        "G1-EXP-TENSOR-GPU-43",
-        "G1-EXP-TENSOR-GPU-44",
-        "G1-EXP-TENSOR-GPU-45",
-        "G1-EXP-TENSOR-GPU-46",
-        "G1-EXP-TENSOR-GPU-47",
-        "G1-EXP-TENSOR-GPU-48",
-        "G1-EXP-TENSOR-GPU-49",
-        "G1-EXP-TENSOR-GPU-50",
-        "G1-EXP-TENSOR-GPU-51",
-        "G1-EXP-TENSOR-GPU-52",
-        "G1-EXP-TENSOR-GPU-53",
-        "G1-EXP-TENSOR-GPU-54",
-        "G1-EXP-TENSOR-GPU-55",
-        "G1-EXP-TENSOR-GPU-56",
-        "G1-EXP-TENSOR-GPU-57",
-        "G1-EXP-TENSOR-GPU-58",
-        "G1-EXP-TENSOR-GPU-59",
-        "G1-EXP-TENSOR-GPU-60",
-        "G1-EXP-TENSOR-GPU-61",
-        "G1-EXP-TENSOR-GPU-62",
-        "G1-EXP-TENSOR-GPU-63",
-        "G1-EXP-TENSOR-GPU-64",
-        "G1-EXP-TENSOR-GPU-65",
-        "G1-EXP-TENSOR-GPU-66",
-        "G1-EXP-TENSOR-GPU-67",
-        "G1-EXP-TENSOR-GPU-68",
-        "G1-EXP-TENSOR-GPU-69",
-        "G1-EXP-TENSOR-GPU-70",
-        "G1-EXP-TENSOR-GPU-71",
-        "G1-EXP-TENSOR-GPU-72",
-        "G1-EXP-TENSOR-GPU-73",
-        "G1-EXP-TENSOR-GPU-74",
-        "G1-EXP-TENSOR-GPU-75",
-        "G1-EXP-TENSOR-GPU-76",
-        "G1-EXP-TENSOR-GPU-77",
-        "G1-EXP-TENSOR-GPU-78",
-        "G1-EXP-TENSOR-GPU-79",
-        "G1-EXP-TENSOR-GPU-80",
-        "G1-EXP-TENSOR-GPU-81",
-        "G1-EXP-TENSOR-GPU-82",
-        "G1-EXP-TENSOR-GPU-83",
-        "G1-EXP-TENSOR-GPU-84",
-        "G1-EXP-TENSOR-GPU-85",
-        "G1-EXP-TENSOR-GPU-86",
-        "G1-INTEGRATION-01",
-        "G1-FOURFOLD-DIRECTIONALITY-01",
-        "G1-MAP-INTEGRATION-03",
-        "G1-EXP-TENSOR-LATENT-CEILING-01",
-        "G1-EXP-TENSOR-LATENT-CEILING-02",
-        "G1-EXP-TENSOR-LATENT-CEILING-03",
-        "G1-EXP-TENSOR-LATENT-CEILING-04",
-        "G1-EXP-TENSOR-LATENT-CEILING-05",
-        "G1-EXP-TENSOR-LATENT-CEILING-06",
-        "G1-EXP-TENSOR-LATENT-CEILING-07",
-        "G1-GATE-01",
-        "G1-GARDEN-BRANCH-03",
-        "G1-GARDEN-HYBRID-01",
-        "G1-GARDEN-HYBRID-02",
-        "G1-GARDEN-ISO-04",
-        "G1-GARDEN-MAP-05",
-        "G1-GARDEN-MAP-06",
-        "G1-GARDEN-MAP-07",
-        "G1-GARDEN-MAP-08",
-        "G1-GARDEN-MAP-09",
-        "G1-GENESIS-01",
-        "G1-GENESIS-02",
-        "G1-GENESIS-03",
-        "G1-GENESIS-04",
-        "G1-HERMES-01",
-        "G1-HIER-01",
-        "G1-HIER-02",
-        "G1-HIER-02A",
-        "G1-HIER-02B",
-        "G1-HIER-03A",
-        "G1-HIER-03B",
-        "G1-HIER-03C",
-        "G1-HIER-03D",
-        "G1-HIER-04",
-        "G1-HIER-04B",
-        "G1-HIER-05",
-        "G1-HIER-06A",
-        "G1-HIER-06B",
-        "G1-HIER-06C",
-        "G1-HIER-06D",
-        "G1-HIER-06E",
-        "G1-HIER-07A",
-        "G1-HIER-07B",
-        "G1-HIER-08",
-        "G1-HIER-09",
-        "G1-HIER-10",
-        "G1-HIER-11",
-        "G1-HIER-12",
-        "G1-HIER-13",
-        "G1-HIER-14",
-        "G1-HIER-15",
-        "G1-IDE-13",
-        "G1-IFACE-BRIDGE-01",
-        "G1-IFACE-BRIDGE-02",
-        "G1-IFACE-BRIDGE-03",
-        "G1-IFACE-BRIDGE-04",
-        "G1-IFACE-BRIDGE-05",
-        "G1-IFACE-BRIDGE-06A",
-        "G1-IFACE-BRIDGE-06B",
-        "G1-IFACE-BRIDGE-07",
-        "G1-IFACE-BRIDGE-08",
-        "G1-IFACE-BRIDGE-09",
-        "G1-IFACE-BRIDGE-10",
-        "G1-IFACE-BRIDGE-11",
-        "G1-IFACE-BRIDGE-12",
-        "G1-IFACE-BRIDGE-13",
-        "G1-IFACE-DESKTOP-01",
-        "G1-IFACE-DESKTOP-02",
-        "G1-IFACE-DESKTOP-03",
-        "G1-IFACE-HTTP-01",
-        "G1-IFACE-HTTP-02",
-        "G1-IFACE-HTTP-03",
-        "G1-IFACE-HTTP-04",
-        "G1-IKARUS-14",
-        "G1-IKARUS-15",
-        "G1-IKARUS-16",
-        "G1-IKARUS-17",
-        "G1-IKARUS-18",
-        "G1-IKARUS-19",
-        "G1-IKARUS-20",
-        "G1-IKARUS-21",
-        "G1-IKARUS-22",
-        "G1-IKARUS-23",
-        "G1-IKARUS-24",
-        "G1-IKARUS-25",
-        "G1-IKARUS-COMPUTER-01",
-        "G1-IKARUS-CONTEXT-01",
-        "G1-IKARUS-CV-01",
-        "G1-INTEGRATE-DEEPSEEK-LAB-01",
-        "G1-ISO-01",
-        "G1-ISO-02",
-        "G1-ISO-03",
-        "G1-KERNEL-01",
-        "G1-MUT-01",
-        "G1-MUT-02A",
-        "G1-MUT-02B",
-        "G1-MUT-02C",
-        "G1-MUT-02D",
-        "G1-MUT-02E",
-        "G1-MUT-02F",
-        "G1-ORCH-01",
-        "G1-OPS-06",
-        "G1-PKG-01",
-        "G1-RENOVATION-02A",
-        "G1-RUNTIME-02",
-        "G1-RUNTIME-03",
-        "G1-RUNTIME-04",
-        "G1-RUNTIME-PROVIDER-01",
-        "G1-RUNTIME-PROVIDER-02",
-        "G1-RUNTIME-PROVIDER-03",
-        "G1-RUNTIME-PROVIDER-04",
-        "G1-RUNTIME-PROVIDER-05",
-        "G1-RUNTIME-PROVIDER-06",
-        "G1-TOKENIZER-01",
-        "G1-UI-01",
-        "G1-UI-02",
-        "G1-UI-03",
-        "G1-UI-04",
-        "G1-UI-05",
-        "G1-UI-06",
-        "G1-UI-07",
-        "G1-UI-08",
-        "G1-UI-09",
-        "G1-UI-10",
-        "G1-UI-11",
-        "G1-UI-12",
-        "G1-UI-13",
-        "G1-UI-14",
-        "G1-UI-15",
-        "G1-UI-16",
-        "G1-UI-17",
-        "G1-UI-18",
-        "G1-UI-19",
-        "G1-UI-20",
-        "G1-UI-21",
-        "G1-UI-22",
-        "G1-WEB-01",
-        "G1-WIKI-01",
-        "G1-WP-IKARUS-COMPUTER-LOOP-01",
-        "G1-WP-INDEX-01",
-        "G1-SCC-02",
-        "G1-TENSOR-01",
-        "G3-BASE-01",
-        # 22 tensor-lane probes landed together when
-        # origin/exp/tensor-kernel-contract-01 was integrated on 2026-09-09.
-        # Seven of them (89, 103-108) arrived WITHOUT the
-        # registry_contract.sections projection their own predecessors
-        # (101, 102) carry; that regression is repaired in the same commit by
-        # projecting each packet's real fields, never by inventing content.
-        "G1-EXP-TENSOR-GPU-87",
-        "G1-EXP-TENSOR-GPU-88",
-        "G1-EXP-TENSOR-GPU-89",
-        "G1-EXP-TENSOR-GPU-90",
-        "G1-EXP-TENSOR-GPU-91",
-        "G1-EXP-TENSOR-GPU-92",
-        "G1-EXP-TENSOR-GPU-93",
-        "G1-EXP-TENSOR-GPU-94",
-        "G1-EXP-TENSOR-GPU-95",
-        "G1-EXP-TENSOR-GPU-96",
-        "G1-EXP-TENSOR-GPU-97",
-        "G1-EXP-TENSOR-GPU-98",
-        "G1-EXP-TENSOR-GPU-99",
-        "G1-EXP-TENSOR-GPU-100",
-        "G1-EXP-TENSOR-GPU-101",
-        "G1-EXP-TENSOR-GPU-102",
-        "G1-EXP-TENSOR-GPU-103",
-        "G1-EXP-TENSOR-GPU-104",
-        "G1-EXP-TENSOR-GPU-105",
-        "G1-EXP-TENSOR-GPU-106",
-        "G1-EXP-TENSOR-GPU-107",
-        "G1-EXP-TENSOR-GPU-108",
-        # wave 4 (GPU-112) dropped registry_contract ENTIRELY, not just its
-        # sections; the repair script now synthesizes one from the packet's own
-        # masterplan block plus a git-derived base revision, or refuses.
-        "G1-EXP-TENSOR-GPU-112",
-        # Second tensor wave, same afternoon, same missing sections projection --
-        # repaired by scripts/repair_work_packet_sections.py, which derives the
-        # projection from fields each packet actually has instead of a
-        # hard-coded per-packet plan.
-        "G1-EXP-TENSOR-GPU-109",
-        "G1-EXP-TENSOR-GPU-110",
-        "G1-EXP-TENSOR-GPU-111",
-        # G3-SEAL-02: the kernel binding that closes G3-BASE-01 blocker F4.
-        "G3-SEAL-02",
-        # G2-XPLANE-CONFIRM-01: the pre-registration of the confirmatory
-        # cross-plane run, committed before any second repository is cloned.
-        "G2-XPLANE-CONFIRM-01",
-        # CONFIRM-02: re-tests CONFIRM-01's two KEEPs on a repository chosen
-        # to be structurally unlike fastapi (md:py ratio below 0.40).
-        "G2-XPLANE-CONFIRM-02",
-        # CONFIRM-03: the redesign arm the 14.1 KILL points at.
-        "G2-XPLANE-CONFIRM-03",
-        "G2-XPLANE-CONFIRM-04",
-        "G2-TYPEPLANE-01",
-        "G1-EXP-TENSOR-GPU-115",
-        "G1-EXP-TENSOR-GPU-116",
-        # tensor wave 9 and the twin admission packet, both merged 2026-09-09
-        "G1-EXP-TENSOR-GPU-117",
-        "G2-INGEST-02",
-        "G1-EXP-TENSOR-GPU-118",
-        "G1-EXP-TENSOR-GPU-124",
-        "G1-EXP-TENSOR-GPU-125",
-        "G1-EXP-TENSOR-GPU-123",
-        "G1-EXP-TENSOR-GPU-122",
-        "G1-EXP-TENSOR-GPU-121",
-        "G2-SYMTASK-01",
-        "G3-MINT-TEXT-01",
-        # tensor wave 5
-        "G1-EXP-TENSOR-GPU-113",
-        "G1-EXP-TENSOR-GPU-114",
-        # the settings contract and the admitted execution limits
-        "G1-SETTINGS-01",
-        "G1-SETTINGS-02",
-    }
     post_index_packets = {
         packet_id: packet
         for packet_id, packet in packets.items()
         if packet["origin"] == "post_index"
     }
-
-    assert set(post_index_packets) == expected_primary_ids
-    for packet in post_index_packets.values():
-        assert packet["primary_artifact"] != "unknown"
-        assert "unknown" not in packet["metadata"].values()
-        assert packet["metadata_conflicts"] == {}
 
     contracts = payload["post_index_contracts"]
     primary_contracts = [
@@ -628,22 +264,43 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         contract for contract in contracts
         if contract["artifact_role"] == "companion"
     ]
-    assert {contract["packet_id"] for contract in primary_contracts} == (
-        expected_primary_ids
-    )
-    assert all(
-        contract["sections"] == list(subject.REQUIRED_SECTIONS)
+    primary_by_id = {
+        contract["packet_id"]: contract
         for contract in primary_contracts
-    )
-    assert companion_contracts == [
-        {
-            "artifact_role": "companion",
-            "format": "json",
-            "packet_id": "G1-RUNTIME-02",
-            "path": "docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json",
-            "sections": [],
-        }
-    ]
+    }
+
+    # Completeness is derived from the canonical registry projection rather
+    # than a second hand-maintained list of every packet ID. The generator
+    # refuses post-index groups without exactly one primary, while this test
+    # independently binds that primary's path, metadata, and section surface
+    # back to the packet projection.
+    assert len(primary_by_id) == len(primary_contracts)
+    assert set(post_index_packets) == set(primary_by_id)
+    for packet_id, packet in post_index_packets.items():
+        contract = primary_by_id[packet_id]
+        assert packet["primary_artifact"] == contract["path"]
+        assert packet["primary_artifact"] != "unknown"
+        assert "unknown" not in packet["metadata"].values()
+        assert packet["metadata_conflicts"] == {}
+        assert contract["sections"] == list(subject.REQUIRED_SECTIONS)
+
+    # Companion cardinality is allowed to evolve; the known runtime shim stays
+    # explicitly pinned while every companion must remain unique and attached
+    # to an indexed packet. This avoids turning legitimate future companions
+    # into another moving census.
+    companion_by_path = {
+        contract["path"]: contract
+        for contract in companion_contracts
+    }
+    assert len(companion_by_path) == len(companion_contracts)
+    assert all(contract["packet_id"] in packets for contract in companion_contracts)
+    assert companion_by_path["docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json"] == {
+        "artifact_role": "companion",
+        "format": "json",
+        "packet_id": "G1-RUNTIME-02",
+        "path": "docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json",
+        "sections": [],
+    }
 
 
 def test_new_primary_validation_rejects_missing_contract_and_id_drift() -> None:

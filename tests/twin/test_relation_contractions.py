@@ -379,3 +379,82 @@ def test_direct_csr_contract_reuses_natural_scalar_bound() -> None:
     assert accepted.values == (maximum,)
     with pytest.raises(ValueError, match="bounded bit length"):
         TypedRelationBlock(values=(1 << MAX_NATURAL_BITS,), **kwargs)
+
+
+def test_reduce_folds_only_retained_sparse_values_with_semiring_addition() -> None:
+    rows = TypedAxis("rows", "code", ("a", "b"))
+    columns = TypedAxis("columns", "type", ("T", "U"))
+
+    natural = NaturalSemiring()
+    natural_block = block(
+        "declares",
+        rows,
+        columns,
+        (("a", "T", 2), ("b", "U", 3)),
+        natural,
+    )
+    tropical = TropicalSemiring()
+    tropical_block = block(
+        "cost",
+        rows,
+        columns,
+        (("a", "T", 4.5), ("b", "U", 1.25)),
+        tropical,
+    )
+
+    assert natural_block.reduce(natural) == 5
+    assert tropical_block.reduce(tropical) == 1.25
+
+
+def test_reduce_preserves_evidence_alternatives_and_boolean_identity() -> None:
+    rows = TypedAxis("rows", "code", ("a", "b"))
+    columns = TypedAxis("columns", "knowledge", ("K",))
+    evidence = EvidenceDagSemiring()
+    evidence_block = block(
+        "documents",
+        rows,
+        columns,
+        (("a", "K", EvidenceValue.atom(B)), ("b", "K", EvidenceValue.atom(A))),
+        evidence,
+    )
+    boolean = BooleanSemiring()
+    empty = block("documents", rows, columns, (), boolean)
+
+    assert evidence_block.reduce(evidence).alternatives == ((A,), (B,))
+    assert empty.reduce(boolean, max_operations=0) is False
+
+
+def test_reduce_budget_counts_stored_entries_and_wrong_semiring_fails_closed() -> None:
+    rows = TypedAxis("rows", "code", ("a", "b"))
+    columns = TypedAxis("columns", "type", ("T", "U"))
+    natural = NaturalSemiring()
+    sparse = block(
+        "declares",
+        rows,
+        columns,
+        (("a", "T", 2), ("b", "U", 3)),
+        natural,
+    )
+
+    assert sparse.reduce(natural, max_operations=2) == 5
+    with pytest.raises(ValueError, match="reference reduction exceeds bounded operation limit"):
+        sparse.reduce(natural, max_operations=1)
+    with pytest.raises(ValueError, match="uses semiring"):
+        sparse.reduce(BooleanSemiring())  # type: ignore[arg-type]
+
+
+def test_reduce_reuses_natural_overflow_contract() -> None:
+    rows = TypedAxis("rows", "code", ("a", "b"))
+    columns = TypedAxis("columns", "type", ("T",))
+    natural = NaturalSemiring()
+    maximum = (1 << MAX_NATURAL_BITS) - 1
+    overflow = block(
+        "declares",
+        rows,
+        columns,
+        (("a", "T", maximum), ("b", "T", 1)),
+        natural,
+    )
+
+    with pytest.raises(ValueError, match="bounded natural bit length"):
+        overflow.reduce(natural)

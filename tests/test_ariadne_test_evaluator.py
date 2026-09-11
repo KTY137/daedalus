@@ -337,7 +337,11 @@ def test_a_forged_report_with_inflated_counts_is_refused(tmp_path):
         "    '<testsuite name=\"pytest\" tests=\"41\" failures=\"0\" errors=\"0\" skipped=\"0\"/>')\n"
         "_o._exit(0)\n"
     )
-    with pytest.raises(AriadneCampaignError, match="different number of tests"):
+    # A containment backend may refuse the import-time forgery before the
+    # cardinality check. Both are fail-closed; never require an attack to run.
+    with pytest.raises(AriadneCampaignError, match=(
+        "different number of tests|the repair does not pass the test command"
+    )):
         run_campaign(
             repo_root=str(root), source_revision=revision, campaign_id="a11-forge",
             target_path="pkg/mod.py", before=BEFORE, after=forged, timeout_s=60,

@@ -31,6 +31,14 @@ BLOCK = TypedRelationBlock.from_coordinates(
     coordinates=(("node-a", "node-a", True),),
     semiring=BooleanSemiring(),
 )
+USES_BLOCK = TypedRelationBlock.from_coordinates(
+    subject=SUBJECT,
+    signature=RelationSignature("code", "uses", "code"),
+    row_axis=AXIS,
+    column_axis=AXIS,
+    coordinates=(("node-a", "node-a", True),),
+    semiring=BooleanSemiring(),
+)
 
 
 class _OversizedBlocks(Sequence[tuple[str, TypedRelationBlock[bool]]]):
@@ -75,13 +83,17 @@ class _UnboundedBlocks:
         raise AssertionError("unbounded block iterable was consumed")
 
 
-def _receipt(blocks: object) -> CompiledRelationBlocks[bool]:
+def _receipt(
+    blocks: object,
+    *,
+    semantic_fact_count: int = 0,
+) -> CompiledRelationBlocks[bool]:
     return CompiledRelationBlocks(
         subject=SUBJECT,
         semiring_name="boolean",
         source_forest_sha256="b" * 64,
         blocks=blocks,  # type: ignore[arg-type]
-        semantic_fact_count=0,
+        semantic_fact_count=semantic_fact_count,
         forest_edge_count=0,
         forest_hyperedge_count=0,
         verified_binding_count=0,
@@ -110,6 +122,40 @@ def test_compiled_receipt_validates_each_item_before_reading_the_next() -> None:
         match="compiled block names must be non-empty strings",
     ):
         _receipt(_InvalidFirstBlocks())
+
+
+def test_compiled_receipt_reuses_already_canonical_tuple_storage() -> None:
+    declared = (
+        ("code:imports:code", BLOCK),
+        ("code:uses:code", USES_BLOCK),
+    )
+
+    receipt = _receipt(declared, semantic_fact_count=2)
+
+    assert receipt.blocks is declared
+
+
+def test_compiled_receipt_still_canonicalizes_unsorted_tuple_storage() -> None:
+    canonical = (
+        ("code:imports:code", BLOCK),
+        ("code:uses:code", USES_BLOCK),
+    )
+    declared = tuple(reversed(canonical))
+
+    receipt = _receipt(declared, semantic_fact_count=2)
+
+    assert receipt.blocks == canonical
+    assert receipt.blocks is not declared
+
+
+def test_compiled_receipt_normalizes_non_tuple_catalog_entries() -> None:
+    declared = (["code:imports:code", BLOCK],)
+
+    receipt = _receipt(declared, semantic_fact_count=1)
+
+    assert receipt.blocks == (("code:imports:code", BLOCK),)
+    assert receipt.blocks is not declared
+    assert type(receipt.blocks[0]) is tuple
 
 
 def test_compiled_receipt_still_validates_semantic_fact_count() -> None:

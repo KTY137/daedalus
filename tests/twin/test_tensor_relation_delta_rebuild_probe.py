@@ -17,13 +17,15 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
         profile_repeats=2,
     )
 
-    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/3"
+    assert report["schema"] == "daedalus-tensor-relation-delta-rebuild/4"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert "compile_relation_blocks" in report["measurement_contract"]
     assert "No production delta path" in report["measurement_contract"]
     assert "direct compiler callees" in report["measurement_contract"]
+    assert "aggregate Forest binding digest" in report["measurement_contract"]
+    assert "Fourfold subject digest" in report["measurement_contract"]
 
     case = report["case"]
     assert case["base_forest_edges"] == 24
@@ -52,9 +54,13 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
     assert attribution["non_block_compiler_residual_cumulative_ms_median"] >= 0.0
     assert attribution["observed_same_plane_edge_admission_cumulative_ms_median"] >= 0.0
     assert attribution["fact_aggregation_direct_cumulative_ms_median"] >= 0.0
+    assert attribution["identity_binding_digest_cumulative_ms_median"] >= 0.0
     assert (
         attribution[
             "remaining_non_block_after_observed_edge_and_fact_cumulative_ms_median"
+        ]
+        >= attribution[
+            "remaining_non_block_after_observed_edge_fact_and_identity_cumulative_ms_median"
         ]
         >= 0.0
     )
@@ -64,12 +70,19 @@ def test_probe_measures_one_fact_delta_without_second_projection_owner() -> None
     assert metrics["typed_block_post_init"]["calls"] == 1
     assert metrics["fact_aggregation"]["calls"] == 25
     assert metrics["forest_partition_validation"]["calls"] == 1
+    assert metrics["forest_binding_digest"]["calls"] == 1
+    assert metrics["fourfold_subject_digest"]["calls"] == 1
     assert metrics["edge_signature_construction"]["calls"] == 0
     assert metrics["edge_wire_materialization"]["calls"] == 25
     assert metrics["retained_relation_digest"]["calls"] == 25
     assert metrics["fact_aggregation_direct"]["calls"] == 25
+    assert (
+        attribution["identity_binding_digest_fraction_of_profiled_compiler_cumulative"]
+        >= 0.0
+    )
     assert "conservative lower bound" in attribution["interpretation"]
     assert "zero direct per-edge" in attribution["interpretation"]
+    assert "one-call identity work" in attribution["interpretation"]
     assert "not a pure edge-scan wall" in attribution["interpretation"]
 
     assert report["fail_closed"]["partial_endpoint_plane"] == "refused"
@@ -245,3 +258,39 @@ def test_stateless_authority_verification_revisits_each_retained_edge_payload() 
         >= relation_membership_digest["self_ms"]
         >= 0.0
     )
+
+
+def test_projection_subject_binds_one_direct_fourfold_digest_call() -> None:
+    """Reject a cache/API shortcut when the compiler has no duplicate digest call.
+
+    The compiler must bind its receipt subject to the exact Fourfold snapshot,
+    but this frozen path reaches the inherited canonical digest property only
+    once. A caller-supplied digest or Tensor-owned cache would therefore add a
+    second trust/retention surface rather than delete duplicate work inside the
+    existing compiler owner. This is call-scope evidence, not a latency claim.
+    """
+
+    forest = _PROBE._forest(
+        nodes=12,
+        row_width=2,
+        revision=_PROBE.DELTA_REVISION,
+        add_delta=True,
+    )
+    snapshot = _PROBE._snapshot(forest, revision=_PROBE.DELTA_REVISION)
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        compiled = _PROBE._compile(forest, snapshot)
+    finally:
+        profiler.disable()
+
+    digest_metric = _PROBE._direct_callee_metrics(
+        tuple(profiler.getstats()),
+        caller_code=_PROBE.compile_relation_blocks.__code__,
+        callee_codes=(_PROBE.FourfoldSnapshot.digest.fget.__code__,),
+    )
+
+    assert digest_metric["calls"] == 1
+    assert digest_metric["cumulative_ms"] >= digest_metric["self_ms"] >= 0.0
+    assert compiled.subject.source_fourfold_sha256 == snapshot.digest
