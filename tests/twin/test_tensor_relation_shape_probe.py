@@ -65,6 +65,11 @@ def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None
         assert sum(
             pair["reference_operations"] for pair in project["composable_pairs"]
         ) <= _PROBE.MAX_PROFILE_REFERENCE_OPERATIONS
+        pair_keys = [
+            (pair["left"], pair["right"])
+            for pair in project["composable_pairs"]
+        ]
+        assert pair_keys == sorted(pair_keys)
         assert project["semantic_fact_count"] == sum(
             relation["entries"] for relation in project["relations"]
         )
