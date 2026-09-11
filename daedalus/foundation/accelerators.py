@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any
 import urllib.error
 import urllib.parse
@@ -169,6 +170,15 @@ _DEEP_PROBE_KILL_GRACE_SECONDS = 5.0
 # file rather than a pipe, so a runaway writer costs disk, not the parent's
 # memory -- but the parent still refuses to load an unbounded file.
 _DEEP_PROBE_OUTPUT_LIMIT = 1_000_000
+# Total bytes the child may WRITE before it is killed. The probe emits one JSON
+# line plus whatever banners an imported runtime prints; 64 MiB is far past any
+# honest answer and far short of the ~50 GiB a 30s flood would cost. See the
+# measured figures in ``_run_deep_probe``.
+_DEEP_PROBE_OUTPUT_CEILING = 64 * 1024 * 1024
+# How often the wait loop looks at the size. At the measured flood rate this
+# admits roughly 170 MiB of overshoot between polls, which is the price of not
+# owning a Job object.
+_DEEP_PROBE_POLL_SECONDS = 0.1
 
 _DEEP_PROBE_TEMPLATE = r"""
 import importlib
@@ -342,8 +352,18 @@ def probe_interpreter() -> tuple[str, str]:
 # An allowlist rather than a denylist: a new secret must not become inherited
 # merely because nobody added its name here.  Entries exist to let the child
 # START (OS plumbing, temp dir) and to let a CUDA runtime FIND ITS LIBRARIES
-# (search path, CUDA root).  PYTHONPATH and PYTHONHOME are deliberately absent:
-# they belong to the parent's interpreter, not to the operator's.
+# (search path, CUDA root).
+#
+# Four names are deliberately ABSENT for one reason.  PYTHONPATH and PYTHONHOME
+# describe the PARENT's interpreter, and handing them to the operator's would
+# make it import the parent's tree.  ``LD_LIBRARY_PATH`` and
+# ``DYLD_LIBRARY_PATH`` are the same mistake one layer down: a PyInstaller
+# bootloader PREPENDS its own bundle directory to them, so a frozen parent on
+# Linux or macOS would hand the operator's interpreter a library path pointing
+# into the bundle.  Latent today -- ``tools/build_tauri_sidecar.py`` has no
+# linux/darwin build path -- and it must not survive into one.  ``PATH`` stays
+# because Windows resolves DLLs through it and the bootloader does not rewrite
+# it the same way.
 _PROBE_ENV_ALLOWLIST = frozenset(
     {
         # process plumbing the interpreter itself needs to start
@@ -374,8 +394,6 @@ _PROBE_ENV_ALLOWLIST = frozenset(
         "CUDA_HOME",
         "CUDA_PATH",
         "CUDA_VISIBLE_DEVICES",
-        "DYLD_LIBRARY_PATH",
-        "LD_LIBRARY_PATH",
         "NVIDIA_VISIBLE_DEVICES",
         "PATH",
     }
@@ -400,11 +418,26 @@ class _ProbeTransport:
     stdout: str
     stderr: str
     timed_out: bool = False
+    overflowed: bool = False
 
 
 def _read_bounded_stream(handle: Any) -> str:
     handle.seek(0)
     return handle.read(_DEEP_PROBE_OUTPUT_LIMIT).decode("utf-8", errors="replace")
+
+
+def _written_bytes(*handles: Any) -> int:
+    """How much the child has written so far, without reading any of it."""
+
+    total = 0
+    for handle in handles:
+        try:
+            total += os.fstat(handle.fileno()).st_size
+        except OSError:
+            # A handle we can no longer stat tells us nothing; it must not be
+            # read as "nothing was written".
+            return _DEEP_PROBE_OUTPUT_CEILING + 1
+    return total
 
 
 def _run_deep_probe(interpreter: str) -> _ProbeTransport:
@@ -435,11 +468,25 @@ def _run_deep_probe(interpreter: str) -> _ProbeTransport:
     So the transport does not use pipes.  Each stream is a temporary file, the
     wait is ``Popen.wait(timeout=...)`` -- ``WaitForSingleObject`` on the direct
     child's handle, which no descendant can extend -- and the parent reads a
-    bounded prefix of each file afterwards.  A grandchild that outlives the
-    kill can still write to that file, which costs disk until it exits; it can
-    no longer cost the caller its wall clock or the parent its memory.  Killing
-    a whole process tree needs a Job object and is a larger change than this
-    repair; the residual is stated rather than implied away.
+    bounded prefix of each file afterwards.
+
+    WHAT THE OUTPUT CEILING BOUNDS, AND WHAT IT DOES NOT.  Redirecting to a file
+    moves a flood off the parent's heap and onto the disk, which is an
+    improvement and not a bound: MEASURED 2026-09-11 by the review, a child
+    writing flat out produced 1.94 GiB in 1.17s, so the 30s wall-clock bound
+    alone would admit roughly 50 GiB against 27.5 GiB free on this host.  The
+    loop below therefore polls ``os.fstat`` on the two handles and kills the
+    child at ``_DEEP_PROBE_OUTPUT_CEILING``.
+
+    That bounds the DIRECT child, which is every case where the configured
+    interpreter is a real python.  It does not bound a surviving GRANDCHILD,
+    and the residual there is worse than "costs disk": MEASURED, the temporary
+    file reached 597 MiB in six seconds, and because it is created delete-on-
+    close it is left DELETE-PENDING once the parent closes its handle -- no
+    process, including an administrator, can then open or truncate it.  Only
+    killing the grandchild reclaims the space.  Killing a whole process tree
+    needs a Job object and is a larger change than this repair; the residual is
+    stated rather than implied away.
     """
 
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
@@ -453,10 +500,25 @@ def _run_deep_probe(interpreter: str) -> _ProbeTransport:
             env=_probe_environment(),
         )
         timed_out = False
-        try:
-            returncode = process.wait(timeout=_DEEP_PROBE_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            timed_out = True
+        overflowed = False
+        returncode: int | None = None
+        deadline = time.monotonic() + _DEEP_PROBE_TIMEOUT_SECONDS
+        while True:
+            try:
+                returncode = process.wait(timeout=_DEEP_PROBE_POLL_SECONDS)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            # Checked BEFORE the deadline: a child that is flooding has already
+            # cost what it is going to cost, and waiting out the clock only
+            # makes the bill larger.
+            if _written_bytes(out, err) > _DEEP_PROBE_OUTPUT_CEILING:
+                overflowed = True
+                break
+            if time.monotonic() >= deadline:
+                timed_out = True
+                break
+        if returncode is None:
             process.kill()
             try:
                 returncode = process.wait(timeout=_DEEP_PROBE_KILL_GRACE_SECONDS)
@@ -469,6 +531,7 @@ def _run_deep_probe(interpreter: str) -> _ProbeTransport:
             stdout=_read_bounded_stream(out),
             stderr=_read_bounded_stream(err),
             timed_out=timed_out,
+            overflowed=overflowed,
         )
 
 
@@ -483,6 +546,14 @@ def deep_framework_status() -> dict[str, dict[str, Any]]:
         result = _run_deep_probe(interpreter)
     except (OSError, subprocess.SubprocessError) as exc:
         return _probe_failure(f"{type(exc).__name__}: {exc}")
+    if result.overflowed:
+        return _probe_failure(
+            "framework probe exceeded its "
+            f"{_DEEP_PROBE_OUTPUT_CEILING // (1024 * 1024)} MiB output ceiling "
+            "and was killed",
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
     if result.timed_out:
         # Deliberately not ``str(TimeoutExpired)``: that renders the whole argv,
         # and argv[2] is the entire probe source -- which used to be copied onto

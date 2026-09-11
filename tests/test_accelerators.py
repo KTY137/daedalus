@@ -59,6 +59,7 @@ def _transport(
     stdout: str = "",
     stderr: str = "",
     timed_out: bool = False,
+    overflowed: bool = False,
 ) -> accelerators._ProbeTransport:
     """A child-process outcome, built rather than Mock()ed.
 
@@ -68,7 +69,11 @@ def _transport(
     """
 
     return accelerators._ProbeTransport(
-        returncode=returncode, stdout=stdout, stderr=stderr, timed_out=timed_out
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        overflowed=overflowed,
     )
 
 
@@ -772,6 +777,34 @@ def test_the_probe_child_does_not_inherit_the_backend_secrets() -> None:
     assert child_env["CUDA_PATH"] == r"C:\cuda"
 
 
+def test_the_probe_child_does_not_inherit_a_bundle_pointing_library_path() -> None:
+    """The PYTHONPATH mistake one layer down.
+
+    A PyInstaller bootloader PREPENDS its own bundle directory to
+    ``LD_LIBRARY_PATH`` / ``DYLD_LIBRARY_PATH``. Passing those on would point
+    the operator's interpreter at the frozen bundle's libraries. Latent while
+    tools/build_tauri_sidecar.py has no linux/darwin path; it must not become
+    live by default when one is added.
+    """
+
+    with mock.patch.dict(
+        "os.environ",
+        {
+            "LD_LIBRARY_PATH": "/tmp/_MEIxxxx:/usr/lib",
+            "DYLD_LIBRARY_PATH": "/tmp/_MEIxxxx",
+            "PYTHONHOME": "/opt/frozen",
+            "PATH": "/usr/bin",
+        },
+        clear=True,
+    ):
+        child_env = accelerators._probe_environment()
+
+    assert "LD_LIBRARY_PATH" not in child_env
+    assert "DYLD_LIBRARY_PATH" not in child_env
+    assert "PYTHONHOME" not in child_env
+    assert child_env["PATH"] == "/usr/bin"
+
+
 def test_the_filtered_environment_actually_reaches_the_spawn(tmp_path) -> None:
     interpreter = tmp_path / "python.exe"
     interpreter.write_bytes(b"")
@@ -846,6 +879,57 @@ def test_an_unbounded_failure_detail_is_truncated_before_it_is_copied() -> None:
 
     assert "chars omitted]" in rows["probe"]["detail"]
     assert len(rows["probe"]["detail"]) < 3 * accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+
+
+def test_a_flooding_probe_is_killed_at_the_output_ceiling_not_at_the_clock(
+    tmp_path,
+) -> None:
+    """A REAL subprocess writing flat out.
+
+    Redirecting to a file moves a flood off the parent's heap and onto the
+    disk, which is an improvement and not a bound: MEASURED by the review,
+    1.94 GiB in 1.17s, so the 30s clock alone would admit roughly 50 GiB
+    against 27.5 GiB free. The ceiling has to stop it before the clock does.
+    """
+
+    flood = (
+        "import sys\n"
+        "block = 'x' * 1000000\n"
+        "while True:\n"
+        "    sys.stdout.write(block)\n"
+        "    sys.stdout.flush()\n"
+    )
+    started = time.monotonic()
+    with mock.patch.object(accelerators, "_DEEP_PROBE", flood), \
+            mock.patch.object(accelerators, "_DEEP_PROBE_TIMEOUT_SECONDS", 30.0), \
+            mock.patch.object(
+                accelerators, "_DEEP_PROBE_OUTPUT_CEILING", 8 * 1024 * 1024
+            ):
+        result = accelerators._run_deep_probe(sys.executable)
+    elapsed = time.monotonic() - started
+
+    assert result.overflowed is True
+    # The clock did NOT end this: it was still 30s away.
+    assert result.timed_out is False
+    assert elapsed < 15.0, f"the ceiling did not fire before the clock ({elapsed:.1f}s)"
+    # The parent still refuses to load what it did write.
+    assert len(result.stdout) <= accelerators._DEEP_PROBE_OUTPUT_LIMIT
+
+
+def test_an_overflowing_probe_says_which_bound_it_hit() -> None:
+    """'timed out' and 'wrote too much' are different operator problems."""
+
+    flooded = _transport(returncode=-1, overflowed=True)
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True), \
+            mock.patch.object(
+                accelerators, "_run_deep_probe", return_value=flooded
+            ):
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    detail = rows["probe"]["detail"]
+    assert "output ceiling" in detail
+    assert "s bound" not in detail
 
 
 def test_the_probe_is_bounded_by_wall_clock_even_through_a_launcher_shim(
