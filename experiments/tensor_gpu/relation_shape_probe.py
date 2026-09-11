@@ -137,8 +137,11 @@ def profile_reference_project(
         BooleanSemiring(),
     )
     return {
-        "project": str(project_root),
         "repository_id": reference.snapshot.repository_id,
+        "compile_inputs": {
+            "source_revision": source_revision,
+            "created_at": created_at,
+        },
         "forest_sha256": reference.forest.content_sha256,
         "fourfold_sha256": reference.snapshot.digest,
         **_profile_compiled(compiled),
