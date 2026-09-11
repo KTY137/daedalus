@@ -636,7 +636,7 @@ def test_the_projection_carries_verdicts_and_hashes_but_no_locator_path_or_after
     result = tool.execute({**ARGS, "after": "return 'ODYSSEUSCHIMERA'"})
     assert recorder.calls == [{"repo_root": str(tmp_path / "subject"), "source_revision": "a" * 40,
                                "campaign_id": result["campaign_id"], "target_path": "pkg/mod.py",
-                               "before": "return 1", "after": "return 'ODYSSEUSCHIMERA'", "timeout_s": 30}]
+                               "before": "return 1", "after": "return 'ODYSSEUSCHIMERA'", "timeout_s": 30, "caller_checkpoint": tool._checkpoint}]
     assert result["outcome"] == "nominated" and result["applied"] is False
     assert result["postcondition_verified"] is False  # no evidence directory under this control root
     assert result["host_mutation"] is True
@@ -858,3 +858,42 @@ def test_a_linked_worktree_subject_is_refused_by_the_campaign_verbatim(tmp_path,
     assert outcome["ok"] is False
     assert "linked git worktree" in outcome["error"] and "AriadneRequestError" in outcome["error"]
     assert (linked / "sample.txt").read_text(encoding="utf-8") == "broken\n"
+
+
+# G1-IKARUS-HOPPING-01: the model chooses a mode, never its own test command.
+def test_owner_profile_is_bound_into_campaign_identity_and_passed_to_canonical_runner(tmp_path, monkeypatch):
+    from dataclasses import replace
+    from daedalus.ariadne.campaign import TestCommandEvaluator
+    from daedalus.ariadne.owner_evaluator import OwnerTestProfile
+    runner, recorder = _runner()
+    evaluator = TestCommandEvaluator(("python", "-m", "pytest", "-q", "tests"), timeout_s=30)
+    profile = OwnerTestProfile(evaluator, "a" * 64)
+    runner = replace(runner, load_test_profile=lambda root: profile)
+    tool = _tool(tmp_path, monkeypatch, runner)
+    result = tool.execute({**ARGS, "evaluation": "owner-tests"})
+    first_id = recorder.calls[-1]["campaign_id"]
+    assert recorder.calls[-1]["evaluator"] is evaluator
+    assert callable(recorder.calls[-1]["caller_checkpoint"])
+    assert result["evaluation_mode"] == "owner-tests" and result["evaluator_sha256"] == evaluator.digest
+    assert result["verdict_is_self_reported"] is True
+    assert result["child_network"] == "unrestricted"
+    assert result["hopping"]["activation_permitted"] is False
+    changed_runner = replace(runner, load_test_profile=lambda root: OwnerTestProfile(evaluator, "b" * 64))
+    _tool(tmp_path, monkeypatch, changed_runner).execute({**ARGS, "evaluation": "owner-tests"})
+    assert recorder.calls[-1]["campaign_id"] != first_id
+
+
+def test_requested_owner_tests_without_profile_never_fall_back(tmp_path, monkeypatch):
+    runner, recorder = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+    with pytest.raises(ComputerRefused, match="profile") as caught:
+        tool.execute({**ARGS, "evaluation": "owner-tests"})
+    assert caught.value.effect_state == "none" and recorder.calls == []
+
+
+def test_model_test_argv_is_not_admitted(tmp_path, monkeypatch):
+    runner, recorder = _runner()
+    tool = _tool(tmp_path, monkeypatch, runner)
+    with pytest.raises(ComputerRefused):
+        tool.execute({**ARGS, "test_argv": ["python", "-c", "pass"]})
+    assert recorder.calls == []
