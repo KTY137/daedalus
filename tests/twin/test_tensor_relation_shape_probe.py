@@ -61,6 +61,10 @@ def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None
         assert project["subject_digest"]
         assert project["relation_count"] == len(project["relations"])
         assert project["composable_pair_count"] == len(project["composable_pairs"])
+        assert project["composable_pair_count"] <= _PROBE.MAX_PROFILED_COMPOSABLE_PAIRS
+        assert sum(
+            pair["reference_operations"] for pair in project["composable_pairs"]
+        ) <= _PROBE.MAX_PROFILE_REFERENCE_OPERATIONS
         assert project["semantic_fact_count"] == sum(
             relation["entries"] for relation in project["relations"]
         )
@@ -141,6 +145,30 @@ def test_probe_rejects_duplicate_or_unbounded_project_sets() -> None:
     with pytest.raises(ValueError):
         _PROBE.run_probe(
             tuple(_WIKI for _ in range(_PROBE.MAX_PROJECTS + 1)),
+            source_revision=_REVISION,
+            created_at=_CREATED_AT,
+        )
+
+
+def test_probe_fails_closed_at_composable_pair_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_PROBE, "MAX_PROFILED_COMPOSABLE_PAIRS", 0)
+
+    with pytest.raises(ValueError, match="composable pair limit"):
+        _PROBE.profile_reference_project(
+            _WIKI,
+            source_revision=_REVISION,
+            created_at=_CREATED_AT,
+        )
+
+
+def test_probe_fails_closed_at_reference_operation_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_PROBE, "MAX_PROFILE_REFERENCE_OPERATIONS", 0)
+
+    with pytest.raises(ValueError, match="reference-operation limit"):
+        _PROBE.profile_reference_project(
+            _WIKI,
             source_revision=_REVISION,
             created_at=_CREATED_AT,
         )
