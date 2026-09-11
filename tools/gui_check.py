@@ -587,11 +587,29 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
 
         failed = [r for r in rows if not r["ok"]]
         skipped = [r for r in rows if r["status"] == "skipped"]
+        # A test that NEVER RAN is not a passing test. `maxFailures` stops the
+        # invocation, and Playwright marks everything after the stop
+        # `ok: true, status: "unknown"` -- so the `ok` flag alone counted it as
+        # a pass, and the skip guard below never fired because the status is
+        # `unknown` rather than `skipped`. Measured 2026-09-11: one real
+        # failure in this file reported as `271 specs, 270 passed`, with two
+        # tests that had not executed among the 270. This tool exists to refuse
+        # exactly that shape of green.
+        # `== "unknown"` is the PROPERTY -- `_specs` sets that status if and
+        # only if the spec has no results, which is exactly "never executed".
+        # `not in ("passed", "skipped")` was a guess at the complement, and it
+        # was wider than the thing it names: an expected failure (`test.fail()`)
+        # ran exactly as designed and would have been reported INCOMPLETE, and
+        # an `interrupted` result carries results and `ok: false`, so it belongs
+        # in `failed` rather than here.
+        unrun = [r for r in rows if r["ok"] and r["status"] == "unknown"]
         evidence = {
             **info,
             "port": port,
             "specs": len(rows),
-            "passed": sum(1 for r in rows if r["ok"] and r["status"] != "skipped"),
+            "passed": sum(1 for r in rows if r["ok"] and r["status"] == "passed"),
+            "not_run": [{"suite": r["suite"], "title": r["title"], "status": r["status"]}
+                        for r in unrun],
             "failed": [{"suite": r["suite"], "title": r["title"], "why": r["error"]}
                        for r in failed],
             "skipped": [r["title"] for r in skipped],
@@ -622,6 +640,21 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
         if failed:
             summary = "; ".join(f"{r['title']} -- {r['error']}" for r in failed[:4])
             outcome = Outcome(FAIL, summary, evidence)
+            return outcome
+        # A test that never ran is not a pass either, and this sits AFTER the
+        # failure check on purpose: an abort happens BECAUSE something failed,
+        # and FAIL names the cause while INCOMPLETE would hide it. What this
+        # catches is the case with no failure to point at -- `maxFailures`
+        # reached in another shard, a crashed worker, a runner that stopped for
+        # its own reasons. Today those also carry a non-zero exit code, so the
+        # guard below would catch them; this makes the rule the code's own
+        # rather than a side effect of the runner's exit status.
+        if unrun:
+            outcome = Outcome(
+                INCOMPLETE,
+                f"spec(s) never executed: {[r['title'] for r in unrun]}",
+                evidence,
+            )
             return outcome
         if nonzero_rc:
             # Every spec is green and the runner still exited non-zero: that is

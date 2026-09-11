@@ -256,6 +256,19 @@ test.describe('pinning the transcript', () => {
     await page.locator('.rail-tabs button', { hasText: /^Verlauf/ }).first().click();
     await page.locator('.threads-row > button').first().click();
     await expect.poll(() => page.locator('.convo-scroll > .turn').count()).toBeGreaterThan(10);
+    // This ARMS the pin; it is not time-passing, and it must not be removed
+    // as such. `Conversation.tsx:381` arms `pinned.current` only from an
+    // `onScroll` whose gap is under 48 px, a `turns.length` layout effect, or
+    // `jumpToEnd` — so when a long thread opens, the last scroll event the
+    // handler sees can be one where the gap was still large while the
+    // transcript comes to rest at gap 0, leaving the pin DISARMED. The settle
+    // makes a later observer-driven scroll likely to re-arm it. Measured: with
+    // this removed the test below fails 1 in 6 with `Received: 191` and no CPU
+    // load; adding back a scroll whose last event sees gap 0 makes it pass.
+    //
+    // That is a race, not a guarantee, and the underlying disarm is a product
+    // bug rather than a test problem. Booked as its own packet; leaving this
+    // wait is the honest interim, not an oversight.
     await page.waitForTimeout(1200);
 
     // Precondition: the reader is following the newest turn. Without this the
@@ -306,21 +319,53 @@ test.describe('pinning the transcript', () => {
         grow.textContent = 'Nachlauf im Stream. '.repeat(40);
         last.querySelector('.turn-body')!.appendChild(grow);
       });
-      await page.waitForTimeout(800);
-
-      const after = await page.evaluate(() => {
-        const body = document.querySelector('.cockpit-body.talk') as HTMLElement;
-        const cockpit = document.querySelector('.cockpit') as HTMLElement;
-        const scroll = document.querySelector('.convo-scroll') as HTMLElement;
-        return {
-          body: Math.round(body.scrollTop), cockpit: Math.round(cockpit.scrollTop),
-          gap: Math.round(scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight)
-        };
-      });
       // The pin must have RUN — a transcript that stopped following its newest
       // turn would leave a gap the size of the text just added, so this also
       // stops the two assertions below from passing vacuously.
-      expect(after.gap, `round ${round}: the transcript stopped following its newest turn`).toBeLessThanOrEqual(2);
+      //
+      // POLLED, not waited. This was a fixed 800 ms, which is about 7x the
+      // 103–113 ms the pin actually takes — and it still went red on CI, on
+      // branches that could not reach this page. A fixed budget encodes a
+      // guess about the machine; the property this test is about is that the
+      // pin runs at all.
+      //
+      // The one confirmed failure is CI run 34539112171, from the uploaded
+      // evidence artifact: `Received: 191`, the height of the paragraph
+      // appended just above. What it does NOT establish is the cause. A
+      // starved observer and a pin that never armed produce the same number,
+      // and the second is reproducible on demand — delete the 1200 ms settle
+      // above and this fails 1 in 6 with no CPU load at all. Polling helps the
+      // first and cannot help the second.
+      await expect.poll(() => page.evaluate(() => {
+        const scroll = document.querySelector('.convo-scroll') as HTMLElement;
+        return Math.round(scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight);
+      }), {
+        message: `round ${round}: the transcript stopped following its newest turn`,
+        timeout: 8000,
+      }).toBeLessThanOrEqual(2);
+
+      // Read the other two AFTER the pin has settled: the question they ask is
+      // "and nothing else scrolled while it did", which is only meaningful once
+      // it has.
+      //
+      // And they need a WINDOW, not just the right order. Polling alone
+      // collapsed the observation from 800 ms to ~1 ms — measured, the poll
+      // converges at 105–118 ms and the snapshot followed 1 ms later — so a
+      // late ancestor escape passed green here while the fixed wait caught it.
+      // 700 ms is what main already paid for; the poll above is what makes the
+      // wait a bounded observation rather than a guess about the machine.
+      // 700 ms is not "a number under 800": the poll converges at 105–118 ms,
+      // so the snapshot lands about 805 ms after the append, at parity with
+      // the fixed wait this replaced — and unlike that wait, the window no
+      // longer SHRINKS as the pin slows, because it starts when the pin lands
+      // rather than when the append happened. A one-shot escape beyond it is
+      // still invisible; that is inherent to any fixed window.
+      await page.waitForTimeout(700);
+      const after = await page.evaluate(() => {
+        const body = document.querySelector('.cockpit-body.talk') as HTMLElement;
+        const cockpit = document.querySelector('.cockpit') as HTMLElement;
+        return { body: Math.round(body.scrollTop), cockpit: Math.round(cockpit.scrollTop) };
+      });
       expect(after.body, `round ${round}: the pin scrolled .cockpit-body.talk out from under the reader`).toBeLessThanOrEqual(2);
       expect(after.cockpit, `round ${round}: the pin scrolled the whole cockpit shell`).toBeLessThanOrEqual(2);
     }
