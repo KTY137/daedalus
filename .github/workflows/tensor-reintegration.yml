@@ -125,15 +125,29 @@ jobs:
               )
           '''
           path.write_bytes((text[:text.index(anchor)] + replacement).encode())
+          path = Path('tests/test_ariadne_test_evaluator.py')
+          original = path.read_bytes()
+          blob = hashlib.sha1(b'blob ' + str(len(original)).encode() + b'\0' + original).hexdigest()
+          if blob != 'fc50e8c606dde83f4b124b36c0daacca1b6a2529':
+              raise SystemExit('Ariadne test changed; refusing an unreviewed repair')
+          text = original.decode()
+          old = '    with pytest.raises(AriadneCampaignError, match="different number of tests"):'
+          assert text.count(old) == 1
+          new = '''    # A containment backend may refuse the import-time forgery before the
+              # cardinality check. Both are fail-closed; never require an attack to run.
+              with pytest.raises(AriadneCampaignError, match=(
+                  "different number of tests|the repair does not pass the test command"
+              )):'''
+          path.write_bytes(text.replace(old, new).encode())
           PY
-          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md tests/twin/test_relation_block_validation_fusion.py
+          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md tests/twin/test_relation_block_validation_fusion.py tests/test_ariadne_test_evaluator.py
           mkdir -p "$RUNNER_TEMP/reintegration-evidence"
           python tools/index_work_packets.py --render > "$RUNNER_TEMP/work-packet-index.json"
           cp "$RUNNER_TEMP/work-packet-index.json" docs/work-packets/index.json
           git add docs/work-packets/index.json
           python tools/index_work_packets.py --check
           git -c core.whitespace=cr-at-eol diff --cached --check origin/main
-          git commit -m 'merge: reconcile main and Tensor; regenerate registry; verify CSR behavior'
+          git commit -m 'merge: reconcile main and Tensor; regenerate registry; verify CSR and containment behavior'
           git rev-parse HEAD > "$RUNNER_TEMP/reintegration-evidence/commit.txt"
           git rev-parse HEAD^{tree} > "$RUNNER_TEMP/reintegration-evidence/tree.txt"
           git show -s --format='%H%n%P%n%T%n%B' HEAD > "$RUNNER_TEMP/reintegration-evidence/identity.txt"
