@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 35
     env:
       MAIN_SHA: 217d5edc2b5e59441051b9cb0df60a5fbca93fe2
-      TENSOR_BASE: 9548a991d7ac08dc59d3adaf61e5c9236ea954c5
+      TENSOR_BASE: 327b11fd43bab6fefb6007bdb427504d4fb56a2c
       PYTHONHASHSEED: '0'
     steps:
       - uses: actions/checkout@v4
@@ -32,9 +32,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/integration-evidence
-          test "$(git rev-parse HEAD^)" = "$TENSOR_BASE"
+          git merge-base --is-ancestor "$TENSOR_BASE" HEAD
           test "$(git rev-parse origin/main)" = "$MAIN_SHA"
           test "$(git rev-parse origin/archive/legacy-20260830)" = 6d70b6d3788ca327ac778bbbcd06be04a4d6a398
+          python -c 'from datetime import datetime; from zoneinfo import ZoneInfo; assert datetime.now(ZoneInfo("Europe/Berlin")).date().isoformat() < "2026-09-29"'
           git config user.name 'Daedalus integration'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -c integration-local
@@ -52,10 +53,12 @@ jobs:
           PY
           }
           python - <<'PY'
+          import hashlib
           from pathlib import Path
           path = Path('docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md')
-          original = path.read_text(encoding='utf-8')
-          assert 'Packet ID:' not in original
+          original = path.read_bytes()
+          blob = hashlib.sha1(b'blob ' + str(len(original)).encode() + b'\0' + original).hexdigest()
+          assert blob == '2d9b8acba66d9922ba9346c52a18e71e79465e65', 'Desktop evidence changed'
           header = '''Packet ID: G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908
           Artifact role: primary
           Active gate: 1
@@ -64,55 +67,67 @@ jobs:
           Base revision: 24e229c0f34e5404bc219637b646386529f82035
           Dependencies: Master Plan Revision 13; canonical desktop build and smoke entrypoints
 
-          '''
-          sections = '''
-          ## Registry projection added during integration (2026-09-11)
-
-          The original dated account above is retained verbatim. These headings
-          project its existing scope and evidence into the canonical registry;
-          they do not claim a new desktop build or change the historical result.
+          Registry projection added during integration on 2026-09-11. The original
+          report follows verbatim. This projection does not upgrade historical claims.
 
           ## Primary acceptance claim
-
-          Repair the owner-selected local desktop build driver, as scoped above.
+          Repair the owner-selected local desktop build driver, not release admission.
 
           ## Scope
-
-          See Scope and acceptance frozen before implementation above.
+          See the original frozen scope below.
 
           ## Contracts and behavior
-
-          Preserve application identity, policy admission, version mirrors and
-          unrelated work; see the frozen scope and verification account above.
+          Preserve application identity, policy admission, version mirrors and unrelated work.
 
           ## Acceptance matrix
-
-          See Actual final build and Independent and adversarial review above.
+          See Actual final build and Independent and adversarial review in the original report.
 
           ## Migration and rollback
-
-          Restore only this task's script backup and scoped edits; do not reset
-          the shared checkout. The original backup path is retained above.
+          Restore only the documented script backup and scoped edits; never reset the shared checkout.
 
           ## Evidence expected failures and review
+          The original report retains baseline failures, logs, hashes, reviews and host-only limits.
 
-          See Baseline, Actual final build, Independent and adversarial review,
-          retained failure logs and the original host-only claim limits above.
           '''
-          first, rest = original.split('\n', 1)
-          path.write_text(first + '\n\n' + header + rest + sections, encoding='utf-8')
+          path.write_bytes(header.encode() + original)
+          path = Path('tests/twin/test_relation_block_validation_fusion.py')
+          text = path.read_text()
+          start = text.index('def test_from_indexed_reuses_validated_key_order_without_item_pair_copy()')
+          assert '\ndef ' not in text[start:]
+          replacement = '''@pytest.mark.parametrize("layout", ("canonical", "shuffled", "generic"))
+          def test_from_indexed_preserves_key_value_binding_across_layouts(layout: str) -> None:
+              """Exercise emitted CSR values, not the spelling of the implementation."""
+              from collections import UserDict
+              from daedalus.twin.semiring import NaturalSemiring
+
+              rows, columns = _axes()
+              pairs = [((0, 0), 11), ((0, 2), 23), ((1, 1), 37)]
+              entries = dict(pairs if layout == "canonical" else reversed(pairs))
+              if layout == "generic":
+                  entries = UserDict(entries)
+              before = tuple(entries.items())
+              block = TypedRelationBlock._from_indexed(
+                  _subject(), RelationSignature("code", "declares", "type"),
+                  rows, columns, entries, NaturalSemiring(),
+              )
+              assert block.row_offsets == (0, 2, 3)
+              assert block.column_indices == (0, 2, 1)
+              assert block.values == (11, 23, 37)
+              assert tuple(entries.items()) == before
+          '''
+          path.write_text(text[:start] + replacement)
           PY
-          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md
-          git archive --format=tar.gz --output=/tmp/integration-evidence/source.tar.gz "$(git write-tree)"
+          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md tests/twin/test_relation_block_validation_fusion.py
           python tools/index_work_packets.py --render > /tmp/work-packet-index.json
           mv /tmp/work-packet-index.json docs/work-packets/index.json
           git add docs/work-packets/index.json
-          git diff --cached --check
-          git commit -m 'Merge current main into canonical Tensor line for owner-requested integration' -m 'Owner explicitly requested Tensor reintegration and subsequent mainline work on 2026-09-11. Preserve both histories, all mainline Ikarus/Ariadne changes, and frozen archive. Resolve generated packet registry, retain gardener-owned invariant tests, and add missing registry projection to the existing desktop evidence. No candidate promotion or release approval.'
+          # Check OUR integration delta; preserve existing mainline CRLF/evidence bytes.
+          git diff --cached --check "$MAIN_SHA"
+          git commit -m 'Merge main into Tensor: execute combined contracts and preserve both histories' -m 'Explicit owner request 2026-09-11. Regenerate packet registry, retain gardener invariants, preserve original desktop evidence and replace an obsolete CSR source-string assertion with behavioral value-binding tests. No candidate promotion, release approval or history rewrite.'
           python tools/index_work_packets.py --check
           git rev-parse HEAD HEAD^{tree} HEAD^ HEAD^2 > /tmp/integration-evidence/identity.txt
           git diff --stat "$MAIN_SHA" HEAD > /tmp/integration-evidence/diff-stat.txt
-          git archive --format=tar.gz --output=/tmp/integration-evidence/source.tar.gz HEAD
+          git diff "$MAIN_SHA" HEAD > /tmp/integration-evidence/integration.patch
       - name: Install declared test dependencies
         run: python -m pip install '.[test,polyglot,root]'
       - name: Execute Tensor, registry, Ikarus and Ariadne integration regressions
