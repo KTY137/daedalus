@@ -47,13 +47,59 @@ jobs:
               subprocess.run(['git', 'add', '--', path], check=True)
           PY
           }
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          path = Path('docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md')
+          original = path.read_bytes()
+          blob = hashlib.sha1(b'blob ' + str(len(original)).encode() + b'\0' + original).hexdigest()
+          if blob != '2d9b8acba66d9922ba9346c52a18e71e79465e65':
+              raise SystemExit('Desktop evidence changed; refusing an unreviewed metadata repair')
+          header = '''Packet ID: G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908
+          Artifact role: primary
+          Active gate: 1
+          Classification: ALIGNED
+          Owner: repository owner
+          Base revision: 24e229c0f34e5404bc219637b646386529f82035
+          Dependencies: none (standalone local build-driver repair)
+
+          Registry projection added during owner-requested integration on 2026-09-11.
+          The original report below is retained verbatim; its historical claims have
+          not been re-executed or upgraded by this metadata repair.
+
+          ## Primary acceptance claim
+          Repair the owner-selected local desktop build driver; not release admission.
+
+          ## Scope
+          The frozen scope and actual files are documented in the original report below.
+
+          ## Contracts and behavior
+          Preserve canonical backend/smoke entrypoints, package identity, policy and version equality.
+
+          ## Acceptance matrix
+          The original Actual final build and Independent and adversarial review sections
+          record measured checks, skips and platform limitations; this projection adds no results.
+
+          ## Migration and rollback
+          Restore only the scoped script backup and edits documented below; never reset unrelated work.
+
+          ## Evidence expected failures and review
+          Original logs, hashes, expected refusals, independent review and unsigned-local-build
+          limitations remain in the unchanged historical report below.
+
+          '''
+          path.write_bytes(header.encode() + original)
+          PY
+          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md
+          mkdir -p "$RUNNER_TEMP/reintegration-evidence"
+          git ls-files -z | tar --null --verbatim-files-from -T - -czf "$RUNNER_TEMP/reintegration-evidence/source.tar.gz"
+          git write-tree > "$RUNNER_TEMP/reintegration-evidence/pre-render-tree.txt"
           python tools/index_work_packets.py --render > "$RUNNER_TEMP/work-packet-index.json"
           cp "$RUNNER_TEMP/work-packet-index.json" docs/work-packets/index.json
           git add docs/work-packets/index.json
           python tools/index_work_packets.py --check
           git diff --cached --check
-          git commit -m 'merge: reconcile current main into canonical Tensor lane; regenerate packet index'
-          mkdir -p "$RUNNER_TEMP/reintegration-evidence"
+          git commit -m 'merge: reconcile main into Tensor; regenerate registry and preserve desktop evidence'
           git rev-parse HEAD > "$RUNNER_TEMP/reintegration-evidence/commit.txt"
           git rev-parse HEAD^{tree} > "$RUNNER_TEMP/reintegration-evidence/tree.txt"
           git show -s --format='%H%n%P%n%T%n%B' HEAD > "$RUNNER_TEMP/reintegration-evidence/identity.txt"
