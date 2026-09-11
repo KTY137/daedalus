@@ -98,6 +98,10 @@ jobs:
           for old_fixture, new_fixture in replacements:
               assert fixture.count(old_fixture) == 1
               fixture = fixture.replace(old_fixture, new_fixture)
+          old_reader = "def _read_hashed_json(locator: str, expected: str) -> dict:\\n    payload = Path(locator).read_bytes()\\n    assert hashlib.sha256(payload).hexdigest() == expected\\n    return json.loads(payload)"
+          new_reader = "def _read_hashed_json(locator: str, expected: str) -> dict:\\n    from daedalus.kernel.source_trees import SourceTreeStore\\n    from daedalus.spine.killswitch import control_root\\n    store = SourceTreeStore.open_existing(control_root(ROOT) / \\\"ariadne\\\" / \\\"source-cas\\\")\\n    payload = store.read_bytes(locator, max_bytes=16 * 1024 * 1024)\\n    assert hashlib.sha256(payload).hexdigest() == expected\\n    return json.loads(payload)"
+          assert fixture.count(old_reader) == 1
+          fixture = fixture.replace(old_reader, new_reader)
           target.write_text(fixture, encoding="utf-8", newline="\\n")'''
           assert script.count(old_write) == 1
           script = script.replace(old_write, derived_write)
