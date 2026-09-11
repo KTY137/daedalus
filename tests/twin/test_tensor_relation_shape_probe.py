@@ -142,7 +142,9 @@ def test_reference_matmul_shape_matches_csr_nested_loop() -> None:
         )
 
 
-def test_probe_rejects_duplicate_or_unbounded_project_sets() -> None:
+def test_probe_rejects_duplicate_or_unbounded_project_sets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with pytest.raises(ValueError, match="duplicates"):
         _PROBE.run_probe(
             (_WIKI, _WIKI),
@@ -153,6 +155,21 @@ def test_probe_rejects_duplicate_or_unbounded_project_sets() -> None:
     with pytest.raises(ValueError):
         _PROBE.run_probe(
             tuple(_WIKI for _ in range(_PROBE.MAX_PROJECTS + 1)),
+            source_revision=_REVISION,
+            created_at=_CREATED_AT,
+        )
+
+    monkeypatch.setattr(
+        _PROBE,
+        "profile_reference_project",
+        lambda root, *, source_revision, created_at: {
+            "repository_id": "duplicate/repository",
+            "fourfold_sha256": "0" * 64,
+        },
+    )
+    with pytest.raises(ValueError, match="distinct Fourfold project identities"):
+        _PROBE.run_probe(
+            (_WIKI, _IGNITION),
             source_revision=_REVISION,
             created_at=_CREATED_AT,
         )
