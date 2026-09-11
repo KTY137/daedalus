@@ -336,3 +336,72 @@ The contained half of (2) is in this packet as
 version, driven through `run_campaign`, goes with the typed-knob packet.
 
 **Measured after round 4:** 30 tests in the packet suite.
+
+
+## Review round 5 (2026-09-11, `3ed4ca62`)
+
+**Cerberus: `pass`, `blocking: false`.** The `-c` fence is real and mechanically
+explained: `findpaths.py:310-311` sets `rootdir = inipath_.parent` and
+`config/__init__.py:1598-1603` sets `confcutdir = inipath.parent` when
+`--confcutdir` is absent, and `locate_config` — the entire upward walk — is only
+reachable from the `else:` branch, so ancestor configs are never stat'd under
+`-c`. The property test's negative control was confirmed to fire on the review
+host, which is what makes it a test rather than a decoration. The 47 admitted
+path shapes were probed and none reached outside the workspace.
+
+### high 1 — an inherited environment variable reopens the route
+
+**Half closed here, half accepted in writing.** Measured with the fence on:
+
+```
+PYTEST_ADDOPTS env, WITH -c fence   ->  ENV_PLUGIN_EXECUTED
+PYTEST_PLUGINS env, WITH -c fence   ->  ENV_PLUGIN_EXECUTED
+PYTEST_ADDOPTS="--rootdir=C:/Users" -c README.md  ->  rootdir: C:\Users
+```
+
+`PYTEST_ADDOPTS` is split and **prepended** at `config/__init__.py:1512-1532`,
+before `parse_known_args` and therefore before `determine_setup` runs;
+`--rootdir` then wins unconditionally at `findpaths.py:331-336`.
+`PYTEST_PLUGINS` is read at `config/__init__.py:872-874`. The gate scrubs
+neither: `scrubbed_child_env` removes only `SECRET_ENV_PREFIXES` and
+`_contained_gate_child` overrides only `TEMP`/`TMP`.
+
+**Closed:** the campaign now appends `--rootdir=.` beside its `-c`. Because the
+environment is *prepended*, the campaign's copy lands later and wins, which
+takes back rootdir and with it the conftest ceiling that rides on rootdir.
+
+**Accepted in writing, not closed:** `PYTEST_PLUGINS`, and `-p` arriving
+through `PYTEST_ADDOPTS`. The fix is one line — drop `PYTEST_*` in the contained
+gate's child environment at `daedalus/kernel/attempt_execution.py:1076-1077`,
+beside the existing `TEMP`/`TMP` override — and it is deliberately **not** in
+this packet. That file is outside the frozen scope, and the change is a
+different axis: it protects every contained gate, not this evaluator. Booked as
+the next packet together with the typed-knob replacement.
+
+What limits it meanwhile, stated rather than assumed: a candidate cannot set its
+parent's environment, an operator who exports `PYTEST_ADDOPTS` already runs code
+as that user, nomination is still not promotion, and the receipt already says
+`child_environment: "inherited-except-denylist"` rather than claiming a fence.
+What is *not* a defence: the property test would itself go green under an
+exported `PYTEST_ADDOPTS`, because it passes `env={**os.environ, …}`.
+
+### low — three, recorded
+
+| # | finding | disposition |
+| --- | --- | --- |
+| asymmetric collision check | `TEST_CONFIG_RELATIVE` refuses if the revision already carries the name; `TEST_REPORT_RELATIVE` never got the same three lines, and a stale report in the revision would make all three arms read identical counts | fail-closed (the control arm passes, so the campaign nominates nothing and reports the suite as blind), recorded |
+| byte accounting | `workspace_files`/`workspace_bytes` are measured before the campaign writes its two own files, so they understate the on-disk workspace by two | no digest depends on them on this branch; recorded, not changed |
+| a test that does not test its docstring | `test_the_campaign_owns_its_config_name` asserts a name prefix and a byte string, and never exercises the refusal. The fence is the **path**, not the body — a `.ini` with no `[pytest]` section has identical effect — so it pins something that is not load-bearing | recorded |
+
+### The general check shipped at a quarter, not a half
+
+The reviewer's proposal was a **loop over the good-shapes list**; what landed is
+one hard-coded invocation in a booby-trapped workspace. That proves the fence
+and is worth having, but a single invocation is an enumeration of size one and
+dies the way the last four rounds died. Assertion (1) — every admitted shape
+must be a shape the tool accepts — is not implemented at all. The earlier
+section calling this "the contained half" overstates it; it is closer to a
+quarter, and the follow-up packet owes the loop.
+
+**Measured after round 5:** 30 tests in the packet suite; 270 passed and 1
+skipped across the seven named suites; all seven CI checks green.

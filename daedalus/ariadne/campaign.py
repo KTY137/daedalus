@@ -2410,6 +2410,15 @@ def run_campaign(
                     # config, so the caller cannot omit either, the candidate
                     # cannot choose where the counts come from, and pytest
                     # cannot walk up out of the workspace looking for one.
+                    #
+                    # `--rootdir=.` is not redundant beside `-c`. `PYTEST_ADDOPTS`
+                    # is split and PREPENDED before `parse_known_args`, so a
+                    # `--rootdir` exported in the operator's shell resolves
+                    # before `determine_setup` runs and beats `-c` outright
+                    # (Cerberus round 5, high 1, measured). Because the
+                    # environment is PREPENDED, this one lands later and wins
+                    # it back. It does NOT close `PYTEST_PLUGINS`, or `-p`
+                    # arriving through `PYTEST_ADDOPTS` -- see the packet.
                     config = evaluation_workspace / TEST_CONFIG_RELATIVE
                     if config.exists():
                         raise AriadneCampaignError(
@@ -2418,7 +2427,7 @@ def run_campaign(
                     config.write_bytes(TEST_CONFIG_BODY)
                     gate_argv = (
                         evaluator_interpreter, *evaluator.argv[1:],
-                        "-c", TEST_CONFIG_RELATIVE,
+                        "-c", TEST_CONFIG_RELATIVE, "--rootdir=.",
                         f"--junitxml={TEST_REPORT_RELATIVE}",
                     )
                     gate_name = "ariadne-test-evaluator"
