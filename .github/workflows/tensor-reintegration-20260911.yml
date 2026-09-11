@@ -85,9 +85,9 @@ jobs:
           old_write = 'target.write_bytes(raw)'
           derived_write = '''fixture = raw.decode("utf-8")
           replacements = (
-              ('BEFORE = "first + second"', 'BEFORE = \'name = "boolean\''),
-              ('REFACTOR = "(first + second)"', 'REFACTOR = \'name = "bool" "ean\''),
-              ('REGRESSION = "first * second"', 'REGRESSION = \'name = "not-boolean\''),
+              ("BEFORE = \\"first + second\\"", "BEFORE = " + repr('name = "boolean')),
+              ("REFACTOR = \\"(first + second)\\"", "REFACTOR = " + repr('name = "bool" "ean')),
+              ("REGRESSION = \\"first * second\\"", "REGRESSION = " + repr('name = "not-boolean')),
           )
           for old_fixture, new_fixture in replacements:
               assert fixture.count(old_fixture) == 1
