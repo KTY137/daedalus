@@ -34,6 +34,10 @@ BUCKETS = ("already_covered", "present_not_expressible", "absent")
 STATUSES = ("prediction", "measured")
 FROZEN_SOURCE_REVISION = "68721e3208194391d71b0ae64d24157fd1876207"
 FROZEN_EXPECTED_TOTAL = 1383
+PREREGISTRATION_ONLY_REF = (
+    "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md"
+    "#4-predicted-result-recorded-before-the-run"
+)
 CORPUS_FIELDS = frozenset({"schema", "source_revision", "expected_total", "items"})
 ROW_FIELDS = frozenset(
     {"id", "source", "bucket", "status", "reason", "evidence_refs"}
@@ -120,6 +124,10 @@ class Row:
             )
         if len(set(normalized)) != len(normalized):
             raise CeilingCorpusError(f"{where}.evidence_refs contains duplicates")
+        if status == "measured" and normalized == [PREREGISTRATION_ONLY_REF]:
+            raise CeilingCorpusError(
+                f"{where}.evidence_refs must add measured evidence beyond preregistration"
+            )
         return cls(item_id, source, bucket, status, reason, tuple(normalized))
 
 

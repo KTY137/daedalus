@@ -74,6 +74,24 @@ def test_committed_corpus_preserves_predictions_without_claiming_a_result() -> N
     assert report["claim_boundary"]["embedding_or_tensor_backend_built"] is False
 
 
+def test_prediction_cannot_be_promoted_to_measured_by_status_change_alone() -> None:
+    item = _row("a", "already_covered", status="measured")
+    item["evidence_refs"] = [O.PREREGISTRATION_ONLY_REF]
+    with pytest.raises(O.CeilingCorpusError, match="beyond preregistration"):
+        O.Corpus.parse(_corpus([item]))
+
+
+def test_measured_row_may_retain_preregistration_when_new_evidence_is_added() -> None:
+    item = _row("a", "already_covered", status="measured")
+    item["evidence_refs"] = [
+        O.PREREGISTRATION_ONLY_REF,
+        "runs/latent_ceiling/evidence.json#item=a",
+    ]
+    corpus = O.Corpus.parse(_corpus([item]))
+    assert corpus.rows[0].status == "measured"
+    assert corpus.rows[0].evidence_refs[-1].startswith("runs/")
+
+
 def test_complete_measured_corpus_computes_only_bucket_b_headroom() -> None:
     corpus = _complete_corpus(b_count=346, c_count=1)
     report = O.evaluate(corpus)

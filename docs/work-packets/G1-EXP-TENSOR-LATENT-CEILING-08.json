@@ -1,0 +1,79 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-08",
+  "artifact_role": "primary",
+  "title": "Prevent status-only promotion of latent-ceiling predictions",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "owner": "repository owner",
+  "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-07",
+  "dependencies": "G1-EXP-TENSOR-LATENT-CEILING-07",
+  "campaign_issue": 239,
+  "base_revision": "df761b7e0e463f1d056f6f5ff3deecc7f3cee5e3",
+  "authority_refs": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+    "https://github.com/KTY137/daedalus/issues/239"
+  ],
+  "finding": "The committed prediction rows cite only the preregistration document. Before this packet, changing only a row's status from prediction to measured was structurally valid, so future corpus completion could accidentally treat an unchanged preregistered guess as measured evidence.",
+  "primary_claim": "A row that cites only the exact preregistration prediction reference can no longer be parsed as measured. The same reference may be retained for provenance when at least one additional measured-evidence reference is added. This blocks status-only promotion without inventing a second evidence schema or claiming that arbitrary reference strings are independently verified.",
+  "scope": {
+    "changed": [
+      "experiments/tensor_embedding/arm_o_latent_ceiling.py",
+      "tests/test_tensor_latent_ceiling.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-08.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_embedding_backend": false,
+    "adds_tensor_backend": false,
+    "adds_graph_authority": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_schema_framework": false,
+    "adds_semantic_plane": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Add one narrow row invariant at the existing parser boundary. Do not add a rater registry, evidence store, provenance service, vector database, second corpus format, or alternate latent evaluator.",
+  "acceptance": [
+    "the unchanged committed prediction-only corpus remains valid and incomplete",
+    "changing only status=prediction to status=measured while retaining only the preregistration reference is refused",
+    "a measured row may retain the preregistration reference when additional measured evidence is cited",
+    "existing complete-corpus, frozen-revision, denominator, identity and threshold behavior remains unchanged",
+    "no numeric ceiling, latent benefit, Tensor performance, benchmark superiority, OwnerApproval, promotion or gate transition is claimed by this packet"
+  ],
+  "verification": {
+    "commands": [
+      "python -m py_compile experiments/tensor_embedding/arm_o_latent_ceiling.py tests/test_tensor_latent_ceiling.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_tensor_latent_ceiling.py",
+      "python experiments/tensor_embedding/arm_o_latent_ceiling.py experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json"
+    ],
+    "status": "focused exact-blob verification executed in an isolated local reconstruction: py_compile exit 0; pytest 25 passed in 0.45s; committed prediction-only CLI exit 3 with complete=false, ceiling=null, measured_rows=0 and prediction_rows=10",
+    "production_blob": "e20245841b2f1e86e5f0e4b77a22876cee08ffcf",
+    "test_blob": "ad271d2a7c77007563a6b14dda934649092c0291",
+    "corpus_blob": "ceb22596086027038deaae78450a6f1c96ea6246",
+    "blob_reconstruction": "Git blob SHA-1 of the executed production, test and corpus files matched the three GitHub blob ids exactly before execution",
+    "environment_note": "the execution environment emitted unrelated artifact_tool spreadsheet-runtime warmup timeout noise on stderr during Python startup; command return codes, exact Git blob identity and pytest results were unaffected",
+    "hosted_ci": "no pull-request workflow run was present for this head when checked; hosted/full-repository green remains unclaimed",
+    "claim": "Only the focused commands tied to these exact blobs are green evidence; no full-repository, package, platform, latent-benefit or benchmark claim follows."
+  },
+  "evidence_limit": "This packet closes only the status-only relabel path. It does not prove that arbitrary evidence_refs are authentic or independently rated; a stronger provenance contract requires a separately preregistered evidence format rather than an ad-hoc parser expansion.",
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-latent-ceiling-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "branch_fast_forwarded_from_contained_main": true
+  },
+  "rollback": "Revert the G1-EXP-TENSOR-LATENT-CEILING-08 commits; no production Tensor/embedding authority is affected.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
