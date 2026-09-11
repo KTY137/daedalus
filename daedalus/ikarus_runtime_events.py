@@ -10,6 +10,11 @@ start. Terminal callbacks are resolved only through that call id; tool names
 are never a fallback identity. The projector stores only SHA-256 observation
 digests, not arbitrary provider output, and freezes all unfinished entries as
 ``cancelled`` when the run is cancelled.
+
+ALIGNED: replay and decoding remain pure projections over the existing
+callback contract. A digest detects inconsistency, not authenticity; callers
+must resolve trusted kernel evidence and re-admit effects after a restart.
+No replay method executes a tool or turns callback success into task proof.
 """
 from __future__ import annotations
 
@@ -78,7 +83,7 @@ class RuntimeToolEvent:
     def __post_init__(self) -> None:
         if type(self.sequence) is not int or self.sequence < 0:
             raise RuntimeEventProjectionError("event sequence must be non-negative int")
-        if self.kind not in EVENT_KINDS:
+        if type(self.kind) is not str or self.kind not in EVENT_KINDS:
             raise RuntimeEventProjectionError("unsupported runtime event kind")
         if self.kind == "run_cancelled":
             if any(
@@ -134,7 +139,7 @@ class RuntimeToolProjectionRow:
     def __post_init__(self) -> None:
         object.__setattr__(self, "plan_entry_id", _id(self.plan_entry_id, "plan_entry_id"))
         object.__setattr__(self, "tool_name", _id(self.tool_name, "tool_name"))
-        if self.status not in ROW_STATUSES:
+        if type(self.status) is not str or self.status not in ROW_STATUSES:
             raise RuntimeEventProjectionError("unsupported projection row status")
         if self.call_id is not None:
             object.__setattr__(self, "call_id", _id(self.call_id, "call_id"))
@@ -178,6 +183,15 @@ class RuntimeEventProjection:
     def __post_init__(self) -> None:
         if type(self.cancelled) is not bool:
             raise RuntimeEventProjectionError("cancelled must be bool")
+        # A frozen dataclass is not immutable when it retains caller-owned lists.
+        # Only ordered, materialized sequences belong in a value snapshot.
+        for name in ("rows", "events"):
+            values = getattr(self, name)
+            if type(values) not in (tuple, list):
+                raise RuntimeEventProjectionError(f"{name} must be a tuple or list")
+            object.__setattr__(self, name, tuple(values))
+        if not self.rows:
+            raise RuntimeEventProjectionError("projection cannot have an empty plan")
         if any(type(row) is not RuntimeToolProjectionRow for row in self.rows):
             raise RuntimeEventProjectionError("projection rows must use exact row type")
         if any(type(event) is not RuntimeToolEvent for event in self.events):
@@ -205,6 +219,55 @@ class RuntimeEventProjection:
             raise RuntimeEventProjectionError(
                 "cancelled rows/events require cancelled projection state"
             )
+
+        # Shape-valid rows can still lie about the history. Use the live
+        # transition rules rather than introducing a second state machine.
+        plan = tuple(RuntimeToolPlanEntry(row.plan_entry_id, row.tool_name)
+                     for row in self.rows)
+        replayed = RuntimeEventProjector.from_events(plan, self.events)
+        expected = tuple(replayed._rows[entry.plan_entry_id] for entry in plan)
+        if self.rows != expected or self.cancelled != replayed._cancelled:
+            raise RuntimeEventProjectionError("projection rows do not match event history")
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> RuntimeEventProjection:
+        """Decode the existing /1 wire shape; reject inconsistent snapshots.
+
+        This validates an already parsed object, not raw JSON or authenticity.
+        A caller reading JSON must reject duplicate keys at its parsing boundary.
+        For recovery, also bind the externally declared plan with
+        ``RuntimeEventProjector.from_projection``. Neither method verifies the
+        referenced observation artifacts or grants permission to repeat an effect.
+        """
+        fields = {"schema", "cancelled", "rows", "events", "projection_sha256"}
+        if type(payload) is not dict or set(payload) != fields:
+            raise RuntimeEventProjectionError("projection payload has missing or unknown fields")
+        if (type(payload["schema"]) is not str
+                or payload["schema"] != RUNTIME_EVENT_PROJECTION_SCHEMA):
+            raise RuntimeEventProjectionError("unsupported projection schema")
+        supplied_digest = _sha(payload["projection_sha256"], "projection_sha256")
+        row_fields = {"plan_entry_id", "tool_name", "status", "call_id",
+                      "terminal_observation_sha256"}
+        event_fields = {"sequence", "kind", "plan_entry_id", "call_id", "tool_name",
+                        "observation_sha256"}
+        decoded = {}
+        for name, keys, value_type in (
+            ("rows", row_fields, RuntimeToolProjectionRow),
+            ("events", event_fields, RuntimeToolEvent),
+        ):
+            values = payload[name]
+            if type(values) is not list:
+                raise RuntimeEventProjectionError(f"{name} payload must be a list")
+            result = []
+            for value in values:
+                if type(value) is not dict or set(value) != keys:
+                    raise RuntimeEventProjectionError(f"{name} item has missing or unknown fields")
+                result.append(value_type(**value))
+            decoded[name] = tuple(result)
+        projection = cls(decoded["rows"], decoded["events"], payload["cancelled"])
+        if projection.digest != supplied_digest:
+            raise RuntimeEventProjectionError("projection digest does not match payload")
+        return projection
 
     def _body(self) -> dict[str, Any]:
         return {
@@ -257,6 +320,78 @@ class RuntimeEventProjector:
         self._cancelled = False
         self._lock = threading.Lock()
 
+    @classmethod
+    def from_events(
+        cls,
+        plan: Sequence[RuntimeToolPlanEntry],
+        events: Sequence[RuntimeToolEvent],
+    ) -> RuntimeEventProjector:
+        """Reconstruct callback state, not execution, from an ordered history.
+
+        Receipt order is significant: no sorting, duplicate suppression, guessed
+        tool identity, or retry. A running entry stays running/unknown until a
+        trusted adapter reconciles it. This method never calls ``snapshot``;
+        snapshot validation uses it and must not recurse.
+        """
+        if type(plan) not in (tuple, list):
+            raise RuntimeEventProjectionError("replay plan must be a tuple or list")
+        if type(events) not in (tuple, list):
+            raise RuntimeEventProjectionError("events must be a tuple or list")
+        supplied = tuple(events)
+        if any(type(event) is not RuntimeToolEvent for event in supplied):
+            raise RuntimeEventProjectionError("events must use exact event type")
+        if any(event.sequence != index for index, event in enumerate(supplied)):
+            raise RuntimeEventProjectionError("event sequence must be contiguous")
+        projector = cls(plan)
+        # A declared entry starts at most once and has at most one terminal
+        # callback; at most one cancellation may follow. This is a contract
+        # cardinality check, not an execution-resource limit or new policy.
+        if len(supplied) > 2 * len(projector._plan) + 1:
+            raise RuntimeEventProjectionError("event count exceeds the declared plan")
+        for event in supplied:
+            if event.kind == "tool_started":
+                reproduced = projector.start(
+                    plan_entry_id=event.plan_entry_id,
+                    call_id=event.call_id,
+                    tool_name=event.tool_name,
+                )
+            elif event.kind in {"tool_succeeded", "tool_failed"}:
+                reproduced = projector.finish(
+                    call_id=event.call_id,
+                    tool_name=event.tool_name,
+                    outcome=event.kind.removeprefix("tool_"),
+                    observation_sha256=event.observation_sha256,
+                )
+            elif event.kind == "run_cancelled":
+                reproduced = projector.cancel(reason_sha256=event.observation_sha256)
+            else:
+                raise RuntimeEventProjectionError("unsupported runtime event kind")
+            # finish() resolves plan identity by call id. Compare the WHOLE
+            # event to reject a forged terminal plan_entry_id too.
+            if reproduced != event:
+                raise RuntimeEventProjectionError("event does not match its bound callback")
+        return projector
+
+    @classmethod
+    def from_projection(
+        cls,
+        plan: Sequence[RuntimeToolPlanEntry],
+        projection: RuntimeEventProjection,
+    ) -> RuntimeEventProjector:
+        """Restore only against the exact external plan, including its order.
+
+        Never infer the recovery plan from the snapshot itself: an otherwise
+        consistent snapshot may have omitted an unstarted task. Canonical
+        Mission/Attempt/revision and evidence admission remain the caller's job.
+        """
+        if type(projection) is not RuntimeEventProjection:
+            raise RuntimeEventProjectionError("projection must use exact projection type")
+        projector = cls.from_events(plan, projection.events)
+        expected = tuple(projector._rows[entry.plan_entry_id] for entry in projector._plan)
+        if projection.rows != expected or projection.cancelled != projector._cancelled:
+            raise RuntimeEventProjectionError("projection does not match the declared plan")
+        return projector
+
     def _open(self) -> None:
         if self._cancelled:
             raise RuntimeEventProjectionError("projection is closed by cancellation")
@@ -307,7 +442,7 @@ class RuntimeEventProjector:
         call_id = _id(call_id, "call_id")
         tool_name = _id(tool_name, "tool_name")
         observation_sha256 = _sha(observation_sha256, "observation_sha256")
-        if outcome not in {"succeeded", "failed"}:
+        if type(outcome) is not str or outcome not in {"succeeded", "failed"}:
             raise RuntimeEventProjectionError("outcome must be 'succeeded' or 'failed'")
 
         with self._lock:
