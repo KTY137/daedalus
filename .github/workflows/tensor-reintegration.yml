@@ -92,18 +92,16 @@ jobs:
           PY
           git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md
           mkdir -p "$RUNNER_TEMP/reintegration-evidence"
-          git ls-files -z | tar --null --verbatim-files-from -T - -czf "$RUNNER_TEMP/reintegration-evidence/source.tar.gz"
-          git write-tree > "$RUNNER_TEMP/reintegration-evidence/pre-render-tree.txt"
           python tools/index_work_packets.py --render > "$RUNNER_TEMP/work-packet-index.json"
           cp "$RUNNER_TEMP/work-packet-index.json" docs/work-packets/index.json
           git add docs/work-packets/index.json
           python tools/index_work_packets.py --check
-          git diff --cached --check
+          # Check our integration delta, not historical CRLF/raw evidence imported from main.
+          git -c core.whitespace=cr-at-eol diff --cached --check origin/main
           git commit -m 'merge: reconcile main into Tensor; regenerate registry and preserve desktop evidence'
           git rev-parse HEAD > "$RUNNER_TEMP/reintegration-evidence/commit.txt"
           git rev-parse HEAD^{tree} > "$RUNNER_TEMP/reintegration-evidence/tree.txt"
           git show -s --format='%H%n%P%n%T%n%B' HEAD > "$RUNNER_TEMP/reintegration-evidence/identity.txt"
-          git ls-files -z | tar --null --verbatim-files-from -T - -czf "$RUNNER_TEMP/reintegration-evidence/source.tar.gz"
           cp docs/work-packets/index.json "$RUNNER_TEMP/reintegration-evidence/index.json"
       - name: Install declared test dependencies
         run: python -m pip install '.[test,polyglot,root]'
@@ -119,14 +117,14 @@ jobs:
             tests/test_ariadne_test_evaluator.py \
             tests/runtimes/test_computer_ariadne.py \
             --junitxml="$RUNNER_TEMP/reintegration-evidence/junit.xml"
-      - name: Retain exact combined source and actual test evidence
+      - name: Retain actual combined-tree test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tensor-reintegration-${{ github.sha }}
           path: ${{ runner.temp }}/reintegration-evidence/
           if-no-files-found: warn
-          retention-days: 1
+          retention-days: 7
       - name: Publish verified merge only to existing Tensor lane
         env:
           GH_TOKEN: ${{ github.token }}
