@@ -52,6 +52,21 @@ jobs:
           assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == blob
           steps = yaml.safe_load(raw)['jobs']['acceptance']['steps']
           script, = [step['run'] for step in steps if step.get('name') == 'Prepare bounded mainline acceptance change']
+
+          # The exact-head Windows run 34601228085 proved the bootstrap itself
+          # executed, then the old acceptance fixture failed closed because its
+          # negative control appended an identifier to a complete return
+          # statement, which cannot parse. Keep the reviewed preparation script
+          # unchanged except for its content-addressed test fixture. The new
+          # fixture uses an expression fragment so the negative arm can be
+          # judged, and it asserts the retained/redacted failure contract rather
+          # than requiring a host-path-bearing internal error message.
+          old_test_blob = '7816e8f47bcf643bb4739f6d73a004b47b60df08'
+          corrected_test_blob = '8ae808398441b7663aaa277bb674cb4096ef0b94'
+          old_binding = "test_blob = '" + old_test_blob + "'"
+          new_binding = "test_blob = '" + corrected_test_blob + "'"
+          assert script.count(old_binding) == 1
+          script = script.replace(old_binding, new_binding)
           Path(os.environ['RUNNER_TEMP'], 'acceptance-prepare.sh').write_text(script, encoding='utf-8', newline='\n')
           PY
           bash "$RUNNER_TEMP/acceptance-prepare.sh"
