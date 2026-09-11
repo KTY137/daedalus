@@ -11,6 +11,30 @@ _WIKI = _REPO / "examples" / "fourfold_wiki_app"
 _IGNITION = _REPO / "tests" / "fixtures" / "ignition" / "voltage"
 _REVISION = "f" * 64
 _CREATED_AT = "2026-09-11T00:00:00Z"
+_EXPECTED_REAL_SHAPES = {
+    "daedalus/fourfold-wiki-reference": {
+        "relation_count": 11,
+        "semantic_fact_count": 67,
+        "composable_pair_count": 27,
+        "observed_max_out_degree": 9,
+        "observed_max_reference_operations": 24,
+    },
+    "daedalus/ignition-field-fixture": {
+        "relation_count": 10,
+        "semantic_fact_count": 18,
+        "composable_pair_count": 23,
+        "observed_max_out_degree": 2,
+        "observed_max_reference_operations": 2,
+    },
+}
+_EXPECTED_AGGREGATE = {
+    "project_count": 2,
+    "relation_count": 21,
+    "semantic_fact_count": 85,
+    "composable_pair_count": 50,
+    "observed_max_out_degree": 9,
+    "observed_max_reference_operations": 24,
+}
 
 
 def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None:
@@ -24,11 +48,14 @@ def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
-    assert report["aggregate"]["project_count"] == 2
-    assert report["aggregate"]["relation_count"] > 0
-    assert report["aggregate"]["semantic_fact_count"] > 0
+    assert report["aggregate"] == _EXPECTED_AGGREGATE
 
-    for project in report["projects"]:
+    by_repository = {project["repository_id"]: project for project in report["projects"]}
+    assert set(by_repository) == set(_EXPECTED_REAL_SHAPES)
+    for repository_id, expected in _EXPECTED_REAL_SHAPES.items():
+        project = by_repository[repository_id]
+        for field, value in expected.items():
+            assert project[field] == value
         assert project["subject"]["source_revision"] == _REVISION
         assert project["subject"]["source_fourfold_sha256"] == project["fourfold_sha256"]
         assert project["subject_digest"]
