@@ -15,7 +15,9 @@ permissions:
   contents: write
 concurrency:
   group: owner-project-acceptance-bootstrap
-  cancel-in-progress: false
+  # A newer PR rehearsal supersedes an older rehearsal of this same one-shot.
+  # Main publication remains non-cancelling so no writer is interrupted.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   acceptance:
     runs-on: windows-latest
@@ -65,14 +67,15 @@ jobs:
           steps = yaml.safe_load(raw)['jobs']['acceptance']['steps']
           script, = [step['run'] for step in steps if step.get('name') == 'Prepare bounded mainline acceptance change']
 
-          # The first exact-head Windows run proved the original whole-statement
-          # fixture could not produce a parseable negative arm. Run 34620373402
-          # then showed that the first expression repair was not unique in the
-          # semiring oracle: `first + second` also exists in Tropical multiply.
-          # Derive a second bounded fixture from the immutable repaired blob by
-          # selecting Boolean addition instead. `first or second` occurs once,
-          # its suffixed negative arm stays valid Python, and the existing
-          # semiring-law suite observes OR -> AND regressions.
+          # Exact Windows evidence closed two tempting but invalid fixtures:
+          # run 34620373402 showed `first + second` was not unique in the
+          # oracle; run 34620972086 showed an expression suffix can still turn
+          # the negative arm into a runtime ERROR, while G1-IKARUS-49 requires
+          # a test FAILURE the baseline passed.  Mutate the Boolean observer
+          # name inside its string instead: the fixed suffix stays inside the
+          # closing quote, the negative arm is executable, and the tensor
+          # compiler/tests consume this observer identity.  The repair uses
+          # implicit literal concatenation and is semantically identical.
           old_test_blob = '7816e8f47bcf643bb4739f6d73a004b47b60df08'
           repaired_test_blob = '8ae808398441b7663aaa277bb674cb4096ef0b94'
           old_binding = "test_blob = '" + old_test_blob + "'"
@@ -82,9 +85,9 @@ jobs:
           old_write = 'target.write_bytes(raw)'
           derived_write = '''fixture = raw.decode("utf-8")
           replacements = (
-              ('BEFORE = "first + second"', 'BEFORE = "first or second"'),
-              ('REFACTOR = "(first + second)"', 'REFACTOR = "(first or second)"'),
-              ('REGRESSION = "first * second"', 'REGRESSION = "first and second"'),
+              ('BEFORE = "first + second"', 'BEFORE = \'name = "boolean\''),
+              ('REFACTOR = "(first + second)"', 'REFACTOR = \'name = "bool" "ean\''),
+              ('REGRESSION = "first * second"', 'REGRESSION = \'name = "not-boolean\''),
           )
           for old_fixture, new_fixture in replacements:
               assert fixture.count(old_fixture) == 1
