@@ -34,8 +34,9 @@ ALLOWED requires ALL of:
 
   * the FIRST significant word (leading politeness/filler stripped) is an
     imperative act verb from :data:`ACT_VERBS`, and
-  * the message is not interrogative — no trailing ``?``, no leading question
-    word (English or German).
+  * the message is not interrogative — question punctuation is retained, and
+    leading question words (English or German) are refused; and
+  * its leading command is not quoted, a blockquote, or code-formatted.
 
 That is the entire allow rule. It admits "build a settings dialog" and refuses
 every construction where an act verb merely APPEARS somewhere. Measured against
@@ -202,11 +203,34 @@ class ActDecision:
 # --------------------------------------------------------------------------- #
 # helpers (pure)                                                               #
 # --------------------------------------------------------------------------- #
+# Keep question and quotation markers: normalization must not manufacture consent.
+_CONFIRMATION_PUNCTUATION = " .!,;:"
+_QUESTION_MARKS = ("?", "？", "‽")
+_QUOTATION_MARKERS = frozenset("\"'`“”‘’„‚«»‹›>")
+
+
 def _normalize(message: str) -> str:
-    """Lowercase, collapse whitespace, drop surrounding quotes and trailing
-    punctuation — the form a whole-message confirmation is compared in."""
+    """Normalize case/spacing and trailing statements, never questions or quotes."""
     text = " ".join((message or "").strip().lower().split())
-    return text.strip("\"'`").strip(" .!?,;:").strip()
+    return text.rstrip(_CONFIRMATION_PUNCTUATION)
+
+
+def _has_quoted_lead(message: str) -> bool:
+    """Reject a literal/example before a command, including after polite filler.
+
+    Stop at the first non-filler word, so quoted arguments in an explicit
+    command remain usable. This only narrows the existing lexical predicate;
+    it is not a general natural-language authorization or injection detector.
+    """
+    end = 0
+    for match in _WORD_RE.finditer(message):
+        separator = message[end:match.start()]
+        if any(char in _QUOTATION_MARKERS for char in separator) or "~~~" in separator:
+            return True
+        if match.group().lower() not in _LEAD_FILLER:
+            return False
+        end = match.end()
+    return False
 
 
 def _significant_words(message: str) -> list[str]:
@@ -219,7 +243,9 @@ def _significant_words(message: str) -> list[str]:
 
 
 def _is_interrogative(message: str, first_word: str) -> bool:
-    return (message or "").rstrip().endswith("?") or first_word in _QUESTION_LEADS
+    # "run tests?!" is still interrogative; removing the final bang must not
+    # turn a question into an imperative. Whitespace is normalized identically.
+    return _normalize(message).endswith(_QUESTION_MARKS) or first_word in _QUESTION_LEADS
 
 
 def _get(obj, key: str):
@@ -291,6 +317,11 @@ def may_act(message: str, intent: str = "", conversation=None) -> ActDecision:
     text = (message or "").strip()
     if not text:
         return ActDecision(False, "empty message", intent=intent)
+
+    if _has_quoted_lead(text):
+        # Do not offer to execute an example on a later "yes" either.
+        return ActDecision(False, "quoted or code-formatted text is not an action request",
+                           signal="quoted", intent=intent)
 
     offer = pending_offer(conversation)
     if offer is not None:
