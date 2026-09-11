@@ -226,6 +226,12 @@ def run_probe(
         )
         for root in resolved
     ]
+    projects.sort(
+        key=lambda item: (
+            item["repository_id"],
+            item["fourfold_sha256"],
+        )
+    )
     return {
         "schema": SCHEMA,
         "status": "completed",
