@@ -39,7 +39,7 @@ _EXPECTED_AGGREGATE = {
 
 def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None:
     report = _PROBE.run_probe(
-        (_WIKI, _IGNITION),
+        (_IGNITION, _WIKI),
         source_revision=_REVISION,
         created_at=_CREATED_AT,
     )
@@ -49,6 +49,9 @@ def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert report["aggregate"] == _EXPECTED_AGGREGATE
+    assert [
+        project["repository_id"] for project in report["projects"]
+    ] == sorted(_EXPECTED_REAL_SHAPES)
 
     by_repository = {project["repository_id"]: project for project in report["projects"]}
     assert set(by_repository) == set(_EXPECTED_REAL_SHAPES)
