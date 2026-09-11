@@ -67,15 +67,20 @@ jobs:
           steps = yaml.safe_load(raw)['jobs']['acceptance']['steps']
           script, = [step['run'] for step in steps if step.get('name') == 'Prepare bounded mainline acceptance change']
 
-          # Exact Windows evidence closed two tempting but invalid fixtures:
+          # Exact Windows evidence closed three tempting but invalid fixtures:
           # run 34620373402 showed `first + second` was not unique in the
-          # oracle; run 34620972086 showed an expression suffix can still turn
-          # the negative arm into a runtime ERROR, while G1-IKARUS-49 requires
-          # a test FAILURE the baseline passed.  Mutate the Boolean observer
-          # name inside its string instead: the fixed suffix stays inside the
-          # closing quote, the negative arm is executable, and the tensor
-          # compiler/tests consume this observer identity.  The repair uses
-          # implicit literal concatenation and is semantically identical.
+          # oracle; run 34620972086 showed an expression suffix can turn the
+          # negative arm into a runtime ERROR; run 34621923180 showed that
+          # changing BooleanSemiring.name also errors before a baseline-passed
+          # test can FAIL. G1-IKARUS-49 requires that stronger discrimination.
+          #
+          # Use the existing Fourfold read-schema observer instead. Its schema
+          # literal is unique in the production target, the fixed Ariadne
+          # suffix remains inside the string, and tests/twin directly asserts
+          # the emitted schema. Thus the negative arm is executable and can
+          # disagree by assertion rather than import/runtime error. The repair
+          # uses implicit literal concatenation and is semantically identical;
+          # the regression changes the observable schema version.
           old_test_blob = '7816e8f47bcf643bb4739f6d73a004b47b60df08'
           repaired_test_blob = '8ae808398441b7663aaa277bb674cb4096ef0b94'
           old_binding = "test_blob = '" + old_test_blob + "'"
@@ -85,9 +90,10 @@ jobs:
           old_write = 'target.write_bytes(raw)'
           derived_write = '''fixture = raw.decode("utf-8")
           replacements = (
-              ("BEFORE = \\"first + second\\"", "BEFORE = " + repr('name = "boolean')),
-              ("REFACTOR = \\"(first + second)\\"", "REFACTOR = " + repr('name = "bool" "ean')),
-              ("REGRESSION = \\"first * second\\"", "REGRESSION = " + repr('name = "not-boolean')),
+              ("TARGET = \\"daedalus/twin/semiring.py\\"", "TARGET = " + repr("daedalus/twin/read_projection.py")),
+              ("BEFORE = \\"first + second\\"", "BEFORE = " + repr('READ_SCHEMA = "daedalus-fourfold-read/1')),
+              ("REFACTOR = \\"(first + second)\\"", "REFACTOR = " + repr('READ_SCHEMA = "daedalus-" "fourfold-read/1')),
+              ("REGRESSION = \\"first * second\\"", "REGRESSION = " + repr('READ_SCHEMA = "daedalus-fourfold-read/2')),
           )
           for old_fixture, new_fixture in replacements:
               assert fixture.count(old_fixture) == 1
