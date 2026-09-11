@@ -14,7 +14,7 @@ from dataclasses import asdict, dataclass
 from xml.etree import ElementTree
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from daedalus.atomic import ExclusiveFileLock, FileLockUnavailable
 from daedalus.gates.repository.head_revision import verify_repository_head_revision
@@ -875,6 +875,16 @@ SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     "daedalus/kernel/approvals.py",
     "daedalus/kernel/contracts/",
     "daedalus/ariadne/campaign.py",
+    "daedalus/ariadne/owner_evaluator.py",
+    "daedalus/runtimes/computer.py",
+    "daedalus/runtimes/computer_ariadne.py",
+    "daedalus/runtimes/computer_genesis.py",
+    "daedalus/orchestration/genesis/service.py",
+    "daedalus/twin/runtime_projection.py",
+    "tests/test_hopping_admission.py",
+    "tests/runtimes/test_computer_ariadne.py",
+    "tests/runtimes/test_computer_genesis.py",
+    "tests/twin/test_runtime_projection.py",
     "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
     "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
     "AGENTS.md",
@@ -1911,6 +1921,7 @@ def run_campaign(
     after: str,
     timeout_s: int = 30,
     evaluator: TestCommandEvaluator | None = None,
+    caller_checkpoint: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Run baseline, negative control, and repair once under equal budgets.
 
@@ -2008,6 +2019,21 @@ def run_campaign(
     effect_evidence_root = state / "effect-evidence" / campaign_id
     workspace_parent = state / "workspaces"
     switch = KillSwitch(repo_root=root)
+
+    def should_stop() -> bool:
+        if switch.should_stop():
+            return True
+        try:
+            if caller_checkpoint is not None:
+                caller_checkpoint()
+        except Exception:
+            return True
+        return False
+
+    if caller_checkpoint is not None:
+        if not callable(caller_checkpoint):
+            raise AriadneRequestError("caller_checkpoint must be callable")
+        caller_checkpoint()
     spine_path, error = resolve_spine_db_path(root)
     if error or spine_path is None:
         raise AriadneCampaignError(f"canonical spine unavailable: {error}")
@@ -2239,6 +2265,8 @@ def run_campaign(
         )
         interpreter_provenance = _interpreter_provenance(evaluator_interpreter)
         for variant, role, seed in arms:
+            if caller_checkpoint is not None:
+                caller_checkpoint()
             switch.checkpoint()
             started = _now()
             attempt_id = f"{campaign_id}-{variant}"
@@ -2444,7 +2472,7 @@ def run_campaign(
                         branch=f"ariadne/{attempt_id}",
                         base_revision=source_revision,
                         task=task,
-                        is_cancelled=switch.should_stop,
+                        is_cancelled=should_stop,
                     )
                 )
                 finished = _now()

@@ -96,7 +96,7 @@ class RunCommandTest(unittest.TestCase):
         built = []
 
         class Service:
-            def __init__(self, root, workspace=None, *, project=None, project_readers=None, campaign_runner=None):
+            def __init__(self, root, workspace=None, *, project=None, project_readers=None, campaign_runner=None, genesis_runner=None, hopping=False):
                 built.append(project)
 
             def close(self):
@@ -129,7 +129,7 @@ class EnableAriadneTest(unittest.TestCase):
     def _run(self, message, tools=("file.read",), configure=None):
         from daedalus.interfaces import computer_configuration
         from daedalus.runtimes import computer
-        status = lambda root, project=None, project_readers=None, campaign_runner=None: self._status(list(tools))  # noqa: E731
+        status = lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: self._status(list(tools))  # noqa: E731
         configured = []
 
         def fake_configure(root, policy, *, owner_confirmed, expected_policy_sha256):
@@ -228,7 +228,7 @@ class EnableDaedalusTest(unittest.TestCase):
     def _enable(self, *, provider, remote, message="/computer enable daedalus confirm-remote"):
         from daedalus.interfaces import computer_configuration
         from daedalus.runtimes import computer
-        status = lambda root, project=None, project_readers=None, campaign_runner=None: self._status(  # noqa: E731
+        status = lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: self._status(  # noqa: E731
             ["file.read"], provider=provider, remote=remote)
         with mock.patch.object(computer, "computer_status", status), \
                 mock.patch.object(computer_configuration, "configure_computer",
@@ -261,7 +261,7 @@ class EnableDaedalusTest(unittest.TestCase):
         observations leave, the grant must say so and must ask first."""
         from daedalus.interfaces import computer_configuration
         from daedalus.runtimes import computer
-        status = lambda root, project=None, project_readers=None, campaign_runner=None: self._status(  # noqa: E731
+        status = lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: self._status(  # noqa: E731
             ["file.read"], provider="ollama_http", remote=True)
         with mock.patch.dict(os.environ, {"OLLAMA_HOST": "http://100.119.126.9:11434"}), \
                 mock.patch.object(computer, "computer_status", status), \
@@ -285,7 +285,7 @@ class EnableDaedalusTest(unittest.TestCase):
         from daedalus.interfaces import computer_configuration
         from daedalus.runtimes import computer
         env = {"OLLAMA_HOST": "http://100.119.126.9:11434", "DAEDALUS_TRUSTED_HOSTS": "100.119.126.9"}
-        status = lambda root, project=None, project_readers=None, campaign_runner=None: self._status(  # noqa: E731
+        status = lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: self._status(  # noqa: E731
             ["file.read"], provider="ollama_http", remote=True)
         with mock.patch.dict(os.environ, env), \
                 mock.patch.object(computer, "computer_status", status), \
@@ -318,7 +318,7 @@ class EnableDaedalusTest(unittest.TestCase):
         def configure(root, policy, *, owner_confirmed, expected_policy_sha256):
             calls.append((policy["tools"], owner_confirmed, expected_policy_sha256))
             return {"ok": True, "policy_sha256": "b" * 64}
-        with mock.patch.object(computer, "computer_status", lambda root, project=None, project_readers=None, campaign_runner=None: self._status(["file.read"])), \
+        with mock.patch.object(computer, "computer_status", lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: self._status(["file.read"])), \
                 mock.patch.object(computer_configuration, "configure_computer", configure):
             final = list(loop.conversation_events(PROJECT, "/computer enable daedalus"))[-1][1]
         self.assertEqual(calls, [(["file.read", *DAEDALUS_TOOLS], True, "a" * 64)])
@@ -332,7 +332,7 @@ class EnableDaedalusTest(unittest.TestCase):
     def test_enable_with_a_remote_planner_needs_a_transient_confirmation(self):
         from daedalus.interfaces import computer_configuration
         from daedalus.runtimes import computer
-        status = lambda root, project=None, project_readers=None, campaign_runner=None: self._status(  # noqa: E731
+        status = lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: self._status(  # noqa: E731
             ["file.read"], provider="codex_cli", remote=True)
         with mock.patch.object(computer, "computer_status", status), \
                 mock.patch.object(computer_configuration, "configure_computer",
@@ -369,7 +369,7 @@ class EnableDaedalusTest(unittest.TestCase):
             calls.append(policy["tools"])
             return {"ok": True, "policy_sha256": "b" * 64}
         with mock.patch.object(computer, "computer_status",
-                               lambda root, project=None, project_readers=None, campaign_runner=None: self._status(["file.read", *DAEDALUS_TOOLS])), \
+                               lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: self._status(["file.read", *DAEDALUS_TOOLS])), \
                 mock.patch.object(computer_configuration, "configure_computer", configure):
             final = list(loop.conversation_events(PROJECT, "/computer disable daedalus"))[-1][1]
         self.assertEqual(calls, [["file.read"]])
@@ -385,7 +385,7 @@ class EnableDaedalusTest(unittest.TestCase):
                 with self.subTest(message=message):
                     final = list(loop.conversation_events(PROJECT, message))[-1][1]
                     self.assertEqual(final["intent"], "error", final["assistant"])
-            with mock.patch.object(computer, "computer_status", lambda root, project=None, project_readers=None, campaign_runner=None: {"enabled": False, "tools": []}):
+            with mock.patch.object(computer, "computer_status", lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: {"enabled": False, "tools": []}):
                 final = list(loop.conversation_events(PROJECT, "/computer enable daedalus"))[-1][1]
         self.assertEqual(final["intent"], "error")
         self.assertIn("/computer setup", final["assistant"])
@@ -394,7 +394,7 @@ class EnableDaedalusTest(unittest.TestCase):
 class ComputerHandTest(unittest.TestCase):
     def test_unavailable_or_failing_status_is_none(self):
         from daedalus.runtimes import computer
-        with mock.patch.object(computer, "computer_status", lambda root, project=None, project_readers=None, campaign_runner=None: {"enabled": False, "tools": []}):
+        with mock.patch.object(computer, "computer_status", lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: {"enabled": False, "tools": []}):
             self.assertIsNone(ikarus_os._computer_hand(PROJECT))
         with mock.patch.object(computer, "computer_status", side_effect=RuntimeError("boom")):
             self.assertIsNone(ikarus_os._computer_hand(PROJECT))
@@ -406,7 +406,7 @@ class ComputerHandTest(unittest.TestCase):
                 "workspace": "W", "policy_sha256": "e" * 64, "max_steps": 16, "timeout_s": 300}
         seen = []
         with mock.patch.object(computer, "computer_status",
-                               lambda root, project=None, project_readers=None, campaign_runner=None: seen.append(project) or caps):
+                               lambda root, project=None, project_readers=None, campaign_runner=None, genesis_runner=None: seen.append(project) or caps):
             hand = ikarus_os._computer_hand(PROJECT)
         self.assertEqual(seen, [PROJECT])
         self.assertEqual(hand["tools"], ["daedalus.status", "file.read"])
