@@ -63,16 +63,32 @@ def _profile_block(name: str, block: TypedRelationBlock[Any]) -> dict[str, Any]:
     }
 
 
-def _reference_matmul_operations(
+def _reference_matmul_shape(
     left: TypedRelationBlock[Any],
     right: TypedRelationBlock[Any],
-) -> int:
-    """Count exactly the nested CSR multiply iterations used by ``matmul``."""
+) -> tuple[int, int]:
+    """Measure current Boolean CSR nested work and peak row-accumulator width."""
 
     if left.subject != right.subject or left.column_axis != right.row_axis:
         raise ValueError("relation blocks are not exactly composable")
-    right_degrees = _row_degrees(right)
-    return sum(right_degrees[middle] for middle in left.column_indices)
+
+    operations = 0
+    peak_accumulator_entries = 0
+    for row in range(len(left.row_axis.labels)):
+        accumulator_columns: set[int] = set()
+        for position in range(left.row_offsets[row], left.row_offsets[row + 1]):
+            middle = left.column_indices[position]
+            for right_position in range(
+                right.row_offsets[middle],
+                right.row_offsets[middle + 1],
+            ):
+                operations += 1
+                accumulator_columns.add(right.column_indices[right_position])
+        peak_accumulator_entries = max(
+            peak_accumulator_entries,
+            len(accumulator_columns),
+        )
+    return operations, peak_accumulator_entries
 
 
 def _profile_compiled(compiled: Any) -> dict[str, Any]:
@@ -83,13 +99,14 @@ def _profile_compiled(compiled: Any) -> dict[str, Any]:
         for right_name, right in blocks:
             if left.column_axis != right.row_axis:
                 continue
-            operations = _reference_matmul_operations(left, right)
+            operations, peak_accumulator_entries = _reference_matmul_shape(left, right)
             composable_pairs.append(
                 {
                     "left": left_name,
                     "right": right_name,
                     "middle_plane": left.signature.target_plane,
                     "reference_operations": operations,
+                    "reference_peak_accumulator_entries": peak_accumulator_entries,
                     "left_entries": left.entry_count,
                     "right_entries": right.entry_count,
                 }
