@@ -64,8 +64,33 @@ Local verification (Python 3.13, Linux container, HOME aligned to OS profile):
 - Legacy test doubles were extended for the new optional runner parameter;
   assertions and protection/containment rules were not loosened.
 
-Hosted Windows execution is required before application delivery; the temporary
-verification workflow retains exact JUnit results. See `docs/IKARUS_HOPPING.md`
+Hosted verification completed on 2026-09-11 under Python 3.12.14:
+GitHub Actions run `34651277624`, source integration commit
+`87934f20ddc1ce9479c758a80de18e35643c7d32`.
+
+| Executed selection | Passed | Skipped | Deselected |
+| --- | ---: | ---: | ---: |
+| Linux portable + Genesis contracts + frozen identity | 557 | 2 | 1 |
+| Windows portable + real Computer/Genesis/Ariadne execution | 560 | 0 | 0 |
+| Additional Windows Genesis, archive, HTTP, file-effect and Ariadne regressions | 298 | 1 | 0 |
+
+Each portable selection also passed 12 subtests. These are overlapping
+cross-platform selections, not a count of unique repository tests. This is not
+an assertion that the entire repository suite, desktop or a live LLM was tested.
+The remaining Windows skip needs optional OpenCV (`cv2`) for a vision test.
+Linux excludes the existing native Ariadne campaign and skips Windows junctions
+and the real Genesis/Computer acceptance, all exercised on Windows instead.
+The separate existing owner-approval/Fourfold binding suite passed 31 tests
+locally after the final source correction.
+
+Both hosted jobs succeeded before the source was fast-forwarded to main. JUnit
+artifact IDs are `10284355076` (Linux) and `10283913047` (Windows). Initial run
+`34650845656` caught two evaluator identity expectations: the historical
+operation digest remains frozen, while fresh tensor-aware round trips have a
+separately pinned evaluator identity. No failing check was excluded to deliver
+the corrected Windows run. The frozen identity test now runs on Linux too.
+The permanent read-only workflow is `.github/workflows/g1-ikarus-hopping.yml`;
+the one-shot patch/apply workflow is removed in the delivery cleanup. See `docs/IKARUS_HOPPING.md`
 for operation and the remaining activation blockers.
 Baseline: tensor/contraction suite 27 passed; Ikarus/Ariadne loop suite 2 passed.
 Genesis baseline initially blocks because container HOME differs from the OS
@@ -74,4 +99,4 @@ broader local HTTP/archive run was stopped without a complete result and is
 not claimed green.
 Independent review and host-runtime activation have not been performed.
 Rollback: revert the integration commit; no candidate is promoted by this packet.
-The temporary source-snapshot workflow is removed on delivery.
+No patch-transfer blobs are referenced by the permanent workflow, and it has no repository-write or runtime-activation step.
