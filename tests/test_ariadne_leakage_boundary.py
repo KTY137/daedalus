@@ -46,6 +46,7 @@ PROTECTED = (
     "tests/test_ariadne_leakage_boundary.py",
     "DAEDALUS/SPINE/ledger.py",
     "Docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "daedalus/__init__.py",
     "daedalus/ariadne/__init__.py",
     "daedalus/ariadne/__main__.py",
     "tests/conftest.py",
@@ -216,17 +217,28 @@ def test_the_module_defining_each_load_bearing_name_is_protected(
     # CONSTANTS, which have no `__module__`, so the fallback preserved the old
     # name-presence behaviour verbatim -- including for this boundary's own
     # tuple.
+    # WHAT THIS PROVES, exactly: that the NAME is bound in a protected file.
+    # Not that the behaviour lives there. No definition-site test can prove
+    # that -- `def promote_candidates(*a, **k): return _impl.promote_candidates(*a, **k)`
+    # is the ordinary extract-the-implementation refactor and passes every
+    # check below (Odysseus round 3, eleven such shapes). The uncovered set is
+    # enumerated in the packet; catching it needs an import trace or a
+    # behaviour pin, not a third attribute.
     code = getattr(holder, "__code__", None)
     if code is not None:
-        # `co_filename` is baked into the code object at compile time and is
-        # not forgeable by assignment. This is the whole mechanism for
-        # callables.
+        # `co_filename` is the file that COMPILED this code object. It is not
+        # authoritative -- `f.__code__ = f.__code__.replace(co_filename=...)`
+        # forges it in one statement -- but unlike `__module__` it at least
+        # requires a deliberate lie rather than a decorator.
         source = Path(code.co_filename).resolve()
     else:
-        # A constant carries no origin, so nothing attribute-based can work.
-        # Ask the SOURCE of the named module whether it BINDS the name at top
-        # level: a re-export is an `ImportFrom`, not an `Assign`, so moving the
-        # constant elsewhere and re-exporting it fails here.
+        # NOT "the constant branch": a `functools.partial`, a callable class
+        # instance and a `@property` are callables with no `__code__` and land
+        # here too. Callable-versus-constant is not a partition.
+        #
+        # Whatever lands here carries no origin, so nothing attribute-based can
+        # work. Ask the SOURCE of the named module whether it BINDS the name at
+        # top level.
         source = Path(imported.__file__).resolve()
         leaf = symbol.split(".")[-1]
         tree = ast.parse(source.read_bytes().decode("utf-8"))
@@ -237,10 +249,16 @@ def test_the_module_defining_each_load_bearing_name_is_protected(
                 and isinstance(node.target, ast.Name) and node.target.id == leaf)
             for node in tree.body
         )
+        # Report the CHECK, not a diagnosis. The earlier message asserted
+        # "it is re-exported from somewhere else", which this test never
+        # established -- and which is false for a conditional binding in the
+        # same file, sending the reader after a module that does not exist
+        # (Odysseus round 3).
         assert bound, (
-            f"{module_name} no longer BINDS {symbol} at top level ({what}); it is "
-            f"re-exported from somewhere else, and a constant carries no origin "
-            f"for this test to follow. Name the module that assigns it.")
+            f"no top-level Assign/AnnAssign of {symbol} in {source.name} "
+            f"({what}). That can mean a re-export, a conditional or generated "
+            f"binding, or a binding inside a function; this test cannot tell "
+            f"which. Name the module that assigns it at top level.")
     repo_root = Path(module.__file__).resolve().parents[2]
     relative = source.relative_to(repo_root).as_posix()
     named = protected_prefix_for(relative)
@@ -275,6 +293,10 @@ def test_the_package_door_is_protected_with_the_module_it_guards() -> None:
     green."""
 
     for relative in (
+        # D1's parent: a conditional shim in the package root pre-seeding
+        # `sys.modules["daedalus.ariadne"]` removed the whole boundary with
+        # four suites unchanged at 193 passed (Odysseus round 3).
+        "daedalus/__init__.py",
         "daedalus/ariadne/__init__.py",
         "daedalus/ariadne/__main__.py",
         "daedalus/ariadne/campaign.py",

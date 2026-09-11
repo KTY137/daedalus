@@ -895,6 +895,10 @@ SELF_RENOVATION_PROTECTED_PREFIXES: tuple[str, ...] = (
     "daedalus/kernel/promotion",
     "daedalus/kernel/approvals.py",
     "daedalus/kernel/contracts/",
+    # D1's parent, 35 lines. A conditional shim here that pre-seeds
+    # `sys.modules["daedalus.ariadne"]` removes the boundary entirely, measured
+    # with four suites at 193 passed either way (Odysseus round 3).
+    "daedalus/__init__.py",
     # The WHOLE package, not just `campaign.py`. `__init__.py` re-exports
     # `run_campaign`, and both the HTTP door and the tool-door runner resolve
     # through it -- so one conditional shim in an admissible `__init__` used to

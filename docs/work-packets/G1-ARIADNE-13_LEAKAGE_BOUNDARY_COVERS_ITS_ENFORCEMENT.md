@@ -13,16 +13,22 @@ Stacked on G1-IKARUS-49 (PR #368) because both change `campaign.py`.
 ## Primary acceptance claim
 
 The modules this packet found to **enforce** the self-Renovation leakage
-boundary are behind it, together with the package door in front of it and the
-two conftests under its protected suites; and the guard is bound to where each
-load-bearing symbol is **actually defined** — `__code__.co_filename` for a
-callable, a top-level binding in the named module's source for a constant — so
-moving one out of a protected file turns a test red even when the move is
-disguised by a re-export, a rewritten `__module__`, or a `functools.wraps`
-decorator.
+boundary are behind it, together with the package doors in front of it and the
+conftests under its protected suites; and a test proves that **the name of each
+load-bearing symbol is bound in a protected file**, by `__code__.co_filename`
+where there is one and by a top-level binding in the named module's source
+where there is not.
 
-It does **not** claim that every enforcing module is covered. One is known to
-be admissible and is named below.
+That is all it proves, and the wording is deliberate. It does **not** prove the
+behaviour lives there: `def promote_candidates(*a, **k): return
+_impl.promote_candidates(*a, **k)` — the ordinary extract-the-implementation
+refactor, with no deception in it — moves the behaviour into an admissible file
+and passes. Eleven such shapes are enumerated below. No definition-site test
+can close them; catching them needs an import trace or a behaviour pin, and a
+third attribute would be defeated in round four.
+
+It also does not claim every enforcing module is covered. One is admissible and
+named.
 
 ## What was measured
 
@@ -166,20 +172,30 @@ needs an import trace this packet does not build. Recorded as the next question,
 not patched with a longer list.
 
 **One enforcement surface remains admissible: `daedalus/interfaces/http/web_api.py`.**
-Its `_campaign_runner()` at line 222 injects `protected_prefix_for` into the
-`CampaignRunner`, and both of the tool door's checks use that injected callable,
-so a candidate editing only that file disables both. Round 2 measured exactly
-what survives:
+Its `_campaign_runner()` at line 222 builds the `CampaignRunner` from **three**
+fields — `run_campaign`, `head_revision` and `protected_prefix_for` — and the
+tool door uses `self._runner.protected_prefix_for` at lines 228 and 256 **and**
+`self._runner.run_campaign` at line 352. All three come from that one
+admissible file.
+
+Round 2 recorded that only the *refuse-before-any-effect* property was lost,
+because the protected `campaign.py` would still refuse. **Round 3 showed that
+sentence rests on an assumption the code does not enforce**: it held only
+because the probe stubbed one field and left the other canonical. Nothing
+constrains a candidate to do that.
 
 ```
-LEG 1  door, canonical checker     -> refused: leakage boundary: daedalus/spine/
-LEG 2  door, checker stubbed None  -> ADMITTED 'daedalus/spine/effect_boundary.py'
-LEG 3  run_campaign(), same target -> refused, and left nothing in repo_root
+LEG 1  canonical                 -> refused: leakage boundary: daedalus/spine/
+LEG 2  checker stubbed only      -> nominated; the CANONICAL runner was then
+                                    called with daedalus/spine/effect_boundary.py
+LEG 3  the SAME edit stubs BOTH  -> nominated, refusal=None, and
+                                    _admit_target_path is never reached
 ```
 
-So the loss is the **refuse-before-any-effect** property, not the boundary
-itself: `_admit_target_path` in the protected `campaign.py` still refuses, with
-no trace left behind. That is why this is left open.
+So the boundary itself is lost on this path, not merely its earliness. It stays
+open on **cost** — `web_api.py` is a large HTTP interface file with no other
+relationship to this boundary — and that is the whole of the argument. The
+severity sentence that stood beside it was wrong and is removed.
 
 **Round 1 recorded a false reason for leaving it open, and round 2 caught it.**
 The packet said a prefix would have to cover `computer_loop.py`, which is on the
@@ -315,12 +331,100 @@ protection. No collateral: `tests/runtimes` 1629 passed, the protected suites
 plus `test_computer_service.py` 181 passed, the three suites elsewhere that name
 `tests/conftest.py` 83 passed.
 
-### Still not closed, and now stated precisely
+### Still not closed — the uncovered set, measured
 
-The constant check requires a **top-level binding in the named module's
-source**. It does not follow a conditional binding, a binding produced by
-`exec`, or one built inside a function — all of which would fail the check
-rather than pass it, which is the safe direction, but means the message may name
-the wrong cause. And the callable check trusts `co_filename`, which is correct
-for anything compiled from a file and absent for a C-implemented callable: those
-raise rather than assert, so the failure is loud but not self-explaining.
+Eleven shapes pass this guard with the behaviour in an admissible file. Seven of
+them require **no deception at all**. Each was executed against an isolated
+copy; all printed `93 passed`.
+
+| class | shapes | deception |
+| --- | --- | --- |
+| **delegation** | a thin wrapper forwarding to `_impl` — for `promote_candidates`, `_repeat_permission`, `_admit_release_capability` | none |
+| **non-function callables** | `functools.partial`, a callable class instance, `@property` — all have no `__code__` and fall into the source-binding branch | none |
+| **`co_filename` forgery** | `f.__code__ = f.__code__.replace(co_filename=<protected>)`; `types.FunctionType` with forged code plus a plain re-export | yes |
+| **`Assign` from elsewhere** | `X = _other.X`, or keeping the literal and adding a shadowing `from ... import X` below it — including on this boundary's own tuple | none |
+
+Two corrections to the previous version of this section. "A conditional or
+generated binding would fail the check rather than pass it, which is the safe
+direction" is **false as a general statement**: seven such shapes do fail safe
+(conditional, `globals()`, `exec`, `for` target, tuple-unpack, walrus, module
+`__getattr__`), but `X = _other.X` and the shadowing import pass, in the unsafe
+direction, with no deception. And "a C-implemented callable raises rather than
+asserts" is **wrong**: with no `__code__` it lands in the source-binding branch
+and can pass.
+
+**Two of the six rows have no other guard anywhere in the tree.**
+`_repeat_permission` — the gate deciding whether an unattended recurring
+campaign series continues — and `ComputerService._admit_release_capability` are
+named only by this packet's test and their own module. Measured with each
+delegated into an admissible module carrying an environment-gated bypass:
+
+```
+_repeat_permission   bypass fires -> (True, 'series continues')  on {'ok': False}
+  baseline 240 passed, 2 skipped   |   with the bypass 240 passed, 2 skipped
+_admit_release_capability
+  baseline 187 passed, 1 skipped   |   with the bypass 187 passed, 1 skipped
+```
+
+The other four do have backstops, and that narrows the finding rather than
+excusing it: delegating `promote_candidates` with an approval-skipping bypass
+turns six `tests/kernel/` tests red, five of them in
+`test_live_promotion_seam_review.py`, because that suite pins source ORDER
+rather than a name. Moving this boundary's own tuple is green, but a second
+campaign that actually drops `daedalus/spine/` from it turns five tests red —
+two nominations, two owner approvals.
+
+**The D2 class is not closed, and stops one level below where it could.**
+`pyproject.toml` is admissible and silences every protected suite:
+
+```
+addopts = "-k _no_such_substring_"          rc=5   194 deselected
+addopts = "--deselect <each of the four>"   rc=5   194 deselected
+python_functions = ["nothing_*"]            rc=5   no tests ran
+addopts = "--co -q"                         rc=0   zero tests executed
+```
+
+The last is **strictly worse than the conftest route**, which at least exits 5.
+It stays admissible by decision, not by oversight: `pyproject.toml` is the
+dependency manifest and one of the most valuable self-Renovation subjects there
+is, and removing it to close a silencing route would cost more than it buys.
+The same reasoning leaves `tests/contracts/`, `tests/gates/` and
+`tests/ignition/conftest.py` admissible. **This list is an artifact grown one
+adversarial round at a time, not a closed set**, and it should be read that way.
+
+The failure message no longer asserts a cause it did not check. It names the
+check — no top-level `Assign`/`AnnAssign` — and offers re-export, conditional
+or generated binding, and binding-inside-a-function without choosing between
+them, because the test cannot tell which.
+
+
+## Adversarial round 3 (2026-09-11, `3dcc5cbf`)
+
+**Odysseus: `block` — "and this time the gap is in the mechanism, not only in
+the sentence."** Every number was confirmed: 220 passed / 1 skipped, A1/A4/A6
+red, 27 passed on the index and SCC suites, 7/7 CI green on the exact head, and
+a 6380-file prefix sweep with zero surprises. The code change — "additive,
+load-bearing under mutation, regression-free" — drew no objection for the third
+time.
+
+Eleven executed defeats, seven of them requiring no deception, are recorded in
+"still not closed" above rather than answered with a third mechanism. **That was
+the reviewer's own recommendation and the reason to follow it is structural:**
+delegation cannot be caught by any definition-site test, so a third attribute
+buys one round.
+
+| # | what changed |
+| --- | --- |
+| claim | now says the **name** is bound in a protected file — provable — instead of claiming a move turns a test red, which eleven shapes falsify |
+| `daedalus/__init__.py` | **protected.** D1's parent, 35 lines. A conditional shim there pre-seeding `sys.modules["daedalus.ariadne"]` removed the boundary entirely while four suites stayed at 193 passed either way |
+| `pyproject.toml` | **left admissible, by decision.** Four measured silencing knobs are written down, including `addopts = "--co -q"` at rc=0, which is worse than the conftest route this packet closed |
+| D3 | severity sentence removed; LEG3 shows a single edit stubbing both fields loses the boundary, not just its earliness |
+| two comments | `co_filename` is **not** unforgeable (`f.__code__ = f.__code__.replace(...)` is one statement), and callable-versus-constant is **not** a partition — `functools.partial`, a callable instance and `@property` all land in the source-binding branch |
+| the failure message | names the check instead of asserting a cause it never established |
+
+**Confirmed as correct and left alone:** the needle correction (mutation E keeps
+that test green while five named backstops go red — the comment is accurate),
+and `tests/runtimes/test_computer_service.py` as the right second file, verified
+by grep rather than argument: `test_computer_ariadne.py` names
+`_admit_release_capability` nowhere, while `test_computer_service.py` carries
+its three direct tests.
