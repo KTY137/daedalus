@@ -1,0 +1,155 @@
+.system-grid { display: grid; gap: var(--u2); }
+.system-failure-summary {
+  margin: 0;
+  padding: var(--u2);
+  border: var(--border) solid color-mix(in srgb, var(--bad) 55%, var(--line2));
+  border-radius: var(--radius-sm);
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 7%, var(--surface));
+}
+.system-card {
+  display: grid;
+  gap: var(--u2);
+  min-width: 0;
+  padding: var(--u2);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+.system-card.failed { border-color: color-mix(in srgb, var(--bad) 48%, var(--line2)); }
+.system-card h3,
+.system-card p { margin: 0; }
+.system-card h3 { color: var(--ink); font-size: var(--fs-sm); }
+.system-card p { color: var(--ink2); font-size: var(--fs-xs); line-height: 1.45; overflow-wrap: anywhere; }
+.system-error { color: var(--bad) !important; }
+.system-small { color: var(--ink3) !important; }
+.system-raw summary {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.system-raw pre,
+.system-prompt {
+  max-height: 240px;
+  margin: var(--u1) 0 0;
+  padding: var(--u2);
+  overflow: auto;
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink2);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.system-agent { display: grid; gap: var(--u2); }
+.system-agent label { display: grid; gap: 4px; color: var(--ink3); font-size: var(--fs-xs); }
+.system-agent select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.system-agent dl { display: grid; gap: 3px; margin: 0; }
+.system-agent-actions { display: grid; gap: var(--u1); }
+.system-agent-actions > .system-small { min-height: 1.45em; }
+.system-agent dl div { display: grid; grid-template-columns: 88px 1fr; gap: var(--u1); }
+.system-agent dt { color: var(--ink3); font-size: var(--fs-xs); }
+.system-agent dd { margin: 0; color: var(--ink2); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.system-providers { display: grid; gap: var(--u1); margin: 0; padding: 0; list-style: none; }
+.system-providers li {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) auto auto;
+  gap: var(--u1);
+  padding: var(--u1) 0;
+  border-top: var(--border) solid var(--line2);
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.system-providers li:first-child { border-top: 0; }
+.system-providers b { color: var(--ink); }
+.system-providers small { grid-column: 1 / -1; color: var(--bad); overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .system-providers li { grid-template-columns: 1fr; }
+  .system-providers small { grid-column: 1; }
+}
+
+/* WHERE YOUR SOURCE GOES. `trusted_with_ip` is enforced at the egress gate,
+   so a runtime the gate treats as untrusted is drawn as the finding it is —
+   not as neutral metadata beside a green reachability dot. */
+.reach-trust { display: flex; flex-wrap: wrap; gap: var(--u1); margin-top: 4px; }
+.trust-chip {
+  padding: 2px var(--u1);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  color: var(--ink3);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.trust-chip.warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line2)); color: var(--warn); }
+.trust-chip.bad { border-color: color-mix(in srgb, var(--bad) 55%, var(--line2)); color: var(--bad); }
+
+/* THE SAFETY GATES. core.py runs both probes and escalates either failure as
+   SAFETY; a gate that did not verify is red, and one nobody reported is amber
+   — never green, because a gate nobody checked is not a gate that held. */
+.safety-gates { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--u1); }
+.safety-gates li {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--u2);
+  border-left: var(--border) solid var(--line2);
+  font-size: var(--fs-xs);
+}
+.safety-gates li.ok { border-left-color: var(--ok); }
+.safety-gates li.warn { border-left-color: var(--warn); }
+.safety-gates li.bad { border-left-color: var(--bad); }
+.safety-question { color: var(--ink2); }
+.safety-verdict { color: var(--ink); font-weight: var(--datum-weight); }
+.safety-verdict.ok { color: var(--ok); }
+.safety-verdict.warn { color: var(--warn); }
+.safety-verdict.bad { color: var(--bad); }
+.safety-consequence { color: var(--ink3); line-height: 1.45; }
+
+/* The watcher processes core.py's command-line scan found. Each names the tree
+   it belongs to, because two matches from two checkouts is the normal case and
+   "2 watchers" alone would read as a conflict. */
+.watcher-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.watcher-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u1);
+  align-items: baseline;
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+}
+.watcher-list li.bad { color: var(--bad); }
+.watcher-list code { font-family: var(--font-mono); }
+
+/* An agent's grants, each against the capability registry. They used to print
+   as a flat comma list in which every entry looked alike; five of the seven
+   granted here carry no declared risk class at all. Unassessed is drawn as
+   unassessed — not as safe, and not as dangerous, because this interface does
+   not classify what the registry declined to. */
+.cap-grants { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.cap-grants li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u1);
+  align-items: baseline;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.cap-grants li.warn { color: var(--ink2); }
+.cap-grants code { font-family: var(--font-mono); color: var(--ink); }
+.cap-risk.warn { color: var(--warn); }
+.cap-secret { color: var(--bad); }

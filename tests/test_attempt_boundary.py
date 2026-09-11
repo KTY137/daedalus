@@ -19,7 +19,8 @@ import pytest
 import daedalus.kairos.worktree as worktree_module
 import daedalus.spine.attempt as attempt_module
 import daedalus.spine.effect_boundary as boundary_module
-from daedalus.spine.attempt import GateResult, RunnerContext, TaskSpec, run_attempt
+from daedalus.orchestration.execution import run_attempt
+from daedalus.spine.attempt import GateResult, RunnerContext, TaskSpec
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     EffectStartRefused,

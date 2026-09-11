@@ -7,20 +7,22 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.ikarus_claude_composition as composition
-from daedalus.claude_bridge import ClaudeSealedInvocationBundle
-from daedalus.ikarus_effect_bridge import (
+import daedalus.orchestration.ikarus.claude_composition as composition
+from daedalus.orchestration.ikarus.claude_composition import (  # noqa: E402
+    ClaudeSealedInvocationBundle,
+)
+from daedalus.orchestration.ikarus.effect_bridge import (
     build_oneshot_effect_execution_request,
     build_oneshot_effect_lease_request,
 )
-from daedalus.ikarus_oneshot import OneShotRequest
-from daedalus.ikarus_runtime_role import (
+from daedalus.orchestration.ikarus.oneshot import OneShotRequest
+from daedalus.orchestration.ikarus.runtime_role import (
     AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
     RuntimeRoleRegistry,
 )
-from daedalus.ikarus_tool_scope import project_oneshot_tool_scope
+from daedalus.orchestration.ikarus.tool_scope import project_oneshot_tool_scope
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.providers.claude_cli import (
     ENTRYPOINT_ID as CLAUDE_ENTRYPOINT_ID,
@@ -29,19 +31,19 @@ from daedalus.providers.claude_cli import (
     claude_idempotency_key,
     claude_invocation_sha256,
 )
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_invocation_abi import ProviderInvocationABIContract
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_abi import ProviderInvocationABIContract
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.runtimes.provider_observation import ProviderObservationBindingLedger
-from daedalus.runtimes.provider_runtime_invocation_binding import (
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.observation import ProviderObservationBindingLedger
+from daedalus.runtimes.provider.runtime_invocation_binding import (
     ProviderRuntimeInvocationBindingMismatch,
 )
 from daedalus.schemas import (
@@ -535,14 +537,16 @@ def test_dispatch_uses_authenticated_payload_and_projects_work_item(
     )
     calls = []
 
+    # PORT NOTE: main's ask_claude takes the nine authority members as separate
+    # keyword arguments (and refuses any partial set), where the originating
+    # lane took one `sealed_bundle`. The double mirrors the real signature.
     def fake_ask_claude(
         objective,
         repo_root,
         paths,
         model="sonnet",
         timeout_s=300,
-        *,
-        sealed_bundle=None,
+        **members,
     ):
         calls.append(
             {
@@ -551,7 +555,7 @@ def test_dispatch_uses_authenticated_payload_and_projects_work_item(
                 "paths": paths,
                 "model": model,
                 "timeout_s": timeout_s,
-                "sealed_bundle": sealed_bundle,
+                "members": members,
             }
         )
         return {
@@ -580,7 +584,13 @@ def test_dispatch_uses_authenticated_payload_and_projects_work_item(
     assert call["paths"] == body["paths"]
     assert call["model"] == body["model"]
     assert call["timeout_s"] == body["timeout_s"]
-    assert call["sealed_bundle"] is invocation.sealed_bundle
+    # Identity, not equality: the exact member objects held by the composed
+    # bundle must be the ones that reach the provider seam.
+    assert set(call["members"]) == set(composition._SEALED_BUNDLE_MEMBERS)
+    assert all(
+        call["members"][name] is getattr(invocation.sealed_bundle, name)
+        for name in composition._SEALED_BUNDLE_MEMBERS
+    )
     assert result["mission_id"] == subjects[0].mission_id
     assert result["work_item_id"] == subjects[1].task_id
     assert result["attempt_id"] == subjects[1].attempt_id

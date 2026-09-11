@@ -1,6 +1,8 @@
 ---
-tags: [meta]
+tags:
+- meta
 created: 2026-08-17
+permalink: main/memory-map
 ---
 
 # Memory-Map — wo welches Gedächtnis lebt

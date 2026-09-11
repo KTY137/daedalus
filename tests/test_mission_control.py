@@ -165,6 +165,9 @@ class SquadsContractTest(MissionControlContractTest):
 
 
 class QualityContractTest(MissionControlContractTest):
+    def test_local_only_probe_exercises_the_keyword_only_bridge_seam(self) -> None:
+        self.assertIs(core._probe_local_only_fail_closed(), True)
+
     def test_invariant_keys(self) -> None:
         result = core.get_quality(None)
         self.assertIs(result["schema_non_empty_summary"], True)

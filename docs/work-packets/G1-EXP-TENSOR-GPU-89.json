@@ -1,0 +1,199 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-89",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "5a07537fad8170579d65cb7b58e94b495d8fb5eb",
+    "dependencies": "G1-EXP-TENSOR-GPU-88 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "result"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation",
+          "semantic_invariants"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "governance"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "audit",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-89",
+  "title": "Stop explicit selected-signature compilation from writing dead discovery state",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date_europe_berlin": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "5a07537fad8170579d65cb7b58e94b495d8fb5eb",
+  "scope": "Remove unreachable discovered-signature writes from explicit requested-signature compilation inside the existing compile_relation_blocks owner. Preserve discover-all relation discovery, selected tuple identity, retained-hyperedge and undirected-edge refusal, endpoint-completeness precedence, exact verified-binding admission, semantic facts and receipt counts. Do not create another discovery owner, lazy collection, cache, backend, compiler or public API.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_compiler.py::compile_relation_blocks",
+    "consumption_proof": "The discovered set is consumed only by _selected_signatures(None, discovered), and that branch is reached only when requested_signatures is None. When explicit signatures are supplied, selected is the already validated and canonical requested_signatures tuple.",
+    "binding_path": "After GPU-88, an explicit binding survives staging only when its RelationSignature is requested. Its binding record and exact admission key remain necessary, but adding the same signature to discovered cannot affect selected or any later refusal/receipt path.",
+    "same_plane_edge_path": "An explicit same-plane ForestEdge reaches edge_records only after its signature passes requested_set pruning and retained-digest admission. The record remains necessary for fact materialization; the discovered.add call is dead because explicit selected ignores discovered.",
+    "discover_all_boundary": "When requested_set is None both binding and retained same-plane edge signatures continue to be added to discovered exactly as before, so discover-all still derives its canonical selected tuple from observed relations.",
+    "error_precedence": "No validation, admission or refusal is moved. Hyperedge checks, explicit endpoint completeness, binding admission, edge directionality and exact cross-plane binding refusal remain at their existing positions; only the two set mutations are conditionally skipped in explicit mode.",
+    "gardener_decision": "Use two local mode guards at the existing writes. Do not introduce a second discovery collection or helper merely to hide the condition."
+  },
+  "implementation": {
+    "production": {
+      "commit": "e2b74916d7b58d766c4a020b9f08893c8f7e4cb4",
+      "path": "daedalus/twin/relation_compiler.py",
+      "blob": "b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+      "change": "Guard both discovered.add(signature) writes with requested_set is None. Explicit selected-signature mode retains required binding/edge records but no longer mutates discovery state that it cannot consume; discover-all is unchanged."
+    },
+    "focused_existing_contract": {
+      "path": "tests/twin/test_relation_compiler_selected_pruning.py",
+      "blob": "8376d84c84a786894645fd889a66f60cef4ee845",
+      "coverage": [
+        "Explicit same-plane selection returns only the requested block and prunes unrelated cross-plane work.",
+        "Explicit cross-plane selection remains admitted by the exact verified Fourfold binding.",
+        "Discover-all still produces both retained same-plane and verified cross-plane relation families.",
+        "Explicit endpoint completeness is checked before materialization while unrelated incomplete planes remain prunable.",
+        "include_verified_bindings=False still fails closed for observed cross-plane relations."
+      ],
+      "new_test_abstraction_added": false,
+      "reason_no_new_test_file": "The removed work is an internal dead set mutation with no public semantic result. Existing explicit/discover-all integration contracts pin every affected observable boundary; a custom tracking-set test would couple the suite to container mechanics rather than relation semantics."
+    },
+    "diff_from_gpu_88": {
+      "commits_before_closure": 1,
+      "production_files": 1,
+      "test_files": 0,
+      "production_additions": 4,
+      "production_deletions": 2
+    }
+  },
+  "semantic_invariants": {
+    "discover_all": "Observed included binding signatures and retained same-plane Forest signatures are still discovered when signatures is None.",
+    "explicit_selection": "The validated canonical requested_signatures tuple remains the sole selected relation set in explicit mode.",
+    "binding_admission": "Exact selected cross-plane ForestEdge admission still depends on the same included verified-binding key set.",
+    "endpoint_completeness": "Explicit endpoint completeness remains checked before relation staging; discover-all completeness remains checked after discovery and before fact materialization.",
+    "receipt_counts": "forest_edge_count, forest_hyperedge_count and verified_binding_count remain source counts and semantic_fact_count remains the sum of compiled block entries.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; relation blocks remain a regenerable computational view.",
+    "public_api": "No public API, compatibility facade, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "verification": {
+    "implementation_head": "e2b74916d7b58d766c4a020b9f08893c8f7e4cb4",
+    "static_diff": "GPU-88 closure..implementation head is exactly one commit touching daedalus/twin/relation_compiler.py. The only changes are two requested_set-is-None guards around the existing discovered.add(signature) mutations.",
+    "fourfold_tensor_run": {
+      "run_id": 34202493438,
+      "status": "completed",
+      "conclusion": "success",
+      "scope": "Hosted pull-request integration on the implementation head. Python 3.10/3.12 contract arms with hash seeds 0/123456, public-package verification, isolated wheel imports and repository collection participated; Complete suite (manual only) remained skipped.",
+      "claim": "Focused/integration evidence only; not a complete-suite, performance, memory or comparative-superiority claim."
+    },
+    "tauri_run_at_record_creation": {
+      "run_id": 34202494291,
+      "status": "in_progress",
+      "conclusion": null,
+      "claim": "No all-PR-checks-green claim; independent desktop status is reported separately when resolved."
+    },
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "result": {
+    "closed": true,
+    "production_change": true,
+    "test_change": false,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "explicit_dead_discovery_writes_removed": true,
+    "discover_all_discovery_preserved": true,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_compiler_or_discovery_owner_added": false
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "5a07537fad8170579d65cb7b58e94b495d8fb5eb",
+    "implementation_commit": "e2b74916d7b58d766c4a020b9f08893c8f7e4cb4",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "selected_pruning_tests": "tests/twin/test_relation_compiler_selected_pruning.py@8376d84c84a786894645fd889a66f60cef4ee845",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "dead_explicit_discovery_mutation_removed": true,
+    "existing_test_owner_reused": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-90 only: audit the remaining binding_records and edge_records pre-fact staging in explicit selected-signature compilation. Determine whether any record container can be deleted or streamed within the same compiler owner while preserving exact cross-plane binding admission, all refusal/error precedence, evidence-dag alternatives, scalar semantics and discover-all completeness-before-materialization. If doing so requires a parallel explicit-mode compiler path or duplicated fact logic, retain the staging and close the audit as negative evidence."
+}

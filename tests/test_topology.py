@@ -1,6 +1,12 @@
 from unittest.mock import patch
 
+import pytest
+
+from daedalus.structcore import topology
 from daedalus.structcore.topology import spectral_partition
+
+
+pytestmark = pytest.mark.skipif(not topology.HAVE_MATH, reason="math extra not installed")
 
 
 def test_disconnected_graph_uses_component_cut_without_fake_fiedler_vector():

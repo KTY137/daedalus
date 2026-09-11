@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from daedalus.config import STARTER
-from daedalus.verifier import verify
+from daedalus.orchestration.verifier import verify
 
 VALID = {"status": "done", "summary": "ok", "files_changed": ["a.md"],
          "tests_run": [], "risks": [], "todos": [], "handoff": {}}
@@ -29,8 +29,8 @@ class VerifyGateTests(unittest.TestCase):
         # py_compile's syntax-only check misses must fail the gate -> escalate.
         from unittest.mock import patch
         rep = {**VALID, "files_changed": ["m.py"]}
-        with patch("daedalus.verifier._py_compile", return_value=(True, "ok")), \
-                patch("daedalus.verifier._lint_py", return_value=(False, "F821 undefined name 'x'")):
+        with patch("daedalus.orchestration.verifier._py_compile", return_value=(True, "ok")), \
+                patch("daedalus.orchestration.verifier._lint_py", return_value=(False, "F821 undefined name 'x'")):
             vr = verify(rep, "/repo", disk_changed=["m.py"])
         self.assertFalse(vr.ok)
         self.assertIn("lint:m.py", vr.failed)
@@ -38,8 +38,8 @@ class VerifyGateTests(unittest.TestCase):
     def test_lint_gate_passes_when_clean(self):
         from unittest.mock import patch
         rep = {**VALID, "files_changed": ["m.py"]}
-        with patch("daedalus.verifier._py_compile", return_value=(True, "ok")), \
-                patch("daedalus.verifier._lint_py", return_value=(True, "clean")):
+        with patch("daedalus.orchestration.verifier._py_compile", return_value=(True, "ok")), \
+                patch("daedalus.orchestration.verifier._lint_py", return_value=(True, "clean")):
             vr = verify(rep, "/repo", disk_changed=["m.py"])
         self.assertTrue(vr.ok, vr.as_dict())
 

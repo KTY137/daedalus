@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 
-from daedalus.text_integrity import (
+from daedalus.foundation.text_integrity import (
     TERMINAL_FIELD_MAX_CHARS,
     safe_terminal_text,
 )

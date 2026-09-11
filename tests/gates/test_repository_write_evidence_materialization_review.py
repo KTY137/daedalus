@@ -3,8 +3,8 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.gates.repository_write_evidence_materialization as materialization
-from daedalus.gates.repository_write_classification import EvidenceKind
+import daedalus.gates.repository.write_evidence_materialization as materialization
+from daedalus.gates.repository.write_classification import EvidenceKind
 
 
 SOURCE = inspect.getsource(materialization)

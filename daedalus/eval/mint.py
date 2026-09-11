@@ -683,6 +683,236 @@ def mint_from_commit(repo_root: str, sha: str) -> list[dict]:
     return [task] if task else []
 
 
+# --------------------------------------------------------------------------- #
+# THIRD PROVENANCE: independent_text_diff -- data and knowledge plane labels   #
+# --------------------------------------------------------------------------- #
+#
+# WHY A THIRD VALUE AND NOT AN EDIT. This module's own docstring says a
+# contributor wanting richer minted labels "needs a THIRD provenance value, not
+# a quiet edit to this one". This is that value. Nothing above this line
+# changes: ``independent_diff`` keeps its symbol semantics, and no consumer can
+# confuse a Markdown heading with a Python symbol because the provenance says
+# which it is.
+#
+# WHY IT EXISTS. Gate 3's task corpus was measured (2026-09-09) as 27 code
+# tasks drawn from this repository against 4 non-code tasks drawn from a
+# six-file fixture. A cross-plane comparison over those two sets varies plane
+# and corpus together, so any difference between them is unattributable -- the
+# same defect class as the s08 false verdict. Minting non-code tasks from the
+# same repository is what removes the confound.
+#
+# SCOPE IS A DIFFERENT QUESTION HERE, and reuses an existing answer.
+# ``_in_scope_modules`` is the code index: 681 modules on this repository, of
+# which zero are .md/.json/.yaml. A documentation file can never be in it, so
+# the existing scope test would reject every candidate. The boundary used
+# instead is ``structcore.index._IGNORE_DIRS`` -- the SAME exclusion the code
+# index walks with -- plus generated artifacts and the fixture trees. Measured:
+# that drops exactly one candidate of 130.
+#
+# INDEPENDENCE IS STRONGER HERE, AND MUST NOT BE OVERSTATED. The slicer never
+# walks documentation, so a doc label cannot be reachable through the import
+# graph -- the circularity ``independent_diff`` was built against does not
+# apply. It does NOT make the label independent of the commit message, which is
+# the query. That residual is inherited from the existing corpus, not fixed
+# here, and no caller should read this provenance as claiming otherwise.
+
+#: Extensions whose gold labels are free text rather than identifiers, split by
+#: the plane ``eval.gate3.taskset.classify_task_plane`` will assign them.
+_KNOWLEDGE_TEXT_EXTENSIONS = frozenset({".md", ".mdx", ".rst", ".txt", ".adoc"})
+_DATA_TEXT_EXTENSIONS = frozenset({".json"})
+
+#: Machine-written artifacts: the prose equivalent of a minified bundle. Real
+#: text with mechanical structure that nobody authored and nobody searches for.
+_GENERATED_TEXT_PATHS = frozenset({"docs/work-packets/index.json"})
+
+#: Top-level trees that hold EXECUTION OUTPUT rather than the project's own
+#: text. ``runs/`` carries receipts, evidence bundles and content-addressed
+#: store locators -- a locator like
+#: ``runs/.../store/locators/sha256/03/9c0c....json`` is real JSON with real
+#: top-level keys and was authored by nobody. Found by acceptance criterion A7
+#: (every minted target must still exist in the repository root): a locator
+#: from a deleted run tripped it, which is the symptom, and being machine
+#: output is the cause.
+_GENERATED_TEXT_ROOTS = frozenset({"runs"})
+
+_MD_HEADING_RE = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t]*#*$", re.MULTILINE)
+
+
+def _text_in_scope(rel: str) -> bool:
+    """The scope boundary for prose and data, reusing the code index's own.
+
+    A file is in scope when no directory component is ignored or dot-prefixed,
+    it is not a generated artifact, and it is not fixture or example text --
+    the last because minting from the fixture is exactly the confound this
+    path exists to remove.
+    """
+    from daedalus.structcore.index import _IGNORE_DIRS
+
+    parts = rel.split("/")
+    if any(d in _IGNORE_DIRS or d.startswith(".") for d in parts[:-1]):
+        return False
+    if rel in _GENERATED_TEXT_PATHS or parts[0] in _GENERATED_TEXT_ROOTS:
+        return False
+    return "/fixtures/" not in rel and not rel.startswith("examples/")
+
+
+def _text_plane_of(rel: str) -> str | None:
+    suffix = Path(rel).suffix.lower()
+    if suffix in _KNOWLEDGE_TEXT_EXTENSIONS:
+        return "knowledge"
+    if suffix in _DATA_TEXT_EXTENSIONS:
+        return "data"
+    return None
+
+
+def _new_text_labels(rel: str, before: str | None, after: str | None) -> set[str]:
+    """Labels present after and absent before. Never transitive, ever.
+
+    Markdown: heading text. JSON: top-level object keys. A nested-key walk
+    would re-introduce exactly the transitivity this module forbids, so a
+    label is only ever something the diff itself put there.
+    """
+    plane = _text_plane_of(rel)
+    if plane is None or after is None:
+        return set()
+    if plane == "knowledge":
+        old = {m.group(1).strip() for m in _MD_HEADING_RE.finditer(before or "")}
+        new = {m.group(1).strip() for m in _MD_HEADING_RE.finditer(after)}
+        return {h for h in new - old if h}
+    try:
+        parsed_after = json.loads(after)
+    except (ValueError, TypeError):
+        return set()
+    if not isinstance(parsed_after, dict):
+        return set()
+    old_keys: set[str] = set()
+    if before:
+        try:
+            parsed_before = json.loads(before)
+        except (ValueError, TypeError):
+            parsed_before = None
+        if isinstance(parsed_before, dict):
+            old_keys = set(parsed_before)
+    return {str(k) for k in set(parsed_after) - old_keys if str(k)}
+
+
+def _mint_from_text_diffs(
+    files,
+    *,
+    repo_root,
+    minted_at_sha: str | None,
+    source: str,
+):
+    """Mint one data/knowledge task from a commit's text diffs.
+
+    Mirrors ``_mint_from_diffs``'s shape and honesty rules: out-of-scope files
+    are recorded rather than dropped, floor-tripping files are excluded from
+    both anchor and label roles, and ``must_include`` never contains a label
+    from the target file.
+    """
+    diagnostics: dict = {"skipped_out_of_scope": [], "reason": None}
+
+    scoped: dict = {}
+    for rel, pair in files.items():
+        if _text_plane_of(rel) is None:
+            continue
+        if not _text_in_scope(rel):
+            diagnostics["skipped_out_of_scope"].append(rel)
+            continue
+        scoped[rel] = pair
+    diagnostics["skipped_out_of_scope"] = sorted(diagnostics["skipped_out_of_scope"])
+
+    floor_tripped = sorted(
+        rel for rel in scoped
+        if secret_floor_rule(rel, scoped[rel][1] or "") is not None
+    )
+    for rel in floor_tripped:
+        scoped.pop(rel, None)
+    diagnostics["skipped_secret_floor"] = floor_tripped
+
+    labels_by_file = {
+        rel: _new_text_labels(rel, before, after)
+        for rel, (before, after) in scoped.items()
+    }
+    with_labels = {rel: names for rel, names in labels_by_file.items() if names}
+
+    if len(with_labels) < 2:
+        diagnostics["reason"] = (
+            "fewer than two in-scope text files carry a new label, so no "
+            "cross-file label exists"
+        )
+        return None, diagnostics
+
+    # The anchor is the file with the FEWEST new labels: it is the one whose own
+    # content explains the least, so the labels that must be retrieved from
+    # elsewhere carry the most of the task. Ties break on path for determinism.
+    anchor = sorted(with_labels, key=lambda rel: (len(with_labels[rel]), rel))[0]
+
+    cross_file: set[str] = set()
+    for rel, names in with_labels.items():
+        if rel != anchor:
+            cross_file |= names
+    # A label the anchor also introduces is recalled by construction.
+    cross_file -= with_labels[anchor]
+
+    if not cross_file:
+        diagnostics["reason"] = "every label is also introduced by the anchor file"
+        return None, diagnostics
+
+    ranked = sorted(cross_file)
+    kept = ranked[:MUST_INCLUDE_CAP]
+    task = {
+        "id": "mint-text-%s-%s" % (source, _short_hash(anchor, tuple(kept))),
+        "repo": str(Path(repo_root).resolve()).replace("\\", "/"),
+        "target": anchor,
+        "must_include": kept,
+        "must_include_dropped": len(ranked) - len(kept),
+        "label_provenance": "independent_text_diff",
+        "tier": "quarantine",
+        "minted_at_sha": minted_at_sha,
+        "confirmations": 0,
+        "mint_source": source,
+        "text_plane": _text_plane_of(anchor),
+        "skipped_out_of_scope": diagnostics["skipped_out_of_scope"],
+        "skipped_secret_floor": floor_tripped,
+    }
+    return task, diagnostics
+
+
+def mint_text_from_commit(repo_root: str, sha: str) -> list:
+    """Mint quarantined data/knowledge task(s) from one real git commit.
+
+    The ``independent_text_diff`` sibling of :func:`mint_from_commit`. Returns
+    ``[]`` -- never raises -- for an unresolvable ref, a commit touching no
+    in-scope text file, or one where no cross-file label exists.
+    """
+    full_sha = _resolve_sha(repo_root, sha)
+    if not full_sha:
+        return []
+    name_status = _git(repo_root, "diff-tree", "--no-commit-id", "--name-status",
+                       "-r", "--root", full_sha)
+    if name_status is None:
+        return []
+    parent = _resolve_sha(repo_root, "%s^" % full_sha)
+
+    files: dict = {}
+    for line in name_status.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        rel = parts[-1].replace("\\", "/")
+        files[rel] = (
+            _show(repo_root, parent, rel) if parent else None,
+            _show(repo_root, full_sha, rel),
+        )
+
+    task, diagnostics = _mint_from_text_diffs(
+        files, repo_root=repo_root, minted_at_sha=full_sha, source="commit",
+    )
+    _log_mint_diagnostics(diagnostics, source="text-commit", repo_root=repo_root)
+    return [task] if task else []
+
+
 def confirm_task(task: dict) -> dict:
     """Record one independent confirmation of a minted task, in place.
 
@@ -733,14 +963,60 @@ def save_minted_tasks(tasks: list[dict], path: str | None = None) -> str:
 
 
 def add_minted_task(task: dict, path: str | None = None) -> str:
-    """Persist ``task`` into the mint store, keyed by id. Idempotent: minting
-    the same diff twice (same target + same must_include, via the content
-    hash in ``_mint_from_diffs``) yields the same id and overwrites in place
-    rather than duplicating -- re-running a mint (e.g. after a rebase that
-    reproduces an identical patch) must not inflate the quarantine count.
-    Returns the path written."""
-    by_id = {t["id"]: t for t in load_minted_tasks(path)}
-    by_id[task["id"]] = task
+    """Persist ``task`` into the mint store, keyed by id.
+
+    Idempotent on RE-MINTING THE SAME COMMIT: same target + same must_include
+    yields the same id (the content hash in ``_mint_from_diffs``), and if the
+    incoming task carries the same ``minted_at_sha`` as the stored one it
+    overwrites in place. Re-running ``--mint-commit`` on one SHA, or a rebase
+    reproducing an identical patch, must not inflate anything.
+
+    CONFIRMS ON AN INDEPENDENT MINT. When the same id arrives from a
+    *different* ``minted_at_sha``, that is the thing
+    ``MINT_CONFIRM_THRESHOLD``'s rationale describes -- "three independent
+    mints landing on the same must_include set" -- so it records a
+    confirmation rather than silently overwriting.
+
+    Why this is here rather than left to ``--confirm-mint``: the threshold's
+    stated semantics and its mechanism had drifted apart.
+    ``confirm_minted_task`` increments a counter for a task id and verifies
+    nothing about independence, and ``__main__`` states plainly that it has no
+    automatic caller. A task therefore reached ``primary`` -- and influenced a
+    go/no-go number -- on three unverified operator assertions. A differing
+    ``minted_at_sha`` is checkable evidence that two mints were independent,
+    so the confirmation now rests on something the store can see.
+    ``--confirm-mint`` keeps working unchanged for the operator path.
+
+    Returns the path written.
+    """
+    stored = load_minted_tasks(path)
+    by_id = {t["id"]: t for t in stored}
+    existing = by_id.get(task["id"])
+
+    if existing is None:
+        by_id[task["id"]] = task
+        return save_minted_tasks(list(by_id.values()), path)
+
+    same_source = existing.get("minted_at_sha") == task.get("minted_at_sha")
+    if same_source:
+        # The same commit, re-minted. Refresh the record, count nothing.
+        task = dict(task)
+        task["confirmations"] = existing.get("confirmations", 0)
+        task["tier"] = existing.get("tier", task.get("tier", "quarantine"))
+        by_id[task["id"]] = task
+        return save_minted_tasks(list(by_id.values()), path)
+
+    # An independent mint of the same label set. Keep the FIRST record -- its
+    # minted_at_sha is the provenance of the original observation -- and
+    # record that a second source agreed, retaining the agreeing shas so the
+    # claim is inspectable rather than a bare integer.
+    agreeing = list(existing.get("confirmed_by_sha") or [])
+    incoming_sha = task.get("minted_at_sha")
+    if incoming_sha and incoming_sha not in agreeing:
+        agreeing.append(incoming_sha)
+        existing["confirmed_by_sha"] = agreeing
+        confirm_task(existing)
+    by_id[task["id"]] = existing
     return save_minted_tasks(list(by_id.values()), path)
 
 

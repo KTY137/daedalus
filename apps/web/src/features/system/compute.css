@@ -1,0 +1,93 @@
+/* Rechenlage — three levels drawn as three blocks, on the shared tokens. */
+.compute { display: grid; gap: var(--u2); }
+
+.compute-devices,
+.compute-fws,
+.compute-lanes,
+.compute-claims { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--u1); }
+
+.compute-devices li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u2);
+  align-items: baseline;
+  padding: var(--u2);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.compute-dev-name { color: var(--ink); font-weight: var(--datum-weight); font-size: var(--fs-sm); }
+
+.compute-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u2);
+  align-items: center;
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--label-tracking);
+  font-weight: var(--label-weight);
+}
+/* The shallow answer says so, in the warning colour, next to the button that
+   would change it. A quiet grey note here would read as a result. */
+.compute-shallow { color: var(--warn); }
+
+.compute-fw,
+.compute-lane {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u1) var(--u2);
+  align-items: baseline;
+  padding: var(--u1) var(--u2);
+  border-left: var(--border) solid var(--line2);
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.compute-fw.ok, .compute-lane.ok { border-left-color: var(--ok); }
+.compute-fw.warn, .compute-lane.warn { border-left-color: var(--warn); }
+.compute-fw.bad, .compute-lane.bad { border-left-color: var(--bad); }
+
+.compute-fw-name,
+.compute-lane-name { color: var(--ink); font-family: var(--font-mono); }
+.compute-fw-state,
+.compute-lane-state { color: var(--ink); }
+.compute-fw-detail { color: var(--ink3); }
+
+.compute-lane { display: grid; gap: 4px; }
+.compute-lane-head { display: flex; flex-wrap: wrap; gap: var(--u2); align-items: baseline; }
+.compute-lane-name { font-family: var(--font-body); font-weight: var(--datum-weight); }
+.compute-lane-for,
+.compute-lane-evidence { color: var(--ink3); }
+.compute-lane-missing { color: var(--ink2); }
+/* A semantic caveat is not decoration: without it "einsatzbereit" reads as
+   "and it is the right tool for this". */
+.compute-lane-warn { color: var(--warn); }
+
+.compute-claims li {
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  padding-left: var(--u2);
+  border-left: var(--border) solid var(--line2);
+}
+
+/* Prerequisites, one per line and neutrally labelled. The backend's `missing`
+   list mixes "go install this" with "the silicon does not have them"; a label
+   reading "fehlt" put the wrong verb on the second and contradicted the
+   sentence inside it. */
+.compute-lane-missing { display: grid; gap: 4px; }
+.compute-lane-missing-label {
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--label-tracking);
+  font-weight: var(--label-weight);
+}
+.compute-lane-missing ul { margin: 0; padding-left: var(--u2); }
+.compute-lane-missing li { color: var(--ink2); }
+
+.compute-remote { display: grid; gap: var(--u1); }
+/* What the remote architecture can host AT ALL — the backend's own sentence,
+   never recomputed here. */
+.compute-dev-capability { color: var(--ink3); }

@@ -164,7 +164,7 @@ class WikilinkForms(unittest.TestCase):
     def test_every_form_is_parsed(self):
         body = ("See [[Type graph]] and [[Invariants#Hubs]] and [[ADR-009|the ADR]].\n"
                 "![[diagram.md]]\n"
-                "Code: [[code:daedalus/loop.py#run]] Type: [[type:DSSResult]]\n"
+                "Code: [[code:daedalus/orchestration/loop.py#run]] Type: [[type:DSSResult]]\n"
                 "Cross: [[vault:global/Doctrine]]\n")
         got = {(l.kind, l.target, l.anchor, l.alias, l.embed)
                for l in lk.extract_wikilinks(body)}
@@ -172,7 +172,7 @@ class WikilinkForms(unittest.TestCase):
         self.assertIn((lk.DOC, "Invariants", "Hubs", "", False), got)
         self.assertIn((lk.DOC, "ADR-009", "", "the ADR", False), got)
         self.assertIn((lk.DOC, "diagram.md", "", "", True), got)
-        self.assertIn((lk.CODE, "daedalus/loop.py", "run", "", False), got)
+        self.assertIn((lk.CODE, "daedalus/orchestration/loop.py", "run", "", False), got)
         self.assertIn((lk.TYPE, "DSSResult", "", "", False), got)
         self.assertIn((lk.VAULT, "global/Doctrine", "", "", False), got)
 
@@ -227,7 +227,7 @@ class RefuseToGuess(unittest.TestCase):
 
     def test_a_code_link_is_stale_when_the_file_set_says_so(self):
         idx = lk.build_index([_page("a.md", "[[code:daedalus/gone.py]]")],
-                             known_code_paths={"daedalus/loop.py"})
+                             known_code_paths={"daedalus/orchestration/loop.py"})
         self.assertTrue(idx.code_links[0]["checked"])
         self.assertTrue(idx.code_links[0]["stale"])
 

@@ -1,0 +1,149 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-103",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "c4ce42b33721b1151308a54782b023ba4026ecdb",
+    "dependencies": "G1-EXP-TENSOR-GPU-102, PlaneSnapshot relation retention semantics, legacy Forest adapter and canonical compile_relation_blocks owner",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "result"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "semantic_invariants"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "finding",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-103",
+  "title": "Retain relation-digest membership hashing after authority-safe seam audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "c4ce42b33721b1151308a54782b023ba4026ecdb",
+  "contract_head": "781dadb272ab91a994d49a8c83da4a4f2796848b",
+  "scope": "Audit the GPU-102 retained-relation digest hotspot without creating a digest cache, positional edge index, trusted membership shortcut, second graph authority or alternate relation compiler. Pin the current authority boundary with one focused test file.",
+  "finding": {
+    "summary": "The duplicate-looking canonical relation hash cannot be removed safely from compile_relation_blocks with the current contracts. The legacy adapter computes canonical edge digests, but PlaneSnapshot canonicalizes relation_sha256s as a sorted digest set. ForestEdge itself carries no retained digest identity. Therefore the compiler has no authoritative digest-to-edge association and must recompute each candidate same-plane edge digest before membership admission.",
+    "why_position_is_not_authority": "PlaneSnapshot.__post_init__ canonicalizes relation_sha256s independently with _sorted_strings. Forest edge order is not retained as a relation-digest mapping. A positional zip between forest.edges and plane.relation_sha256s would admit or reject the wrong edge when Forest order differs from digest lexical order.",
+    "unsafe_shortcuts_rejected": [
+      "zip Forest edge order to PlaneSnapshot.relation_sha256s",
+      "trust every same-plane Forest edge merely because the plane retains some relation digests",
+      "add a mutable or process-local digest cache",
+      "add a second digest-to-edge registry beside KnowledgeForest/Fourfold",
+      "bypass exact retained-relation membership admission"
+    ],
+    "schema_change_required_for_true_skip": "Eliminating the admission hash would require a new authoritative association, such as digest-bearing Forest records or a revision-bound digest-to-edge mapping in the canonical contract. That is a schema/authority decision, not a local performance refactor, and is not introduced by this packet."
+  },
+  "focused_contract": {
+    "path": "tests/twin/test_relation_digest_authority_seam.py",
+    "blob": "52ff5056f0a67957726d5020ea26675e9c9bddaa",
+    "commit": "781dadb272ab91a994d49a8c83da4a4f2796848b",
+    "cases": [
+      "construct two retained same-plane edges in deliberately reverse digest order and prove PlaneSnapshot stores the canonical sorted digest set rather than Forest position",
+      "compile the same fixture under the Boolean observer after marking the code plane complete and prove canonical relation output is correct despite the destroyed positional association"
+    ]
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; Tensor remains a regenerable internal computational view.",
+    "retention": "A same-plane Forest edge is admissible only when its exact canonical payload digest is retained by the bound plane.",
+    "closed_world": "Selected relation endpoint planes must remain complete before sparse zero interpretation.",
+    "canonicalization": "Plane relation digests remain a canonical sorted digest set with no positional edge semantics.",
+    "public_api": "No public API, wire schema, persisted state, backend registry or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": false,
+    "workflow_change": false,
+    "work_packet_record_added": true,
+    "incremental_backend_implemented": false,
+    "parallel_projection_implemented": false,
+    "digest_cache_added": false,
+    "trusted_membership_shortcut_added": false,
+    "summary": "GPU-103 closes as negative Gardener evidence: the measured relation-hash bucket is real, but the current Fourfold contract intentionally exposes only canonical retained digests, not a digest-to-edge map. The safe local action is to retain exact hashing and pin the non-positional authority boundary rather than add a parallel index or schema shortcut."
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "plane_contract_blob": "daedalus/twin/contracts.py@5523dfe53834874942a7c37120ee2f464ed15fda",
+    "legacy_adapter_blob": "daedalus/twin/legacy_forest.py@bb220fbcab9d95f315d90cf7bbe7498dc091b19f",
+    "relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "forest_contract_blob": "daedalus/structcore/forest.py@ebd0c964bd955a386b392ee58aaa1c6f1786a936",
+    "prior_gpu102_exact_head_fourfold_tensor": "34278970204:completed/success on c4ce42b33721b1151308a54782b023ba4026ecdb",
+    "prior_gpu102_exact_head_tauri": "34278970181:completed/success on c4ce42b33721b1151308a54782b023ba4026ecdb",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "static_authority_seam_audited": true,
+    "focused_contract_added": true,
+    "production_blob_unchanged": true,
+    "base_exact_head_fourfold_tensor_green": true,
+    "base_exact_head_tauri_green": true,
+    "contract_head_ci_visible_at_packet_close": false,
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "claim_boundaries": [
+    "No claim that hashing is the entire compiler bottleneck.",
+    "No speedup claim; production code is unchanged.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-104 should search the existing Fourfold/Forest/Twin contracts for an already-authoritative revision delta or receipt that can identify changed relation digests without inventing a second graph index. If none exists, retain that absence as evidence before proposing any new delta contract."
+}

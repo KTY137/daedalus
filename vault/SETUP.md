@@ -1,6 +1,9 @@
 ---
-tags: [meta, setup]
+tags:
+- meta
+- setup
 created: 2026-08-17
+permalink: main/setup
 ---
 
 # SETUP — was der Owner einmalig tun muss

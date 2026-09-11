@@ -1,0 +1,17 @@
+[
+ {
+  "mission": "computer-loop-measure-11c",
+  "state": "stalled",
+  "planner_calls": 4,
+  "tool_steps": 1,
+  "elapsed_s": 314.8,
+  "planner": {
+   "provider": "ollama_http",
+   "model": "qwen2.5-coder:7b",
+   "remote_context": false
+  },
+  "absent": null,
+  "prompt_chars_max": 25643,
+  "summary": ""
+ }
+]

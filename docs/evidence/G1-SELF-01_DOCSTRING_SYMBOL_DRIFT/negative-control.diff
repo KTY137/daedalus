@@ -1,0 +1,7 @@
+--- base/daedalus/build.py
++++ negative-control/daedalus/build.py
+@@ -15,3 +15,3 @@
+   * :func:`daedalus.orchestration.categories.preset_for` -- owning agent -> {lane, tier}.
+-  * :class:`daedalus.kairos.scheduler.Ikarus`       -- wave sizing (``max_workers``) and
++  * :class:`daedalus.kairos.scheduler.Ikarus`       -- wave sizing__ariadne_negative__ (``max_workers``) and
+     the project's ``active_agents``.

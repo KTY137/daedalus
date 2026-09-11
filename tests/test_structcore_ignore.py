@@ -306,7 +306,7 @@ class IgnoreIndexTests(unittest.TestCase):
 
     def test_project_config_ignore_reaches_the_index(self):
         """The web path: projects/<name>.json 'ignore' must actually apply."""
-        from daedalus import web_api
+        from daedalus.interfaces.http import web_api
 
         _write(self.root, "app/main.py")
         _write(self.root, "app/tests/test_x.py")

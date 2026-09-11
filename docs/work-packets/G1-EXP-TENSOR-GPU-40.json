@@ -1,0 +1,123 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-40",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "81cb6990f4446bf0cee80ac246b3b12ae6fad5b8",
+    "dependencies": "G1-EXP-TENSOR-GPU-39 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "finding",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "cleanup",
+          "next_bounded_implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "negative_probe"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "cleanup"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "claim_boundaries",
+          "negative_probe",
+          "finding"
+        ]
+      }
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-40",
+  "title": "Bound selected-signature Forest evidence materialization before production pruning",
+  "classification": "research",
+  "domain": "tensor-kernel",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "81cb6990f4446bf0cee80ac246b3b12ae6fad5b8",
+  "finding": {
+    "owner": "compile_relation_blocks",
+    "path": "daedalus/twin/relation_compiler.py",
+    "production_blob": "b7803d9584e526d740ad282c5328da0e50a50caa",
+    "summary": "Explicit narrow signatures currently limit emitted blocks only after all Forest edge evidence atoms and fact bundles have already been materialized.",
+    "semantic_boundary": [
+      "Forest/snapshot subject and endpoint consistency must still be validated across the supplied Forest.",
+      "Only evidence/fact materialization for signatures outside an explicit requested set is a pruning candidate.",
+      "Receipt forest_edge_count and verified_binding_count remain source counts, not selected counts."
+    ]
+  },
+  "negative_probe": {
+    "commit": "08f726a43de7e16f101ce34e9f518f39ae265fb1",
+    "test_path": "tests/twin/test_relation_compiler_signature_pruning_probe.py",
+    "test_blob": "53506af24820c606b0c6145afd698eadfdf5735c",
+    "workflow_run_id": 34020829338,
+    "workflow_run_conclusion": "cancelled after cleanup superseded the probe under cancel-in-progress",
+    "evidence": "A real hosted Python 3.12/hash-123456 contract job reached checkout, setup, install and compile, then failed at Run integrated contract surface when unrelated imports evidence was forbidden while only code:declares:type was requested. Isolated-wheel had already succeeded. This is retained negative decision evidence, not a whole-run code-failure claim.",
+    "whole_run_claim": "none"
+  },
+  "cleanup": {
+    "commit": "40d85308876a5d54c57fffde3be6da7d05617a14",
+    "tree_sha": "9b931eaa224fff21410578f7f9fb9d13a10679c6",
+    "matches_gpu39_closure_tree": true,
+    "probe_present_in_live_tree": false,
+    "production_changed": false,
+    "cleanup_workflow_run_id": 34020864084,
+    "cleanup_workflow_conclusion": "success",
+    "cleanup_contract_matrix": "success",
+    "cleanup_public_api": "success",
+    "cleanup_isolated_wheel": "success",
+    "cleanup_repository_collection": "success",
+    "cleanup_full_repository_suite": "manual-only/skipped"
+  },
+  "next_bounded_implementation": {
+    "summary": "Prevalidate an explicit requested signature set once, keep full Forest endpoint validation, and only hash/record forward or reverse Forest evidence and verified-binding facts when their signature is selected; preserve discover-all behavior when signatures is None.",
+    "parallel_abstraction_added": false,
+    "new_cache_or_index": false,
+    "new_public_api": false,
+    "benchmark_claim": false
+  },
+  "claim_boundaries": {
+    "correctness": "negative research evidence only; no production fix in GPU-40",
+    "performance": "none; no measured latency or memory claim",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "archive_legacy_20260830_written": false,
+    "unique_evidence_deleted": false,
+    "negative_probe_retained_in_history": true
+  }
+}

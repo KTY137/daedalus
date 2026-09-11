@@ -1,0 +1,793 @@
+"""Canonical typed sparse blocks for exact, revision-bound Fourfold queries.
+
+Blocks are regenerable computational projections, never a replacement for the
+Forest, FourfoldSnapshot, TensorView, evidence verification, or promotion.
+This bounded stdlib CSR implementation is the executable oracle for optional
+future sparse backends.
+"""
+from __future__ import annotations
+
+import math
+from bisect import bisect_left
+from dataclasses import dataclass
+from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
+
+from ..kernel.contracts.base import (
+    _identifier,
+    _non_empty,
+    _record_payload,
+    _revision,
+    _sha256,
+)
+from ..spine.envelope import canonical_json, canonical_sha
+from .contracts import FOURFOLD_PLANES
+from .semiring import (
+    MAX_NATURAL_BITS,
+    BooleanSemiring,
+    EvidenceDagSemiring,
+    EvidenceValue,
+    NaturalSemiring,
+    Semiring,
+    TropicalSemiring,
+)
+
+T = TypeVar("T")
+MAX_BLOCK_AXIS_LABELS = 100_000
+MAX_BLOCK_ENTRIES = 1_000_000
+MAX_REFERENCE_OPERATIONS = 5_000_000
+
+
+def _sequence(value: Any, name: str, limit: int) -> Sequence[Any]:
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
+        raise ValueError(f"{name} must be a bounded sequence")
+    if len(value) > limit:
+        raise ValueError(f"{name} exceeds bounded limit {limit}")
+    return value
+
+
+def _label(value: Any, name: str) -> str:
+    text = _non_empty(value, name, max_length=2_000)
+    if "\x00" in text:
+        raise ValueError(f"{name} contains a NUL byte")
+    return text
+
+
+def _label_position(labels: Sequence[str], label: str) -> int | None:
+    """Resolve one exact label from the already canonical sorted axis."""
+    position = bisect_left(labels, label)
+    if position == len(labels) or labels[position] != label:
+        return None
+    return position
+
+
+def _stored_values(raw_values: Sequence[Any], semiring_name: str) -> tuple[Any, ...]:
+    """Validate and canonicalize one persisted scalar sequence.
+
+    Persisted semiring selection is owned once per relation block rather than by
+    one helper call per stored entry. Non-normalizing semirings keep an existing
+    tuple intact; mutable sequence inputs are materialized exactly once.
+    """
+
+    if semiring_name == "boolean":
+        for item in raw_values:
+            # ``True`` is the only persistable Boolean scalar. Make that exact
+            # identity the common path so canonical support does not pay a
+            # generic type check plus truthiness conversion for every entry.
+            if item is True:
+                continue
+            if type(item) is not bool:
+                raise ValueError("boolean relation blocks must contain bool values")
+            raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
+    if semiring_name == "natural":
+        for item in raw_values:
+            if type(item) is not int or item < 0:
+                raise ValueError("natural relation blocks must contain non-negative integers")
+            if item.bit_length() > MAX_NATURAL_BITS:
+                raise ValueError(
+                    f"natural relation-block values exceed bounded bit length {MAX_NATURAL_BITS}"
+                )
+            if item == 0:
+                raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
+    if semiring_name == "tropical":
+        values: list[float] = []
+        for item in raw_values:
+            if type(item) not in (int, float):
+                raise ValueError("tropical relation blocks must contain numeric costs")
+            try:
+                stored = float(item)
+            except OverflowError as exc:
+                raise ValueError("tropical relation-block costs must be finite") from exc
+            if not math.isfinite(stored) or stored < 0:
+                raise ValueError("tropical relation-block costs must be finite and non-negative")
+            values.append(0.0 if stored == 0.0 else stored)
+        return tuple(values)
+
+    if semiring_name == "evidence-dag":
+        for item in raw_values:
+            if not isinstance(item, EvidenceValue):
+                raise ValueError("evidence-dag relation blocks require EvidenceValue values")
+            if not item.alternatives:
+                raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
+    raise ValueError(
+        f"unsupported persisted semiring {semiring_name!r}; add an explicit scalar contract first"
+    )
+
+
+def _json_scalar(value: Any) -> Any:
+    if isinstance(value, EvidenceValue):
+        return {"scalar_type": "evidence", "value": value.to_dict()}
+    if type(value) is float and not math.isfinite(value):
+        raise ValueError("stored relation-block floats must be finite")
+    if type(value) in (bool, int, float):
+        return value
+    raise ValueError("unsupported relation-block scalar")
+
+
+def _decoded_scalar(value: Any, semiring_name: str) -> Any:
+    if semiring_name != "evidence-dag":
+        return value
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != {"scalar_type", "value"}
+        or value.get("scalar_type") != "evidence"
+    ):
+        raise ValueError(
+            "evidence-dag wire values must contain only scalar_type='evidence' and value"
+        )
+    return EvidenceValue.from_dict(value["value"])
+
+
+def _operation_limit(value: Any) -> int:
+    if type(value) is not int or not 0 <= value <= MAX_REFERENCE_OPERATIONS:
+        raise ValueError(
+            f"max_operations must be an integer from 0 to {MAX_REFERENCE_OPERATIONS}"
+        )
+    return value
+
+
+def _reference_semiring(semiring: Semiring[Any] | str) -> Semiring[Any]:
+    """Resolve a supported semantic name to the canonical reference oracle.
+
+    ``TypedRelationBlock`` is the executable reference interpreter. Alternate
+    protocol backends may select a supported semantic name, but they cannot
+    redefine the algebra that is persisted under that name.
+    """
+
+    if isinstance(semiring, str):
+        name = semiring
+    elif isinstance(semiring, Semiring):
+        name = semiring.name
+    else:
+        raise ValueError("semiring must implement the Semiring protocol")
+    if name == "boolean":
+        return BooleanSemiring()
+    if name == "natural":
+        return NaturalSemiring()
+    if name == "tropical":
+        return TropicalSemiring()
+    if name == "evidence-dag":
+        return EvidenceDagSemiring()
+    raise ValueError(
+        f"unsupported persisted semiring {name!r}; add an explicit scalar contract first"
+    )
+
+
+@dataclass(frozen=True)
+class ProjectionSubject:
+    repository_id: str
+    source_revision: str
+    source_fourfold_sha256: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "repository_id",
+            _identifier(self.repository_id, "subject.repository_id"),
+        )
+        object.__setattr__(
+            self,
+            "source_revision",
+            _revision(self.source_revision, "subject.source_revision"),
+        )
+        object.__setattr__(
+            self,
+            "source_fourfold_sha256",
+            _sha256(self.source_fourfold_sha256, "subject.source_fourfold_sha256"),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "repository_id": self.repository_id,
+            "source_revision": self.source_revision,
+            "source_fourfold_sha256": self.source_fourfold_sha256,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ProjectionSubject":
+        return cls(**_record_payload(cls, payload, "projection subject"))
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
+
+@dataclass(frozen=True)
+class TypedAxis:
+    name: str
+    plane: str
+    labels: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "name", _identifier(self.name, "axis.name"))
+        if self.plane not in FOURFOLD_PLANES:
+            raise ValueError(f"axis.plane must be one of {FOURFOLD_PLANES}")
+        raw_labels = _sequence(self.labels, "axis.labels", MAX_BLOCK_AXIS_LABELS)
+        labels = None if type(raw_labels) is tuple else []
+        previous: str | None = None
+        for index, raw in enumerate(raw_labels):
+            label = _label(raw, f"axis.labels[{index}]")
+            if labels is None and previous is not None:
+                if label < previous:
+                    labels = [raw_labels[position] for position in range(index)]
+                elif label == previous:
+                    raise ValueError("axis.labels must not contain duplicates")
+            if labels is not None:
+                labels.append(label)
+            previous = label
+        if labels is not None:
+            labels.sort()
+            if any(labels[index - 1] == labels[index] for index in range(1, len(labels))):
+                raise ValueError("axis.labels must not contain duplicates")
+            object.__setattr__(self, "labels", tuple(labels))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "plane": self.plane, "labels": list(self.labels)}
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "TypedAxis":
+        return cls(**_record_payload(cls, payload, "typed relation axis"))
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
+
+@dataclass(frozen=True)
+class RelationSignature:
+    source_plane: str
+    relation: str
+    target_plane: str
+
+    def __post_init__(self) -> None:
+        if self.source_plane not in FOURFOLD_PLANES:
+            raise ValueError(f"source_plane must be one of {FOURFOLD_PLANES}")
+        if self.target_plane not in FOURFOLD_PLANES:
+            raise ValueError(f"target_plane must be one of {FOURFOLD_PLANES}")
+        object.__setattr__(self, "relation", _identifier(self.relation, "signature.relation"))
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "source_plane": self.source_plane,
+            "relation": self.relation,
+            "target_plane": self.target_plane,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "RelationSignature":
+        return cls(**_record_payload(cls, payload, "relation signature"))
+
+
+@dataclass(frozen=True)
+class TypedRelationBlock(Generic[T]):
+    subject: ProjectionSubject
+    signature: RelationSignature
+    row_axis: TypedAxis
+    column_axis: TypedAxis
+    semiring_name: str
+    row_offsets: tuple[int, ...]
+    column_indices: tuple[int, ...]
+    values: tuple[T, ...]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.subject, ProjectionSubject):
+            raise ValueError("block.subject must be ProjectionSubject")
+        if not isinstance(self.signature, RelationSignature):
+            raise ValueError("block.signature must be RelationSignature")
+        if not isinstance(self.row_axis, TypedAxis) or not isinstance(self.column_axis, TypedAxis):
+            raise ValueError("block axes must be TypedAxis records")
+        if self.row_axis.plane != self.signature.source_plane:
+            raise ValueError("row axis plane must match signature.source_plane")
+        if self.column_axis.plane != self.signature.target_plane:
+            raise ValueError("column axis plane must match signature.target_plane")
+        object.__setattr__(
+            self,
+            "semiring_name",
+            _identifier(self.semiring_name, "block.semiring_name"),
+        )
+        _reference_semiring(self.semiring_name)
+
+        offsets = _sequence(self.row_offsets, "block.row_offsets", MAX_BLOCK_AXIS_LABELS + 1)
+        if type(offsets) is not tuple:
+            offsets = tuple(offsets)
+        columns = _sequence(self.column_indices, "block.column_indices", MAX_BLOCK_ENTRIES)
+        if type(columns) is not tuple:
+            columns = tuple(columns)
+        raw_values = _sequence(self.values, "block.values", MAX_BLOCK_ENTRIES)
+        values = _stored_values(raw_values, self.semiring_name)
+
+        offsets_monotone = True
+        previous_offset = -1
+        for item in offsets:
+            if type(item) is not int:
+                raise ValueError("block.row_offsets must contain integers")
+            if previous_offset > item:
+                offsets_monotone = False
+            previous_offset = item
+        if len(offsets) != len(self.row_axis.labels) + 1 or not offsets or offsets[0] != 0:
+            raise ValueError("block.row_offsets must contain every row boundary and start at zero")
+        if not offsets_monotone:
+            raise ValueError("block.row_offsets must be monotone")
+
+        row_count = len(self.row_axis.labels)
+        column_count = len(self.column_axis.labels)
+        entry_count = len(values)
+        columns_out_of_range = False
+        columns_not_strict = False
+        if len(columns) == entry_count and offsets[-1] == entry_count:
+            # Canonical blocks are overwhelmingly on this path. Walk each row span
+            # directly and let valid exact-int entries pass through one ordered/range
+            # predicate. Only invalid entries enter classification so Range still
+            # outranks Strict; count-mismatch inputs keep the fallback below.
+            # Valid column indices are non-negative, so -1 is a safe row-local sentinel.
+            for row in range(row_count):
+                previous_column = -1
+                for position in range(offsets[row], offsets[row + 1]):
+                    item = columns[position]
+                    if type(item) is int and previous_column < item < column_count:
+                        previous_column = item
+                        continue
+                    if type(item) is not int:
+                        raise ValueError("block.column_indices must contain integers")
+                    if item < 0 or item >= column_count:
+                        columns_out_of_range = True
+                    else:
+                        columns_not_strict = True
+                    previous_column = item
+        else:
+            for item in columns:
+                if type(item) is not int:
+                    raise ValueError("block.column_indices must contain integers")
+                if not 0 <= item < column_count:
+                    columns_out_of_range = True
+        if columns_out_of_range:
+            raise ValueError("block.column_indices contains an out-of-range index")
+        if len(columns) != entry_count or offsets[-1] != entry_count:
+            raise ValueError("CSR arrays must terminate at the common entry count")
+        if columns_not_strict:
+            raise ValueError("column indices must be strictly increasing inside each row")
+        object.__setattr__(self, "row_offsets", offsets)
+        object.__setattr__(self, "column_indices", columns)
+        object.__setattr__(self, "values", values)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "TypedRelationBlock[Any]":
+        body = _record_payload(cls, payload, "typed relation block")
+        body["subject"] = ProjectionSubject.from_dict(body["subject"])
+        body["signature"] = RelationSignature.from_dict(body["signature"])
+        body["row_axis"] = TypedAxis.from_dict(body["row_axis"])
+        body["column_axis"] = TypedAxis.from_dict(body["column_axis"])
+        raw_values = _sequence(body["values"], "block.values", MAX_BLOCK_ENTRIES)
+        semiring_name = body["semiring_name"]
+        body["values"] = tuple(
+            _decoded_scalar(value, semiring_name) for value in raw_values
+        )
+        return cls(**body)
+
+    @classmethod
+    def from_coordinates(
+        cls,
+        *,
+        subject: ProjectionSubject,
+        signature: RelationSignature,
+        row_axis: TypedAxis,
+        column_axis: TypedAxis,
+        coordinates: Sequence[Sequence[Any]],
+        semiring: Semiring[T],
+    ) -> "TypedRelationBlock[T]":
+        reference = _reference_semiring(semiring)
+        if not isinstance(subject, ProjectionSubject) or not isinstance(
+            signature, RelationSignature
+        ):
+            raise ValueError("subject and signature must use typed contract records")
+        if not isinstance(row_axis, TypedAxis) or not isinstance(column_axis, TypedAxis):
+            raise ValueError("row_axis and column_axis must be TypedAxis records")
+        entries: dict[tuple[int, int], T] = {}
+        for index, raw in enumerate(
+            _sequence(coordinates, "block.coordinates", MAX_BLOCK_ENTRIES)
+        ):
+            if (
+                isinstance(raw, (str, bytes, Mapping))
+                or not isinstance(raw, Sequence)
+                or len(raw) != 3
+            ):
+                raise ValueError(f"block.coordinates[{index}] must be (row, column, value)")
+            row = _label(raw[0], f"block.coordinates[{index}].row")
+            column = _label(raw[1], f"block.coordinates[{index}].column")
+            row_position = _label_position(row_axis.labels, row)
+            if row_position is None:
+                raise ValueError(f"unknown row label {row!r}")
+            column_position = _label_position(column_axis.labels, column)
+            if column_position is None:
+                raise ValueError(f"unknown column label {column!r}")
+            key = (row_position, column_position)
+            value = reference.add(entries.get(key, reference.zero), raw[2])
+            if value == reference.zero:
+                entries.pop(key, None)
+            else:
+                entries[key] = value
+        return cls._from_indexed(
+            subject, signature, row_axis, column_axis, entries, reference
+        )
+
+    @classmethod
+    def _from_indexed(
+        cls,
+        subject: ProjectionSubject,
+        signature: RelationSignature,
+        row_axis: TypedAxis,
+        column_axis: TypedAxis,
+        entries: Mapping[tuple[int, int], T],
+        semiring: Semiring[T],
+    ) -> "TypedRelationBlock[T]":
+        if len(entries) > MAX_BLOCK_ENTRIES:
+            raise ValueError(f"block entries exceed bounded limit {MAX_BLOCK_ENTRIES}")
+        row_count = len(row_axis.labels)
+        column_count = len(column_axis.labels)
+        keys_are_canonical = type(entries) is dict
+        previous_key: tuple[int, int] | None = None
+        for row, column in entries:
+            if type(row) is not int:
+                raise ValueError("indexed block row indices must contain integers")
+            if not 0 <= row < row_count:
+                raise ValueError("indexed block contains an out-of-range row index")
+            if type(column) is not int:
+                raise ValueError("indexed block column indices must contain integers")
+            if not 0 <= column < column_count:
+                raise ValueError("indexed block contains an out-of-range column index")
+            key = (row, column)
+            if keys_are_canonical and previous_key is not None and key < previous_key:
+                keys_are_canonical = False
+            previous_key = key
+
+        # The canonical compiler and ``from_coordinates`` both build exact dicts.
+        # Reuse their insertion order when validation proves it is already CSR
+        # order. Consume exact-dict values from the same iterator so the hot path
+        # does not re-hash every validated key; arbitrary/out-of-order mappings
+        # retain the generic sorted-key fallback and its original lookup semantics.
+        ordered_items = (
+            entries.items()
+            if keys_are_canonical
+            else ((key, entries[key]) for key in sorted(entries))
+        )
+        offsets, indices, values = [0], [], []
+        current_row = 0
+        for key, value in ordered_items:
+            row, column = key
+            while current_row < row:
+                offsets.append(len(values))
+                current_row += 1
+            indices.append(column)
+            values.append(value)
+        while current_row < row_count:
+            offsets.append(len(values))
+            current_row += 1
+        return cls(
+            subject,
+            signature,
+            row_axis,
+            column_axis,
+            semiring.name,
+            tuple(offsets),
+            tuple(indices),
+            tuple(values),
+        )
+
+    @property
+    def entry_count(self) -> int:
+        return len(self.values)
+
+    def iter_entries(self) -> Iterator[tuple[str, str, T]]:
+        for row, row_label in enumerate(self.row_axis.labels):
+            for position in range(self.row_offsets[row], self.row_offsets[row + 1]):
+                yield (
+                    row_label,
+                    self.column_axis.labels[self.column_indices[position]],
+                    self.values[position],
+                )
+
+    def get(self, row_label: str, column_label: str, semiring: Semiring[T]) -> T:
+        reference = self._require_semiring(semiring)
+        row, column = _label(row_label, "row_label"), _label(column_label, "column_label")
+        row_position = _label_position(self.row_axis.labels, row)
+        if row_position is None:
+            raise ValueError(f"unknown row label {row!r}")
+        column_position = _label_position(self.column_axis.labels, column)
+        if column_position is None:
+            raise ValueError(f"unknown column label {column!r}")
+        start, stop = self.row_offsets[row_position], self.row_offsets[row_position + 1]
+        position = bisect_left(self.column_indices, column_position, start, stop)
+        if position < stop and self.column_indices[position] == column_position:
+            return self.values[position]
+        return reference.zero
+
+    def slice(
+        self,
+        *,
+        row_labels: Sequence[str] | None = None,
+        column_labels: Sequence[str] | None = None,
+    ) -> "TypedRelationBlock[T]":
+        """Return one deterministic axis subset of this exact Fourfold subject.
+
+        Slicing is a pure CSR projection: it does not reinterpret values, change
+        relation semantics, or mint a new source identity. Requested labels are
+        canonicalized by their existing typed-axis order; unknown and duplicate
+        labels fail closed. A full-axis selection reuses the immutable block.
+        """
+
+        if row_labels is None and column_labels is None:
+            return self
+
+        def resolve_axis(
+            axis: TypedAxis,
+            requested: Sequence[str] | None,
+            field: str,
+        ) -> tuple[TypedAxis, Sequence[int]]:
+            if requested is None:
+                return axis, range(len(axis.labels))
+            raw_labels = _sequence(requested, field, MAX_BLOCK_AXIS_LABELS)
+            positions: list[int] = []
+            seen: set[int] = set()
+            singular = "row" if field == "row_labels" else "column"
+            for index, raw in enumerate(raw_labels):
+                label = _label(raw, f"{field}[{index}]")
+                position = _label_position(axis.labels, label)
+                if position is None:
+                    raise ValueError(f"unknown {singular} label {label!r}")
+                if position in seen:
+                    raise ValueError(f"{field} must not contain duplicates")
+                seen.add(position)
+                positions.append(position)
+            positions.sort()
+            canonical_positions = tuple(positions)
+            if len(canonical_positions) == len(axis.labels):
+                return axis, canonical_positions
+            return (
+                TypedAxis(axis.name, axis.plane, tuple(axis.labels[position] for position in positions)),
+                canonical_positions,
+            )
+
+        row_axis, row_positions = resolve_axis(self.row_axis, row_labels, "row_labels")
+        column_axis, column_positions = resolve_axis(
+            self.column_axis,
+            column_labels,
+            "column_labels",
+        )
+        if row_axis is self.row_axis and column_axis is self.column_axis:
+            return self
+        if self.row_axis is self.column_axis and row_positions == column_positions:
+            column_axis = row_axis
+
+        offsets, indices, values = [0], [], []
+        if column_axis is self.column_axis:
+            # Retaining the full target axis means the existing CSR column
+            # coordinates are already canonical. Copy selected row spans directly
+            # instead of constructing an O(columns) remap and hashing every entry.
+            for old_row in row_positions:
+                start, stop = self.row_offsets[old_row], self.row_offsets[old_row + 1]
+                indices.extend(self.column_indices[start:stop])
+                values.extend(self.values[start:stop])
+                offsets.append(len(values))
+        else:
+            column_remap = {
+                old_position: new_position
+                for new_position, old_position in enumerate(column_positions)
+            }
+            for old_row in row_positions:
+                for position in range(self.row_offsets[old_row], self.row_offsets[old_row + 1]):
+                    new_column = column_remap.get(self.column_indices[position])
+                    if new_column is None:
+                        continue
+                    indices.append(new_column)
+                    values.append(self.values[position])
+                offsets.append(len(values))
+        return type(self)(
+            self.subject,
+            self.signature,
+            row_axis,
+            column_axis,
+            self.semiring_name,
+            tuple(offsets),
+            tuple(indices),
+            tuple(values),
+        )
+
+    def reduce(
+        self,
+        semiring: Semiring[T],
+        *,
+        max_operations: int = MAX_REFERENCE_OPERATIONS,
+    ) -> T:
+        """Fold all retained sparse values with canonical semiring addition.
+
+        CSR order is already canonical, and implicit sparse zeros are the additive
+        identity, so reduction needs no dense materialization, index, or second
+        execution path. The result is a pure observer of this exact subject.
+        """
+
+        reference = self._require_semiring(semiring)
+        limit = _operation_limit(max_operations)
+        result = reference.zero
+        for operations, value in enumerate(self.values, start=1):
+            if operations > limit:
+                raise ValueError("reference reduction exceeds bounded operation limit")
+            result = reference.add(result, value)
+        return result
+
+    def matmul(
+        self,
+        other: "TypedRelationBlock[T]",
+        semiring: Semiring[T],
+        *,
+        relation: str,
+        max_operations: int = MAX_REFERENCE_OPERATIONS,
+    ) -> "TypedRelationBlock[T]":
+        reference = self._require_compatible(other, semiring)
+        if self.column_axis != other.row_axis:
+            raise ValueError("matrix composition requires an exactly shared typed middle axis")
+        limit, operations = _operation_limit(max_operations), 0
+        offsets, indices, values = [0], [], []
+        for row in range(len(self.row_axis.labels)):
+            row_result: dict[int, T] = {}
+            for position in range(self.row_offsets[row], self.row_offsets[row + 1]):
+                middle = self.column_indices[position]
+                for right_position in range(
+                    other.row_offsets[middle],
+                    other.row_offsets[middle + 1],
+                ):
+                    operations += 1
+                    if operations > limit:
+                        raise ValueError("reference contraction exceeds bounded operation limit")
+                    column = other.column_indices[right_position]
+                    right_value = other.values[right_position]
+                    value = reference.add(
+                        row_result.get(column, reference.zero),
+                        reference.multiply(self.values[position], right_value),
+                    )
+                    if value == reference.zero:
+                        row_result.pop(column, None)
+                    else:
+                        row_result[column] = value
+            if len(values) + len(row_result) > MAX_BLOCK_ENTRIES:
+                raise ValueError(f"block entries exceed bounded limit {MAX_BLOCK_ENTRIES}")
+            for column in sorted(row_result):
+                indices.append(column)
+                values.append(row_result[column])
+            offsets.append(len(values))
+        return type(self)(
+            self.subject,
+            RelationSignature(self.signature.source_plane, relation, other.signature.target_plane),
+            self.row_axis,
+            other.column_axis,
+            reference.name,
+            tuple(offsets),
+            tuple(indices),
+            tuple(values),
+        )
+
+    def hadamard(
+        self,
+        other: "TypedRelationBlock[T]",
+        semiring: Semiring[T],
+        *,
+        relation: str,
+        max_operations: int = MAX_REFERENCE_OPERATIONS,
+    ) -> "TypedRelationBlock[T]":
+        reference = self._require_compatible(other, semiring)
+        if self.row_axis != other.row_axis or self.column_axis != other.column_axis:
+            raise ValueError("Hadamard composition requires identical typed axes")
+        limit, operations = _operation_limit(max_operations), 0
+        offsets, indices, values = [0], [], []
+        for row in range(len(self.row_axis.labels)):
+            left_position, left_stop = self.row_offsets[row], self.row_offsets[row + 1]
+            right_position, right_stop = other.row_offsets[row], other.row_offsets[row + 1]
+            while left_position < left_stop and right_position < right_stop:
+                left_column = self.column_indices[left_position]
+                right_column = other.column_indices[right_position]
+                if left_column < right_column:
+                    left_position += 1
+                    continue
+                if right_column < left_column:
+                    right_position += 1
+                    continue
+                operations += 1
+                if operations > limit:
+                    raise ValueError("reference contraction exceeds bounded operation limit")
+                value = reference.multiply(
+                    self.values[left_position], other.values[right_position]
+                )
+                if value != reference.zero:
+                    indices.append(left_column)
+                    values.append(value)
+                left_position += 1
+                right_position += 1
+            offsets.append(len(values))
+        return type(self)(
+            self.subject,
+            RelationSignature(self.signature.source_plane, relation, self.signature.target_plane),
+            self.row_axis,
+            self.column_axis,
+            reference.name,
+            tuple(offsets),
+            tuple(indices),
+            tuple(values),
+        )
+
+    def _require_semiring(self, semiring: Semiring[T]) -> Semiring[Any]:
+        reference = _reference_semiring(semiring)
+        if reference.name != self.semiring_name:
+            raise ValueError(
+                f"block uses semiring {self.semiring_name!r}, not {reference.name!r}"
+            )
+        return reference
+
+    def _require_compatible(
+        self,
+        other: "TypedRelationBlock[T]",
+        semiring: Semiring[T],
+    ) -> Semiring[Any]:
+        if not isinstance(other, TypedRelationBlock):
+            raise ValueError("other must be TypedRelationBlock")
+        reference = self._require_semiring(semiring)
+        if other.semiring_name != reference.name:
+            raise ValueError(
+                f"block uses semiring {other.semiring_name!r}, not {reference.name!r}"
+            )
+        if self.subject != other.subject:
+            raise ValueError("relation blocks must bind the same exact Fourfold subject")
+        return reference
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "subject": self.subject.to_dict(),
+            "signature": self.signature.to_dict(),
+            "row_axis": self.row_axis.to_dict(),
+            "column_axis": self.column_axis.to_dict(),
+            "semiring_name": self.semiring_name,
+            "row_offsets": list(self.row_offsets),
+            "column_indices": list(self.column_indices),
+            "values": [_json_scalar(value) for value in self.values],
+        }
+
+    def to_json(self) -> str:
+        return canonical_json(self.to_dict())
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
+
+__all__ = [
+    "MAX_BLOCK_AXIS_LABELS",
+    "MAX_BLOCK_ENTRIES",
+    "MAX_REFERENCE_OPERATIONS",
+    "ProjectionSubject",
+    "RelationSignature",
+    "TypedAxis",
+    "TypedRelationBlock",
+]

@@ -15,8 +15,8 @@ from unittest import mock
 
 import pytest
 
-from daedalus import ikarus_os
-from daedalus.ikarus_cancellation import CancellationSignal
+from daedalus.orchestration.ikarus import shell as ikarus_os
+from daedalus.orchestration.ikarus.cancellation import CancellationSignal
 from daedalus.providers._openai_compat import ProviderCancelled
 
 

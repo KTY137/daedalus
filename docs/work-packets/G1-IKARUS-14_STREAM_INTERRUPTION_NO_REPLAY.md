@@ -1,41 +1,56 @@
-# G1-IKARUS-14 — Stream interruption without provider replay
+# G1-IKARUS-14 - Stream interruption without replay
+
+## Frozen packet metadata
+
+- Packet ID: `G1-IKARUS-14`
+- Artifact role: `primary`
+- Active gate: `1`
+- Classification: `ALIGNED`
+- Owner: `repository owner`
+- Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+- Dependencies: `G1-IKARUS-09 through G1-IKARUS-13 behavior frozen in the Gate-1 archive parent`
+- Promotion authority: no automatic merge, promotion, or Gate transition
+- Master-plan authority: Revision 11
+- Master-plan digest: `711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2`
+## Primary acceptance claim
+
+After the one-shot EventSource turn is attempted, a missing or interrupted
+final is shown as incomplete and neither client nor backend automatically
+starts a second provider request.
+
+## Contracts and behavior
+
+**Baseline reproduced.**
+
+Classic `App.tsx` removed a partial bubble on `EventSource.onerror` and called
+`POST /api/ikarus/ask`. The backend also called `_chat()` after an entered
+provider stream returned no text. Either transition could repeat a completed
+remote request and its spend without an idempotency key.
+
+## Acceptance matrix
+
+| Claim/refusal | Evidence | Expected |
+|---|---|---|
+| Mid-stream provider failure | mocked stream test | partial text retained; `stream_interrupted=true`; `_chat` not called |
+| Empty provider stream | mocked stream test | halted result; no provider replay |
+| Browser stream closes without final | Playwright fault test | halted bubble; no blocking POST |
+| Interrupted final carries an action | Playwright fault test | no Apply/Confirm affordance |
+| Completed stream/blocking response | contract tests and TypeScript build | `delivery_mode` and explicit false interruption flag |
+| Provider/network budget | focused tests | zero live starts/calls |
 
 ## Scope
 
-This bounded Gate-1 reliability slice closes the server-side half of the Ikarus
-stream no-replay contract on the canonical `g1/ikarus-runtime-invocation-binding-07d3`
-line. The browser half is already present: an interrupted stream is rendered as
-halted and is not retried through the blocking POST path.
+Forbidden: no new chat store, request identity, effect entrypoint, action path,
+promotion path, or automatic retry. Routes and canonical conversation state
+remain unchanged.
 
-Once `_ask_stream_inner(...)` has entered a real provider streamer, an empty or
-failed stream is an unknown delivery outcome. The provider request may already
-have committed remotely, so Ikarus must not invisibly call `_chat(...)` again.
-The existing `streamer is None` branch remains a capability fallback for providers
-without a verified streaming transport because no streaming request was attempted.
+## Migration and rollback
 
-## Acceptance
+Rollback restores the prior rendering only; it must not be used after a client
+has relied on the no-replay guarantee. No persistent-data migration exists.
 
-- Mid-stream provider failure retains partial text, marks `stream_interrupted=true`,
-  and never calls the blocking provider path.
-- An empty provider stream emits a halted/interrupted final and never calls `_chat`.
-- The final says the request was not automatically retried.
-- Existing Ollama single-transport `keep_alive` semantics remain intact.
-- No new provider, executor, queue, authority, or action path is introduced.
+## Evidence expected failures and review
 
-## Verification evidence
-
-The bounded migration was applied against the exact canonical branch state and
-verified before its product commit: `tests/test_ikarus_stream.py` passed 25/25,
-`tests/test_ikarus_os_boundary.py` passed 20/20 after the one-shot migration helper
-was removed, Python compilation passed, and a source invariant proved that the
-post-attempt `if not text` path contains no `_chat(...)` call. The resulting product
-commit is `ed735e088f1e5344443924e0a20a14004a7f1478`.
-
-The ordinary Gate-1 unified workflow remains the branch-wide verification authority;
-this packet is included in the canonical line without changing any gate claim.
-
-## Non-claims
-
-This packet does not claim provider cancellation propagation, sealed broker cutover
-on this branch, Hermes superiority, or a Gate transition. It removes one duplicate-
-execution ambiguity from the conversational transport only.
+No live provider or network request is expected in builder evidence.
+Independent review must verify that no entered stream path reaches blocking
+POST replay and that interrupted action payloads remain non-executable.

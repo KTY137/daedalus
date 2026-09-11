@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 
-from daedalus import agents_registry as reg
+from daedalus.orchestration import agents_registry as reg
 from daedalus import router, core
 from daedalus.kairos.scheduler import KairosScheduler
 

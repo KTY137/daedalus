@@ -7,6 +7,21 @@
 - Work branch: `g0/provider-target-receipt-retention-inventory-refresh-linear`
 - Hardened ledger Git blob: `a5e3d1321e257c9ce1d70e9a68e4079445c6985a`
 
+## Addendum 2026-09-03 (G1-PKG-01)
+
+The ledger moved to `daedalus/runtimes/provider/target_receipt_ledger.py`
+when the `provider_` family became a package. Its bytes changed -- import
+statements only -- so the hardened blob above no longer describes the file
+on disk. Current blob: `cc9dd91f55c543030e82e0e1f526766419cbd98a`.
+
+The line above is left as written. It is a true statement about revision
+`0df759d1fd9bc5d83e9fc72f1c850756afa93fe5`, and rewriting it would make this
+record claim something false about a revision it was measuring. The
+machine-readable counterpart is the `relocation` block in the JSON, and
+`tests/gates/test_provider_target_receipt_retention_inventory_refresh_review.py`
+now pins BOTH: the historical identity must not change, and the live fixture
+must match the relocation.
+
 ## Reason for the packet
 
 The topology-hardening packet changed `daedalus/runtimes/provider_target_receipt_ledger.py`. The retained inventory scanner still discovered the seven intended write surfaces, but its main fixture supplied the older pre-hardening revision `b2bda280f8f98d6e977e092c5429da3c85427a33`. Because the scanner intentionally accepts a caller-supplied revision, that fixture could produce a byte-current but revision-stale report.

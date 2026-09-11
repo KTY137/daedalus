@@ -35,7 +35,7 @@ if (!baseURL) {
   );
 }
 
-// Loopback, and only loopback. daedalus/web_api.py refuses a non-loopback bind
+// Loopback, and only loopback. daedalus/interfaces/http/web_api.py refuses a non-loopback bind
 // without an explicit opt-in plus a token; an acceptance harness that pointed a
 // browser at anything else would be testing a configuration nobody should run.
 if (!/^http:\/\/(127\.0\.0\.1|\[::1\]):\d+$/.test(baseURL)) {
@@ -72,7 +72,7 @@ export default defineConfig({
   forbidOnly: true,
 
   // The cockpit suite deliberately exercises a cold structure scan with a
-  // 240s wait and a project-switch scan with a 300s wait. A 60s GLOBAL test
+  // 240s wait and project-switch scans with 300s test budgets. A 60s GLOBAL
   // timeout made those assertions unreachable: Playwright killed the test
   // before the product-specific wait could produce a verdict. Keep this finite
   // and above the largest declared per-test wait; tools/gui_check.py still owns

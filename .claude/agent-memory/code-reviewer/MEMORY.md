@@ -1,0 +1,6 @@
+- [Review output contract](feedback_review_output_contract.md) — severity-ranked, file:line, verified-vs-suspected labelled, repo scripts actually run; "nothing serious" is a valid result
+- [Lane hazards](project_lane_hazards.md) — concurrent worktrees; read-only reviews, `npx tsc` not `npm run build`, never write `apps/web/dist/**`, junction `node_modules` to run frontend specs
+- [Accelerator deferred defects](project_accelerator_deferred_defects.md) — ungated `do_GET` spawn and the `DAEDALUS_RTX_SSH` argv injection are owner-packeted; do not fix in passing
+- [Cockpit pin spec flake](project_cockpit_pin_spec_flake.md) — `Received: 191` is usually a stale `apps/web/dist`, not load; check the bundle before blaming a PR
+- [gui_check green lies](project_gui_check_green_lies.md) — not-run tests are counted as passed, and the tracked `apps/web/dist` is never rebuilt locally; safe scratch-build recipe
+- [Byte-pin `-text` gap](project_byte_pin_text_gap.md) — `-text` lets CRLF into the index; 5 daedalus modules already committed that way and both guards are attribute-only, blind to it

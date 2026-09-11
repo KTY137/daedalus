@@ -118,11 +118,11 @@ jobs:
               RuntimeProviderBindingMismatch,
               run_runtime_provider,
           )
-          from daedalus.runtimes.provider_invocation_identity import (
+          from daedalus.runtimes.provider.invocation_identity import (
               ProviderInvocationIdentityProjection,
               project_provider_invocation_identity,
           )
-          from daedalus.runtimes.provider_observation import (
+          from daedalus.runtimes.provider.observation import (
               ProviderObservationAuthority,
               ProviderObservationBindingLedger,
           )

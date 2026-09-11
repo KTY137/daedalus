@@ -51,8 +51,9 @@ _SKIP_DIRS = frozenset({
 # switches and marking them dark would bury the ones that are.
 _PLATFORM_ENV = frozenset({
     "APPDATA", "COMSPEC", "HOME", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA",
-    "PATH", "PATHEXT", "PROGRAMFILES", "PYTHONPATH", "SYSTEMROOT", "TEMP",
-    "TMP", "TMPDIR", "USERNAME", "USERPROFILE", "VIRTUAL_ENV",
+    "PATH", "PATHEXT", "PROCESSOR_IDENTIFIER", "PROGRAMFILES", "PYTHONPATH",
+    "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "USER", "USERDOMAIN", "USERNAME",
+    "USERPROFILE", "VIRTUAL_ENV",
     "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
 })
 
@@ -685,6 +686,7 @@ def _scan_module(info: _ModuleInfo, resolver: _Resolver) -> tuple[
     tree = info.tree
     consts = info.consts
     const_names = {name for name in consts if name.isupper() and "_" in name}
+    env_helpers = _env_reader_helpers(tree)
     sites: list[EnvSite] = []
     params: list[ParamSwitch] = []
     dynamic: list[str] = []
@@ -697,12 +699,24 @@ def _scan_module(info: _ModuleInfo, resolver: _Resolver) -> tuple[
         read = _env_read(node)
         if read is not None:
             _, default_expr, via = read
-            name = _resolve_name(_name_expr(node), consts)
+            name_expr = _name_expr(node)
+            name = _resolve_name(name_expr, consts)
             line = getattr(node, "lineno", 0)
+            func = _enclosing(parents, (ast.FunctionDef, ast.AsyncFunctionDef))
+            helper_param_read = (
+                func is not None
+                and func.name in env_helpers
+                and isinstance(name_expr, ast.Name)
+                and name_expr.id == env_helpers[func.name][1]
+            )
             if name is None:
-                dynamic.append(f"{module}:{line} {_src(_name_expr(node))}")
+                # A recognized helper's parameter is attributed where callers
+                # choose its concrete environment name. Keeping this internal
+                # parameter as a second dynamic read would duplicate the same
+                # uncertainty and point operators at the wrong source line.
+                if not helper_param_read:
+                    dynamic.append(f"{module}:{line} {_src(name_expr)}")
             else:
-                func = _enclosing(parents, (ast.FunctionDef, ast.AsyncFunctionDef))
                 stmt = _statement_for(parents)
                 block = _block_for(parents, stmt)
                 required = via == "environ[]"
@@ -756,10 +770,82 @@ def _scan_module(info: _ModuleInfo, resolver: _Resolver) -> tuple[
                           f"the lane reports unconfigured until it is set",
                 ))
 
+        # A module-local helper that hands one of its own positional parameters
+        # to os.environ still represents a read of the concrete name selected at
+        # this call site. The existing resolver remains the only authority for
+        # following local/imported constants; unresolved arguments are retained
+        # as dynamic evidence rather than guessed.
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in env_helpers):
+            idx, _ = env_helpers[node.func.id]
+            if len(node.args) > idx:
+                arg = node.args[idx]
+                line = getattr(node, "lineno", 0)
+                func = _enclosing(parents, (ast.FunctionDef, ast.AsyncFunctionDef))
+                env_name: str | None = None
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    env_name = arg.value
+                elif isinstance(arg, ast.Name):
+                    found, value = resolver.value(arg.id, info, line, func)
+                    if found and isinstance(value, str):
+                        env_name = value
+
+                if env_name and _ENV_TOKEN.fullmatch(env_name):
+                    default_expr = node.args[idx + 1] if len(node.args) > idx + 1 else None
+                    default_literal = _resolve_default(
+                        default_expr, info, resolver, line, func)
+                    state = _state_for(False, default_literal, default_expr is not None)
+                    sites.append(EnvSite(
+                        name=env_name,
+                        module=module,
+                        line=line,
+                        via="helper",
+                        default=_src(default_expr) if default_expr is not None else "None",
+                        default_literal=default_literal,
+                        required=False,
+                        kind=_classify_kind(env_name, node, parents, func),
+                        polarity=_polarity(env_name),
+                        state=state,
+                        dark=False,
+                        fallback=(
+                            f"passed to `{node.func.id}()`, which reads it from the environment"
+                        ),
+                        gates=_gates_sentence(
+                            func, tree, module, _qualname(parents, node)),
+                    ))
+                else:
+                    dynamic.append(f"{module}:{line} {_src(arg)}")
+
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             params.extend(_param_switches(node, parents, module, tree))
 
     return sites, params, dynamic, literals, const_names
+
+
+def _env_reader_helpers(tree: ast.Module) -> dict[str, tuple[int, str]]:
+    """Map module-local env-reader helpers to their name-parameter position.
+
+    A helper qualifies structurally only when one of its own positional
+    parameters is handed to ``os.environ`` / ``os.getenv``. Calls can then use
+    the existing constant/import resolver to recover the concrete switch name.
+    This deliberately does not infer names from helper names or annotations.
+    """
+    out: dict[str, tuple[int, str]] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        positional = list(node.args.posonlyargs) + list(node.args.args)
+        index = {arg.arg: idx for idx, arg in enumerate(positional)}
+        if not index:
+            continue
+        for sub in ast.walk(node):
+            if _env_read(sub) is None:
+                continue
+            expr = _name_expr(sub)
+            if isinstance(expr, ast.Name) and expr.id in index:
+                out[node.name] = (index[expr.id], expr.id)
+                break
+    return out
 
 
 def _registry_env_keys(node: ast.AST) -> list[tuple[str, list[str]]]:
@@ -944,7 +1030,7 @@ def _is_subsequence(short: Sequence[str], long: Sequence[str]) -> bool:
 def _drift(documented: dict[str, list[str]], mentioned: dict[str, list[str]],
            sites_by_name: dict[str, list[EnvSite]]) -> list[DocDrift]:
     read = {name for name in sites_by_name if name not in _PLATFORM_ENV}
-    doc_names = set(documented)
+    doc_names = set(documented) - _PLATFORM_ENV
     out: list[DocDrift] = []
 
     for name in sorted(doc_names - read):
@@ -1090,7 +1176,7 @@ def analyse(repo_root: str | Path) -> SwitchReport:
     # never reads from the environment are dropped before drift is computed.
     for name in sorted(const_names - set(by_name)):
         documented.pop(name, None)
-    _augment_documented(documented, mentioned, set(by_name))
+    _augment_documented(documented, mentioned, set(by_name) - _PLATFORM_ENV)
 
     switches = tuple(
         _reconcile(name, by_name[name], name in documented)

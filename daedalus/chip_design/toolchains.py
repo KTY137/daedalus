@@ -6,11 +6,14 @@ strings scattered across Daedalus.
 """
 from __future__ import annotations
 
+import glob
+import hashlib
+import os
+import re
 import shutil
-import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from .sources import classify_source
 
@@ -85,6 +88,39 @@ TOOLS: tuple[EdaToolSpec, ...] = (
         tcl_backend="vivado", accepts_tcl_args=True, proprietary=True,
     ),
     EdaToolSpec(
+        id="vitis", label="AMD Vitis", command="vitis",
+        roles=("embedded_software", "hardware_platform", "acceleration"),
+        version_args=("-version",), proprietary=True,
+        notes=(
+            "Discovery only in the Gate-1 Vivado slice; an XSA without a Vitis "
+            "workspace/application is not an executable software mission."
+        ),
+    ),
+    EdaToolSpec(
+        id="vitis_hls", label="AMD Vitis HLS", command="vitis_hls",
+        roles=("high_level_synthesis", "tcl"), languages=("cpp", "c"),
+        version_args=("-version",), tcl_backend="vitis_hls", proprietary=True,
+        notes=(
+            "Batch C synthesis runs as 'vitis_hls -f <script>'. Discovery only; "
+            "no admitted HLS execution adapter exists in this slice."
+        ),
+    ),
+    EdaToolSpec(
+        id="vpp", label="AMD Vitis v++ compiler", command="v++",
+        roles=("acceleration", "compile", "link"), languages=("cpp", "c"),
+        version_args=("--version",), proprietary=True,
+        notes=(
+            "Kernel compile/link for Vitis acceleration targets. Discovery "
+            "only; the environment override is DAEDALUS_VPP_COMMAND."
+        ),
+    ),
+    EdaToolSpec(
+        id="xsct", label="AMD XSCT", command="xsct",
+        roles=("embedded_software", "tcl"), version_args=("-version",),
+        proprietary=True,
+        notes="Discovery only; no XSCT execution adapter is admitted by this slice.",
+    ),
+    EdaToolSpec(
         id="quartus", label="Altera/Intel Quartus Prime", command="quartus_sh",
         roles=("fpga", "synthesis", "implementation", "sta", "tcl"),
         languages=("verilog", "systemverilog", "vhdl"), version_args=("--version",),
@@ -94,6 +130,56 @@ TOOLS: tuple[EdaToolSpec, ...] = (
 
 _TOOL_BY_ID = {tool.id: tool for tool in TOOLS}
 
+_WINDOWS_TOOL_GLOBS: Mapping[str, tuple[str, ...]] = {
+    # AMD's unified 2025.x installer uses C:/Xilinx/<release>/Vivado while
+    # older installers commonly use C:/Xilinx/Vivado/<release>.
+    "vivado": (
+        "C:/Xilinx/*/Vivado/bin/vivado.bat",
+        "C:/Xilinx/Vivado/*/bin/vivado.bat",
+    ),
+    "vitis": (
+        "C:/Xilinx/*/Vitis/bin/vitis.bat",
+        "C:/Xilinx/Vitis/*/bin/vitis.bat",
+    ),
+    "xsct": (
+        "C:/Xilinx/*/Vitis/bin/xsct.bat",
+        "C:/Xilinx/Vitis/*/bin/xsct.bat",
+    ),
+    "vitis_hls": (
+        "C:/Xilinx/*/Vitis_HLS/bin/vitis_hls.bat",
+        "C:/Xilinx/Vitis_HLS/*/bin/vitis_hls.bat",
+    ),
+    "vpp": (
+        "C:/Xilinx/*/Vitis/bin/v++.bat",
+        "C:/Xilinx/Vitis/*/bin/v++.bat",
+    ),
+    "quartus": (
+        "C:/intelFPGA*/*/quartus/bin64/quartus_sh.exe",
+        "C:/altera/*/quartus/bin64/quartus_sh.exe",
+    ),
+}
+
+_POSIX_TOOL_GLOBS: Mapping[str, tuple[str, ...]] = {
+    "vivado": (
+        "/opt/Xilinx/*/Vivado/bin/vivado",
+        "/opt/Xilinx/Vivado/*/bin/vivado",
+        "/tools/Xilinx/*/Vivado/bin/vivado",
+        "/tools/Xilinx/Vivado/*/bin/vivado",
+    ),
+}
+
+_VIVADO_VERSION_RE = re.compile(r"\bVivado\s+v(?P<version>\d{4}\.\d+(?:\.\d+)?)\b", re.IGNORECASE)
+_NUMERIC_INSTALL_VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+)*\Z")
+_NUMERIC_AMD_INSTALL_TOOLS = frozenset({"vivado", "vitis", "xsct", "vitis_hls", "vpp"})
+#: Vendor product directory that owns each AMD launcher layout.
+_AMD_INSTALL_PRODUCT: Mapping[str, str] = {
+    "vitis": "vitis",
+    "xsct": "vitis",
+    "vpp": "vitis",
+    "vitis_hls": "vitis_hls",
+    "vivado": "vivado",
+}
+
 
 def get_tool(tool_id: str) -> EdaToolSpec:
     try:
@@ -102,36 +188,290 @@ def get_tool(tool_id: str) -> EdaToolSpec:
         raise KeyError(f"unknown EDA tool '{tool_id}'") from exc
 
 
-def tool_status(tool_id: str, *, timeout_s: float = 5.0) -> dict[str, object]:
-    spec = get_tool(tool_id)
-    path = shutil.which(spec.command)
-    base = spec.to_dict()
-    if not path:
-        return {**base, "available": False, "command_path": "", "version": "",
-                "last_error": f"{spec.command} not found on PATH"}
-    if not spec.version_args:
-        return {**base, "available": True, "command_path": path, "version": "",
-                "last_error": ""}
+def _is_linklike(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if is_junction is not None and is_junction():
+        return True
+    if os.name == "nt":
+        try:
+            attributes = int(getattr(os.lstat(path), "st_file_attributes", 0))
+        except OSError:
+            return False
+        return bool(attributes & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+    return False
+
+
+def _fixed_glob_root(pattern: str) -> Path:
+    parts = Path(pattern).parts
+    fixed: list[str] = []
+    for part in parts:
+        if any(character in part for character in "*?["):
+            break
+        fixed.append(part)
+    if not fixed:
+        raise ValueError(f"vendor path pattern has no fixed root: {pattern}")
+    return Path(*fixed).resolve(strict=False)
+
+
+def _has_linklike_component(path: Path, *, stop: Path) -> bool:
+    candidate = path.absolute()
+    boundary = stop.absolute()
+    while True:
+        if _is_linklike(candidate):
+            return True
+        if os.path.normcase(str(candidate)) == os.path.normcase(str(boundary)):
+            return False
+        parent = candidate.parent
+        if parent == candidate:
+            return True
+        candidate = parent
+
+
+def _path_within(root: Path, candidate: Path) -> bool:
     try:
-        completed = subprocess.run(
-            [path, *spec.version_args], text=True, capture_output=True,
-            timeout=timeout_s, check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        return {**base, "available": False, "command_path": path, "version": "",
-                "last_error": str(exc)}
-    output = (completed.stdout or completed.stderr or "").strip()
+        common = os.path.commonpath((str(root), str(candidate)))
+    except ValueError:
+        return False
+    return os.path.normcase(common) == os.path.normcase(str(root))
+
+
+def _vendor_install_version(tool_id: str, path: str | Path) -> tuple[int, ...] | None:
+    """Extract a numeric release from one package-known install layout.
+
+    Discovery admits both AMD's unified ``<release>/<product>`` layout and
+    its legacy ``<product>/<release>`` layout.  Keep this parser coupled to
+    those layouts so unrelated digits elsewhere in an absolute path cannot
+    influence launcher selection.
+    """
+
+    launcher = Path(path)
+    product = _AMD_INSTALL_PRODUCT.get(tool_id, tool_id)
+    install_dir = launcher.parent.parent
+    if install_dir.name.casefold() == product:
+        release = install_dir.parent.name
+    elif install_dir.parent.name.casefold() == product:
+        release = install_dir.name
+    else:
+        return None
+    if not _NUMERIC_INSTALL_VERSION_RE.fullmatch(release):
+        return None
+    try:
+        return tuple(int(component) for component in release.split("."))
+    except ValueError:
+        # Python limits exceptionally long integer strings.  Such a directory
+        # is not a credible vendor release and must not outrank a valid one.
+        return None
+
+
+def _vendor_tool_path_sort_key(
+    tool_id: str,
+    path: str,
+) -> tuple[int, tuple[int, ...], str, str]:
+    """Rank valid numeric releases first, with a stable path tie-breaker."""
+
+    version = _vendor_install_version(tool_id, path)
+    lexical = (path.casefold(), path)
+    if version is None:
+        return (0, (), *lexical)
+    return (1, version, *lexical)
+
+
+def trusted_vendor_tool_paths(tool_id: str) -> tuple[str, ...]:
+    """Return launchers under package-known vendor installation layouts.
+
+    This inventory deliberately ignores PATH and ``DAEDALUS_*_COMMAND``.
+    Those remain useful for effect-free status reporting, but are not an
+    authority for the live Gate-1 Vivado boundary.
+    """
+
+    get_tool(tool_id)  # validate the id even when no layout is registered
+    patterns = (
+        _WINDOWS_TOOL_GLOBS.get(tool_id, ())
+        if os.name == "nt"
+        else _POSIX_TOOL_GLOBS.get(tool_id, ())
+    )
+    paths: set[str] = set()
+    for pattern in patterns:
+        fixed_root = _fixed_glob_root(pattern)
+        for raw in glob.glob(pattern):
+            candidate = Path(raw).expanduser()
+            if (
+                not candidate.is_file()
+                or _has_linklike_component(candidate, stop=fixed_root)
+            ):
+                continue
+            resolved_root = fixed_root.resolve(strict=False)
+            resolved_candidate = candidate.resolve(strict=True)
+            if not _path_within(resolved_root, resolved_candidate):
+                continue
+            if (
+                tool_id in _NUMERIC_AMD_INSTALL_TOOLS
+                and _vendor_install_version(tool_id, resolved_candidate) is None
+            ):
+                continue
+            paths.add(str(resolved_candidate))
+    return tuple(
+        sorted(paths, key=lambda path: _vendor_tool_path_sort_key(tool_id, path))
+    )
+
+
+def find_trusted_vendor_tool_path(tool_id: str) -> str:
+    """Select the newest numeric package-known vendor install, if present.
+
+    Malformed AMD release directory names are not trusted install identities.
+    Equal numeric releases are resolved by a deterministic full-path
+    tie-breaker.
+    """
+
+    paths = trusted_vendor_tool_paths(tool_id)
+    return (
+        max(paths, key=lambda path: _vendor_tool_path_sort_key(tool_id, path))
+        if paths
+        else ""
+    )
+
+
+def is_trusted_vendor_tool_path(tool_id: str, path: str | Path) -> bool:
+    """Whether ``path`` is one of the current standard-install identities."""
+
+    candidate = os.path.normcase(str(Path(path).expanduser().resolve(strict=False)))
+    return any(
+        os.path.normcase(value) == candidate
+        for value in trusted_vendor_tool_paths(tool_id)
+    )
+
+
+def trusted_launcher_sha256(path: str | Path) -> str:
+    """Hash one stable regular launcher snapshot, refusing read-time drift."""
+
+    candidate = Path(path).expanduser()
+    if candidate.is_symlink() or not candidate.is_file():
+        raise ValueError(f"launcher is not a regular non-symlink file: {candidate}")
+    digest = hashlib.sha256()
+    with candidate.open("rb") as handle:
+        before = os.fstat(handle.fileno())
+        total = 0
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            total += len(chunk)
+        after = os.fstat(handle.fileno())
+    identity_before = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    )
+    identity_after = (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    )
+    if identity_before != identity_after or total != after.st_size:
+        raise ValueError("launcher changed while its SHA-256 was computed")
+    return digest.hexdigest()
+
+
+def find_tool_path(tool_id: str) -> str:
+    """Resolve one registered executable without starting a process.
+
+    An explicit ``DAEDALUS_<TOOL>_COMMAND`` value wins. On Windows, a small
+    vendor-install inventory covers the standard Vivado/Quartus layouts used
+    by machines where the vendor launcher is deliberately absent from PATH.
+    """
+
+    spec = get_tool(tool_id)
+    override = os.environ.get(f"DAEDALUS_{spec.id.upper()}_COMMAND", "").strip()
+    if override:
+        candidate = Path(override).expanduser().resolve(strict=False)
+        return str(candidate) if candidate.is_file() else ""
+    path = shutil.which(spec.command)
+    if path:
+        return str(Path(path).resolve())
+    return find_trusted_vendor_tool_path(spec.id)
+
+
+def interpret_version_probe(
+    tool_id: str,
+    *,
+    returncode: int | None,
+    stdout: str = "",
+    stderr: str = "",
+) -> dict[str, object]:
+    """Interpret already-admitted probe output; this function has no effects.
+
+    AMD's Windows ``vivado.bat -version`` launcher is known to emit a valid
+    version banner while returning 1. A parseable vendor banner proves the
+    tool identity, but the non-zero launcher result remains visible as a
+    warning rather than being rewritten to success.
+    """
+
+    spec = get_tool(tool_id)
+    output = "\n".join(part for part in (stdout.strip(), stderr.strip()) if part).strip()
+    version = ""
+    if spec.id == "vivado":
+        match = _VIVADO_VERSION_RE.search(output)
+        if match:
+            version = match.group("version")
+    elif returncode == 0 and output:
+        version = output.splitlines()[0].strip()
+
+    if returncode == 0:
+        status = "ok"
+        warning = ""
+        error = ""
+    elif version:
+        status = "warning"
+        warning = f"version banner parsed although launcher exited {returncode}"
+        error = ""
+    else:
+        status = "failed"
+        warning = ""
+        error = output or ("probe did not start" if returncode is None else f"exit {returncode}")
     return {
-        **base,
-        "available": completed.returncode == 0,
-        "command_path": path,
-        "version": output if completed.returncode == 0 else "",
-        "last_error": "" if completed.returncode == 0 else (output or f"exit {completed.returncode}"),
+        "probe_status": status,
+        "version": version,
+        "version_probe_returncode": returncode,
+        "probe_warning": warning,
+        "last_error": error,
+        "probe_output": output,
     }
 
 
-def all_tool_status(*, timeout_s: float = 5.0) -> list[dict[str, object]]:
-    return [tool_status(tool.id, timeout_s=timeout_s) for tool in TOOLS]
+def tool_status(tool_id: str) -> dict[str, object]:
+    """Return effect-free discovery status.
+
+    Version execution is intentionally separate: callers must feed a probe
+    through the admitted EDA executor and then use :func:`interpret_version_probe`.
+    Merely asking for status can therefore never cross a process boundary.
+    """
+
+    spec = get_tool(tool_id)
+    path = find_tool_path(tool_id)
+    base = spec.to_dict()
+    if not path:
+        return {**base, "available": False, "command_path": "", "version": "",
+                "probe_status": "not_run", "version_probe_returncode": None,
+                "probe_warning": "", "last_error": f"{spec.command} not found"}
+    return {
+        **base,
+        "available": True,
+        "command_path": path,
+        "version": "",
+        "probe_status": "not_run",
+        "version_probe_returncode": None,
+        "probe_warning": "",
+        "last_error": "",
+    }
+
+
+def all_tool_status() -> list[dict[str, object]]:
+    return [tool_status(tool.id) for tool in TOOLS]
 
 
 def _confined_file(repo_root: str | Path, path: str | Path, *, suffixes: Iterable[str] = ()) -> Path:

@@ -5,6 +5,7 @@ import inspect
 from pathlib import Path
 
 from daedalus.gates import provider_target_receipt_retention_inventory as inventory
+from daedalus.runtimes.contracts import retention as retention_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -36,7 +37,12 @@ def test_independent_review_finds_no_execution_or_write_authority() -> None:
 
 
 def test_independent_review_requires_non_authorizing_claims() -> None:
-    source = inspect.getsource(inventory)
+    source = "\n".join(
+        (
+            inspect.getsource(inventory),
+            inspect.getsource(retention_contract),
+        )
+    )
     required = {
         '"wiring": "inventory_only"',
         '"guard_contract_bound": False',
@@ -54,7 +60,7 @@ def test_independent_review_requires_non_authorizing_claims() -> None:
 
 def test_independent_review_covers_each_effectful_anchor() -> None:
     target = (
-        ROOT / "daedalus/runtimes/provider_target_receipt_ledger.py"
+        ROOT / "daedalus/runtimes/provider/target_receipt_ledger.py"
     ).read_text(encoding="utf-8")
     inventory_source = inspect.getsource(inventory)
     for anchor in (

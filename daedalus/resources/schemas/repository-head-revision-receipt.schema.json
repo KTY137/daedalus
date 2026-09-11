@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/repository-head-revision-receipt.schema.json",
+  "title": "Repository HEAD Revision Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "expected_revision",
+    "resolved_revision",
+    "head_mode",
+    "head_ref",
+    "resolution_source",
+    "head_sha256",
+    "head_size",
+    "reference_path",
+    "reference_sha256",
+    "reference_size",
+    "repository_head_verified",
+    "commit_object_verified",
+    "worktree_clean_verified",
+    "process_spawned",
+    "repository_mutated"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-repository-head-revision-receipt/1"
+    },
+    "expected_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "resolved_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "head_mode": {
+      "enum": [
+        "detached",
+        "symbolic"
+      ]
+    },
+    "head_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resolution_source": {
+      "enum": [
+        "head",
+        "loose_ref",
+        "packed_refs"
+      ]
+    },
+    "head_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "head_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reference_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reference_sha256": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reference_size": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "repository_head_verified": {
+      "const": true
+    },
+    "commit_object_verified": {
+      "const": false
+    },
+    "worktree_clean_verified": {
+      "const": false
+    },
+    "process_spawned": {
+      "const": false
+    },
+    "repository_mutated": {
+      "const": false
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "head_mode": {
+          "const": "detached"
+        },
+        "head_ref": {
+          "type": "null"
+        },
+        "resolution_source": {
+          "const": "head"
+        },
+        "reference_path": {
+          "type": "null"
+        },
+        "reference_sha256": {
+          "type": "null"
+        },
+        "reference_size": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "head_mode": {
+          "const": "symbolic"
+        },
+        "head_ref": {
+          "$ref": "#/$defs/ref"
+        },
+        "resolution_source": {
+          "const": "loose_ref"
+        },
+        "reference_path": {
+          "type": "string",
+          "pattern": "^\\.git/refs/[^\\r\\n]+$"
+        },
+        "reference_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "reference_size": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    {
+      "properties": {
+        "head_mode": {
+          "const": "symbolic"
+        },
+        "head_ref": {
+          "$ref": "#/$defs/ref"
+        },
+        "resolution_source": {
+          "const": "packed_refs"
+        },
+        "reference_path": {
+          "const": ".git/packed-refs"
+        },
+        "reference_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "reference_size": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ref": {
+      "type": "string",
+      "pattern": "^refs/(?!.*(?:\\.\\.|//|@\\{|\\.lock$|/$|\\.$))[^ ~^:?*\\[\\]\\\\\\r\\n]+$"
+    }
+  }
+}

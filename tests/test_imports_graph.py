@@ -186,14 +186,71 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
         self.assertEqual(component_edges(edges, ("a", "b")),
                          (("a", "b"), ("b", "a")))
 
+    #: Historical membership of the cross-domain knot around ``core.py``.
+    #:
+    #: UPDATED 2026-09-02 for packet G1-SCC-CUT1 (``6b557bd9``, merged
+    #: ``22cff7bf``), which cut this component from 18 modules to 13 by making
+    #: ``kernel/attempt_execution.py`` take an injected ``OffloadPort`` instead
+    #: of importing the ``daedalus.offload`` WORKLOAD. The five modules that
+    #: left are ``kernel/attempt_execution.py``, ``kernel/promotion.py``,
+    #: ``spine/attempt.py``, ``spine/bootstrap.py`` and ``spine/picker.py`` --
+    #: the whole kernel/spine layer. That is the deliberate, visible shrink the
+    #: docstring below demands a record of; MEASURED at eb5228ac, 28 induced
+    #: edges remain.
+    #:
+    #: UPDATED 2026-09-05 on the Gate-1 general-assistant prerelease worktree,
+    #: based at ``61cd1f3e`` before its release commit exists.  The component
+    #: grew 13 -> 19 and its induced edges 28 -> 46: the canonical Ikarus chat,
+    #: computer loop/schedule and their existing hierarchy/control-plane owners
+    #: now compose with ``core``, ``file_bridge``, ``status`` and the Kairos
+    #: scheduler.  This is a measured debt increase, not a claimed cycle cut;
+    #: pinning all six arrivals keeps a later distillation visible.
+    #:
+    #: RETIRED 2026-09-06 by integration merge ``f7b6be55``.  That merge made
+    #: the repository's tracked ``center: daedalus, tools, apps/web/src``
+    #: declaration effective.  Shell material remains import-resolvable but no
+    #: longer turns the measured project center into one cross-domain knot;
+    #: ``daedalus/core.py`` consequently became acyclic.  Keep the former set
+    #: as negative evidence and fail if core silently re-enters a cycle.
+    PRE_CENTER_CORE_CYCLE = frozenset({
+        "daedalus/build.py",
+        "daedalus/build_exec.py",
+        "daedalus/core.py",
+        "daedalus/doctor.py",
+        "daedalus/file_bridge.py",
+        "daedalus/health.py",
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/kairos/scheduler.py",
+        "daedalus/offload.py",
+        "daedalus/orchestration/control_plane.py",
+        "daedalus/orchestration/hierarchy.py",
+        "daedalus/orchestration/ikarus/chat.py",
+        "daedalus/orchestration/ikarus/computer_loop.py",
+        "daedalus/orchestration/ikarus/computer_schedule.py",
+        "daedalus/orchestration/ikarus/shell.py",
+        "daedalus/orchestration/ikarus/supervisor.py",
+        "daedalus/progress.py",
+        "daedalus/progress_sources.py",
+        "daedalus/status.py",
+    })
+
     def test_this_repo_reports_its_own_cyclic_components(self):
         """The regression this file exists for.
 
-        Asserts the CAPABILITY plus one fact about this repo: the 13-module
-        component is named. If a future distillation legitimately breaks it, this
-        assertion should be UPDATED with the new membership and the commit that
-        cut it -- the point is that shrinking it becomes a visible, deliberate
-        act rather than something nobody can measure either way.
+        Asserts the CAPABILITY plus one fact about this repo: after the tracked
+        project-center declaration became effective, ``core.py`` is no longer
+        in a cyclic component.  The former membership remains recorded above,
+        and this test now makes any re-entry visible.
+
+        LOCATED BY MEMBERSHIP, NOT BY ``components[0]`` (changed 2026-09-02).
+        The old form asked for the LARGEST component and asserted ``core.py``
+        was in it, which silently conflated two different claims. G1-SCC-CUT1
+        cut this component 18 -> 13 and a pre-existing, untouched 14-module
+        ``runtimes/provider_*`` cycle inherited the top slot, so the test went
+        red for a cut that was exactly what the packet set out to do -- while
+        the thing it meant to watch was still there, one row down. Indexing by
+        size made an unrelated component's size a hidden input to this
+        assertion. Membership is what it was always about.
         """
         from daedalus.structcore import cycle_report
         report = cycle_report(repo_root=str(AGENT_ENV_ROOT))
@@ -203,7 +260,13 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
             "graph; 0 means the detector regressed to the undirected lens")
         biggest = report["components"][0]
         self.assertGreaterEqual(biggest["size"], 2)
-        self.assertIn("daedalus/core.py", biggest["modules"])
-        # The induced edges are what any feedback-arc-set proposal is computed
-        # from, so an empty list here would make every such proposal vacuous.
         self.assertTrue(biggest["induced_edges"])
+
+        holding = [c for c in report["components"]
+                   if "daedalus/core.py" in c["modules"]]
+        self.assertEqual(
+            holding, [],
+            "daedalus/core.py re-entered a cyclic component after the project "
+            "center cut; compare it with PRE_CENTER_CORE_CYCLE and record the "
+            "commit that changed membership")
+        self.assertIn("daedalus/core.py", self.PRE_CENTER_CORE_CYCLE)

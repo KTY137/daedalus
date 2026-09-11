@@ -1,0 +1,150 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-92",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "046742d20321cd72af44f18807158744f4a55358",
+    "dependencies": "G1-EXP-TENSOR-GPU-91 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["test_change", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only the focused regression test that pins the existing matmul canonical ordering boundary. Production code, public API, wire schema, benchmark schema, authority and promotion state remain unchanged."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-92",
+  "work_packet": "G1-EXP-TENSOR-GPU-92",
+  "title": "Retain matmul sorted-key boundary after reverse-encounter audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "046742d20321cd72af44f18807158744f4a55358",
+  "test_head": "c9a663d5d17c1c1b8ad98ec3f67c9b6c707a5820",
+  "scope": "Audit whether the remaining sorted(row_result) boundary in TypedRelationBlock.matmul can be deleted without introducing a second accumulator, ordering flag, alternate constructor, backend or execution path. Preserve canonical CSR column ordering, semiring accumulation, operation limits, entry bounds and exact Fourfold subject/axis contracts.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_blocks.py::TypedRelationBlock.matmul",
+    "finding": "The sort is semantically required. row_result insertion order follows first contraction encounter order: left-row middle indices are canonical, and each right-row span is canonical, but columns emitted by different middle rows are not globally monotone. A valid contraction can therefore encounter a larger target column before a smaller one.",
+    "counterexample": "For one source row connected to middle labels m1 then m2, let right row m1 reach target B (column 1) and right row m2 reach target A (column 0). The accumulator inserts columns in order 1,0 although the output CSR contract requires 0,1. Removing sorted(row_result) would either construct a non-canonical block rejected by the direct constructor or require a new ordered accumulator/merge abstraction.",
+    "semiring_independence": "The ordering requirement is structural and does not depend on Boolean, natural, tropical or evidence-dag scalar semantics. Semiring operations determine the value stored per target column, not the global first-encounter ordering of distinct target columns.",
+    "gardener_conclusion": "Retain one row-local sorted-key transient as the minimal existing deterministic boundary. Do not replace it with an ordered accumulator, heap/merge layer, ordering flag or alternate matmul path merely to delete the sort. Pin the counterexample in the existing contraction test owner so future gardening cannot silently remove the boundary."
+  },
+  "test_change": {
+    "commit": "c9a663d5d17c1c1b8ad98ec3f67c9b6c707a5820",
+    "blob": "tests/twin/test_relation_contractions.py@f7b7b3e39e7f2113a1b07e9684e6e3701c9102d1",
+    "files_changed": 1,
+    "additions": 29,
+    "deletions": 0,
+    "test": "test_matmul_canonicalizes_columns_after_reverse_encounter_order",
+    "purpose": "Construct a contraction whose valid encounter order is target column 1 then 0 and assert that the canonical result is emitted as column_indices (0, 1) and iter_entries A then B.",
+    "production_change": false,
+    "new_test_file": false,
+    "new_helper": false,
+    "new_backend": false,
+    "new_public_api": false,
+    "new_execution_path": false
+  },
+  "semantic_invariants": {
+    "csr_order": "TypedRelationBlock output columns remain strictly increasing inside each row; the existing sorted(row_result) is retained as the canonicalization boundary.",
+    "semiring": "Boolean, natural, tropical and evidence-dag multiplication/addition behavior is unchanged; no production code changed.",
+    "operation_budget": "The existing exact contraction operation counter and refusal point are unchanged.",
+    "entry_bound": "The existing len(values) + len(row_result) > MAX_BLOCK_ENTRIES refusal remains unchanged and still executes before sorting/emitting the row.",
+    "axes_and_subject": "Typed middle-axis compatibility, exact Fourfold subject identity and output signature/axes are unchanged.",
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; TypedRelationBlock remains a regenerable internal computational view.",
+    "public_api": "No public API, wire schema, benchmark schema, authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": false,
+    "sorted_key_boundary_removed": false,
+    "sorted_key_boundary_retained": true,
+    "negative_gardener_evidence_retained": true,
+    "new_helper_added": false,
+    "parallel_abstraction_added": false,
+    "summary": "GPU-92 proves that matmul contraction encounter order is not a global target-column ordering guarantee. The existing row-local sorted-key boundary is therefore retained, and a focused regression test now pins the reverse-encounter counterexample without changing production code."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "046742d20321cd72af44f18807158744f4a55358",
+    "test_head": "c9a663d5d17c1c1b8ad98ec3f67c9b6c707a5820",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "contraction_tests": "tests/twin/test_relation_contractions.py@f7b7b3e39e7f2113a1b07e9684e6e3701c9102d1",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "diff_audit": "046742d20321cd72af44f18807158744f4a55358...c9a663d5d17c1c1b8ad98ec3f67c9b6c707a5820 is one commit and one existing test file with +29/-0; no production file changed.",
+    "focused_contract_surface": "The new focused contract pins the exact structural counterexample: canonical middle traversal encounters target column 1 before 0, while matmul must emit canonical CSR 0,1. Existing tests continue to own Boolean multi-hop composition, natural path counting, tropical minimum cost, evidence-dag alternatives, exact middle-axis compatibility and cross-revision/semiring refusal.",
+    "ci_requirement": "Exact closure-head Fourfold/Tensor workflow evidence is required before any green-PR statement. A test-head run may support diagnosis but is not inherited automatically after the closure documentation commit.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "production_lines_net": 0,
+    "necessary_ordering_boundary_retained": true,
+    "regression_contract_added_to_existing_owner": true,
+    "new_test_owner": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 18,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No extra remote ref was moved, archived or deleted in this Tensor packet. The repository currently exposes 18 remote branches, so the owner-declared canonical 11-branch topology has drift; evidence-aware classification belongs on the operations/gardener line and branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-93 only: audit TypedRelationBlock.__post_init__ for one duplicate validation traversal across row_offsets and row-structured column spans. Fuse or delete work only if direct-constructor error precedence, exact-int/type refusal, out-of-range-before-CSR-count precedence, strictly-increasing row order, tuple reuse and all bounded limits remain identical; otherwise retain the independent validation boundary as negative Gardener evidence."
+}

@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-canonical-v2-linear
     paths:
-      - "daedalus/gates/repository_write_classification.py"
+      - "daedalus/gates/repository/write_classification.py"
       - "scripts/report_repository_write_classification.py"
       - "scripts/run_repository_write_classification_mutations.py"
       - "tests/gates/test_repository_write_classification*.py"
@@ -95,7 +95,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-repository-write-classification-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_classification import (
+          from daedalus.gates.repository.write_classification import (
               EvidenceKind,
               GuardDisposition,
               TargetDisposition,

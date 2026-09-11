@@ -31,8 +31,19 @@ import pathlib
 import re
 import sys
 
+from . import treewalk
+
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "site-packages",
-             ".mypy_cache", ".pytest_cache", "reference", "lab_assets"}
+             ".mypy_cache", ".pytest_cache", "reference", "lab_assets",
+             # Artefact and output trees, the same names `plan` and `metrics`
+             # skip. MEASURED 2026-09-05: with only the list above, 3084 of
+             # 4661 `source_modules` were six wheel-build and smoke-install
+             # copies of `daedalus` under the gitignored `build/`, and the
+             # wiki was asked to cover each of them. `docs` stays IN for this
+             # checker (a format spec is where real field names live), which
+             # is the one deliberate difference from `plan.SKIP_DIRS`.
+             "runs", "artifacts", "artifacts_claude", "artifacts_codex",
+             "scratchpad", "build", "dist", "htmlcov", ".tox", "spikes"}
 
 MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 MD_CODE = re.compile(r"`([^`\n]{2,80})`")
@@ -90,14 +101,18 @@ def exclusions(root: pathlib.Path, wiki_dir: pathlib.Path | None) -> list[pathli
     # pages about a duplicate. Structural, not a name in a list: `.claude/
     # worktrees/` would never have been in one. MEASURED 2026-08-26: the
     # sibling planner's survey drew 480 of 983 files from exactly such a copy.
-    for marker in root.rglob(".git"):
-        if marker.parent != root:
-            excluded.append(marker.parent.resolve())
+    #
+    # A FOURTH, same shape, different marker: a frozen application bundle
+    # (PyInstaller's `_internal/base_library.zip`) is a copy of the package
+    # without a `.git`. MEASURED 2026-09-05 on this repository: two such
+    # bundles under `apps/web/src-tauri` put `source_modules` at 6133 against
+    # roughly 720 real modules -- 22% coverage reported for a wiki that linked
+    # 98% of `daedalus/`. Both rules live in `treewalk`, which every evidence
+    # source below also walks with, so the list here and the walk agree.
+    foreign = treewalk.foreign_roots(root, SKIP_DIRS)
+    for kind in ("nested_checkout", "frozen_bundle"):
+        excluded.extend(d.resolve() for d in foreign[kind])
     return excluded
-
-
-def _in_excluded(path: pathlib.Path, excluded: list[pathlib.Path]) -> bool:
-    return any(path.is_relative_to(d) for d in excluded)
 
 
 def index_symbols(root: pathlib.Path,
@@ -112,9 +127,7 @@ def index_symbols(root: pathlib.Path,
     root = root.resolve()
     names: set[str] = set()
     modules: set[str] = set()
-    for path in root.rglob("*.py"):
-        if not _usable(path) or _in_excluded(path, exclude_dirs):
-            continue
+    for path in treewalk.walk_files(root, SKIP_DIRS, exclude_dirs, suffixes=(".py",)):
         if path.stat().st_size > 400_000:
             continue
         modules.add(path.relative_to(root).as_posix())
@@ -196,11 +209,7 @@ def tree_vocabulary(root: pathlib.Path, exclude_dirs: list[pathlib.Path]) -> set
     # would never match and the exclusion would fail open in silence.
     root = root.resolve()
     vocabulary: set[str] = set()
-    for path in root.rglob("*"):
-        if not path.is_file() or not _usable(path):
-            continue
-        if _in_excluded(path, exclude_dirs):
-            continue
+    for path in treewalk.walk_files(root, SKIP_DIRS, exclude_dirs):
         if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip",
                                    ".h5", ".hdf5", ".npy", ".npz", ".bin", ".exe",
                                    ".dll", ".pyd", ".so", ".whl"}:
@@ -225,32 +234,30 @@ def _config_keys(root: pathlib.Path, exclude_dirs: list[pathlib.Path]) -> set[st
     """
     root = root.resolve()
     keys: set[str] = set()
-    for suffix in ("*.json", "*.yaml", "*.yml", "*.toml"):
-        for path in root.rglob(suffix):
-            if not _usable(path) or _in_excluded(path, exclude_dirs):
+    for path in treewalk.walk_files(root, SKIP_DIRS, exclude_dirs,
+                                     suffixes=(".json", ".yaml", ".yml", ".toml")):
+        if path.stat().st_size > 200_000:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if path.suffix == ".json":
+            try:
+                doc = json.loads(text)
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
-            if path.stat().st_size > 200_000:
-                continue
-            text = path.read_text(encoding="utf-8", errors="replace")
-            if path.suffix == ".json":
-                try:
-                    doc = json.loads(text)
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    continue
 
-                def walk(value):
-                    if isinstance(value, dict):
-                        for key, sub in value.items():
-                            keys.add(str(key))
-                            walk(sub)
-                    elif isinstance(value, list):
-                        for sub in value[:200]:
-                            walk(sub)
+            def walk(value):
+                if isinstance(value, dict):
+                    for key, sub in value.items():
+                        keys.add(str(key))
+                        walk(sub)
+                elif isinstance(value, list):
+                    for sub in value[:200]:
+                        walk(sub)
 
-                walk(doc)
-            else:
-                for match in re.finditer(r"(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*[:=]", text):
-                    keys.add(match.group(1))
+            walk(doc)
+        else:
+            for match in re.finditer(r"(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*[:=]", text):
+                keys.add(match.group(1))
     return keys
 
 
@@ -268,7 +275,7 @@ def verify(root: pathlib.Path, wiki_dir: pathlib.Path) -> dict:
     # which never blocks the verdict. A page can therefore still point at a file
     # inside its own wiki and be believed -- a known, bounded limit, not an
     # oversight.
-    tree_files = [p for p in root.rglob("*") if p.is_file() and _usable(p)]
+    tree_files = list(treewalk.walk_files(root, SKIP_DIRS))
     pages = sorted(p for p in wiki_dir.rglob("*.md") if _usable(p))
     findings: list[Finding] = []
     concept_pages: dict[str, set[str]] = collections.defaultdict(set)

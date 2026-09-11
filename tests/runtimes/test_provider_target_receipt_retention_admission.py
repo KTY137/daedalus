@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import gc
 import os
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +10,7 @@ from typing import Callable
 
 import pytest
 
-import daedalus.runtimes.provider_target_receipt_retention_admission as admission_module
+import daedalus.runtimes.provider.target_receipt_retention_admission as admission_module
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effect_replay import EffectExecutionReplaySnapshot
@@ -20,18 +22,18 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
 )
 from daedalus.kernel.source_trees import SourceTreeStore
-from daedalus.runtimes.provider_target_receipt_ledger import ProviderTargetReceiptLedger
-from daedalus.runtimes.provider_target_receipt_retention_admission import (
+from daedalus.runtimes.provider.target_receipt_ledger import ProviderTargetReceiptLedger
+from daedalus.runtimes.provider.target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionBindingError,
     ProviderTargetReceiptRetentionAdmissionReceipt,
     ProviderTargetReceiptRetentionAdmissionShapeError,
     verify_provider_target_receipt_retention_admission,
 )
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_ENTRYPOINT,
     RETENTION_GUARD_CONTRACT,
 )
-from daedalus.runtimes.provider_target_receipt_retention_preflight import (
+from daedalus.runtimes.provider.target_receipt_retention_preflight import (
     ProviderTargetReceiptRetentionPreflightBindingError,
     ProviderTargetReceiptRetentionPreflightReceipt,
 )
@@ -63,6 +65,10 @@ def _new_spine(path: Path) -> SpineLedger:
     spine = SpineLedger(path)
     _OPEN_SPINES.append(spine)
     return spine
+
+
+def _unexpected_gate_port(*args, **kwargs):
+    raise AssertionError("stubbed preflight must not invoke a concrete gate port")
 
 
 def _execution() -> EffectExecutionRequest:
@@ -272,6 +278,8 @@ def _call(
         event_store_scope_path=event_scope,
         receipt_cas_scope_path=cas_scope,
         at=object(),
+        repository_head_verifier=_unexpected_gate_port,
+        retention_inventory_scanner=_unexpected_gate_port,
     )
 
 
@@ -645,3 +653,89 @@ def test_wire_claim_escalation_extra_fields_and_malformed_values_refuse(
         payload[field] = value
         with pytest.raises(ProviderTargetReceiptRetentionAdmissionShapeError):
             ProviderTargetReceiptRetentionAdmissionReceipt.from_dict(payload)
+
+
+def test_effect_lease_wal_companion_precondition_is_explicit_not_inherited(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The -wal companion is a fact of the code, not of collector timing.
+
+    ``EffectLeaseLedger._initialize`` used to leave its SQLite connection open:
+    ``with sqlite3.Connection`` is a TRANSACTION scope, not a closing scope. A
+    WAL companion exists exactly while a connection is open, and that leaked
+    connection was unreachable garbage held in a reference cycle, so it was
+    finalized by the generational collector at an unpredictable moment rather
+    than by refcounting at method exit. This module's topology scan stats those
+    companions, so whether these tests saw a ``-wal`` -- and therefore which of
+    them passed -- depended on how much unrelated work the process happened to
+    have allocated.
+
+    MEASURED on the pre-fix tree, same file, same invocation, only the GC
+    thresholds varied: (400,10,10) -> 1 failed with 'Effect-Lease store
+    companion cannot be resolved'; (300,10,10) -> 3 failed; (1,1,1) -> 2
+    failed; the default -> 10 passed. A full-suite node-ID diff cannot see
+    that, because a different test in this file carries the failure each time.
+
+    Both directions are pinned here so neither can regress silently.
+    """
+    subjects = _subjects(tmp_path)
+    wal = Path(f"{subjects.effect_store}-wal")
+    observed: list[tuple[str, tuple[str, ...]]] = []
+    real = admission_module._sqlite_companion_paths
+
+    def spy(store: Path):
+        found = real(store)
+        observed.append((Path(store).name, tuple(item.name for item in found)))
+        return found
+
+    monkeypatch.setattr(admission_module, "_sqlite_companion_paths", spy)
+    _install(monkeypatch, subjects, replay=None)
+
+    # Direction 1: no connection open -> the companion is deterministically
+    # absent. This is the assertion that goes red if the leak comes back,
+    # and it must NOT nudge the collector first: a gc.collect() here
+    # finalizes the leaked connection itself and hides the defect. That is
+    # not hypothetical -- an earlier draft of this test collected here and
+    # passed against the pre-fix tree.
+    assert not wal.exists(), (
+        "the effect-lease store left a WAL companion behind after "
+        "construction, so its lifetime is again a function of collector "
+        "timing rather than of an explicit close"
+    )
+    _call(subjects)
+    effect_rows = [
+        names for name, names in observed if name == subjects.effect_store.name
+    ]
+    # The admission double-reads the topology, so the scan runs twice per
+    # call. That is the very window a companion used to appear or vanish
+    # in, which is why one pre-fix symptom was 'retention topology identity
+    # changed during persisted replay' rather than a missing file.
+    assert len(effect_rows) == 2 and all(
+        names == () for names in effect_rows
+    ), effect_rows
+
+    # Direction 2: a connection really is open -> the companion exists and the
+    # scan BINDS it rather than refusing. Without this the companion branch is
+    # only ever reached by accident, which is how it went unnoticed.
+    observed.clear()
+    conn = sqlite3.connect(os.fspath(subjects.effect_store))
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE IF NOT EXISTS _wal_probe(x)")
+        conn.execute("INSERT INTO _wal_probe VALUES (1)")
+        assert wal.exists()
+        result = _call(subjects)
+    finally:
+        conn.close()
+
+    assert result.execution_state == "not_started"
+    effect_rows = [
+        names for name, names in observed if name == subjects.effect_store.name
+    ]
+    assert len(effect_rows) == 2 and all(
+        wal.name in names for names in effect_rows
+    ), effect_rows
+    # Closing the last connection retires the companion again; that is the
+    # property whose timing used to be left to the collector.
+    assert not wal.exists()

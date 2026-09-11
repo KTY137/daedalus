@@ -9,14 +9,19 @@ the capability predicate (that one is tested in test_ikarus_act.py):
     words when absent
   * the German act request round-trips through may_act + the enqueue path
 
-No network: every test that can reach a liveness check patches it.
+No network: every test that can reach a liveness check patches it, and the
+freeform voice is pinned for the whole module -- see :func:`setUpModule`, which
+is what makes that first sentence true rather than merely intended.
 """
+import os
 import unittest
 from collections import namedtuple
 from unittest import mock
 
-from daedalus import health, ikarus_os
-from daedalus.ikarus_act import ActDecision, may_act
+from daedalus import health
+from daedalus.orchestration.ikarus import shell as ikarus_os
+from daedalus.orchestration.ikarus.act import ActDecision, may_act
+from daedalus.orchestration.llm_client import IkarusLLMClient
 
 _Hand = namedtuple("HandState", "state detail host")
 _WORKING = _Hand("working", "answered", "http://127.0.0.1:11434")
@@ -25,11 +30,85 @@ _UNKNOWN = _Hand("unknown", "TimeoutError: timed out", "http://127.0.0.1:11434")
 
 PROJECT = "sunny_garden"
 
+#: What the pinned voice says. Deliberately not German and not help text: no
+#: assertion in this file reads it, and a recognisable string makes it obvious
+#: in a failure dump that the pin -- not a vendor -- produced the answer.
+_PINNED_VOICE_REPLY = "pinned voice: this file does not test the brain"
+_VOICE_PINS: list = []
+
+
+def setUpModule():
+    """Keep routing tests independent of installed CLIs and operator credentials.
+
+    Pin the preference, measured readiness and vendor transport separately.
+    The real LLM client still resolves aliases, rejects unknown providers and
+    enforces selection semantics. Its injected observation names the exact
+    runtime and cannot spawn a process or charge a provider.
+
+    The old two-pin fixture assumed a configured Claude skipped readiness.
+    That stopped being true after executable admission was added: four routing
+    assertions failed on a machine without Claude, despite a mocked _llm.
+    Readiness validation is tested separately in test_llm_client_readiness_evidence.
+    The computer Hand is excluded here because this suite targets the file-bridge
+    queue; test_ikarus_computer_dispatch covers the computer-policy path.
+    """
+    _VOICE_PINS.extend((
+        mock.patch.dict(os.environ, {"DAEDALUS_IKARUS_PROVIDER": "claude"}),
+        mock.patch.object(
+            ikarus_os, "_voice_client",
+            side_effect=lambda: IkarusLLMClient(
+                status_probe=lambda runtime: {
+                    "id": runtime, "available": runtime == "claude_code_cli",
+                    "measured_age_s": 0.0,
+                },
+            ),
+        ),
+        mock.patch.object(
+            ikarus_os, "_llm",
+            return_value=(_PINNED_VOICE_REPLY, "pinned-model",
+                          ikarus_os._EMPTY_CTX)),
+        # G1-IKARUS-46: the Hand this module tests is the file-bridge queue.
+        # `_computer_hand` reads the owner's computer policy from the control
+        # root; pinned to "no loop" so a host that has configured computer
+        # assistance cannot flip these routing verdicts. The loop route has
+        # its own suite (tests/test_ikarus_computer_dispatch.py).
+        mock.patch.object(ikarus_os, "_computer_hand", return_value=None),
+    ))
+    for pin in _VOICE_PINS:
+        pin.start()
+
+
+def tearDownModule():
+    while _VOICE_PINS:
+        _VOICE_PINS.pop().stop()
+
 
 def _offer_turn(objective):
     return {"envelope": {"intent": "chat",
                          "act_offer": {"objective": objective,
                                        "reason": "r", "signal": "s"}}}
+
+
+def _admitted_binding():
+    """These decision-unit tests supply their prior turn as a test double.
+
+    The real canonical admission is covered at the public entrypoints in
+    test_conversation_legacy_entrypoint_binding.py.
+    """
+    return mock.patch.object(
+        ikarus_os, "_require_conversation_project_binding", return_value=None
+    )
+
+
+class _LocalOnlyProject:
+    """Keep lane-specific tests independent of the checked-in demo config."""
+
+    def setUp(self):
+        super().setUp()
+        lane = mock.patch.object(
+            ikarus_os.core, "team_config", return_value={"default_lane": "local_only"})
+        lane.start()
+        self.addCleanup(lane.stop)
 
 
 # --------------------------------------------------------------------------- #
@@ -71,7 +150,7 @@ class RouteTest(unittest.TestCase):
 # obligation 2 -- classify exactly ONCE, start and final cannot disagree       #
 # --------------------------------------------------------------------------- #
 class ClassifyOnceTest(unittest.TestCase):
-    def _count(self, message, provider=None):
+    def _count(self, message, provider="deterministic"):
         calls = []
         real = ikarus_os.classify
 
@@ -112,7 +191,7 @@ class ClassifyOnceTest(unittest.TestCase):
 
 
 class StartFinalAgreementTest(unittest.TestCase):
-    def _events(self, message, provider=None):
+    def _events(self, message, provider="deterministic"):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             return list(ikarus_os.ask_stream(PROJECT, message, provider=provider))
 
@@ -156,9 +235,11 @@ class StartFinalAgreementTest(unittest.TestCase):
         # and prove the stream still cannot emit an unannounced action.
         divergent = {"ok": True, "intent": "enqueue", "shell": "hand",
                      "assistant": "queued!", "action": {"kind": "queue_task"}}
-        with mock.patch.object(ikarus_os, "ask", return_value=divergent), \
+        with mock.patch.object(ikarus_os, "_chat", return_value=divergent), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
-            events = list(ikarus_os.ask_stream(PROJECT, "hello there", provider=None))
+            events = list(ikarus_os.ask_stream(
+                PROJECT, "hello there", provider="deterministic"
+            ))
         start = next(p for e, p in events if e == "start")
         final = next(p for e, p in events if e == "final")
         self.assertEqual(start["intent"], "chat")
@@ -170,7 +251,7 @@ class StartFinalAgreementTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # obligation 3 -- the provider fence                                           #
 # --------------------------------------------------------------------------- #
-class ProviderFenceTest(unittest.TestCase):
+class ProviderFenceTest(_LocalOnlyProject, unittest.TestCase):
     def test_the_hand_path_has_no_provider_argument_at_all(self):
         import inspect
 
@@ -196,12 +277,13 @@ class ProviderFenceTest(unittest.TestCase):
             res = ikarus_os.ask(PROJECT, "hello there", provider="claude")
         self.assertEqual(res["intent"], "chat")
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
-        self.assertEqual(res["provider_used"], "claude")
+        self.assertEqual(res["provider_used"], "claude_code_cli")
         self.assertEqual(res["model_used"], "m1")
 
-    def test_an_unwired_voice_still_degrades_deterministically(self):
+    def test_an_unwired_voice_fails_closed(self):
         res = ikarus_os.ask(PROJECT, "hello there", provider="gemini")
-        self.assertEqual(res["provider_used"], "deterministic")
+        self.assertEqual(res["provider_used"], "unavailable")
+        self.assertEqual(res["intent"], "error")
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
 
 
@@ -217,7 +299,9 @@ class HandLivenessVocabularyTest(unittest.TestCase):
                  ((False, "URLError: timed out", "TimeoutError"), health.UNKNOWN)]
         for ret, expected in cases:
             with self.subTest(expected=expected):
-                with mock.patch.object(health, "_ollama_alive", return_value=ret):
+                with mock.patch.object(health, "hand_admission",
+                                       return_value=(True, "trusted", "test")), \
+                     mock.patch.object(health, "_ollama_alive", return_value=ret):
                     self.assertEqual(health.hand_state("http://h:1").state, expected)
 
     def test_the_probe_speaks_the_same_five_words(self):
@@ -254,7 +338,7 @@ class HandLivenessVocabularyTest(unittest.TestCase):
         self.assertEqual(hs.call_count, 1)
 
 
-class HandRefusesInWordsTest(unittest.TestCase):
+class HandRefusesInWordsTest(_LocalOnlyProject, unittest.TestCase):
     OBJ = "kannst du das mal bauen"
 
     def _confirm(self, hand):
@@ -270,7 +354,7 @@ class HandRefusesInWordsTest(unittest.TestCase):
         self.assertEqual(res["intent"], "enqueue")
         self.assertEqual(res["shell"], ikarus_os.SHELL_HAND)
         self.assertNotIn("action", res, "nothing may be proposed at an absent Hand")
-        self.assertIn("unreachable", res["assistant"])
+        self.assertIn("nicht erreichbar", res["assistant"])
         self.assertIn("ConnectionRefusedError", res["assistant"])
         self.assertEqual(res["hand"]["state"], "absent")
 
@@ -281,14 +365,14 @@ class HandRefusesInWordsTest(unittest.TestCase):
         # the wording differs -- but neither is clearance.
         res = self._confirm(_UNKNOWN)
         self.assertNotIn("action", res)
-        self.assertIn("could not confirm", res["assistant"])
+        self.assertIn("nicht als verfügbar bestätigen", res["assistant"])
         self.assertEqual(res["hand"]["state"], "unknown")
 
     def test_a_confirmation_with_no_liveness_answer_at_all_is_refused(self):
         res = self._confirm(None)
         self.assertNotIn("action", res)
         self.assertEqual(res["hand"]["state"], "unknown")
-        self.assertIn("could not confirm", res["assistant"])
+        self.assertIn("nicht als verfügbar bestätigen", res["assistant"])
 
     def test_a_confirmed_route_to_a_working_hand_is_queued(self):
         res = self._confirm(_WORKING)
@@ -322,7 +406,9 @@ class HandRefusesInWordsTest(unittest.TestCase):
     def test_but_a_confirmation_does_pay_for_one(self):
         ikarus_os._HAND_CACHE.clear()
         with mock.patch.object(ikarus_os, "_prior_turn",
-                               return_value=_offer_turn(self.OBJ)),                 mock.patch.object(health, "hand_state",
+                               return_value=_offer_turn(self.OBJ)), \
+                _admitted_binding(), \
+                mock.patch.object(health, "hand_state",
                                   return_value=_WORKING) as probed:
             res = ikarus_os.ask(PROJECT, "ja", provider=None, conversation_id="c1")
         ikarus_os._HAND_CACHE.clear()
@@ -335,7 +421,6 @@ class HandRefusesInWordsTest(unittest.TestCase):
             ikarus_os._hand_state()            # warm it, as a confirmation would
         with mock.patch.object(health, "hand_state") as probed:
             res = ikarus_os.ask(PROJECT, "build a login page", provider=None)
-        ikarus_os._HAND_CACHE.clear()
         probed.assert_not_called()
         self.assertEqual(res["hand"]["state"], "unknown")
 
@@ -346,7 +431,7 @@ class HandRefusesInWordsTest(unittest.TestCase):
         self.assertNotIn("local executor is", res["assistant"])
 
     def test_turn_status_never_records_a_phantom_proposal(self):
-        from daedalus import conversation
+        from daedalus.orchestration import conversation
 
         self.assertEqual(
             ikarus_os._turn_status({"intent": "enqueue", "action": {"k": 1}}),
@@ -360,11 +445,12 @@ class HandRefusesInWordsTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # obligation 5 -- the German act request, explicitly                           #
 # --------------------------------------------------------------------------- #
-class GermanActRequestTest(unittest.TestCase):
+class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
     MSG = "kannst du das mal bauen"
 
-    def test_classify_says_chat_because_there_is_no_english_keyword(self):
-        self.assertEqual(ikarus_os.classify(self.MSG), "chat")
+    def test_classifier_offers_enqueue_but_capability_still_refuses_the_question(self):
+        self.assertEqual(ikarus_os.classify(self.MSG), "enqueue")
+        self.assertFalse(may_act(self.MSG).allowed)
 
     def test_the_voice_reports_the_refusal_and_offers_the_route(self):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
@@ -373,7 +459,7 @@ class GermanActRequestTest(unittest.TestCase):
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
         self.assertEqual(res["provider_used"], "deterministic")
         self.assertNotIn("action", res, "the offer is not itself an action")
-        self.assertIn("can't queue it from here", res["assistant"])
+        self.assertIn("nichts gestartet", res["assistant"])
         self.assertEqual(res["act_offer"]["objective"], self.MSG)
         self.assertFalse(res["act"]["allowed"])
         self.assertTrue(res["act"]["suspected"])
@@ -391,6 +477,7 @@ class GermanActRequestTest(unittest.TestCase):
             offered = ikarus_os.ask(PROJECT, self.MSG, provider=None)
         prior = {"envelope": offered}
         with mock.patch.object(ikarus_os, "_prior_turn", return_value=prior), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             res = ikarus_os.ask(PROJECT, "ja", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "enqueue")
@@ -406,18 +493,28 @@ class GermanActRequestTest(unittest.TestCase):
             offered = ikarus_os.ask(PROJECT, self.MSG, provider=None)
         with mock.patch.object(ikarus_os, "_prior_turn",
                                return_value={"envelope": offered}), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             res = ikarus_os.ask(PROJECT, "nein", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "chat")
         self.assertNotIn("action", res)
+        # The decline is ANSWERED, not swallowed: it still reaches the Voice.
+        # Asserted since the voice is pinned (see setUpModule) so that a pin
+        # which accidentally short-circuited the turn would be visible here
+        # instead of quietly satisfying the two assertions above.
+        self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
+        self.assertEqual(res["assistant"], _PINNED_VOICE_REPLY)
 
     def test_without_conversation_state_a_confirmation_clears_nothing(self):
         # The degrade direction: no store -> MORE restrictive, never less.
         with mock.patch.object(ikarus_os, "_prior_turn", return_value=None), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             res = ikarus_os.ask(PROJECT, "ja", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "chat")
         self.assertNotIn("action", res)
+        self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
+        self.assertEqual(res["assistant"], _PINNED_VOICE_REPLY)
 
     def test_the_same_round_trip_over_the_stream(self):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
@@ -426,6 +523,7 @@ class GermanActRequestTest(unittest.TestCase):
         self.assertEqual(offered["act_offer"]["objective"], self.MSG)
         with mock.patch.object(ikarus_os, "_prior_turn",
                                return_value={"envelope": offered}), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             events = list(ikarus_os.ask_stream(PROJECT, "ja", provider=None,
                                                conversation_id="c1"))
@@ -446,6 +544,7 @@ class FalsePositiveDoesNotReachTheHandTest(unittest.TestCase):
         self.assertEqual(res["intent"], "chat")
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
         self.assertNotIn("action", res)
+        self.assertEqual(res["assistant"], _PINNED_VOICE_REPLY)
 
     def test_and_the_real_build_request_still_is(self):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):

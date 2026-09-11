@@ -168,9 +168,21 @@ def record_attempt(path: str | Path, attempt: Attempt) -> Attempt:
         meta=attempt.meta,
     )
     target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(stored.to_dict(), sort_keys=True) + "\n")
+    # MEASURED 2026-09-02: a buffered ``open("a")`` here lost 6 of 60 records
+    # with four concurrent processes, silently -- exit code 0, no malformed
+    # line, nothing for a reader to count. This archive is a PERSISTENT
+    # CROSS-RUN store (``load_attempts`` feeds the next generation), so two
+    # runs sharing an ``--archive`` path is a normal configuration rather than
+    # an exotic one.
+    #
+    # The docstring above ASSERTED this property -- "two processes appending
+    # cannot interleave a half-record into another's" -- while not having it.
+    # That is part of why the loss went unexamined for so long: the guarantee
+    # was written down, so nobody measured it. It holds now, for the reason the
+    # docstring gives rather than by luck of the buffer size.
+    from ..journal_io import append_lines
+
+    append_lines(target, [json.dumps(stored.to_dict(), sort_keys=True)])
     return stored
 
 

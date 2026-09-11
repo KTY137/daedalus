@@ -1,0 +1,149 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-MAP-05",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "b4af80431d11e6b9f1299c029c29444d487cef95",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "implementation",
+          "authority",
+          "source"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation",
+          "gardener",
+          "decision"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardener",
+          "decision",
+          "next"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification"
+        ]
+      }
+    }
+  },
+  "id": "G1-GARDEN-MAP-05",
+  "title": "Selectively reintegrate opt-in coverage preflight semantics from packet/g1-map-02",
+  "status": "closed",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "b4af80431d11e6b9f1299c029c29444d487cef95",
+  "source": {
+    "branch": "packet/g1-map-02",
+    "head": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
+    "merge_base_with_current_lineage": "f4a623e36cd0c6dfd403e0342719b3d0891ed598",
+    "selected_commit": "90462c303cec7ec6ab8fa5abc3fe4aa8cbc6ff24",
+    "selected_blobs": {
+      "tools/gate_host_preflight.py": "d52f336b3996cede11574925836278c2bd92ca43",
+      "tests/test_gate_host_preflight_coverage.py": "18ecaf29cdda3c286ab1a843ed37d1cacff6deb1"
+    },
+    "ref_retained": true,
+    "wholesale_merge": false,
+    "archive_target_used": false
+  },
+  "decision": {
+    "finding": "coverage-guided gate discrimination remains opt-in; absence of the coverage module must remain visible but must not make the default host preflight unfit",
+    "basis": [
+      "gate_discrimination.run defaults coverage_guided to false",
+      "the CLI exposes coverage guidance as an opt-in flag",
+      "the receipt records coverage_guided and coverage_state",
+      "the committed default receipt records coverage_guided=false and coverage_state=not_requested"
+    ],
+    "required_module_preserved": "pytest",
+    "optional_module_reclassified": "coverage",
+    "dependency_transplant_deferred": "0580898c66ccf6e5128d42aa2932b4a5cae1295f"
+  },
+  "implementation": {
+    "semantic_commit": "bc81773b72286fb4d0c884964a75529006c5427b",
+    "verification_binding_commit": "e4d8f0587592ddc8305ac263b9fafa60ef5c20b8",
+    "verified_tree": "4ea4f4e913a88f05683a5876d3087c61a6f6928f",
+    "files": {
+      "tools/gate_host_preflight.py": "d52f336b3996cede11574925836278c2bd92ca43",
+      "tests/test_gate_host_preflight_coverage.py": "18ecaf29cdda3c286ab1a843ed37d1cacff6deb1",
+      ".github/workflows/gate1-ignition.yml": "1076c45f453c7f8d561cc5bb6c7793e0cb921cf6"
+    },
+    "workflow_change": "bind the focused preflight regression and its owning tool to the existing Gate 1 workflow; no new workflow or validator"
+  },
+  "verification": {
+    "gate1": {
+      "run_id": 34001698424,
+      "head_sha": "e4d8f0587592ddc8305ac263b9fafa60ef5c20b8",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "matrix": "Python 3.10/3.12 × PYTHONHASHSEED 0/123456",
+      "focused_regression_in_command": "tests/test_gate_host_preflight_coverage.py",
+      "isolated_wheel": "success"
+    },
+    "fourfold_tensor": {
+      "run_id": 34001698416,
+      "head_sha": "e4d8f0587592ddc8305ac263b9fafa60ef5c20b8",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "contract_matrix": "success",
+      "isolated_wheel": "success",
+      "complete_repository_collection": "success"
+    },
+    "claim_boundary": {
+      "pr_integration_evidence": true,
+      "raw_head_checkout_claim": false,
+      "full_repository_test_suite_claim": false,
+      "performance_claim": false,
+      "tensor_vs_forest_claim": false,
+      "crewai_claim": false,
+      "alphaevolve_claim": false
+    }
+  },
+  "gardener": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "archive_write": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "parallel_abstraction_added": false,
+    "new_workflow_added": false,
+    "source_branch_preserved": true
+  },
+  "authority": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "automatic_merge": false,
+    "gate_transition": false
+  },
+  "next": "Re-evaluate source commit 0580898c66ccf6e5128d42aa2932b4a5cae1295f (coverage dependency plus lockfile regeneration) against the current canonical dependency and lock state before any transplant; separately assess the remaining mapping-engine commits commit-by-commit. Do not wholesale-merge packet/g1-map-02 and do not move it into archive/legacy-20260830."
+}

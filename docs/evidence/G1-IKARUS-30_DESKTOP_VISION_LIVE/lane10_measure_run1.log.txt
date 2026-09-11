@@ -1,0 +1,4 @@
+[m00_observe_without_foreground_app] desktop.observe -> ok=False state=reconciliation_required 5.049s foreground executable is not owner-authorized
+[m01_app_launch] app.launch -> ok=True state=completed 6.868s 
+[m02_observe_foreground] desktop.observe -> ok=False state=reconciliation_required 1.399s foreground executable is not owner-authorized
+[redacted] the JSON body of this run was moved into lane10_measure_result.json and filtered by lane10_redact.py

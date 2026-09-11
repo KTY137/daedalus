@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-artifact-evidence-v1.schema.json",
+  "title": "Daedalus Repository-Write Artifact Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_type",
+    "contract_version",
+    "artifact_id",
+    "source_revision",
+    "source_tree_revision",
+    "gate_report_v3_sha256",
+    "inventory_sha256",
+    "scan_input_sha256",
+    "files_scanned",
+    "inventory_generation",
+    "failure_set_sha256",
+    "failure_count",
+    "artifact_content_sha256",
+    "locator",
+    "built_at",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {
+      "const": "daedalus-repository-write-artifact-evidence/1"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "artifact_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "source_tree_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "gate_report_v3_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "inventory_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scan_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "files_scanned": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "inventory_generation": {
+      "const": 2
+    },
+    "failure_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "failure_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifact_content_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "locator": {
+      "type": "string",
+      "pattern": "^artifact-locator:sha256:[0-9a-f]{64}$"
+    },
+    "built_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "input_digests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "uniqueItems": true
+        },
+        "trace_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

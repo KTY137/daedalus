@@ -54,7 +54,7 @@ scheduled argument string never includes `--force`.
 | attempts per candidate | 1 | scheduled runs do not grind on one item |
 | queue limit | 25 | bounded picker materialization |
 | overlapping instances | `IgnoreNew` | no concurrent unattended loops |
-| principal | current user, `Interactive`, `Limited` | no stored password, SYSTEM, or elevation |
+| principal | supported current user, `Interactive`, `Limited` | no stored password, SYSTEM, or runtime elevation; RID-500 Administrator is refused because Windows ignores `Limited` for it |
 
 Task Scheduler receives an execution-time limit five minutes larger than the
 loop wall-clock limit. This permits the loop to emit final receipts and clean up
@@ -75,6 +75,9 @@ while still providing an operating-system backstop.
    branch-protection bypass commands in the helper.
 9. The documentation states that Gate closure and promotion remain
    owner-controlled and evidence-bound.
+10. Installation refuses the built-in RID-500 Administrator before arming or
+    writing a task, and every other registration failure leaves the kill switch
+    stopped.
 
 ## Verification requested
 
@@ -92,6 +95,36 @@ while still providing an operating-system backstop.
 Hosted Actions with `steps=null` or no logs remain infrastructure observations,
 not verification. This packet does not claim that the Windows task has been
 installed on the owner's computer merely because the installer exists in Git.
+
+## Retained Windows RID-500 refusal evidence (2026-08-30)
+
+The owner-machine exercise found a real unsupported principal rather than a
+successful installation:
+
+- Windows 11 build 26200 was running the built-in RID-500 Administrator with a
+  UAC-filtered, medium-integrity token.
+- CIM `Register-ScheduledTask`, native Task Scheduler COM, and `schtasks` all
+  refused creation with `0x80070005`, both in the root and in a newly created
+  user-controlled task folder.
+- The identical COM task definition passed `TASK_VALIDATE_ONLY`; the failure
+  was authorization, not malformed XML, action, trigger, or principal data.
+- Explicit user name, SID, implicit-current-user, and
+  `TASK_DONT_ADD_PRINCIPAL_ACE` variants produced the same refusal.
+- Every disposable probe task and folder was removed. The unrelated
+  `DaedalusOllamaServe` task was inspected but never changed.
+- The final `Install -ForceRearm` refusal happened before effects: the
+  kill-switch snapshot was byte- and timestamp-identical before and after,
+  direct status remained `STOPPED` with exit 3, and `\Daedalus\GateLoop`
+  remained absent.
+
+Microsoft's Task Scheduler security-context contract explains both halves of
+the result: a low-privilege process cannot register a task as the built-in
+Administrator, and `RunLevel` is ignored for that account. Elevating the setup
+would therefore make registration possible without making the promised
+`Limited` runtime true. The safe result on this host is refusal, not a task
+whose metadata overstates its effective privilege.
+
+Source: [Microsoft, Security Contexts for Tasks](https://learn.microsoft.com/en-us/windows/win32/taskschd/security-contexts-for-running-tasks).
 
 ## Rollback
 

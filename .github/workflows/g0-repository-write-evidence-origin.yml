@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-evidence-authentication-linear
     paths:
-      - "daedalus/gates/repository_write_evidence_origin.py"
+      - "daedalus/gates/repository/write_evidence_origin.py"
       - "tests/gates/test_repository_write_evidence_origin*.py"
       - "scripts/run_repository_write_evidence_origin_mutations.py"
       - "configs/schemas/repository-write-evidence-origin.schema.json"
@@ -96,7 +96,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-evidence-origin-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_evidence_origin import (
+          from daedalus.gates.repository.write_evidence_origin import (
               RepositoryWriteEvidenceOriginAttestation,
               RepositoryWriteEvidenceOriginError,
               RepositoryWriteEvidenceOriginReport,

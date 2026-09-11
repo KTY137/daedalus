@@ -17,8 +17,9 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, ClassVar, Mapping, Sequence
 
+from daedalus.atomic import replace_with_retry
 from daedalus.kernel.artifacts import ArtifactRef, artifact_locator
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
     _artifact_locator,
@@ -35,8 +36,33 @@ from daedalus.schemas import (
 
 MANDATORY_IGNORED_ROOTS = (".daedalus", ".git")
 _READ_CHUNK_BYTES = 1024 * 1024
-_STABLE_FILE_FIELDS = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
-_STABLE_DIRECTORY_FIELDS = ("st_dev", "st_ino", "st_mtime_ns", "st_ctime_ns")
+def _stable_metadata_fields(platform_name: str, *, directory: bool) -> tuple[str, ...]:
+    """Metadata that is stable enough to compare around one descriptor read.
+
+    ``st_ctime_ns`` is useful on POSIX because it changes with inode metadata.
+    On Windows it describes creation time (and is deprecated for that purpose
+    since Python 3.12), not a content-change clock.  More importantly, supported
+    CPython 3.12/3.13 builds have been observed returning different
+    ``st_ctime_ns`` values for consecutive ``fstat`` calls on the *same open
+    descriptor*.  Treating that value as a mutation signal rejects unchanged
+    CAS objects nondeterministically.  Device/inode identity, size, mtime and
+    the mandatory content digest still fail closed around replacement or byte
+    changes.
+
+    The platform is an argument so the policy is deterministic and testable on
+    every CI host rather than being covered only by a Windows-only branch.
+    """
+
+    fields = ("st_dev", "st_ino", "st_mtime_ns")
+    if not directory:
+        fields += ("st_size",)
+    if platform_name != "nt":
+        fields += ("st_ctime_ns",)
+    return fields
+
+
+_STABLE_FILE_FIELDS = _stable_metadata_fields(os.name, directory=False)
+_STABLE_DIRECTORY_FIELDS = _stable_metadata_fields(os.name, directory=True)
 
 
 class SourceTreeStoreError(RuntimeError):
@@ -187,6 +213,17 @@ class SourceTreeManifest(CanonicalContract):
             raise ValueError(
                 "ignored_roots must retain mandatory exclusions: " + ", ".join(missing)
             )
+        ignored_casefold = {item.casefold() for item in ignored}
+        ignored_entries = tuple(
+            path
+            for path in paths
+            if path.split("/", 1)[0].casefold() in ignored_casefold
+        )
+        if ignored_entries:
+            raise ValueError(
+                "source tree entries must not live under ignored roots: "
+                + ", ".join(ignored_entries)
+            )
         object.__setattr__(self, "ignored_roots", ignored)
 
         if not isinstance(self.provenance, ContractProvenance):
@@ -244,6 +281,37 @@ class SourceTreeStore:
         self.objects.mkdir(parents=True, exist_ok=True)
         if self.objects.is_symlink():
             raise SourceTreeStoreError("source-tree object root must not be a symlink")
+
+    @classmethod
+    def open_existing(cls, root: str | os.PathLike[str]) -> "SourceTreeStore":
+        """Open an already provisioned CAS without a filesystem write.
+
+        The ordinary constructor is the canonical provisioning seam and calls
+        ``mkdir(exist_ok=True)`` for both roots.  A status, replay, or preview
+        read must not cross that effect merely because the directories are
+        expected to exist.  This constructor verifies the same anti-symlink
+        shape and refuses an absent store instead of creating one.
+
+        The returned object intentionally retains the normal store API; this
+        is an effect-free open operation, not a second artifact authority.
+        Callers remain responsible for using only read methods.
+        """
+
+        raw = Path(root)
+        if raw.is_symlink() or not raw.is_dir():
+            raise SourceTreeStoreError(
+                "existing source-tree store root must be a real directory"
+            )
+        resolved = raw.resolve(strict=True)
+        objects = resolved / "objects"
+        if objects.is_symlink() or not objects.is_dir():
+            raise SourceTreeStoreError(
+                "existing source-tree object root must be a real directory"
+            )
+        store = object.__new__(cls)
+        store.root = resolved
+        store.objects = objects.resolve(strict=True)
+        return store
 
     @staticmethod
     def _open_flags() -> int:
@@ -650,7 +718,7 @@ class SourceTreeStore:
                     stream.flush()
                     os.fsync(stream.fileno())
                 output.chmod(0o755 if entry.executable else 0o644)
-            os.replace(staging, target)
+            replace_with_retry(staging, target)
             self._fsync_directory(target.parent)
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)

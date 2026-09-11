@@ -24,12 +24,12 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates import repository_write_inventory as base_inventory
-from daedalus.gates.repository_write_inventory import scan_repository_write_surfaces
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository import write_inventory as base_inventory
+from daedalus.gates.repository.write_inventory import scan_repository_write_surfaces
+from daedalus.gates.repository.write_inventory_v2 import (
     scan_repository_write_surfaces_v2,
 )
-from daedalus.gates.repository_write_stdlib_delta import (
+from daedalus.gates.repository.write_stdlib_delta import (
     scan_repository_write_stdlib_delta,
 )
 from daedalus.spine.effect_boundary import ENTRYPOINTS
@@ -80,7 +80,7 @@ def _rows(surfaces):
 def test_a_registered_door_does_not_clear_the_write_surfaces_behind_it() -> None:
     """Door reachability is not a coverage channel, and must not become one silently.
 
-    ``daedalus/cli.py`` is the target module of a registered entrypoint that
+    ``daedalus/interfaces/cli/entry.py`` is the target module of a registered entrypoint that
     already declares ``FILESYSTEM_WRITE`` and ``REPOSITORY_MUTATION``.  Its
     write surfaces are still blockers, and every other module reached only
     through that door is blocking on its own callsites.  If someone later
@@ -91,7 +91,7 @@ def test_a_registered_door_does_not_clear_the_write_surfaces_behind_it() -> None
     door_modules = {
         spec.target.split(":")[0] for spec in ENTRYPOINTS if spec.target
     }
-    assert "daedalus.cli" in door_modules
+    assert "daedalus.interfaces.cli.entry" in door_modules
 
     inventory = _repository_inventory()
     assert inventory.surfaces, "the scanner must find production write surfaces"
@@ -327,6 +327,11 @@ tarfile.open('a.tar', 'w:gz')
 # path; none of these modules is an entrypoint of its own.
 KERNEL_FILE_SURFACES: dict[str, dict[tuple[str, str, str], int]] = {
     "daedalus/atomic.py": {
+        (
+            "ambiguous_binding",
+            "self.path.parent.mkdir",
+            "rebound-or-conflicting-binding",
+        ): 1,
         ("ambiguous_binding", "target.parent.mkdir", "rebound-or-conflicting-binding"): 3,
         ("ambiguous_binding", "tmp.unlink", "rebound-or-conflicting-binding"): 1,
         ("ambiguous_binding", "tmp.write_bytes", "rebound-or-conflicting-binding"): 1,
@@ -336,6 +341,7 @@ KERNEL_FILE_SURFACES: dict[str, dict[tuple[str, str, str], int]] = {
         ("filesystem_mutation", "os.replace", "replace"): 1,
         ("filesystem_mutation", "os.unlink", "unlink"): 1,
         ("write_mode_open", "tmp.open", "xb"): 1,
+        ("write_mode_open", "self.path.open", "a+b"): 1,
     },
     "daedalus/kernel/promotion_trust_root.py": {
         ("ambiguous_binding", "path.parent.mkdir", "rebound-or-conflicting-binding"): 2,
@@ -357,7 +363,6 @@ KERNEL_FILE_SURFACES: dict[str, dict[tuple[str, str, str], int]] = {
         ("ambiguous_os_open_flags", "os.open", "dynamic-flags"): 2,
         ("ambiguous_stdlib_binding", "stream.write", "rebound-or-conflicting-binding"): 2,
         ("filesystem_mutation", "os.link", "link"): 1,
-        ("filesystem_mutation", "os.replace", "replace"): 1,
         ("filesystem_mutation", "shutil.rmtree", "rmtree"): 1,
         ("filesystem_mutation", "tempfile.mkdtemp", "mkdtemp"): 1,
         ("filesystem_mutation", "tempfile.mkstemp", "mkstemp"): 1,

@@ -4,7 +4,7 @@ import ast
 import inspect
 import textwrap
 
-import daedalus.gates.repository_write_classification as contract
+import daedalus.gates.repository.write_classification as contract
 
 
 def _tree() -> ast.Module:

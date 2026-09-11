@@ -1,6 +1,6 @@
 """Suite-wide determinism for stage-1 routing and for operator declarations.
 
-The latent (embedding) route in ``daedalus/semantic_route.py`` is wired into
+The latent (embedding) route in ``daedalus/orchestration/semantic_route.py`` is wired into
 ``provider_router.route_and_select`` and is ON by default in production. That
 makes every test that routes depend on whether the box it runs on happens to
 have a working embedding backend -- and on what that backend's model thinks
@@ -28,7 +28,7 @@ THE SAME ARGUMENT, FOR DECLARATIONS THAT MOVE A VERDICT
 ``DAEDALUS_TRUSTED_HOSTS`` and ``DAEDALUS_SUBSCRIPTION_VENDORS`` are operator
 declarations: the first decides whether a host is inside the egress fence, the
 second whether a vendor's calls cost dollars. Both legitimately live in a
-developer's ``.env``, and ``daedalus.cli.main`` loads that file into
+developer's ``.env``, and ``daedalus.interfaces.cli.entry.main`` loads that file into
 ``os.environ`` for real -- permanently, on purpose, because the guard it
 configures must see it.
 
@@ -80,10 +80,13 @@ _OPERATOR_DECLARATIONS = (
     "OLLAMA_HOST", "OLLAMA_MODEL", "OLLAMA_EMBED_MODEL",
     "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL",
     "DAEDALUS_RTX_SSH", "DAEDALUS_RTX_SSH_FALLBACK",
+    "DAEDALUS_OLLAMA_REMOTE_OK",
     "DAEDALUS_TRACE_ID",
     # The operator's live-activation ceiling. A leaked real ceiling would make
     # budget tests measure the owner's wallet instead of their fixtures.
-    "DAEDALUS_BUDGET_USD", "DAEDALUS_BUDGET_MAX_CALLS",
+    "DAEDALUS_BUDGET_USD", "DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED",
+    "DAEDALUS_EXECUTION_LIMIT_POLICY",
+    "DAEDALUS_BUDGET_MAX_CALLS",
 )
 
 os.environ[LATENT_ENV] = "0"
@@ -112,7 +115,27 @@ def _pin_latent_route_off(tmp_path_factory):
     # Since fd314dd5 ikarus_os.ask installs the budget process guard and reads
     # the ledger named by DAEDALUS_BUDGET_LEDGER; without a pin a suite run
     # would meter against the operator's runs/budget/ledger.json.
-    had_ledger = "DAEDALUS_BUDGET_LEDGER" in os.environ
+    #
+    # The pin is UNCONDITIONAL as of 2026-09-09. It used to be skipped whenever
+    # the variable was already set, out of respect for an operator running the
+    # suite against a chosen ledger -- but that made one leaked value poison
+    # every test after it, because a leaked pin looks exactly like a deliberate
+    # one. MEASURED on the eight-packet integration: 34 tests in
+    # test_ikarus_voice_invocation.py and test_ikarus_stream.py failed in the
+    # full suite and passed in isolation, all with the same refusal --
+    # "committed $5.0000 of $5.0000, 2 calls recorded" -- i.e. an accumulating
+    # SHARED ledger, not a code defect.
+    #
+    # A per-test ledger is also the right default on the merits: a test that
+    # asserts an argv shape must not be gated by how much money the tests
+    # before it happened to reserve. Tests that are ABOUT the ceiling still
+    # work, because they get a clean ledger and set up the state they mean to
+    # assert.
+    #
+    # The operator escape hatch stays, but it must now be explicit and cannot
+    # be produced by accident:
+    #     DAEDALUS_TEST_USE_AMBIENT_LEDGER=1
+    had_ledger = os.environ.get("DAEDALUS_TEST_USE_AMBIENT_LEDGER") == "1"
     if not had_ledger:
         os.environ["DAEDALUS_BUDGET_LEDGER"] = str(
             tmp_path_factory.mktemp("budget") / "ledger.json"

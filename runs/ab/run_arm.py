@@ -68,7 +68,7 @@ def call_claude(prompt: str, cwd: Path) -> dict:
 def distilled_context(objective: str) -> tuple[str, dict]:
     """Arm B's advantage: what `daedalus context` says is worth reading."""
     sys.path.insert(0, str(HERE.parents[1]))
-    from daedalus.context_plan import plan_context  # type: ignore
+    from daedalus.orchestration.context_plan import plan_context  # type: ignore
 
     repo_root = Path(r"C:\Users\nukei\Desktop\PnP_App")
     plan = plan_context(repo_root, objective, project="pnp_app").to_dict()

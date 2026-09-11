@@ -1,0 +1,107 @@
+{
+  "arms": {
+    "__base__": {
+      "exit_code": 1,
+      "report": {
+        "broken": [
+          {
+            "line": 4,
+            "module_path": "daedalus/kairos/scheduler.py",
+            "raw": "daedalus.kairos.scheduler.Ikarus.spawn",
+            "symbol": "Ikarus.spawn",
+            "why": "daedalus/kairos/scheduler.py defines no 'Ikarus'"
+          },
+          {
+            "line": 16,
+            "module_path": "daedalus/kairos/scheduler.py",
+            "raw": "daedalus.kairos.scheduler.Ikarus",
+            "symbol": "Ikarus",
+            "why": "daedalus/kairos/scheduler.py defines no 'Ikarus'"
+          }
+        ],
+        "gate": "G1-SELF-01/docstring-symbol-refs",
+        "n_broken": 2,
+        "n_references": 13,
+        "n_resolving": 11,
+        "passed": false,
+        "target": "daedalus/build.py"
+      },
+      "tree_sha256": "5744722af8fc88299fb482aac9f58d580a4a13d0967a14cf202ebcb9bf69b878"
+    },
+    "baseline": {
+      "exit_code": 1,
+      "report": {
+        "broken": [
+          {
+            "line": 4,
+            "module_path": "daedalus/kairos/scheduler.py",
+            "raw": "daedalus.kairos.scheduler.Ikarus.spawn",
+            "symbol": "Ikarus.spawn",
+            "why": "daedalus/kairos/scheduler.py defines no 'Ikarus'"
+          },
+          {
+            "line": 16,
+            "module_path": "daedalus/kairos/scheduler.py",
+            "raw": "daedalus.kairos.scheduler.Ikarus",
+            "symbol": "Ikarus",
+            "why": "daedalus/kairos/scheduler.py defines no 'Ikarus'"
+          }
+        ],
+        "gate": "G1-SELF-01/docstring-symbol-refs",
+        "n_broken": 2,
+        "n_references": 13,
+        "n_resolving": 11,
+        "passed": false,
+        "target": "daedalus/build.py"
+      },
+      "tree_sha256": "e1f5371705d416f6864bc3a71dbf14f7a353e1bec45e6f9f5aee7a5dd1ca674d"
+    },
+    "negative-control": {
+      "exit_code": 1,
+      "report": {
+        "broken": [
+          {
+            "line": 4,
+            "module_path": "daedalus/kairos/scheduler.py",
+            "raw": "daedalus.kairos.scheduler.Ikarus.spawn",
+            "symbol": "Ikarus.spawn",
+            "why": "daedalus/kairos/scheduler.py defines no 'Ikarus'"
+          },
+          {
+            "line": 16,
+            "module_path": "daedalus/kairos/scheduler.py",
+            "raw": "daedalus.kairos.scheduler.Ikarus",
+            "symbol": "Ikarus",
+            "why": "daedalus/kairos/scheduler.py defines no 'Ikarus'"
+          }
+        ],
+        "gate": "G1-SELF-01/docstring-symbol-refs",
+        "n_broken": 2,
+        "n_references": 13,
+        "n_resolving": 11,
+        "passed": false,
+        "target": "daedalus/build.py"
+      },
+      "tree_sha256": "47edcd93efa334db69cbb74162a510997abc20ff449ceb0a8869b7129632a345"
+    },
+    "repair": {
+      "exit_code": 0,
+      "report": {
+        "broken": [],
+        "gate": "G1-SELF-01/docstring-symbol-refs",
+        "n_broken": 0,
+        "n_references": 13,
+        "n_resolving": 13,
+        "passed": true,
+        "target": "daedalus/build.py"
+      },
+      "tree_sha256": "81d0390463e8a0d1c741dbe0835ed0c2b733e734d65b92bd1ec398003e42db8b"
+    }
+  },
+  "campaign_id": "self-renovation-04",
+  "gate": "docs/evidence/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT/gate_docstring_symbol_refs.py",
+  "gate_semantics": "exit 0 = every first-party docstring symbol reference in the target resolves; exit 1 = at least one is broken",
+  "schema": "daedalus-g1-self-01-gate-three-arms/1",
+  "source_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+  "target": "daedalus/build.py"
+}

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { dispatchPulseFromConversation } from '../src/cockpit/dispatchPulse';
-import { boundExecutionLine, dispatchEvidenceLabel } from '../src/cockpit/WorkPulse';
+import { projectDispatches } from '../src/features/conversation/dispatch';
+import { boundExecutionLine, dispatchEvidenceLabel } from '../src/features/conversation/dispatch';
 
 const PROJECT = 'jarvis-project';
 
@@ -56,7 +56,7 @@ test('bound dispatch identity is distinguishable from legacy reconstruction', ()
     ]
   };
 
-  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  const pulse = projectDispatches(conversation, PROJECT);
   expect(pulse.total).toBe(2);
   expect(pulse.unresolved).toBe(0);
 
@@ -95,7 +95,7 @@ test('missing identity stays visibly unbound instead of inheriting confidence', 
     open_dispatches: [dispatch('unknown-ref', 99)]
   };
 
-  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  const pulse = projectDispatches(conversation, PROJECT);
   expect(pulse.total).toBe(1);
   expect(pulse.unresolved).toBe(0);
   expect(pulse.items[0]).toMatchObject({
@@ -164,7 +164,7 @@ test('project-bound incompatible, incomplete, or non-canonical identity is unres
     ]
   };
 
-  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  const pulse = projectDispatches(conversation, PROJECT);
   expect(pulse.total).toBe(0);
   expect(pulse.items).toEqual([]);
   expect(pulse.unresolved).toBe(6);
@@ -189,7 +189,7 @@ test('optional bound execution attribution is omitted rather than normalized int
     ]
   };
 
-  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  const pulse = projectDispatches(conversation, PROJECT);
   expect(pulse.total).toBe(1);
   expect(pulse.unresolved).toBe(0);
   expect(pulse.items[0]).toMatchObject({
@@ -243,7 +243,7 @@ test('identity-shaped detail without a valid schema cannot fall back to causal c
     ]
   };
 
-  const pulse = dispatchPulseFromConversation(conversation, PROJECT);
+  const pulse = projectDispatches(conversation, PROJECT);
   expect(pulse.total).toBe(0);
   expect(pulse.items).toEqual([]);
   expect(pulse.unresolved).toBe(2);

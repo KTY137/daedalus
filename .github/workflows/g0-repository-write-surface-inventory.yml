@@ -5,7 +5,7 @@ on:
     branches:
       - g0/gate-baseline-v2-linear
     paths:
-      - "daedalus/gates/repository_write_inventory.py"
+      - "daedalus/gates/repository/write_inventory.py"
       - "scripts/report_repository_write_inventory.py"
       - "scripts/run_repository_write_inventory_mutations.py"
       - "tests/gates/test_repository_write_inventory*.py"
@@ -98,7 +98,7 @@ jobs:
           import tempfile
           from pathlib import Path
 
-          from daedalus.gates.repository_write_inventory import (
+          from daedalus.gates.repository.write_inventory import (
               scan_repository_write_surfaces,
           )
 

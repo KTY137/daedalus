@@ -25,7 +25,7 @@ from daedalus.kernel.runtime_effect_replay import (
     inspect_runtime_effect_execution,
 )
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthorityError,
     ProviderObservationBindingLedger,
 )

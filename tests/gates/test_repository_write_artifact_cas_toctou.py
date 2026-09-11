@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.gates.repository_write_artifact_cas as cas_module
-from daedalus.gates.repository_write_artifact_cas import (
+import daedalus.gates.repository.write_artifact_cas as cas_module
+from daedalus.gates.repository.write_artifact_cas import (
     RepositoryWriteArtifactCASError,
     RepositoryWriteArtifactCASRoot,
     artifact_relative_path,
     resolve_repository_write_artifact,
 )
-from daedalus.gates.repository_write_evidence import (
+from daedalus.gates.repository.write_evidence import (
     RepositoryWriteArtifactEvidence,
 )
 from daedalus.schemas import ContractProvenance

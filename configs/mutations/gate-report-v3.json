@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "spec_id": "gate-report-v3",
+  "packet_id": "G1-MUT-02B",
+  "mutant_timeout_policy": "legacy-timeout-exit-1",
+  "jobs": [
+    {
+      "module": "daedalus/gates/report_v3.py",
+      "tests": [
+        "tests/gates/test_gate_report_v3.py",
+        "tests/gates/test_gate_report_v3_bounds.py",
+        "tests/gates/test_gate_report_v3_drift.py",
+        "tests/gates/test_gate_report_v3_review.py",
+        "tests/gates/test_gate_report_v3_schema.py",
+        "tests/gates/test_gate_report_v3_cli.py",
+        "tests/gates/test_gate_report_v3_surface_authentication.py",
+        "tests/gates/test_gate_report_v3_raw_input_composition.py"
+      ],
+      "timeout_s": 300,
+      "mutations": [
+        {
+          "id": "force-closure",
+          "find": "    def closed(self) -> bool:\n        return bool(\n            self.security_boundary_claimed\n            and self.owner_approval_enforced\n            and not self.blockers\n        )\n",
+          "replace": "    def closed(self) -> bool:\n        return True\n"
+        },
+        {
+          "id": "ignore-missing-inventory-digest",
+          "find": "        if self.repository_write_inventory_sha256 is None:\n",
+          "replace": "        if False and self.repository_write_inventory_sha256 is None:\n"
+        },
+        {
+          "id": "ignore-missing-scan-input-digest",
+          "find": "        if self.repository_write_scan_input_sha256 is None:\n",
+          "replace": "        if False and self.repository_write_scan_input_sha256 is None:\n"
+        },
+        {
+          "id": "accept-unsupported-inventory-generation",
+          "find": "        if self.repository_write_inventory_generation != 2:\n",
+          "replace": "        if False and self.repository_write_inventory_generation != 2:\n"
+        },
+        {
+          "id": "drop-repository-write-failures",
+          "find": "        rows.extend(\n            f\"repository_write_failures:{row}\"\n            for row in self.repository_write_failures\n        )\n",
+          "replace": "        rows.extend(())\n"
+        },
+        {
+          "id": "launder-scanner-refusal",
+          "find": "            (\"inventory-refused\",),\n            (\"blocker:repository_write_inventory:refused\",),\n",
+          "replace": "            (),\n            (),\n"
+        },
+        {
+          "id": "omit-inventory-digest-from-wire-body",
+          "find": "        body[\"repository_write_inventory_sha256\"] = (\n            self.repository_write_inventory_sha256\n        )\n",
+          "replace": "        body[\"repository_write_inventory_sha256\"] = None\n"
+        },
+        {
+          "id": "disable-base-report-drift-fence",
+          "find": "    if base_before.to_dict() != base_after.to_dict():\n",
+          "replace": "    if False and base_before.to_dict() != base_after.to_dict():\n"
+        },
+        {
+          "id": "disable-repository-inventory-drift-fence",
+          "find": "    if inventory_before != inventory_after:\n",
+          "replace": "    if False and inventory_before != inventory_after:\n"
+        },
+        {
+          "id": "disable-v3-monotonicity",
+          "find": "    return tuple(sorted(set(current.blockers) - set(baseline.blockers)))\n",
+          "replace": "    return ()\n"
+        },
+        {
+          "id": "flatten-per-surface-authentication-count",
+          "find": "    unauth = cleared - authenticated_cleared\n",
+          "replace": "    unauth = 0\n"
+        },
+        {
+          "id": "assume-every-cleared-surface-is-authenticated",
+          "find": "                if authentication is not None and authentication.authenticated:\n",
+          "replace": "                if authentication is not None:\n"
+        },
+        {
+          "id": "reopen-the-stage-report-keyword",
+          "find": "    authentications = authenticate_repository_write_surfaces(projection)\n",
+          "replace": "    authentications = authenticate_repository_write_surfaces(\n        projection, inputs=None\n    )\n"
+        }
+      ]
+    }
+  ]
+}

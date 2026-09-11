@@ -1,192 +1,268 @@
-/**
- * "Are the health states distinguishable?"
- *
- * The cockpit ships a CLOSED five-word vocabulary (`apps/web/src/views/health.ts`)
- * in which exactly one word -- `working` -- may be read as a pass. These specs
- * hold that contract from the outside, on `data-state`, which carries the word
- * verbatim and survives any restyle.
- *
- * BOTH HALVES, BECAUSE ONLY THE PAIR IS A CONTROL. A badge that hardcodes one
- * state passes any single-fixture test. Feeding the cockpit a MIXED fleet and
- * then an all-reachable one, and requiring the rendering to change in the right
- * direction, is what proves the surface is reading its input at all --
- * the same reasoning `system_check.py::safety.bus_chain_detects_a_break` uses.
- *
- * The fleet is intercepted rather than observed, because the real fleet on any
- * one machine is whatever it is -- and a fixture you did not choose cannot
- * discriminate.
- */
 import { expect, test, type Page } from '@playwright/test';
-import { PROVEN_STATE, ALL_STATES, collect, openApp, settle } from './_app';
+import { collect, NOT_BUILT } from './_app';
 
-const UP = 'Acceptance Runtime ALPHA';
-const DOWN = 'Acceptance Runtime BETA';
-
-function runtime(label: string, available: boolean) {
-  return {
-    id: label.toLowerCase().replace(/[^a-z]+/g, '_'),
-    label,
-    mode: 'cli',
-    command: 'acceptance',
-    env_key: '',
-    local: true,
-    trusted_with_ip: true,
-    can_write: false,
-    agentic: false,
-    notes: 'injected by the browser acceptance suite',
-    available,
-    auth_status: available ? 'cli_detected' : 'not_configured',
-    command_path: '',
-    version: '',
-    models: [],
-    selected_model: '',
-    model_present: false,
-    last_error: available ? '' : 'acceptance: this runtime did not answer',
-  };
-}
-
-function fleet(...rows: ReturnType<typeof runtime>[]) {
-  return {
-    status: 200,
-    contentType: 'application/json; charset=utf-8',
-    body: JSON.stringify({
-      ok: true,
-      generated_at: new Date().toISOString(),
-      project: null,
-      warnings: [],
-      runtimes: rows,
-    }),
-  };
-}
-
-/** The health state rendered on the row for one runtime.
+/**
+ * The health surface, fixture-backed.
  *
- *  Located by walking UP from the label text to the nearest ancestor that also
- *  carries a `[data-state]` badge -- structural, but structure-agnostic: no
- *  class name, no nesting depth, no ordering assumption. */
-async function stateFor(page: Page, label: string): Promise<{ state: string; text: string }> {
-  // SCOPED TO THE HEALTH SURFACE (the complementary landmark). The same runtime
-  // label also appears as an <option> in the brain selector, and an unscoped
-  // document search finds that one first -- then walks up into a container
-  // holding three unrelated badges and asserts against whichever it meets.
-  // That is a spec measuring the wrong subsystem while looking green.
-  const rail = page.getByRole('complementary').first();
-  await expect(rail, 'the live rail (the health surface) did not render').toBeVisible();
-  return rail.evaluate((root, lbl) => {
-    // The element that OWNS the label as its own text -- not an ancestor that
-    // merely contains it.
-    const holder = Array.from(root.querySelectorAll<HTMLElement>('*')).find((el) =>
-      Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent || '').trim() === lbl),
-    );
-    if (!holder) return { state: '(the runtime is not on screen at all)', text: '' };
+ * The status line's health chip was a button wired to close the theme studio:
+ * it looked like it would tell you which of the seven degraded subsystems was
+ * degraded, and it did nothing. These payloads are the shape `/api/health`
+ * really answers with — twenty subsystems, each carrying the question it
+ * answers, a state from the five-word vocabulary, a headline, a remedy, and
+ * facts stamped MEASURED / INHERITED / ASSUMED with their age.
+ */
 
-    // Walk up only until an ancestor holds EXACTLY ONE badge. Stopping at the
-    // first badge found would walk past the row into a container whose badge
-    // belongs to something else entirely -- which is how a spec ends up
-    // asserting against the wrong subsystem's health and never noticing.
-    let node: HTMLElement | null = holder;
-    for (let depth = 0; node && depth < 10; depth++, node = node.parentElement) {
-      const badges = node.querySelectorAll<HTMLElement>('[data-state]');
-      if (badges.length === 1) {
-        return { state: badges[0].getAttribute('data-state') || '', text: (node.innerText || '').trim() };
-      }
-      if (badges.length > 1) {
-        return {
-          state: `(walked past the row: ${badges.length} health badges in the nearest ancestor)`,
-          text: (node.innerText || '').trim().slice(0, 300),
-        };
-      }
+const project = { name: 'atlas', repo_root: 'C:\\work\\atlas', team: {}, reachable: true };
+
+const health = {
+  schema: 1,
+  generated_at: '2026-09-03T09:00:00+00:00',
+  states: ['working', 'present', 'degraded', 'absent', 'unknown'],
+  counts: { working: 2, present: 0, degraded: 1, absent: 1, unknown: 0 },
+  verdict: 1,
+  not_proven: ['bench.residency'],
+  asked: { deep: false, probe_remote: false, only: null },
+  subsystems: [
+    {
+      name: 'git.worktree', asks: 'which tree is every other answer about?', state: 'working',
+      headline: 'fba3bcd9 on worktree-g1-ui-ikarus', remedy: '', required: true, seconds: 0.1,
+      facts: [{ label: 'head', value: 'fba3bcd9', provenance: 'MEASURED', source: null, age_s: 12 }]
+    },
+    {
+      name: 'ollama.endpoint', asks: 'can the local bench answer at all?', state: 'degraded',
+      headline: 'connect refused on 127.0.0.1:11434', remedy: 'Starte Ollama, dann lade neu.', required: false, seconds: 2,
+      facts: [
+        { label: 'host', value: 'http://127.0.0.1:11434', provenance: 'MEASURED', source: 'probe', age_s: 3 },
+        { label: 'model', value: 'qwen2.5-coder:7b', provenance: 'ASSUMED', source: null, age_s: null },
+        { label: 'shape', value: { tags: 0 }, provenance: 'INHERITED', source: 'cache', age_s: 7200 }
+      ]
+    },
+    {
+      name: 'docker.engine', asks: 'is a container runtime available?', state: 'absent',
+      headline: 'no docker on PATH', remedy: '', required: false, seconds: 0.2, facts: []
+    },
+    {
+      name: 'spine.ledger', asks: 'is the canonical event spine writable?', state: 'working',
+      headline: 'runs/spine.sqlite3, 4210 intents', remedy: '', required: true, seconds: 0.3,
+      facts: [{ label: 'intents', value: 4210, provenance: 'MEASURED', source: null, age_s: 1 }]
     }
-    return { state: '(no health badge anywhere around this runtime)', text: (holder.parentElement?.innerText || '').trim().slice(0, 300) };
-  }, label);
+  ]
+};
+
+async function openCockpit(page: Page) {
+  const response = await page.goto('/?view=chat', { waitUntil: 'domcontentloaded' });
+  expect(response).not.toBeNull();
+  expect(await response!.text()).not.toMatch(NOT_BUILT);
+  await expect(page.locator('.cockpit')).toBeVisible();
 }
 
-/** The Connections card must actually be showing runtimes before any statement
- *  about their health means anything. */
-async function expectFleetRendered(page: Page, ...labels: string[]): Promise<void> {
-  const rail = page.getByRole('complementary').first();
-  for (const label of labels) {
-    // Substring, not exact: the label shares its element with the mode/auth
-    // subtitle, so an exact-text match would fail on a row that is rendering
-    // perfectly -- a red that says nothing about the product.
-    await expect(
-      rail.getByText(label).first(),
-      `the injected runtime ${JSON.stringify(label)} never reached the health surface`,
-    ).toBeVisible({ timeout: 20_000 });
-  }
+async function stub(page: Page, options: { health?: unknown; fail?: boolean } = {}) {
+  await page.addInitScript(() => localStorage.setItem('daedalus-cockpit-view', 'chat'));
+  await page.route('**/api/projects', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], projects: [project] } });
+  });
+  await page.route('**/api/structure**', (route) => route.fulfill({
+    json: { ok: true, generated_at: '', project: project.name, warnings: [], structure: { graph: { nodes: [], edges: [] } } }
+  }));
+  await page.route('**/api/runtimes/status**', (route) => route.fulfill({
+    json: { ok: true, generated_at: '', project: null, warnings: [], runtimes: [] }
+  }));
+  await page.route('**/api/drafts**', (route) => route.fulfill({
+    json: { ok: true, generated_at: '', project: project.name, warnings: [], scope: project.repo_root, pending_count: 0, drafts: [] }
+  }));
+  await page.route('**/api/health**', async (route) => {
+    if (options.fail) return route.abort('connectionrefused');
+    await route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], health: options.health ?? health } });
+  });
 }
 
-test('a mixed fleet renders TWO different health states', async ({ page }) => {
-  const seen = collect(page);
-  await page.route('**/api/runtimes/status*', (r) => r.fulfill(fleet(runtime(UP, true), runtime(DOWN, false))));
-  await openApp(page);
-  await settle(page, seen);
-  await expectFleetRendered(page, UP, DOWN);
+test.describe('health surface', () => {
+  test('a scoped board never passes for the health of the system', async ({ page }) => {
+    /*
+     * THE HAZARD, and it is not hypothetical. Measured 2026-09-03:
+     *
+     *   GET /api/health?only=git
+     *   -> 1 subsystem, counts {working:1, present:0, degraded:0, absent:0, unknown:0}
+     *
+     * A perfect green board. The panel's own footer would read "1 Prüfung",
+     * its filter line "Nichts Auffälliges", and nothing said that nineteen
+     * checks had not run.
+     */
+    await stub(page, {
+      health: {
+        ...health,
+        counts: { working: 1, present: 0, degraded: 0, absent: 0, unknown: 0 },
+        not_proven: [],
+        asked: { deep: false, probe_remote: false, only: 'git' },
+        subsystems: [health.subsystems[0]]
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
 
-  const up = await stateFor(page, UP);
-  const down = await stateFor(page, DOWN);
+    const scope = panel.locator('.health-scope');
+    await expect(scope).toBeVisible();
+    await expect(scope).toContainText('git');
+    await expect(scope, 'a filtered board did not refuse to be read as the whole')
+      .toContainText('nicht der Zustand des Systems');
+    // It is an alert, not a footnote: a green board is the reassuring case.
+    await expect(scope).toHaveAttribute('role', 'alert');
+  });
 
-  expect(ALL_STATES, `the reachable runtime rendered state ${JSON.stringify(up.state)}, which is not one of the five. Row read:\n${up.text}`).toContain(up.state);
-  expect(ALL_STATES, `the unreachable runtime rendered state ${JSON.stringify(down.state)}, which is not one of the five. Row read:\n${down.text}`).toContain(down.state);
+  test('an unfiltered board carries no scope warning', async ({ page }) => {
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
 
-  expect(
-    down.state,
-    `a runtime that did NOT answer is rendered as ${JSON.stringify(down.state)} -- ` +
-      `a dead runtime is indistinguishable from a live one. Row read:\n${down.text}`,
-  ).not.toEqual(up.state);
-  expect(
-    ['degraded', 'absent'],
-    `a runtime that did NOT answer rendered as ${JSON.stringify(down.state)}; ` +
-      'the only honest states for "configured and it did not answer" are degraded or absent',
-  ).toContain(down.state);
-});
+    await expect(panel.locator('.health-list')).toBeVisible();
+    await expect(panel.locator('.health-scope')).toHaveCount(0);
+  });
 
-test('an all-reachable fleet renders NO failed state (the control)', async ({ page }) => {
-  // Without this half, a badge that always said DEGRADED would pass the test
-  // above.
-  const seen = collect(page);
-  await page.route('**/api/runtimes/status*', (r) => r.fulfill(fleet(runtime(UP, true), runtime(DOWN, true))));
-  await openApp(page);
-  await settle(page, seen);
-  await expectFleetRendered(page, UP, DOWN);
+  test('the board says which read it was', async ({ page }) => {
+    /*
+     * read.py keeps `deep` and `probe_remote` off by default -- the first
+     * calls the latent route (~7s cold), the second embeds against another
+     * host -- and says so "rather than letting `present` read as `working`".
+     * The cockpit dropped that report: `asked` was typed on the envelope while
+     * the backend writes it inside `health`, so the field was unreachable.
+     */
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
 
-  const up = await stateFor(page, UP);
-  const down = await stateFor(page, DOWN);
+    const mode = panel.locator('.health-mode');
+    await expect(mode).toContainText('flach');
+    await expect(mode).toContainText('nicht angestoßen');
+    // A shallow read is drawn as unproven, not as neutral chrome.
+    await expect(mode).toHaveClass(/\bwarn\b/);
+  });
 
-  expect(up.state, `two reachable runtimes rendered differently (${up.state} vs ${down.state}) -- the badge is not a function of the data`).toEqual(down.state);
-  expect(
-    ['degraded', 'absent'],
-    `a REACHABLE runtime is rendered as ${JSON.stringify(up.state)}; the health indicator is inverted. Row read:\n${up.text}`,
-  ).not.toContain(up.state);
-});
+  test('a full read is not flagged as shallow', async ({ page }) => {
+    await stub(page, {
+      health: { ...health, asked: { deep: true, probe_remote: true, only: null } }
+    });
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
 
-test('reachable is NOT rendered as proven -- presence is not a pass', async ({ page }) => {
-  // The invariant `views/health.ts` was written for, held from the outside: a
-  // runtime found on PATH has been INSTALLED, not EXERCISED, and a billable
-  // call was deliberately never made. A cockpit that paints that green is the
-  // exact defect the five-word vocabulary exists to prevent -- and it is the
-  // one an acceptance suite must pin, because it is invisible in a screenshot.
-  const seen = collect(page);
-  await page.route('**/api/runtimes/status*', (r) => r.fulfill(fleet(runtime(UP, true))));
-  await openApp(page);
-  await settle(page, seen);
-  await expectFleetRendered(page, UP);
+    const mode = panel.locator('.health-mode');
+    await expect(mode).toContainText('tief');
+    await expect(mode).toContainText('entfernte Hosts geprüft');
+    await expect(mode).not.toHaveClass(/\bwarn\b/);
+  });
 
-  const up = await stateFor(page, UP);
-  expect(
-    up.state,
-    'a runtime that was merely FOUND is rendered as proven-working. Nothing invoked it, ' +
-      'so this run established no such thing -- and no billable call may be made to establish it.',
-  ).not.toEqual(PROVEN_STATE);
-});
+  test('what each probe cost is on screen, and what the board cost', async ({ page }) => {
+    // Measured: four of twenty subsystems account for ~8.2s of a ~10.6s read.
+    // The panel gave no way to see which, so the wait was unexplained.
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+    await panel.getByRole('button', { name: 'Alle zeigen' }).click();
 
-test('BYOK readiness is stated as a count, not a vibe', async ({ page }) => {
-  const seen = collect(page);
-  await openApp(page);
-  await settle(page, seen);
+    // The expensive row names its own cost.
+    await expect(panel.locator('.health-row', { hasText: 'ollama.endpoint' })
+      .locator('.health-cost')).toContainText('2,00 s');
+    // A free probe says free rather than hiding.
+    await expect(panel.locator('.health-row', { hasText: 'git.worktree' })
+      .locator('.health-cost')).toContainText('0,10 s');
+    // And the board total, summed from the rows: 0.1 + 2 + 0.2 + 0.3.
+    await expect(panel.locator('.health-total')).toContainText('2,60 s');
+  });
 
-  const badge = page.getByLabel(/BYOK readiness/i).first();
-  await expect(badge, 'no BYOK readiness indicator rendered').toBeVisible();
-  const name = (await badge.getAttribute('aria-label')) || '';
-  expect(name, `the BYOK indicator states no counts: ${JSON.stringify(name)}`).toMatch(/\d+\s+of\s+\d+/i);
+  test('the chip opens the surface and names what the counts only counted', async ({ page }) => {
+    const seen = collect(page);
+    await stub(page);
+    await openCockpit(page);
+
+    // Two chips now open two surfaces, so each is addressed by the label
+    // that says which one it is.
+    const chip = page.getByRole('button', { name: /^Zustand öffnen/ });
+    await expect(chip).toContainText('1 beeinträchtigt');
+    await chip.click();
+
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+    await expect(panel).toBeVisible();
+
+    // Only the ones that need attention, worst first, and the working ones
+    // are hidden rather than absent — the foot says how many.
+    await expect(panel.locator('.health-row')).toHaveCount(2);
+    await expect(panel.locator('.health-row').first()).toContainText('ollama.endpoint');
+    await expect(panel.locator('.health-row').nth(1)).toContainText('docker.engine');
+    await expect(panel.locator('.health-foot')).toContainText('4 Prüfungen');
+    await expect(panel.locator('.health-foot')).toContainText('2 laufende ausgeblendet');
+
+    // The question the subsystem exists to answer, and its remedy.
+    await expect(panel).toContainText('can the local bench answer at all?');
+    await expect(panel).toContainText('Starte Ollama, dann lade neu.');
+
+    // Not proven is not the same as failed, and the panel says so.
+    await expect(panel).toContainText('bench.residency');
+    await expect(panel).toContainText('nicht dasselbe wie fehlgeschlagen');
+
+    expect(seen.pageErrors).toEqual([]);
+  });
+
+  test('every fact carries the provenance stamp the backend attached', async ({ page }) => {
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+
+    await panel.getByRole('button', { name: /ollama\.endpoint/ }).click();
+    const facts = panel.locator('.health-fact');
+    await expect(facts).toHaveCount(3);
+    await expect(facts.nth(0)).toContainText('MEASURED');
+    await expect(facts.nth(1)).toContainText('ASSUMED');
+    await expect(facts.nth(2)).toContainText('INHERITED');
+    // An object value is printed as JSON, never as [object Object].
+    await expect(facts.nth(2)).toContainText('{"tags":0}');
+    await expect(panel).not.toContainText('[object Object]');
+    // The age is a measured fact too, and it belongs to the fact beside it.
+    await expect(facts.nth(0)).toContainText('3 s alt');
+    await expect(facts.nth(2)).toContainText('2 h alt');
+    // `age_s: null` is not an age of zero: the fact simply shows none.
+    await expect(facts.nth(1)).not.toContainText('alt');
+  });
+
+  test('showing all includes the working ones, and the filter says which way it is', async ({ page }) => {
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+
+    await panel.getByRole('button', { name: 'Alle zeigen' }).click();
+    await expect(panel.locator('.health-row')).toHaveCount(4);
+    await expect(panel).toContainText('spine.ledger');
+    await expect(panel.getByRole('button', { name: 'Nur Auffälliges' })).toBeVisible();
+  });
+
+  test('a health read that failed is never drawn as a healthy system', async ({ page }) => {
+    await stub(page, { fail: true });
+    await openCockpit(page);
+
+    // The chip already refuses to collapse the failure into a state.
+    const chip = page.getByRole('button', { name: /^Zustand öffnen/ });
+    await expect(chip).toContainText('Zustand ungelesen');
+    await chip.click();
+
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+    await expect(panel).toContainText('konnte nicht gelesen werden');
+    // Not one subsystem row: an unread surface has nothing to list, and must
+    // not render as "nothing wrong".
+    await expect(panel.locator('.health-row')).toHaveCount(0);
+  });
+
+  test('Escape closes it', async ({ page }) => {
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Zustand' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Zustand' })).toBeHidden();
+  });
 });

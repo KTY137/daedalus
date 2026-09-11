@@ -91,6 +91,25 @@ class FiedlerGroundTruth(unittest.TestCase):
         second = spectral.fiedler_report(graph)["fiedler_values"]
         self.assertEqual(first, second)
 
+    def test_sign_normalization_does_not_depend_on_a_zero_first_component(self):
+        """Equivalent ``v`` and ``-v`` must serialize identically even when
+        the first stable node is on the eigenvector's zero crossing."""
+        import unittest.mock as mock
+
+        graph = _barbell()
+        magnitude = 18 ** -0.5
+        forward = [0.0, 0.0] + [magnitude] * 9 + [-magnitude] * 9
+        reverse = [-value for value in forward]
+        with mock.patch.object(
+            spectral.nx,
+            "fiedler_vector",
+            side_effect=(forward, reverse),
+        ):
+            first = spectral.fiedler_report(graph)["fiedler_values"]
+            second = spectral.fiedler_report(graph)["fiedler_values"]
+
+        self.assertEqual(first, second)
+
 
 @unittest.skipUnless(spectral.HAVE_MATH, "math extra not installed")
 class ModularityGroundTruth(unittest.TestCase):

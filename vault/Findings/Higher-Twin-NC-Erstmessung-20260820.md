@@ -1,7 +1,9 @@
 ---
-tags: [findings]
+tags:
+- findings
 created: 2026-08-20
 source: runs/higher_twin_nc/runs/pilot-20260820/
+permalink: main/findings/higher-twin-nc-erstmessung-20260820
 ---
 
 # Higher-Twin-NC: Erste K-Matrix-Messung

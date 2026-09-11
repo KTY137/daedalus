@@ -5,42 +5,20 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.integrations.hermes.tool_gateway import (
-    HermesGatewayDescriptor,
-    HermesToolGatewayClient,
-    HermesToolGatewayError,
-    HermesToolGatewayServer,
-)
+from daedalus.integrations.hermes.tool_gateway import HermesGatewayDescriptor, HermesToolGatewayClient, HermesToolGatewayError, HermesToolGatewayServer
 from daedalus.integrations.hermes.tool_provider import DaedalusToolProvider, ToolSpec
 
 
 def _provider() -> DaedalusToolProvider:
-    tool = ToolSpec(
-        name="echo",
-        description="Echo text through the caller-owned boundary.",
-        parameters={
-            "type": "object",
-            "properties": {"text": {"type": "string"}},
-            "required": ["text"],
-            "additionalProperties": False,
-        },
-    )
+    tool = ToolSpec(name="echo", description="Echo text through the caller-owned boundary.", parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"], "additionalProperties": False})
 
     def invoke(name: str, arguments: object) -> object:
         assert name == "echo"
         assert isinstance(arguments, dict)
         observation = str(arguments["text"])
-        return {
-            "observation": observation,
-            "receipt_digest": sha256(observation.encode("utf-8")).hexdigest(),
-        }
+        return {"observation": observation, "receipt_digest": sha256(observation.encode("utf-8")).hexdigest()}
 
-    return DaedalusToolProvider(
-        (tool,),
-        invoker=invoke,
-        request_id="request-gateway",
-        task_id="task-gateway",
-    )
+    return DaedalusToolProvider((tool,), invoker=invoke, request_id="request-gateway", task_id="task-gateway")
 
 
 def test_gateway_roundtrip_and_token_cleanup(tmp_path: Path) -> None:
@@ -75,8 +53,20 @@ def test_gateway_enforces_authenticated_call_budget(tmp_path: Path) -> None:
 
 
 def test_gateway_descriptor_rejects_digest_tampering(tmp_path: Path) -> None:
+    descriptor = HermesGatewayDescriptor.create(host="127.0.0.1", port=31337, token_file=str(tmp_path / "token"), request_id="request", task_id="task", tool_scope_digest="1" * 64, max_calls=1, expires_at_ns=2**63 - 1)
+    tampered = descriptor.to_dict()
+    tampered["port"] = 31338
+    with pytest.raises(HermesToolGatewayError):
+        HermesGatewayDescriptor.from_dict(tampered)
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1"])
+def test_gateway_descriptor_retains_both_historical_bare_loopback_literals(
+    tmp_path: Path,
+    host: str,
+) -> None:
     descriptor = HermesGatewayDescriptor.create(
-        host="127.0.0.1",
+        host=host,
         port=31337,
         token_file=str(tmp_path / "token"),
         request_id="request",
@@ -85,7 +75,22 @@ def test_gateway_descriptor_rejects_digest_tampering(tmp_path: Path) -> None:
         max_calls=1,
         expires_at_ns=2**63 - 1,
     )
-    tampered = descriptor.to_dict()
-    tampered["port"] = 31338
-    with pytest.raises(HermesToolGatewayError):
-        HermesGatewayDescriptor.from_dict(tampered)
+    assert descriptor.host == host
+
+
+@pytest.mark.parametrize("host", ["127.0.0.2", "[::1]", "localhost"])
+def test_gateway_descriptor_keeps_its_exact_bare_loopback_grammar(
+    tmp_path: Path,
+    host: str,
+) -> None:
+    with pytest.raises(HermesToolGatewayError, match="loopback-only"):
+        HermesGatewayDescriptor.create(
+            host=host,
+            port=31337,
+            token_file=str(tmp_path / "token"),
+            request_id="request",
+            task_id="task",
+            tool_scope_digest="1" * 64,
+            max_calls=1,
+            expires_at_ns=2**63 - 1,
+        )

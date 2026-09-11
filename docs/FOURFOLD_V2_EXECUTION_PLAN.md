@@ -1,10 +1,10 @@
 # Fourfold v2 Execution Plan
 
-Status: active derived projection; its dated PR-chain sections below are historical (see "Current Gate-0 execution boundary")  
-Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 7  
-Active gate: Gate 0 — Canonical Kernel  
+Status: active derived projection; its dated Gate-0 and PR-chain sections below are historical
+Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 11
+Active gate: Gate 1 - Renovation and owner-directed Genesis
 Branch rule: exact reviewed or explicitly frozen parent -> short-lived focused Work Packet branch -> draft PR; never mutate `main` or `experimental` directly  
-Rule: this document records revision-bound status. It cannot amend the adopted Master Plan, authorize implementation, or substitute for evidence. For current Gate-0 boundary, read `docs/STATUS.md` first.
+Rule: this document records revision-bound status. It cannot amend the adopted Master Plan, authorize implementation, or substitute for evidence. For the current Gate-1 boundary, read the Master Plan and `docs/STATUS.md` first.
 
 ## Operating model
 
@@ -174,3 +174,113 @@ This projection performs no production-code change, effect, provider execution,
 receipt retention, repository mutation, OwnerApproval, PromotionReceipt, merge,
 automatic promotion, or Gate transition. It authorizes no dependent production
 packet and cannot be used as hard evidence.
+
+
+## Loop status 2026-09-05 (STATUS, revision-bound; not a gate decision)
+
+Owner-directed 10-minute loop, deliver in stages, Codex as co-author and
+reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
+
+- Stage 1 `G1-ARIADNE-03`: the Ariadne frozen evaluator could never nominate
+  on the Windows host (venv launcher stub wrote a warning into the merged gate
+  log). Fixed at the spawn site; unfaked integration test; council-reviewed.
+- Stage 2 `G1-KERNEL-01`: shared `daedalus/kernel/interpreter.py`; Genesis
+  switched by Codex; NUL-stdin containment experiment retained as evidence;
+  three Ariadne-02 review findings closed; council live path now installs the
+  budget net first (an unpriced bypass by this session is disclosed there).
+- Stage 2b `G1-COUNCIL-01`: `cli.council` registered as an effectful door.
+- Stage 3 `G1-ARIADNE-04` (isolated worktree branch `loop/stage3-failed-receipt`,
+  commit 9d37ff0d, not merged): a campaign-domain arm failure returns the
+  retained `failed` receipt on the first call instead of re-raising; stage
+  suites 129 passed; Codex review requested.
+- Stage 4 `G1-ARIADNE-05` (same branch, commit 93ee7507): honest working-tree
+  base binding as a receipt provenance input, read/verify race closed, no
+  dirty-target refusal (raw byte compares lie under line-ending filters);
+  stage suites 143 passed.
+- Stage 5 `G1-SELF-00` (EXPERIMENT, same branch): the canonical Ariadne
+  campaign nominated a one-file repair of Daedalus itself against a clone at
+  the release commit; nomination retained, nothing applied or promoted. Two
+  refusals retained: linked worktrees are not accepted as subjects by the HEAD
+  verifier; an override control root against a repository with an existing
+  spine refuses as partial state.
+- Stage 6 `G1-ARIADNE-06`: the two refusals above name cause and remedy;
+  the worktree exclusion is recorded as deliberate (measured pointer-rewrite
+  attack; Momus critique).
+- Stage 7 `G1-GENESIS-REHEARSAL-01` (EXPERIMENT): `daedalus genesis "kanban
+  board"` on this host reaches preview-ready with all gates passing in 0.5 to
+  1.2 s each and no launcher warning, against the morning's 16 to 31 s and a
+  runtime timeout with the launcher stub. Stage 8 A/B with the stub: also
+  preview-ready, 2.2x to 4.0x slower per contained gate, warning line in every
+  output, no timeout on a quiet host; the stub is a proven cost, not the
+  proven cause of the morning timeouts.
+- Stage 9 (same packet): all four Genesis targets measured on this host;
+  web/desktop/mobile preview-ready (PWA labelling retained as blockers), cli
+  refuses the kanban blueprint before any effect and succeeds for the
+  item-collection product with its black-box gate.
+- Stages 10-11 `G1-EDA-HOST-STATUS-01` (EXPERIMENT): the existing chip-design
+  slice on this host reports only tclsh available (Vivado/Vitis/XSCT/Quartus/
+  Yosys/OpenROAD/simulators honestly unavailable, no fallback); effect-free
+  scan/inspect/plan on a generated minimal XPR bind deterministic identities
+  and leave the fixture unchanged. No second self-Renovation target: the only
+  refuted claim found lives in CLAUDE.md, a protected file a candidate may
+  not touch.
+- Owner lifted the budget at 15:15 (unbounded_execution policy for this
+  session's processes). Stage 12 `G1-ARIADNE-07`: the live two-seat council
+  (Codex, Claude; 24 checkable claims, two rounds, through the registered
+  `cli.council` door, both seats in the ledger) over the stage 3-6 diff is
+  answered in code and eleven tests (commit dda7f41d, same branch).
+- Stage 13 `G1-IKARUS-26`: the general computer loop of section 7.2 was run
+  live for the first time (local Ollama 7B planner, scratch clone, fresh
+  control root, static page on a loopback origin). Two defects measured and
+  fixed with six tests: a configured policy whose every tool is release-locked
+  (v0.1.6 path-I/O lock) was reported as a missing policy; and identical
+  advisory plans were no stall, so under the owner's unbounded policy the
+  planner repeated one plan eleven times until the kill switch ended the run
+  (55 s after the stop; verified). No run reached `finish`: the 7B planner
+  never proposed `browser.read` after navigating; on this host two planner
+  calls consume a 300 s bounded mission. Codex reviewed statically (room,
+  16:49): both fixes ALIGNED; paraphrased plans and cancellation inside a
+  running provider call stay open.
+- Stage 14 (owner order 17:33, "starte 10 opus agenten"): ten Opus lane
+  agents in isolated worktrees, exclusive paths, each with a packet; verified
+  one by one and stacked on this branch by cherry-pick with the registry
+  re-derived once per batch. Integrated: `G1-IKARUS-29` (plan budget of four
+  plans per step, wall-time check before the effect), `G1-ARIADNE-08` (blob
+  bytes at a commit without the git binary, pure stdlib, not wired; the two
+  Odysseus defects, REF_DELTA depth reset and NTFS-junction `.git`, fixed
+  forward with forged-pack tests, 65 passed), `G1-ARIADNE-09` (one exit-code contract for both Ariadne CLI
+  doors, sysexits 64/70, JSON error line), `G1-TESTS-01` (the flaky shell
+  test spawned a real vendor CLI; pinned voice, 259 s to 8.6 s), `G1-SELF-01`
+  (EXPERIMENT: second self-Renovation nomination, `daedalus/build.py`
+  docstring names a class that does not exist, repo-own resolver as frozen
+  gate; nothing applied), `G1-HW-01` (EXPERIMENT: effect-free KiCad
+  status/scan/inspect/plan, 148 tests, all toolchains honestly absent on this
+  host), `G1-IKARUS-30` (desktop and OCR adapters measured live through
+  `ComputerService`, 17 effects, four adapter findings, no image retained),
+  and the adversarial review of stage 13 (both claims hold; manifest digests
+  were unpinned against CRLF checkouts, now `-text` pinned with a test over
+  every evidence manifest), and `G1-KERNEL-02` (an in-flight provider call
+  runs on a daemon worker so the caller can stop waiting on a cancellation
+  probe; no socket teardown, `timeout_s` untouched, no new cap axis; the
+  budget interposer's per-thread mark is carried to the worker; measured on
+  the way: Ollama's `/v1` endpoint ignores `keep_alive` and pins
+  `context_length` 4096, evicting a natively warmed instance, so routing the
+  computer planner through the native path is the next packet). Also integrated: `G1-EDA-HOST-STATUS-02` (EXPERIMENT: deterministic
+  Vivado batch and Vitis HLS Tcl emitted inline or to stdout from the effect-free
+  `plan`, pure-Python `info complete` check agreeing 35/35 with tclsh 8.6, all
+  vendor tools honestly absent; a first version wrote a file from `plan` beside
+  the door's anchor and was fixed forward with an isolation suite). All ten
+  lanes are integrated.
+- Stage 15 `G1-IKARUS-31`: schema-constrained Ollama calls (the computer
+  planner) take the native `/api/chat` route with keep_alive, num_ctx and the
+  output cap as num_predict; the loop hands the planner a cancellation probe
+  (G1-KERNEL-02); the transport is an explicit caller decision. Live: 25.5 s
+  per planner call against 74 to 125 s before; measured residual: a mixed
+  chat/planner session still reloads on 3 of 4 transport switches, so the
+  native route for all voices is the follow-up; the 7B planner still never
+  proposes `browser.read` after navigating.
+- `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
+  (Ikarus persistence, self-Renovation with leakage rule, KiCad and
+  Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
+
+Gate 1 remains active. Nothing here closes a gate, promotes, or merges.

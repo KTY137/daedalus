@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULE = ROOT / "daedalus" / "runtimes" / "provider_target_receipt_retention_preflight.py"
+MODULE = ROOT / "daedalus" / "runtimes" / "provider" / "target_receipt_retention_preflight.py"
 
 
 def _tree() -> ast.Module:
@@ -47,7 +47,7 @@ def test_preflight_has_no_writer_process_network_or_provider_authority() -> None
         "urllib",
         "requests",
         "httpx",
-        "daedalus.runtimes.provider_target_receipt_ledger",
+        "daedalus.runtimes.provider.target_receipt_ledger",
         "daedalus.kernel.effect_lease_ledger",
     }
     assert imported_modules.isdisjoint(forbidden_imports)
@@ -98,13 +98,13 @@ def test_authority_and_two_head_fences_order_inventory_observation() -> None:
             positions.setdefault(name, []).append(node.lineno)
 
     assert len(positions["authorize_provider_target_receipt_retention_operation"]) == 1
-    assert len(positions["verify_repository_head_revision_receipt"]) == 2
-    assert len(positions["scan_provider_target_receipt_retention"]) == 1
+    assert len(positions["repository_head_verifier"]) == 2
+    assert len(positions["retention_inventory_scanner"]) == 1
     authority_line = positions[
         "authorize_provider_target_receipt_retention_operation"
     ][0]
-    head_lines = sorted(positions["verify_repository_head_revision_receipt"])
-    inventory_line = positions["scan_provider_target_receipt_retention"][0]
+    head_lines = sorted(positions["repository_head_verifier"])
+    inventory_line = positions["retention_inventory_scanner"][0]
     assert authority_line < head_lines[0] < inventory_line < head_lines[1]
 
 

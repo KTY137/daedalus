@@ -7,7 +7,7 @@ executed by the caller-owned :class:`HermesToolGatewayServer`.
 
 from __future__ import annotations
 
-from typing import Mapping, TypeVar
+from typing import Mapping
 
 from .configuration import HERMES_OPERATION_ID
 from .runtime_adapter import HermesRuntimeRequest, HermesRuntimeResult, execute_from_metadata
@@ -17,65 +17,89 @@ class HermesKernelProviderError(RuntimeError):
     pass
 
 
-_T = TypeVar("_T")
+def _payload_dict(payload: object) -> object:
+    """Accept the current broker's already-canonical payload body only."""
+
+    if not callable(getattr(payload, "get", None)):
+        raise RuntimeError("provider payload body is not an object")
+    return payload
 
 
-def _payload_dict(payload: object) -> Mapping[str, object]:
-    if hasattr(payload, "to_dict"):
-        value = payload.to_dict()  # type: ignore[attr-defined]
-    elif isinstance(payload, Mapping):
-        value = payload
-    else:
-        raise HermesKernelProviderError("provider payload is not serializable")
-    if not isinstance(value, Mapping):
-        raise HermesKernelProviderError("provider payload projection is not an object")
-    return value
-
-
-def _request_metadata(payload: object) -> Mapping[str, object]:
+def _request_metadata(payload: object) -> object:
     value = _payload_dict(payload)
-    metadata = value.get("metadata")
-    if not isinstance(metadata, Mapping):
-        raise HermesKernelProviderError("provider payload metadata is absent")
-    request = metadata.get("hermes_runtime_request")
-    if not isinstance(request, Mapping):
-        raise HermesKernelProviderError("authenticated Hermes runtime request is absent")
-    HermesRuntimeRequest.from_metadata(request)
+    request = value.get("hermes_runtime_request")
+    if not callable(getattr(request, "get", None)):
+        raise RuntimeError("authenticated Hermes runtime request is absent")
+    runtime_adapter = __import__(
+        "daedalus.integrations.hermes.runtime_adapter",
+        fromlist=("HermesRuntimeRequest",),
+    )
+    getattr(runtime_adapter, "HermesRuntimeRequest").from_metadata(request)
     return request
 
 
 def _invoke_hermes_payload(payload: object) -> Mapping[str, object]:
     """Closure-free operation entrypoint resolved by the sealed registry."""
 
-    return execute_from_metadata(_request_metadata(payload))
+    runtime_adapter = __import__(
+        "daedalus.integrations.hermes.runtime_adapter",
+        fromlist=("execute_from_metadata",),
+    )
+    return getattr(runtime_adapter, "execute_from_metadata")(_request_metadata(payload))
 
 
 def _hermes_output_digests(value: object, payload: object) -> tuple[str, ...]:
     """Closure-free output verifier resolved independently by the registry."""
 
-    if not isinstance(value, Mapping):
-        raise HermesKernelProviderError("Hermes operation output is not an object")
-    result = HermesRuntimeResult.from_dict(value)
-    request = HermesRuntimeRequest.from_metadata(_request_metadata(payload))
+    if not callable(getattr(value, "get", None)):
+        raise RuntimeError("Hermes operation output is not an object")
+    runtime_adapter = __import__(
+        "daedalus.integrations.hermes.runtime_adapter",
+        fromlist=("HermesRuntimeRequest", "HermesRuntimeResult"),
+    )
+    result = getattr(runtime_adapter, "HermesRuntimeResult").from_dict(value)
+    request = getattr(runtime_adapter, "HermesRuntimeRequest").from_metadata(
+        _request_metadata(payload)
+    )
     if result.request_id != request.request_id or result.task_id != request.task_id:
-        raise HermesKernelProviderError("Hermes operation output identity mismatch")
+        raise RuntimeError("Hermes operation output identity mismatch")
     return result.output_digests
 
 
-def register_hermes_runtime_operation(registry: _T) -> _T:
-    """Register exactly one fixed Hermes operation on an existing registry."""
+def register_hermes_runtime_operation(
+    registry: object,
+    *,
+    pre_admission: object,
+) -> object:
+    """Bind fixed Hermes functions to the current receipt-backed registry.
 
-    from daedalus.runtimes.provider_executable_object_registry import ProviderRuntimeOperation
+    The 07D4 executable registry owns the operation identity through the
+    pre-admission receipt; this helper deliberately cannot manufacture that
+    receipt or inject a callback.
+    """
 
-    operation = ProviderRuntimeOperation(
-        operation_id=HERMES_OPERATION_ID,
+    from daedalus.runtimes.provider.executable_object_registry import (
+        ProviderExecutableObjectRegistry,
+    )
+    from daedalus.runtimes.provider.executable_pre_admission import (
+        ProviderExecutablePreAdmissionReceipt,
+    )
+
+    if type(registry) is not ProviderExecutableObjectRegistry:
+        raise HermesKernelProviderError(
+            "provider executable registry must be exact ProviderExecutableObjectRegistry"
+        )
+    if type(pre_admission) is not ProviderExecutablePreAdmissionReceipt:
+        raise HermesKernelProviderError(
+            "Hermes operation requires an exact executable pre-admission receipt"
+        )
+    if pre_admission.entrypoint_id != HERMES_OPERATION_ID:
+        raise HermesKernelProviderError("Hermes pre-admission names a different entrypoint")
+    registry.register(
+        pre_admission,
         invoke=_invoke_hermes_payload,
         output_digests=_hermes_output_digests,
     )
-    register = getattr(registry, "register", None)
-    if not callable(register):
-        raise HermesKernelProviderError("provider executable registry has no register method")
-    register(operation)
     return registry
 
 
@@ -109,10 +133,19 @@ class HermesKernelProvider:
             raise HermesKernelProviderError(
                 f"callback-bearing arguments are forbidden by the sealed Hermes provider: {sorted(banned)}"
             )
-        payload = broker_arguments.get("payload")
+        entrypoint_id = broker_arguments.pop("entrypoint_id", HERMES_OPERATION_ID)
+        if entrypoint_id != HERMES_OPERATION_ID:
+            raise HermesKernelProviderError("Hermes provider targets a different entrypoint")
+        payload = broker_arguments.get("invocation_payload")
         if payload is None:
             raise HermesKernelProviderError("authenticated provider payload is required")
-        _request_metadata(payload)
+        from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+
+        if type(payload) is not ProviderInvocationPayload:
+            raise HermesKernelProviderError(
+                "authenticated provider payload must be exact ProviderInvocationPayload"
+            )
+        _request_metadata(payload.body)
         from daedalus.runtimes.broker import run_runtime_provider
 
-        return run_runtime_provider(**broker_arguments)
+        return run_runtime_provider(entrypoint_id, **broker_arguments)

@@ -261,7 +261,7 @@ under concurrent load and is NOT claimed as executed.]
 ## How to see all of it
 
 ```powershell
-python -m daedalus.cli map --check
+python -m daedalus.interfaces.cli.entry map --check
 git show 9831ddae^2:.daedalusignore | python -c "import sys,hashlib;print(hashlib.sha256(sys.stdin.buffer.read().decode('utf-8').replace(chr(13)+chr(10),chr(10)).encode()).hexdigest()[:16])"
 python -m pytest tests/test_mapping_drift.py -q
 ```

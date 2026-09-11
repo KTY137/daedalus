@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from daedalus.schemas import _artifact_locator, _locator_sha256, _sha256
+from daedalus.kernel.contracts.base import (
+    _artifact_locator,
+    _locator_sha256,
+    _sha256,
+)
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
 

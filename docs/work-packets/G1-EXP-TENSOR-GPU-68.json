@@ -1,0 +1,143 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-68",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "472c23e9bcef9aecd43c9314015c1ef5c2fcf84d",
+    "dependencies": "G1-EXP-TENSOR-GPU-67; exact base_head and retained inputs in this artifact",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "implementation",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence",
+          "regressions"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "bounded_next_step"
+        ],
+        "projection_note": "Metadata projection only. Explicitly revert the retained implementation commit(s) to restore prior compiler behavior; keep this evidence and its negative results. No schema/store migration or gate transition is authorized."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "evidence",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-68",
+  "title": "Centralize exact Forest/Fourfold node-partition admission across Tensor projection paths",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "472c23e9bcef9aecd43c9314015c1ef5c2fcf84d",
+  "implementation_head": "5bc666ce6a9beee779eb672a25cc0c2f85672f11",
+  "scope": "Implement the bounded GPU-67 decision by extracting the projection verifier's existing exact Forest/Fourfold node-partition logic into one private admission primitive and reusing it from the canonical relation compiler and Boolean compatibility adapter without widening legacy projection semantics.",
+  "implementation": [
+    "projection_verifier now owns private _forest_node_partition admission: duplicate or unmapped Forest nodes, exact per-plane membership, extra Fourfold nodes, and constitutional kind-to-plane placement are checked in one existing authority.",
+    "verify_forest_projection reuses the private primitive while retaining deterministic ProjectionFinding reporting instead of creating another verifier surface.",
+    "compile_relation_blocks and boolean_relation_block_from_fourfold now reuse the same exact partition admission and remove their duplicated weaker duplicate/missing-only checks.",
+    "No relation digest, verified binding, endpoint-completeness, semiring, provenance, or promotion rule was moved into the primitive; retained and unretained relation semantics remain owned by the existing projection paths.",
+    "legacy_forest remains intentionally conservative: its narrower kind map and absent Data-plane contract were not changed."
+  ],
+  "regressions": [
+    "an extra Fourfold node is reported by verify_forest_projection and refused by both relation compilation paths",
+    "a source_file placed in the knowledge plane is reported as missing/extra and refused by both relation compilation paths",
+    "legacy fourfold_from_knowledge_forest still refuses data_table rather than silently broadening its Data-plane contract",
+    "the existing relation-retention regression owner remains unchanged and continues to pin retained/unretained same-plane semantics"
+  ],
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "gpu67_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-67.json@730f2f294225f18af5f75d6c8c4a023fc78e9fb9",
+    "projection_verifier_commit": "eeb01a69dd2f45c913d3829fbd487f568452a989",
+    "projection_verifier_blob": "daedalus/twin/projection_verifier.py@9eed6da7c6f5f38d91949ca0294e17a93418dd8b",
+    "relation_compiler_commit": "38344787488d52bf16ab3473bf0a5bf425f50462",
+    "relation_compiler_blob": "daedalus/twin/relation_compiler.py@e6c8b24f2e6202d8b1090d6f0019ac9222cd88d6",
+    "relation_projection_commit": "e81ee30e9513d5a80c9dd6b0d866064c7db8e010",
+    "relation_projection_blob": "daedalus/twin/relation_projection.py@adcfdb83b7c1316a62c0c812b8cc057c3592ba37",
+    "test_commit": "5bc666ce6a9beee779eb672a25cc0c2f85672f11",
+    "test_blob": "tests/twin/test_projection_verifier.py@b86e4f0508c3fbca64df5c6273c56cab294910ef",
+    "legacy_forest_unchanged_blob": "daedalus/twin/legacy_forest.py@bb220fbcab9d95f315d90cf7bbe7498dc091b19f",
+    "implementation_fourfold_run": 34120097239,
+    "implementation_fourfold_conclusion": "success",
+    "implementation_tauri_run": 34120097173,
+    "implementation_tauri_conclusion": "failure: Rust formatting"
+  },
+  "verification": {
+    "fourfold_contract_arms": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 completed successfully",
+    "public_api": "successful inside contract jobs",
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "complete_suite_manual_only": "skipped",
+    "desktop_caveat": "Tauri Desktop failed at Rust formatting after cockpit build, frozen-backend build/smoke, project/desktop contract tests, and icon generation succeeded; Rust library tests and Linux bundle were skipped after the formatting failure"
+  },
+  "gardener_result": {
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_kind_to_plane_map": false,
+    "full_projection_verifier_called_from_tensor_compiler": false,
+    "legacy_mapping_changed": false,
+    "relation_retention_semantics_changed": false,
+    "duplicate_subset_partition_checks_removed": true
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "With node-partition drift removed, inspect the remaining Boolean compatibility adapter duplication against compile_relation_blocks and freeze the smallest semantics-preserving collapse step. Preserve complete-plane refusal, Fourfold-only cross-plane fact authority, retained same-plane relation semantics, and fail-closed hyperedge/undirected behavior; do not introduce a third projector or public abstraction."
+}

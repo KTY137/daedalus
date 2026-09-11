@@ -1,0 +1,152 @@
+{
+  "packet": "G1-IKARUS-47",
+  "measured_on": "2026-09-10",
+  "base_revision": "b29105affb32fdc1f20624e20de1bf4074488786",
+  "suites": {
+    "packet and neighbouring suites plus census, registry and s02 pins": "752 passed, 6 skipped, 49 subtests (seventeen suites on the tree rebased onto 378b7f25: packet, neighbouring, ariadne, census, registry, imports graph, s02, host predicate)",
+    "packet, neighbouring and pin suites, final tree after review round 2": "763 passed, 6 skipped, 156 subtests (twenty suites incl. the campaign loop suite, the vocabulary pin and the s02 kernel row; rebased onto c2100e1e)",
+    "packet, neighbouring, reader and pin suites, final tree after review round 3": "794 passed, 7 skipped, 156 subtests (twenty-two suites: the packet, its neighbours, the campaign reader's own suite, the vocabulary pin and the s02 kernel row)",
+    "packet, neighbouring, reader and pin suites, final tree after review rounds 3 and 4": "799 passed, 7 skipped, 156 subtests (twenty-three suites, final tree)"
+  },
+  "mutation_table": "table 1 (19 guards): 18 caught, M14 survived as a guard masked by the dispatch refusal, pinned and re-run: caught. table 2 (23 guards, after Cerberus round 1): 23/23. table 3 (29 guards, after Odysseus round 1): 27 caught; M1 (masked by the resolved-file check) got an ordering pin, M14 now removes both runner checks; re-run: caught (mutation-table-3.txt). table 4 (34 guards, after review round 2): 34/34 caught (mutation-table-4.txt); restored tree: GREEN     | restored tree | 127 passed, 1 skipped, 1 warning, 12 subtests passed in 4.24s. table 5 (43 guards, after review round 3, now including the campaign reader's suite): 43/43 caught (mutation-table-5.txt); restored tree: GREEN     | restored tree | 153 passed, 2 skipped, 1 warning, 12 subtests passed in 4.44s. table 6 (43 guards, after the Cerberus round-3 repairs): 43/43 caught (mutation-table-6.txt); restored tree: GREEN     | restored tree | 153 passed, 2 skipped, 1 warning, 12 subtests passed in 4.61s",
+  "review_rounds": {
+    "1 (70eeb25e)": "Cerberus block (CRITICAL 1 error texts carried the exception message with host paths; MAJOR 2 grant text vs the spine write; minor last-wins registration); Odysseus D1 high (a directory junction inside the subject defeated the leakage boundary end to end: the campaign nominated a change to daedalus/spine/killswitch.py), D2 medium-high (trailing-dot spelling), D3 medium (misclassified effect states), D4 medium (unbacked postcondition), D5 = CRITICAL 1, D6-D9 low -- all repaired in the second commit; the same junction hole in the campaign's own CLI/HTTP doors recorded for G1-ARIADNE-11",
+    "2 (d7b5b072)": "Cerberus block, one CRITICAL: the projection called _repo_root() a SECOND time after the campaign had run, so a registry failure there raised _PreRunRefusal (effect_state 'none') and the service settled the lease as provably effect-free while the campaign had written its lease, ledger and evidence. Odysseus reproduced it independently (its D10) and added: a HARD LINK to a protected file was admitted (one inode, two names -- realpath returns the requested spelling, and the kernel's st_nlink check resolves against the computer workspace, not the subject); the evidence directory was INHERITED when the same operation ran twice, so a forged receipt reported a verified postcondition; campaign_id had no filesystem-spelling rule (CAMP1 / camp1. / con); projected VALUES were unbounded (a 2 MB field made a 2.5 MB projection). Cerberus NEW-2 medium: the _admit_path docstring overstated the trusted lane's gate (pre-existing behaviour, wording corrected). NEW-3/NEW-4 low, stated not closed. All repaired in the third commit; D1/D2/D3/D5/D6/D7/D8 of round 1 were re-attacked and confirmed resolved (junctions, 8.3 short names, Unicode and case spellings, ::$DATA, trailing dot, 24 malformed shapes, a stateful __str__).",
+    "3 (a2a6198d)": "Odysseus: one HIGH with an executed end-to-end exploit. D13 -- the st_nlink refusal was admission-time and the campaign's own reader never checked it, so a concurrent writer that swapped the admitted file for a HARD LINK during the git rev-parse window (0.39 ms writer against a 12.2 ms window, won every attempt) made the REAL campaign through the REAL lease nominate a candidate carrying daedalus/spine/killswitch.py bytes, with those bytes in six control-root files. Nothing was applied, but the section 8.1 leakage boundary was crossed, and the round-2 residual-risk sentence that claimed the campaign's own `before` mismatch closes the window was FALSE (the planner chooses `before`). Repaired where the read is atomic: os.fstat(descriptor).st_nlink in read_repository_source -- a deliberate, minimal extension of this packet's scope into daedalus/gates/repository/tree.py. D14 HIGH/MEDIUM: a planner-supplied campaign_id named the evidence directory with no binding to the operation, so one campaign borrowed another's FRESH evidence; the id now always carries the operation digest. D15: the freshness floor had no ceiling, so a future timestamp verified every later forgery. D16: _short did not bound integers, so only CPython's 4300-digit limit did (62 KB projection); the packet's own row said otherwise and is corrected. D17: two legs of the round-2 repair were mutation-invisible and now have tests. D18-D22 low: an unclassified crash on a non-dict Mapping receipt, no receipt-identity check, an unreadable list shape reading as empty, untyped budget-equality flags, a forgeable truncation marker. Not reproducible on this host and not claimed closed: 8.3 short names (8dot3 disabled) and a file symbolic link (no SeCreateSymbolicLink privilege).",
+    "3 (cerberus, 3f7de763)": "APPROVE -- the round-2 block lifts. The CRITICAL was verified closed by executing BOTH revisions against the same injected registry failure: round-2 code raised a pre-run refusal with effect_state 'none' after the runner had run; the current code returns with postcondition_verified False and the target withheld. Cerberus also verified the service side (only the literal 'none' grants provably-no-effect for this family, and the tool sets do not intersect) and measured the scope extension: zero of 6372 tracked files in this worktree and zero of 6052 in the primary checkout have a second name, so no legitimate repository read is broken, while 3810 of 4951 sampled .venv files DO -- a subject with a virtual environment inside it now refuses reads there, which is the right answer for a repair campaign and is stated at the check. Four low findings: the receipt comparison was named 'matches' while it measures 'does not contradict' (renamed and made explicit); the id composition truncates a label at 40 characters, which the packet now states; the hard-link note above; and a pre-existing one that is NOT this packet's -- a failure text can name a deny-listed path that the success projection withholds, recorded on the coordination board with G1-ARIADNE-11. Cerberus re-stated a standing medium for the owner: on the TRUSTED lane the secret floor alone applies, so a deny-listed path IS echoed there.",
+    "4 (odysseus, 3f7de763)": "Every round-3 repair holds under attack. The TOCTOU exploit that won 12 of 12 attempts wins 0 of 3000 threaded iterations; a hard link refuses under both names; a read-path census found the campaign's only subject-tree byte read goes through read_repository_source, so nothing bypasses the new check. The id binding, both edges of the freshness window, the integer bound (a fully loaded receipt projects to 44118 bytes) and the receipt comparison all held, and all ten guards were re-measured red including the two that were mutation-invisible in round 3. Two low residues at the campaign's OWN doors, not this packet's: an NTFS alternate data stream is accepted by campaign._admit_target_path and the reader's grammar (a contract impurity, not a section 8.1 crossing -- the protected-prefix match uses the base path and the computer-loop door refuses ':'), and the 40-character label collapse already stated. One honesty omission was added to the packet: a receipt carrying an integer past CPython's conversion limit cannot be rendered, so that campaign reconciles instead of nominating."
+  },
+  "live_runs": {
+    "1": "Claude planner, plain clone subject: daedalus.slice ok, then the KERNEL refused the campaign step: ComputerPolicy.admit applied the workspace path rule to `before`/`after` by key name (image paths for vision.changes, text for the campaign) -> 'path must remain relative to the computer workspace'. Repaired with per-tool path-argument keys; retained as negative evidence. 2 planner calls, $0.20.",
+    "2": "same objective after the repair: slice -> daedalus.ariadne_campaign -> outcome nominated (campaign ikarus-9f205ae3e05ee82b5715ffe4, target daedalus/build.py, three arms failed/failed/passed, budget equality true), 3 planner calls, 53.9 s, ~$0.33; subject clone untouched (see subject_state).",
+    "3": "a planner-proposed change inside the leakage boundary (daedalus/spine/killswitch.py): see the retained run for the refusal and its effect_state."
+  },
+  "live_run_ledger_rows": [
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.07024,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.129826,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.07046,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.125372,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.130632,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    },
+    {
+      "kind": "reserve",
+      "vendor": "anthropic_cli",
+      "usd": 3.0,
+      "basis": "worst_case",
+      "estimate_usd": null,
+      "model": "sonnet"
+    },
+    {
+      "kind": "settle",
+      "vendor": "anthropic_cli",
+      "usd": 0.074304,
+      "basis": null,
+      "estimate_usd": 3.0,
+      "model": "sonnet"
+    }
+  ],
+  "subject_state_after_runs": {
+    "head": "b29105affb32fdc1f20624e20de1bf4074488786",
+    "porcelain_tracked": "",
+    "untracked": [],
+    "ignored_files_added_under_runs_spine": [
+      "runs/spine/gate_discrimination.json",
+      "runs/spine/operability_drill.json",
+      "runs/spine/spine.sqlite3"
+    ]
+  },
+  "files": {
+    "mutation-table-1.txt": "6a6a5828105ca3b0648335593459da3e9438c2312a3a04621f9eacbc03e164ea",
+    "mutation-table-2.txt": "e8c9b587abb6016fc560ca11c2eb9834bdefcd543b493fe71f4fb5ec20d9eba6",
+    "mutation-table-3.txt": "ec73b2157ff6077172176482c5c798e6f3bcbd7405e5cccbd2e1d5e7aef703b0",
+    "mutate47.py.txt": "5a6f56a74aebe0978d07fb2e2b3b736190499279178b4740257d3d0b90238c9b",
+    "live-setup.json": "a731cb5ea25394ebb420441143c6f44abaebe6f40556da29fd9bb42f62b47252",
+    "live-run-1-kernel-path-rule-refused.json": "a22caf35c47de05f034958fe8d3f2be9d3d5dd952b5db2690de5f5fce6e29a8e",
+    "live-run-2-nominated.json": "69ff570491355af0132271ef28dcb2c64862050d9cf0f8f4a54cc29e872b1013",
+    "live-run-3-leakage-boundary-refused.json": "892b31e63b5e8241ea87a83e40d81b073b9a6fad3d1bcc1bfd7bfb0c3ff8a519",
+    "s02-g1-ikarus-47-corpora-a.json.gz": "a2c6d71a4811ceaf2f1eda730bf5dd5474f4765098fb50e46ed6e24eccc35783",
+    "s02-g1-ikarus-47-corpora-b.json.gz": "4831c630cb4f83821159e4786d4160a411903391f1b0db1a7807bd4726d7899d",
+    "mutation-table-4.txt": "84c1ed683ac536e61db4de289070b9855a4295ed39d09053d600d862cb37543d",
+    "mutation-table-5.txt": "7f7a0e2080c5c6b7ba35bf3a47404b283ad7930f07cbb3bca74f7b59d7ff6259",
+    "mutation-table-6.txt": "eb57db2a9487050c2a54b8b24a188bea9147659b5434deeea900f06ea89402ff"
+  },
+  "not_claimed": "self-improvement: the campaign's evaluator is the frozen exact-match evaluator; a nomination proves isolation, provenance, budget equality and non-application, not improvement (G1-IKARUS-48).",
+  "final_pins_round_2": "SCC census unchanged (no new module); work-packet registry unchanged; s02 kernel row re-pinned on the combined tree: 7181 functions, 47644 type-name sites, 521 files parsed, full_resolver 94.34 -> 94.35, marginal_functions still 8, marginal_pp still 0.1114, probe run twice",
+  "not_closed_round_2": "A file symbolic link could not be measured on this host (WinError 1314, the token has no SeCreateSymbolicLink); the resolution mechanism is proven by the junction case plus an S_ISLNK test. The evidence check proves evidence appeared under this campaign's directory during this run -- presence, not causation: no digest ties the receipt to the files. Between the admission stat and the campaign's own read the subject could change; the campaign re-reads and refuses on its own `before` mismatch, and nothing is applied either way.",
+  "final_pins_round_3": "s02 kernel row re-pinned after the round-3 helpers: 7182 functions, 47646 type-name sites, 521 files parsed, rates unchanged (annotation-only 94.46, full resolver 94.35, marginal_functions 8, marginal_pp 0.1114, verified share 90.15), probe run twice",
+  "not_closed_round_3": "The evidence check remains presence during this run, not causation: no digest ties a receipt to the files it points at, and a dishonest runner stays outside what this adapter can verify. The id binds the directory to the operation, which is what the borrowing attack needed."
+}

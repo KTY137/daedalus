@@ -1,0 +1,59 @@
+{
+  "description": "Daedalus orientation, change tracking, and compaction notes. Advisory instrumentation; not a complete security boundary.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -m daedalus.hooks session",
+            "commandWindows": "python -m daedalus.hooks session",
+            "statusMessage": "Reading Daedalus tree state",
+            "additionalContextLimit": 3000,
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -m daedalus.hooks turn",
+            "commandWindows": "python -m daedalus.hooks turn",
+            "additionalContextLimit": 4000,
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -m daedalus.hooks post_tool",
+            "commandWindows": "python -m daedalus.hooks post_tool",
+            "statusMessage": "Recording Daedalus verification state",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -m daedalus.hooks pre_compact",
+            "commandWindows": "python -m daedalus.hooks pre_compact",
+            "statusMessage": "Recording Daedalus compaction marker",
+            "timeout": 8
+          }
+        ]
+      }
+    ]
+  }
+}

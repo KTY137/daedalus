@@ -1,3 +1,4 @@
+import { stubLiveProject } from './_live-fixtures';
 import { expect, test } from '@playwright/test';
 import { NOT_BUILT } from './_app';
 
@@ -7,6 +8,7 @@ import { NOT_BUILT } from './_app';
  * test about the projection contract instead of filesystem/watcher timing.
  */
 test('queue events refresh the live waiting count', async ({ page }) => {
+  await stubLiveProject(page, 'atlas');
   await page.addInitScript(() => {
     type Listener = (event: MessageEvent<string>) => void;
 

@@ -15,7 +15,7 @@ MEASURED 2026-07-29, both by running the code rather than reading it:
 * ``runs/council/room.py::_attach`` DOES apply the floor, fail-closed
   (``_floor`` returns "secret floor unavailable" if the import fails).
 * ``runs/ab/run_arm.py::distilled_context`` does NOT. It inlines whole file
-  bodies from ``C:\\Users\\nukei\\Desktop\\PnP_App`` into a ``claude`` prompt.
+  bodies from ``C:\\Users\\example\\Desktop\\PnP_App`` into a ``claude`` prompt.
 * ``~/.claude/skills/room/room.py::_attach`` does NOT, and it is outside this
   repo so no test here can gate it. Receipt in
   ``docs/SPEND_AND_EGRESS_COVERAGE.md``.
@@ -23,6 +23,7 @@ MEASURED 2026-07-29, both by running the code rather than reading it:
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -116,6 +117,38 @@ _SKIP_PARTS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "build",
                "tests"}
 
 
+def _iter_census_python_files(root: Path):
+    """Every ``*.py`` under ``root`` that belongs to THIS checkout.
+
+    A directory holding its own ``.git`` entry is a DIFFERENT repository -- a
+    linked worktree (``.git`` is a file) or a nested clone (a directory) -- and
+    its files are copies of another checkout, not paths in this one.
+
+    This scan is the LATENT half of the bug that was measured in
+    ``tests/test_spend_coverage.py`` on 2026-09-02, where the identical
+    ``rglob`` census descended into six nested checkouts and invented 42 false
+    "surprises". It does not fire here today only because the production check
+    passes ``candidate_paths`` from the billable-site registry and never walks;
+    the whole-directory walk below is reached only by the self-test. Fixing it
+    in the same commit keeps the two files from drifting apart and stops the
+    trap from arming itself the moment the composition changes.
+
+    Untracked files are still scanned on purpose -- the threat is a path that
+    ships a file body to a vendor, which does not wait for ``git add`` -- and
+    ``root`` itself is never tested for ``.git``.
+    """
+    root = Path(root)
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = [
+            name for name in dirnames
+            if name not in _SKIP_PARTS and not (here / name / ".git").exists()
+        ]
+        for name in filenames:
+            if name.endswith(".py"):
+                yield here / name
+
+
 def body_inlining_vendor_paths(
     root: Path,
     candidate_paths: set[str] | None = None,
@@ -133,7 +166,7 @@ def body_inlining_vendor_paths(
     paths = (
         ((Path(root) / rel) for rel in sorted(candidate_paths))
         if candidate_paths is not None
-        else Path(root).rglob("*.py")
+        else _iter_census_python_files(root)
     )
     for path in paths:
         if not path.is_file() or path.suffix != ".py":
@@ -156,7 +189,7 @@ def body_inlining_vendor_paths(
 KNOWN_UNFLOORED_EGRESS = {
     "runs/ab/run_arm.py":
         "distilled_context() (lines 79-85) inlines whole file bodies from "
-        "C:/Users/nukei/Desktop/PnP_App -- a DIFFERENT repo, chosen by "
+        "C:/Users/example/Desktop/PnP_App -- a DIFFERENT repo, chosen by "
         "plan_context, not by a human -- into a `claude` prompt. If the "
         "planner ever selects a .env or a credentialled config it ships "
         "verbatim. CRITICAL; open because the fix is a design decision about "
@@ -165,14 +198,13 @@ KNOWN_UNFLOORED_EGRESS = {
 }
 
 # The textual detector deliberately over-approximates within one registered
-# billable module. This inspected co-location is not an egress path: the read is
-# the CLI's response file after the vendor process has produced it, not input
-# placed into the prompt.
-KNOWN_NON_EGRESS_COLOCATIONS = {
-    "daedalus/ikarus_os.py":
-        "_claude_stream reads the vendor's response message file; prompt input "
-        "is assembled separately and the bytes flow vendor -> disk -> caller",
-}
+# billable module.  This ledger is empty after the 2026-09-05 project-state
+# grounding work: ``ikarus/shell.py`` still reads a vendor response file, but
+# every repository-derived input it can add to a provider prompt now passes the
+# canonical slice/project-state egress policy and secret floor.  Keeping the old
+# false-positive exception would make the ledger confess an unfloored path that
+# the detector now measures as fenced.
+KNOWN_NON_EGRESS_COLOCATIONS = {}
 
 
 def _billable_python_paths() -> set[str]:

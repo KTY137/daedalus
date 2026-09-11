@@ -1,7 +1,9 @@
 ---
-tags: [findings]
+tags:
+- findings
 created: 2026-08-25
 source: apps/web
+permalink: main/findings/cockpit-themes-20260825
 ---
 
 # Cockpit 2026-08-25 — die sechs Entwuerfe werden Themes einer laufenden Oberflaeche

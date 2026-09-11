@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "daedalus/runtimes/provider_runtime_invocation_binding.py"
+SOURCE = ROOT / "daedalus/runtimes/provider/runtime_invocation_binding.py"
 
 
 def _tree() -> ast.AST:
@@ -111,5 +111,8 @@ def test_runtime_invocation_binding_validates_all_trust_inputs_before_ledger_use
 
     boundary = source[source.index("def bind_provider_runtime_invocation(") :]
     assert boundary.index("_require_exact_boundary_types(") < boundary.index(
+        "ProviderObservationBindingLedger.verify_invocation_abi_contract("
+    )
+    assert boundary.index("type(entrypoint_id) is not str") < boundary.index(
         "ProviderObservationBindingLedger.verify_invocation_abi_contract("
     )

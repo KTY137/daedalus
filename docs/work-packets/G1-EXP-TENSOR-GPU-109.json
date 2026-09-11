@@ -1,0 +1,167 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-109",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "23456a49ad5f476bf7b5a6e6dd4d23e90ac88206",
+    "dependencies": "G1-EXP-TENSOR-GPU-102, G1-EXP-TENSOR-GPU-103, G1-EXP-TENSOR-GPU-108, KnowledgeForest.content_sha256, compile_relation_blocks",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "decision",
+          "finding"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "measurement_contract",
+          "focused_contract_head"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "finding",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-109",
+  "title": "Separate aggregate Forest integrity verification from retained relation membership re-verification",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "23456a49ad5f476bf7b5a6e6dd4d23e90ac88206",
+  "focused_contract_head": "4f79769e245b49ce76a017798f8cb1895cc4b5f9",
+  "scope": "Use the existing GPU-100/102 relation-delta fixture and cProfile helper surface to isolate the two current stateless integrity operations inside the unchanged compile_relation_blocks owner: one aggregate KnowledgeForest.content_sha256 verification and the per-retained-edge canonical digest membership checks against Fourfold PlaneSnapshot.relation_sha256s. Pin deterministic call scope without adding a second probe, cache, digest index, trusted digest input, public API or production incremental path.",
+  "measurement_contract": {
+    "fixture": "experiments/tensor_gpu/relation_delta_rebuild_probe.py with nodes=12, row_width=2 and one added same-plane edge",
+    "observer": "boolean",
+    "delta_edges": 25,
+    "aggregate_forest_integrity": "compile_relation_blocks directly invokes KnowledgeForest.content_sha256 exactly once",
+    "retained_relation_membership": "compile_relation_blocks directly invokes canonical_sha exactly once per retained same-plane ForestEdge, therefore 25 calls in the frozen focused case",
+    "edge_wire_materialization": "ForestEdge.to_dict executes 50 times in the focused all-same-plane case: 25 materializations nested under aggregate Forest content serialization plus 25 direct materializations for retained relation membership",
+    "correctness_guard": "CompiledRelationBlocks.source_forest_sha256 remains exactly FourfoldSnapshot.source_forest_sha256",
+    "claim_boundary": "The deterministic call counts isolate work scope. They do not claim that either verification pass may be deleted, nor do they establish a wall-time speedup."
+  },
+  "finding": {
+    "aggregate_and_membership_are_distinct": true,
+    "both_revisit_retained_edge_payloads_in_fixture": true,
+    "aggregate_forest_digest_can_replace_membership": false,
+    "membership_digest_can_replace_aggregate_forest_binding": false,
+    "reason": "The aggregate Forest digest proves the supplied complete Forest object matches snapshot.source_forest_sha256, while per-edge digests decide which exact same-plane relations the Fourfold plane retained. GPU-103 already established that relation_sha256s has no positional or authoritative digest-to-edge association. The two checks therefore overlap in payload materialization but are not semantically interchangeable under the present contracts."
+  },
+  "decision": {
+    "closed": true,
+    "production_change": false,
+    "focused_contract_change": true,
+    "probe_change": false,
+    "new_public_api": false,
+    "new_digest_index": false,
+    "new_compiler_cache": false,
+    "new_graph_authority": false,
+    "new_receipt_family": false,
+    "trusted_digest_parameter_added": false,
+    "incremental_tensor_unblocked": false,
+    "summary": "GPU-109 narrows the remaining stateless verification envelope without changing runtime code. The frozen focused profile proves one aggregate Forest digest pass and one per-edge retained-membership pass, with every retained edge payload materialized once by each pass. The duplicated materialization is real, but the checks prove different facts, so deleting either one now would weaken authority unless an existing revision-bound contract can carry the missing verified association."
+  },
+  "unsafe_shortcuts_rejected": [
+    "treat snapshot.source_forest_sha256 equality as proof that every Forest edge is retained by a Fourfold plane",
+    "skip aggregate forest.content_sha256 because relation digests happen to match selected edges",
+    "trust a caller-provided precomputed Forest digest without independently binding it to the supplied Forest object",
+    "cache edge digests by Python object identity",
+    "pair sorted relation_sha256s positionally with Forest edges",
+    "add a Tensor-owned persistent digest-to-edge index"
+  ],
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "23456a49ad5f476bf7b5a6e6dd4d23e90ac88206",
+    "base_exact_head_fourfold_tensor": "34305952494:completed/success on 23456a49ad5f476bf7b5a6e6dd4d23e90ac88206",
+    "base_exact_head_tauri": "34305952481:completed/success on 23456a49ad5f476bf7b5a6e6dd4d23e90ac88206",
+    "focused_contract_commit": "4f79769e245b49ce76a017798f8cb1895cc4b5f9",
+    "focused_test_path": "tests/twin/test_tensor_relation_delta_rebuild_probe.py",
+    "focused_test_blob": "59709e3c61e2d8328c6182fc521b76004db5bcb9",
+    "production_relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "production_forest_blob_unchanged": "daedalus/structcore/forest.py@ebd0c964bd955a386b392ee58aaa1c6f1786a936",
+    "probe_blob_unchanged": "experiments/tensor_gpu/relation_delta_rebuild_probe.py@c5ee54c8ac0e3972bb0c3dbbac22c714b7176977",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "kind": "focused deterministic cProfile call-scope contract plus existing Fourfold/Tensor integration workflow",
+    "masterplan_checked_first": true,
+    "focused_contract_written": true,
+    "base_exact_head_fourfold_tensor_green": true,
+    "base_exact_head_tauri_green": true,
+    "focused_contract_exact_head_fourfold_tensor_green": false,
+    "focused_contract_note": "Hosted Actions for the new focused head were not yet visible when this packet record was first written; no green claim is made for that head until a matching run is observed.",
+    "manual_full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "workflow_files_changed": 0,
+    "documentation_files_changed": 1,
+    "base_to_contract_diff": "1 file; focused test +63/-0",
+    "existing_probe_reused": true,
+    "new_production_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "claim_boundaries": [
+    "Call counts are deterministic work-scope evidence, not latency or memory superiority evidence.",
+    "GPU-102's cProfile timing remains prior attribution context only and is not reinterpreted as an expected speedup.",
+    "No production incremental Tensor path exists as a result of GPU-109.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-110 should audit existing revision-bound result and verification receipts at the natural Gate-1 before/after owner for an already-authoritative way to carry a verified Forest-content identity together with retained relation association. Prefer deletion/consolidation. If no existing contract can carry that association without trusting mutable caller state or minting a second graph/index authority, retain both stateless passes and move the optimization search to another measured compiler bucket."
+}

@@ -48,6 +48,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from daedalus.kernel.contracts.base import ContractProvenance
+from daedalus.kernel.contracts.runtime import RuntimeConformanceReceipt, RuntimeManifest
 from daedalus.kernel.runtime_conformance import (
     RuntimeConformanceError,
     verify_current_conformance,
@@ -64,11 +66,6 @@ from daedalus.runtimes.profiles import (
     bind_conformance_envelope,
 )
 from daedalus.runtimes.trust import verify_production_runtime_envelope
-from daedalus.schemas import (
-    ContractProvenance,
-    RuntimeConformanceReceipt,
-    RuntimeManifest,
-)
 from daedalus.spine.envelope import canonical_json
 
 EXPIRY_LOCATOR = "live-probe:runtime-envelope-expiry"

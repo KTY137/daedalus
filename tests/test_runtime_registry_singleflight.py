@@ -5,7 +5,7 @@ import time
 import unittest
 from unittest import mock
 
-from daedalus import runtime_registry
+from daedalus.orchestration import runtime_registry
 
 
 class RuntimeRegistrySingleFlightTest(unittest.TestCase):

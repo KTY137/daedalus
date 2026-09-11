@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import inspect
 import sqlite3
 
@@ -107,7 +108,7 @@ def test_read_only_spine_is_refused_without_attempt_schema_mutation(tmp_path) ->
     finally:
         reader.close()
 
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         index = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type='index' "
             "AND name='idx_attempt_lifecycle_effect_key'"

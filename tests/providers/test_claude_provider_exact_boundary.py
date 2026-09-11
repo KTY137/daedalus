@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import daedalus.providers.claude_cli as claude_provider
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.providers.claude_cli import (
@@ -9,18 +10,18 @@ from daedalus.providers.claude_cli import (
     ClaudeProviderAuthorizationRequired,
     ClaudeWorkspaceGrant,
 )
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_invocation_abi import ProviderInvocationABIContract
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_abi import ProviderInvocationABIContract
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.runtimes.provider_observation import ProviderObservationBindingLedger
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.observation import ProviderObservationBindingLedger
 
 
 _MEMBER_TYPES = {
@@ -51,10 +52,19 @@ def _uninitialized_exact_members() -> dict[str, object]:
 @pytest.mark.parametrize("member", tuple(_MEMBER_TYPES))
 def test_direct_provider_rejects_substituted_member_before_property_access(
     member: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     kwargs = _uninitialized_exact_members()
     kwargs[member] = _AmbientSubstitute()
 
+    def forbidden_command_admission() -> str:
+        raise AssertionError("command admission reached substituted authority")
+
+    monkeypatch.setattr(
+        claude_provider,
+        "claude_command_for_spawn",
+        forbidden_command_admission,
+    )
     with pytest.raises(
         ClaudeProviderAuthorizationRequired,
         match=rf"exact sealed invocation member types: .*{member}",

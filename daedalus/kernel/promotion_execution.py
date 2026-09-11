@@ -24,7 +24,7 @@ from daedalus.kernel.promotion_execution_reader import (
     PromotionExecutionReadError,
     read_promotion_execution_intents,
 )
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
     _identifier,

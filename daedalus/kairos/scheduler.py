@@ -24,7 +24,7 @@ from typing import Any
 
 from ..provider_router import route_and_select
 from ..providers import get_provider
-from ..providers.personas import roster
+from ..runtimes.providers.personas import roster
 from ..sensitivity import Policy
 
 # Lanes Ikarus may dispatch (everything that is not the senior Claude lane).
@@ -158,7 +158,7 @@ class KairosScheduler:
         # Extra pool workers Ikarus can spin up for fan-out beyond the role shadows.
         self._bench = cycle(roster("ollama"))
         if self.policy is None and self.project:
-            from ..projects import load_project
+            from ..foundation.projects import load_project
             from ..sensitivity import load_policy
             project_data = load_project(self.project)
             self.policy = load_policy(project_data)
@@ -200,6 +200,28 @@ class KairosScheduler:
             out.append(Assignment(objective, paths, agent["name"], decision.provider,
                                   decision.persona, decision.mode, True, decision.reason))
         return out
+
+    def schedule_computer(self, authority_root, due_at: str, objective: str, *, owner_confirmed: bool = False,
+                          repeat_every_s: int | None = None, occurrences: int = 1) -> dict:
+        """Admit an owner-directed deferred computer mission on the same spine."""
+        from ..orchestration.ikarus.computer_schedule import schedule_computer
+        return schedule_computer(authority_root, due_at, objective, owner_confirmed=owner_confirmed,
+                                 repeat_every_s=repeat_every_s, occurrences=occurrences)
+
+    def enqueue_computer(self, authority_root, objective: str, *, owner_confirmed: bool = False) -> dict:
+        """Queue explicit owner work on the same canonical scheduled-task path."""
+        from ..orchestration.ikarus.computer_schedule import enqueue_computer
+        return enqueue_computer(authority_root, objective, owner_confirmed=owner_confirmed)
+
+    def cancel_computer_schedule(self, authority_root, schedule_id: str, *, owner_confirmed: bool = False) -> dict:
+        """Request cooperative cancellation of one canonical task series."""
+        from ..orchestration.ikarus.computer_schedule import cancel_computer_schedule
+        return cancel_computer_schedule(authority_root, schedule_id, owner_confirmed=owner_confirmed)
+
+    def dispatch_due_computer(self, authority_root, *, now=None, cancelled=None) -> list[dict]:
+        """One bounded due mission per existing watcher/manual scheduler tick."""
+        from ..orchestration.ikarus.computer_schedule import dispatch_due_computer
+        return dispatch_due_computer(authority_root, now=now, cancelled=cancelled)
 
     def plan(self, tasks: list[dict], repo_root: str | None = None) -> dict:
         """Dry run: who gets spawned, in how many bounded waves."""
@@ -463,7 +485,7 @@ class KairosScheduler:
         at runtime. Ikarus owns the crew roster, so creating/editing roles is
         his job -- routing (``router.load_agents``) picks up the change with no
         restart. Returns a summary; raises ValueError on an invalid spec."""
-        from .. import agents_registry as reg
+        from ..orchestration import agents_registry as reg
         name = spec.get("name")
         if name and reg.get_role(name, repo_root) is not None:
             patch = {k: v for k, v in spec.items() if k != "name"}
@@ -477,7 +499,7 @@ class KairosScheduler:
 
 
 def _demo_tasks() -> list[dict]:
-    from ..benchmark import TASKS
+    from ..orchestration.benchmark import TASKS
     return [{"objective": t.objective, "paths": t.paths} for t in TASKS]
 
 

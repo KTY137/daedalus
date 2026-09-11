@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-invocation-exact-authority-integration-linear
     paths:
-      - "daedalus/runtimes/provider_executable_targets.py"
+      - "daedalus/runtimes/provider/executable_targets.py"
       - "tests/runtimes/test_provider_executable_targets.py"
       - "tests/runtimes/test_provider_executable_targets_review.py"
       - "scripts/run_provider_executable_target_mutations.py"
@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-provider-target-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_executable_targets import (
+          from daedalus.runtimes.provider.executable_targets import (
               ProviderExecutableTargetAuthority,
               ProviderExecutableTargetDescriptor,
               ProviderExecutableTargetManifest,

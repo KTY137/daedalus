@@ -6,7 +6,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from daedalus.runtime_registry import RuntimeSpec
+from daedalus.orchestration.runtime_registry import RuntimeSpec
 from daedalus.schemas import (
     RUNTIME_CONFORMANCE_CHECKS,
     AttemptContract,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_target_receipt_retention_recovery as recovery
+import daedalus.runtimes.provider.target_receipt_retention_recovery as recovery
 
 
 _FORBIDDEN_IMPORT_ROOTS = {

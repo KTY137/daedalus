@@ -6,9 +6,9 @@ on:
       - g1/ikarus-broker-registry-binding-07c
   pull_request:
     paths:
-      - "daedalus/runtimes/provider_executable_pre_admission.py"
-      - "daedalus/runtimes/provider_executable_object_registry.py"
-      - "daedalus/runtimes/provider_runtime_executable_binding.py"
+      - "daedalus/runtimes/provider/executable_pre_admission.py"
+      - "daedalus/runtimes/provider/executable_object_registry.py"
+      - "daedalus/runtimes/provider/runtime_executable_binding.py"
       - "tests/runtimes/test_provider_executable_pre_admission.py"
       - "tests/runtimes/test_provider_executable_pre_admission_review.py"
       - "tests/runtimes/test_provider_executable_object_registry.py"
@@ -48,9 +48,9 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: >-
           python -m py_compile
-          daedalus/runtimes/provider_executable_pre_admission.py
-          daedalus/runtimes/provider_executable_object_registry.py
-          daedalus/runtimes/provider_runtime_executable_binding.py
+          daedalus/runtimes/provider/executable_pre_admission.py
+          daedalus/runtimes/provider/executable_object_registry.py
+          daedalus/runtimes/provider/runtime_executable_binding.py
           tests/runtimes/test_provider_runtime_executable_binding.py
           tests/runtimes/test_provider_runtime_executable_binding_review.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json

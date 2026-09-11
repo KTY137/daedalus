@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+import io
 from typing import Any
 
 import pytest
@@ -326,3 +327,187 @@ def test_cancellable_chat_stream_worker_inherits_explicit_budget_marker(
     assert list(_stream(cancelled=lambda: False, poll_interval_s=0.01)) == []
     assert len(adopted_on) == 1
     assert adopted_on[0] != caller_thread
+
+
+def test_response_close_cannot_block_cancellation(monkeypatch: pytest.MonkeyPatch) -> None:
+    blocked = threading.Event()
+    release = threading.Event()
+    closing = threading.Event()
+    cancelled = threading.Event()
+
+    class LockedResponse(_StaticStreamResponse):
+        def __iter__(self):
+            yield b'data: {"choices":[{"delta":{"content":"first"}}]}\n'
+            blocked.set()
+            release.wait(5)
+
+        def close(self) -> None:
+            # urllib's response close may wait for a buffered read's lock.
+            closing.set()
+            release.wait(5)
+            super().close()
+
+    response = LockedResponse()
+    monkeypatch.setattr(compat.urllib.request, "urlopen", lambda *a, **k: response)
+    stream = _stream(cancelled=cancelled.is_set, poll_interval_s=0.01)
+    assert next(stream) == "first"
+    assert blocked.wait(1)
+    cancelled.set()
+    began = time.monotonic()
+    try:
+        with pytest.raises(compat.ProviderCancelled):
+            next(stream)
+        assert time.monotonic() - began < 1.5
+        assert closing.wait(1)
+        assert not response.closed.is_set()
+    finally:
+        release.set()
+
+
+def test_late_connection_is_closed_without_replay(monkeypatch: pytest.MonkeyPatch) -> None:
+    opened = threading.Event()
+    release = threading.Event()
+    cancelled = threading.Event()
+    response = _StaticStreamResponse(b"data: [DONE]\n")
+    calls = []
+
+    def connect(*args: Any, **kwargs: Any):
+        calls.append(kwargs["timeout"])
+        opened.set()
+        release.wait(5)
+        return response
+
+    def cancel() -> None:
+        assert opened.wait(1)
+        cancelled.set()
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", connect)
+    threading.Thread(target=cancel, daemon=True).start()
+    try:
+        with pytest.raises(compat.ProviderCancelled):
+            next(_stream(cancelled=cancelled.is_set, poll_interval_s=0.01))
+        assert not response.closed.is_set()
+    finally:
+        release.set()
+    assert response.closed.wait(1)
+    assert calls == [17]
+
+
+@pytest.mark.parametrize("interval", [float("nan"), float("inf"), -float("inf")])
+def test_nonfinite_poll_interval_refuses_before_transport(monkeypatch, interval):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("invalid polling interval opened a connection")
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", forbidden)
+    with pytest.raises(ValueError, match="poll_interval_s"):
+        next(_stream(cancelled=lambda: False, poll_interval_s=interval))
+
+
+def test_slow_http_error_body_remains_cancellable(monkeypatch):
+    reading_error = threading.Event()
+    release = threading.Event()
+    cancelled = threading.Event()
+    opened = []
+
+    class SlowError(compat.urllib.error.HTTPError):
+        def read(self, *args):
+            reading_error.set()
+            release.wait(5)
+            return b"provider failed"
+
+    def fail(*args, **kwargs):
+        opened.append(1)
+        raise SlowError("http://provider.invalid", 503, "Unavailable", {}, None)
+
+    def cancel():
+        assert reading_error.wait(1)
+        cancelled.set()
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", fail)
+    threading.Thread(target=cancel, daemon=True).start()
+    began = time.monotonic()
+    try:
+        with pytest.raises(compat.ProviderCancelled):
+            next(_stream(cancelled=cancelled.is_set, poll_interval_s=0.01))
+        assert time.monotonic() - began < 1.5
+        assert opened == [1]
+    finally:
+        release.set()
+
+
+def test_late_http_error_is_closed_without_reading_or_replay(monkeypatch):
+    opening = threading.Event()
+    release = threading.Event()
+    closed = threading.Event()
+    cancelled = threading.Event()
+    calls = []
+    reads = []
+
+    class ErrorBody(io.BytesIO):
+        def read(self, *args):
+            reads.append(args)
+            raise AssertionError("cancelled late error must not read its body")
+
+        def close(self):
+            super().close()
+            closed.set()
+
+    error = compat.urllib.error.HTTPError(
+        "http://provider.invalid", 503, "Unavailable", {}, ErrorBody(b"late error"),
+    )
+
+    def connect(*args, **kwargs):
+        calls.append(1)
+        opening.set()
+        release.wait(5)
+        raise error
+
+    def cancel():
+        assert opening.wait(1)
+        cancelled.set()
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", connect)
+    threading.Thread(target=cancel, daemon=True).start()
+    try:
+        with pytest.raises(compat.ProviderCancelled):
+            next(_stream(cancelled=cancelled.is_set, poll_interval_s=0.01))
+        assert not closed.is_set()
+    finally:
+        release.set()
+    assert closed.wait(1)
+    assert calls == [1]
+    assert reads == []
+
+
+@pytest.mark.parametrize("read_fails", [False, True])
+def test_http_error_body_is_bounded_and_always_closed(monkeypatch, read_fails):
+    closed = threading.Event()
+    reads = []
+
+    class ErrorBody(io.BytesIO):
+        def read(self, size=-1):
+            reads.append(size)
+            if read_fails:
+                raise OSError("error body failed")
+            return super().read(size)
+
+        def close(self):
+            super().close()
+            closed.set()
+
+    body = ErrorBody(b"x" * 2000)
+    error = compat.urllib.error.HTTPError(
+        "http://provider.invalid", 503, "Unavailable", {}, body,
+    )
+
+    def connect(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", connect)
+    error_type = OSError if read_fails else compat.ProviderHTTPError
+    with pytest.raises(error_type) as failure:
+        list(_stream(cancelled=lambda: False, poll_interval_s=0.01))
+    assert reads == [500]
+    assert closed.wait(1)
+    if not read_fails:
+        assert str(failure.value).count("x") == 500

@@ -4,7 +4,7 @@ import ast
 import dataclasses
 import inspect
 
-import daedalus.runtimes.provider_invocation_identity as identity
+import daedalus.runtimes.provider.invocation_identity as identity
 
 
 def test_identity_projection_module_has_no_execution_or_effect_authority() -> None:

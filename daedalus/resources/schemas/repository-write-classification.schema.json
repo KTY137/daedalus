@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-classification.schema.json",
+  "title": "Daedalus Gate 0 Repository Write Classification Preparation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "inventory_digest",
+    "scan_input_sha256",
+    "inventory_surface_count",
+    "classification_count",
+    "classifications",
+    "missing_surfaces",
+    "classification_ready",
+    "primary_checkout_target_proven",
+    "gate_report_bound",
+    "closed",
+    "scope",
+    "blockers",
+    "digest"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "line",
+        "column",
+        "origin",
+        "kind",
+        "callee",
+        "operation",
+        "blocking"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "(^/|\\\\|(^|/)\\.\\.?(/|$)|//)"
+          }
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "origin": {
+          "enum": [
+            "base_v1",
+            "stdlib_delta_v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S+$"
+        },
+        "callee": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S+$"
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "blocking": {
+          "type": "boolean"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_revision",
+        "surface_sha256",
+        "sha256",
+        "locator",
+        "guard_contract"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "source_anchor",
+            "guard_contract",
+            "effect_lease_receipt",
+            "runtime_conformance_receipt",
+            "primary_checkout_disjointness_receipt",
+            "retirement_receipt"
+          ]
+        },
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "surface_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "guard_contract": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "guard_contract"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "guard_contract": {
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "guard_contract": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_revision",
+        "surface",
+        "target",
+        "guard",
+        "production_reachable",
+        "guard_contracts",
+        "evidence",
+        "notes",
+        "candidate_blockers"
+      ],
+      "properties": {
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "surface": {
+          "$ref": "#/$defs/surface"
+        },
+        "target": {
+          "enum": [
+            "primary_checkout",
+            "checkout_external",
+            "non_repository",
+            "unknown"
+          ]
+        },
+        "guard": {
+          "enum": [
+            "central",
+            "local_guards",
+            "inventory_only",
+            "unguarded",
+            "retired"
+          ]
+        },
+        "production_reachable": {
+          "type": "boolean"
+        },
+        "guard_contracts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "candidate_blockers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "primary-checkout-write-target",
+              "write-target-unknown",
+              "production-write-local_guards",
+              "production-write-inventory_only",
+              "production-write-unguarded",
+              "production-write-retired"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-repository-write-classification/2"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "inventory_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scan_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "inventory_surface_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "classification_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "classifications": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/classification"
+      }
+    },
+    "missing_surfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/surface"
+      }
+    },
+    "classification_ready": {
+      "type": "boolean"
+    },
+    "primary_checkout_target_proven": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "repository-write-classification-preparation"
+    },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 2,
+      "items": {
+        "enum": [
+          "unclassified-production-write-surfaces",
+          "primary-checkout-write-target",
+          "write-target-unknown",
+          "production-write-local_guards",
+          "production-write-inventory_only",
+          "production-write-unguarded",
+          "production-write-retired",
+          "authenticated-evidence-verification-missing",
+          "gate-report-binding-missing"
+        ]
+      },
+      "allOf": [
+        {
+          "contains": {
+            "const": "authenticated-evidence-verification-missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "gate-report-binding-missing"
+          }
+        }
+      ]
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  }
+}

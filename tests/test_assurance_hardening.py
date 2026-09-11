@@ -31,9 +31,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from daedalus.schemas import ResourceBudget, ResourceUsage  # noqa: E402
+from daedalus.orchestration.execution import (  # noqa: E402
+    compose_task_attempt as TaskAttempt,
+)
 from daedalus.spine.attempt import (  # noqa: E402
     GateResult,
-    TaskAttempt,
     TaskSpec,
 )
 from daedalus.spine.receipts import (  # noqa: E402
@@ -416,7 +418,8 @@ def test_the_import_reader_names_the_files_an_import_would_execute(
     guessed. Everything below resolves against the real base revision, which is
     what makes ``src/foo.py`` an answer at all.
     """
-    from daedalus.spine.attempt import GateResult, TaskAttempt, TaskSpec
+    from daedalus.orchestration.execution import compose_task_attempt
+    from daedalus.spine.attempt import GateResult, TaskSpec
     from daedalus.spine.receipts import import_surface_plan, resolve_import_plan
 
     base = _base(repo)
@@ -424,7 +427,7 @@ def test_the_import_reader_names_the_files_an_import_would_execute(
     spec = TaskSpec(task_id="reader", instruction="i", base_revision=base,
                     target_paths=("src/foo.py",),
                     gate_criterion_paths=(criterion,))
-    attempt = TaskAttempt(
+    attempt = compose_task_attempt(
         spec, runner=lambda ctx: None,
         gate=lambda ctx: GateResult(passed=True, name="g", command=()),
         repo_root=repo, ledger_path=tmp_path_for(repo) / "reader.sqlite3",

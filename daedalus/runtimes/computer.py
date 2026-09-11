@@ -1,0 +1,612 @@
+"""Trusted computer tools behind canonical persisted effect admission.
+
+The model supplies data. Policy is loaded from the kernel control root, and
+every operation is re-admitted immediately before the private adapter runs.
+"""
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, Callable
+
+from daedalus.atomic import ExclusiveFileLock
+from daedalus.kernel.artifacts import store_canonical_json
+from daedalus.kernel.effects import EffectLeaseError
+from daedalus.kernel.offload_lease import acquire_effect_lease, WaveLeaseDenied
+from daedalus.kernel.policy import computer as _release_policy
+from daedalus.kernel.policy.computer import (
+    ComputerRefused, ComputerPolicy, FILE_TOOLS, VISION_TOOLS, DESKTOP_TOOLS,
+    BROWSER_TOOLS, DAEDALUS_TOOLS, ARIADNE_TOOLS, PATH_IO_RELEASE_REFUSAL, FILE_REPLACE_RELEASE_REFUSAL,
+    admit_operation, load_policy, policy_path,
+    refuse_workspace_path_io,
+)
+from daedalus.limit_policy import load_from_env as load_limit_policy
+from daedalus.sensitivity import secret_floor_rule
+from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.killswitch import KillSwitch, LoopHalted, control_root
+
+
+ENTRYPOINT = "python.ikarus_computer"
+# Bind the executing code at import, not a later edited file on disk. Frozen
+# distributions bind their containing executable instead of absent .py files.
+_SOURCE_REVISION = hashlib.sha256(
+    (Path(sys.executable) if getattr(sys, "frozen", False) else Path(__file__)).read_bytes()
+).hexdigest()
+
+
+def _schema(fields: dict[str, Any], required: tuple[str, ...] = ()) -> dict:
+    return {"type": "object", "properties": fields, "required": list(required), "additionalProperties": False}
+
+
+_STRING = {"type": "string"}
+_NUMBER = {"type": "number"}
+_SHA256_STRING = {"type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[0-9a-f]{64}$"}
+TOOL_SPECS = {
+    "file.list": ("List up to 200 entries inside the computer workspace.", _schema({"path": _STRING})),
+    "file.read": ("Read a UTF-8 file and report its content hash.", _schema({"path": _STRING}, ("path",))),
+    "file.write": ("Create a UTF-8 file: omit expected_sha256 for a NEW file. Replacing requires its exact expected_sha256 from file.read. Never invent a hash. Read back to verify.", _schema({"path": _STRING, "text": _STRING, "expected_sha256": _SHA256_STRING}, ("path", "text"))),
+    "file.mkdir": ("Create a directory inside the workspace.", _schema({"path": _STRING}, ("path",))),
+    "file.move": ("Move one regular file into a nonexistent destination; source hash is required.", _schema({"source": _STRING, "destination": _STRING, "expected_sha256": _SHA256_STRING}, ("source", "destination", "expected_sha256"))),
+    "vision.inspect": ("Measure an image with local OpenCV. Supply path OR a fresh desktop observation_id.", _schema({"path": _STRING, "observation_id": _STRING})),
+    "vision.match": ("Find a unique image template with local OpenCV. Supply path OR desktop observation_id, and template path. Ambiguity is a refusal.", _schema({"path": _STRING, "observation_id": _STRING, "template": _STRING, "threshold": _NUMBER}, ("template",))),
+    "vision.changes": ("Find changed regions between two image files.", _schema({"before": _STRING, "after": _STRING}, ("before", "after"))),
+    "vision.ocr": ("Read image text locally. Supply path OR a fresh desktop observation_id; word image_rect coordinates can ground desktop clicks.", _schema({"path": _STRING, "observation_id": _STRING})),
+    "desktop.observe": ("Observe only the enabled foreground application window.", _schema({})),
+    "desktop.click": ("Click a freshly observed window pixel; expected describes the result to verify.", _schema({"observation_id": _STRING, "x": _NUMBER, "y": _NUMBER, "expected": _STRING}, ("observation_id", "x", "y", "expected"))),
+    "desktop.type": ("Type text into the freshly observed application.", _schema({"observation_id": _STRING, "text": _STRING, "expected": _STRING}, ("observation_id", "text", "expected"))),
+    "desktop.key": ("Press one permitted navigation/editing key in the observed window.", _schema({"observation_id": _STRING, "key": _STRING, "expected": _STRING}, ("observation_id", "key", "expected"))),
+    "app.launch": ("Launch a named application with the exact owner-configured arguments.", _schema({"application": _STRING}, ("application",))),
+    "browser.navigate": ("Open a page on an explicitly enabled origin in an isolated browser.", _schema({"url": _STRING}, ("url",))),
+    "browser.read": ("Observe current browser DOM and receive a fresh observation token.", _schema({})),
+    "browser.click": ("Click an observed non-submit element; read again to verify.", _schema({"observation_id": _STRING, "selector": _STRING}, ("observation_id", "selector"))),
+    "browser.fill": ("Fill a text field in the observed page, without submitting.", _schema({"observation_id": _STRING, "selector": _STRING, "text": _STRING}, ("observation_id", "selector", "text"))),
+    # G1-IKARUS-46: read-only observations of the registered project (no host mutation).
+    "daedalus.status": ("Observe the registered project: git counters (branch, dirty, ahead/behind) and the Daedalus queue/watcher state. Read-only.", _schema({})),
+    "daedalus.structure": ("Observe the project's structure summary: file/language totals, top hotspots, clone clusters and fan-in. Read-only.", _schema({})),
+    "daedalus.slice": ("Read the distilled semantic slice of one indexed source module (the file plus its dependency/caller neighbourhood), through the project's egress policy. Name the repository-relative path. Read-only.", _schema({"module": _STRING}, ("module",))),
+    "daedalus.docrefs": ("Observe documentation references to code symbols that the repository's own resolver reports as broken. Read-only.", _schema({})),
+    "daedalus.tasks": ("Observe the project's recent Daedalus task reports from the file bridge. Read-only.", _schema({})),
+    # G1-IKARUS-47: one controlled-repair campaign on the registered project; nominates, never applies.
+    "daedalus.ariadne_campaign": (
+        "Run one Ariadne controlled-repair campaign on the registered project: replace the exact text `before` "
+        "(must occur exactly once in the frozen target file) with `after` in the repository-relative "
+        "`target_path`, evaluated in three arms (baseline, negative control, repair) under equal budgets in an "
+        "isolated workspace. The result is a NOMINATION receipt with hashes; nothing is applied to any checkout. "
+        "The evaluator is the frozen exact-match evaluator: a nomination proves the machinery, not improvement. "
+        "Paths inside the self-Renovation leakage boundary are refused before any effect.",
+        _schema({"target_path": _STRING, "before": _STRING, "after": _STRING, "campaign_id": _STRING,
+                 "timeout_s": _NUMBER}, ("target_path", "before", "after"))),
+}
+#: The tools whose adapter changes host state. The daedalus.* family is
+#: deliberately absent: it is read-only by contract (tests pin the disjointness).
+_HOST_MUTATION_TOOLS = frozenset({"file.write", "file.mkdir", "file.move", "app.launch", "desktop.click",
+                                  "desktop.type", "desktop.key", "browser.click", "browser.fill",
+                                  # G1-IKARUS-47: writes under the control root and runs the evaluator
+                                  *ARIADNE_TOOLS})
+assert not (_HOST_MUTATION_TOOLS & frozenset(DAEDALUS_TOOLS))
+assert frozenset(ARIADNE_TOOLS) <= _HOST_MUTATION_TOOLS
+_NO_PROJECT_REFUSAL = "computer session has no registered project; run it from a project conversation"
+_NO_READERS_REFUSAL = "computer session carries no project readers; run it from the chat's computer route"
+_NO_RUNNER_REFUSAL = "computer session carries no campaign runner; run it from the chat's computer route"
+
+
+def _release_tool_spec(tool: str) -> tuple[str, dict[str, Any]] | None:
+    """Project only executable v0.1.6 tool shapes into the model capability."""
+    # Read at call time (Odysseus O-1, F2 generalised): projection and fence share one binding.
+    if tool in _release_policy.RELEASE_DISABLED_TOOLS:
+        return None
+    description, parameters = TOOL_SPECS[tool]
+    parameters = json.loads(json.dumps(parameters))
+    if tool == "file.write" and _release_policy.RELEASE_REPLACE_FENCED:
+        # Replacement stays fenced (FILE_REPLACE_RELEASE_REFUSAL): do not offer
+        # the one shape the kernel would refuse. The flag is read at call time
+        # so this projection, capabilities() and the kernel fence agree.
+        parameters["properties"].pop("expected_sha256", None)
+        description = ("Create a NEW UTF-8 file inside the computer workspace. Replacing an "
+                       "existing file is disabled in this release; read back to verify.")
+    if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
+        parameters["properties"].pop("path", None)
+        parameters["required"] = ["observation_id"]
+        description = (
+            "Inspect a fresh policy-scoped desktop observation with local OpenCV."
+            if tool == "vision.inspect"
+            else "Read text from a fresh policy-scoped desktop observation with local Windows OCR."
+        )
+    return description, parameters
+
+
+def _validate_arguments(tool: str, args: dict) -> None:
+    if tool not in TOOL_SPECS or type(args) is not dict:
+        raise ComputerRefused("unknown tool or malformed arguments")
+    schema = TOOL_SPECS[tool][1]
+    if set(args) - set(schema["properties"]) or set(schema["required"]) - set(args):
+        raise ComputerRefused("tool arguments do not match its schema")
+    if tool in {"vision.inspect", "vision.match", "vision.ocr"} and (("path" in args) == ("observation_id" in args)):
+        raise ComputerRefused("vision requires exactly one path or desktop observation_id")
+    for key, value in args.items():
+        kind = schema["properties"][key]["type"]
+        if kind == "string" and not isinstance(value, str):
+            raise ComputerRefused(f"{key} must be text")
+        if key == "expected_sha256" and (len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value)):
+            raise ComputerRefused("expected_sha256 must be an observed lowercase SHA-256")
+        if kind == "number" and (type(value) not in (int, float) or not __import__("math").isfinite(value)):
+            raise ComputerRefused(f"{key} must be finite")
+
+
+def _release_unavailable_reason(policy: ComputerPolicy, tool: str) -> str:
+    """Return the same static prerequisite refusal used by projection/execution."""
+    if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
+        if "desktop.observe" not in policy.tools:
+            return "Observation-only release mode requires desktop.observe"
+        if os.name != "nt":
+            return "Windows desktop observation required"
+        if importlib.util.find_spec("mss") is None:
+            return "Install daedalus[computer] for capture"
+    if tool in VISION_TOOLS and importlib.util.find_spec("cv2") is None:
+        return "Install daedalus[computer] for OpenCV"
+    if tool == "vision.ocr":
+        from .computer_ocr import WindowsOCR
+        ocr = WindowsOCR.availability()
+        if not ocr["available"]:
+            return ocr["reason"]
+    if tool in DESKTOP_TOOLS and os.name != "nt":
+        return "Windows adapter required"
+    if tool.startswith("desktop.") and importlib.util.find_spec("mss") is None:
+        return "Install daedalus[computer] for capture"
+    if tool in BROWSER_TOOLS and importlib.util.find_spec("playwright") is None:
+        return "Install daedalus[computer] and Playwright Chromium"
+    if tool in FILE_TOOLS and os.name != "nt":
+        # Only Windows can pin the open directory chain against a concurrent
+        # move (delete-share denial); POSIX effects stay unavailable (G1-IKARUS-24).
+        return "Windows host required for file tools in this release"
+    return ""
+
+
+class ComputerService:
+    def __init__(self, authority_root: Path, workspace: Path | None = None, *,
+                 project: str | None = None, project_readers: Any = None, campaign_runner: Any = None):
+        self.authority_root = Path(authority_root).resolve()
+        self.control = control_root(self.authority_root)
+        self._policy = load_policy(self.authority_root)
+        if workspace is not None and Path(workspace).resolve() != self._policy.workspace:
+            raise ComputerRefused("caller cannot override the owner-configured workspace")
+        # G1-IKARUS-46: the registered project this session observes through
+        # the daedalus.* family. It is a NAME resolved through the project
+        # registry at use, never a path the caller hands in; a session without
+        # one reports that family as unavailable and refuses it at execution.
+        if project is not None and (not isinstance(project, str) or not project.strip() or len(project) > 200):
+            raise ComputerRefused("computer session project must be a bounded registry name")
+        self._project = project.strip() if isinstance(project, str) else None
+        # The status/bridge readers the daedalus.* adapter needs are handed in
+        # by the orchestration caller: this module and that adapter must not
+        # import them (SCC census, tests/contracts/test_import_scc_hierarchy.py).
+        self._project_readers = project_readers
+        # G1-IKARUS-47: the campaign runner (daedalus.ariadne.run_campaign, the
+        # HEAD reader and the leakage-boundary predicate) is handed in the same
+        # way: the ariadne package imports this layer, so this layer must not
+        # import it (census pin).
+        self._campaign_runner = campaign_runner
+        self._daedalus = None
+        self._ariadne = None
+        self.policy_digest = self._policy.digest
+        self.limit_policy = load_limit_policy()
+        self._switch = KillSwitch(repo_root=self.authority_root)
+        self._deadline = (time.monotonic() + self._policy.timeout_s
+                          if self.limit_policy.enforces("wall_time") else None)
+        self._desktop = None
+        self._browser = None
+        self._files = None
+        self._active_authorization = None
+        self._active_operation = None
+        self._cancellation_probe: Callable[[], bool] | None = None
+
+    def set_cancellation_probe(self, probe: Callable[[], bool] | None) -> None:
+        """Bind the current mission's cooperative stop signal to host checkpoints."""
+        if probe is not None and not callable(probe):
+            raise ComputerRefused("cancellation probe must be callable")
+        self._cancellation_probe = probe
+
+    def capabilities(self) -> dict:
+        available: list[dict] = []
+        unavailable: dict[str, str] = {}
+        for tool in self._policy.tools:
+            projected = _release_tool_spec(tool)
+            if projected is None:
+                # Reported, not dropped: a configured policy whose every tool is
+                # release-locked was indistinguishable from no policy at all
+                # (measured 2026-09-05, mission computer-loop-measure-02).
+                unavailable[tool] = PATH_IO_RELEASE_REFUSAL
+                continue
+            reason = _release_unavailable_reason(self._policy, tool)
+            if not reason and tool in DAEDALUS_TOOLS and (self._project is None or self._project_readers is None):
+                reason = _NO_PROJECT_REFUSAL if self._project is None else _NO_READERS_REFUSAL
+            if not reason and tool in ARIADNE_TOOLS:
+                reason = (_NO_PROJECT_REFUSAL if self._project is None
+                          else _NO_RUNNER_REFUSAL if self._campaign_runner is None else "")
+            if reason:
+                unavailable[tool] = reason
+            else:
+                description, parameters = projected
+                if tool == "app.launch":
+                    parameters["properties"]["application"]["enum"] = list(dict(self._policy.applications))
+                if tool == "browser.navigate":
+                    description += " Enabled origins: " + ", ".join(self._policy.origins)
+                if tool in DAEDALUS_TOOLS or tool in ARIADNE_TOOLS:
+                    description += f" Project: {self._project}."
+                available.append({"name": tool, "description": description, "parameters": parameters})
+        return {"enabled": bool(available), "tools": available, "unavailable": unavailable,
+                "project": self._project,
+                "path_io_release_lock": "; ".join(
+                    [f"path-based vision: {PATH_IO_RELEASE_REFUSAL}"]
+                    + ([f"file.write with expected_sha256: {FILE_REPLACE_RELEASE_REFUSAL}"]
+                       if _release_policy.RELEASE_REPLACE_FENCED else [])),
+                "workspace": str(self._policy.workspace), "policy_sha256": self.policy_digest,
+                "planner_provider": self._policy.planner_provider, "planner_model": self._policy.planner_model,
+                "allow_remote_context": self._policy.allow_remote_context,
+                "max_steps": self._policy.max_steps, "timeout_s": self._policy.timeout_s,
+                "persistent_goals": "canonical mission receipts; interrupted effects require reconciliation",
+                "scheduled_tasks": "durable queue and finite repeated jobs with cancellation; matching File Bridge watcher or /computer run-due required",
+                "planning": "advisory plans, bounded proposal correction and repeated-observation stall detection; existing policy limits apply",
+                "product_context": "explicit owner notes; retained skill metadata is unavailable under the v0.1.6 path-I/O release lock",
+                "browser_limits": "static pages only; JavaScript, submission and downloads unavailable",
+                "desktop_validation": "live foreground input not yet measured; application support requires verification"}
+
+    def _admit_release_capability(self, tool: str, arguments: dict) -> None:
+        """Refuse projected/static/state prerequisites before a lease is issued."""
+        if _release_tool_spec(tool) is None:
+            raise ComputerRefused(PATH_IO_RELEASE_REFUSAL)
+        reason = _release_unavailable_reason(self._policy, tool)
+        if reason:
+            raise ComputerRefused(reason)
+        if tool in DAEDALUS_TOOLS and self._project is None:
+            raise ComputerRefused(_NO_PROJECT_REFUSAL)
+        if tool in DAEDALUS_TOOLS and self._project_readers is None:
+            raise ComputerRefused(_NO_READERS_REFUSAL)
+        if tool in ARIADNE_TOOLS and self._project is None:
+            raise ComputerRefused(_NO_PROJECT_REFUSAL)
+        if tool in ARIADNE_TOOLS and self._campaign_runner is None:
+            raise ComputerRefused(_NO_RUNNER_REFUSAL)
+        if tool in ARIADNE_TOOLS:
+            from daedalus.runtimes.computer_ariadne import CampaignRunner
+            if not isinstance(self._campaign_runner, CampaignRunner):
+                raise ComputerRefused("campaign runner has the wrong type")
+        if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
+            if self._desktop is None:
+                raise ComputerRefused("a current policy-scoped desktop observation is required")
+            self._desktop.require_fresh_observation(arguments["observation_id"])
+
+    def check_cancelled(self) -> None:
+        self._switch.checkpoint()
+        if self._cancellation_probe is not None and self._cancellation_probe():
+            raise ComputerRefused("computer task cancellation requested")
+        if self._deadline is not None and time.monotonic() > self._deadline:
+            raise ComputerRefused("computer task deadline exceeded")
+        if load_policy(self.authority_root).digest != self.policy_digest:
+            raise ComputerRefused("computer policy changed; a new task is required")
+        if self._active_authorization is not None:
+            self._active_authorization.verify()
+            admit_operation(self.authority_root, self._active_operation)
+
+    def execute(self, tool: str, arguments: dict, *, mission_id: str, attempt_id: str) -> dict:
+        """Single registered computer effect entrypoint; no effect on denial."""
+        started = None
+        granted = None
+        execution = None
+        external_started = False
+        dispatched = False
+        operation_digest = None
+        try:
+            _validate_arguments(tool, arguments)
+            # Detach arguments from caller-owned mutable containers before admission.
+            arguments = json.loads(json.dumps(arguments, allow_nan=False))
+            operation = {"tool": tool, "arguments": arguments, "policy_sha256": self.policy_digest}
+            self.check_cancelled()
+            admit_operation(self.authority_root, operation)
+            self._admit_release_capability(tool, arguments)
+            operation_digest = canonical_sha(operation)
+            identity = canonical_sha({"mission": mission_id, "attempt": attempt_id})[:32]
+            # Source identity explicitly describes trusted adapter code, not a
+            # fictional source repository for a general computer task.
+            source_revision = _SOURCE_REVISION
+            with ExclusiveFileLock(self.control / "computer-execution.lock", timeout_s=1,
+                                   label="computer operation"):
+                granted = acquire_effect_lease(
+                    self.authority_root, entrypoint_id=ENTRYPOINT,
+                    source_revision=source_revision, mission_id=mission_id, attempt_id=attempt_id,
+                    positions=1, tools=(tool,), timeout_s=self._policy.timeout_s,
+                    operation_sha256=operation_digest, computer_operation=operation,
+                    lease_id="computer-" + identity, switch=self._switch,
+                    evidence_root=self.control / "computer-effect-evidence",
+                    limit_policy=self.limit_policy,
+                )
+                if isinstance(granted, WaveLeaseDenied):
+                    raise ComputerRefused("; ".join(granted.reasons))
+                execution = granted.execution_for(0, tools=(tool,), operation_sha256=operation_digest)
+                required = ("lease_subject", "lease_execution:" + execution.execution_id)
+                if any(not granted.evidence_records.get(key) for key in required):
+                    raise ComputerRefused("effect subject or execution evidence was not retained")
+                ignored = f"disjointness: {ENTRYPOINT} declares no containment contract, so this grant retains no primary-checkout disjointness record"
+                if any(error != ignored for error in granted.evidence_errors):
+                    raise ComputerRefused("effect evidence unavailable before start")
+                started = granted.authorization.begin_effect(execution)
+                if not started.execute:
+                    return {"ok": False, "state": "reconciliation_required", "error": "execution already started or completed; no repeated effect"}
+                self._active_authorization = granted.authorization
+                self._active_operation = operation
+                self.check_cancelled()
+                external_started = True
+                result = self._dispatch(tool, arguments)
+                # The adapter returned: whatever is refused from here on was
+                # observed AFTER the host effect and can never mean "no effect".
+                dispatched = True
+                self.check_cancelled()
+                # Secret-floor filtering is performed before results enter CAS
+                # or the planner, including arbitrary web/application text.
+                rendered = json.dumps(result, ensure_ascii=False, allow_nan=False)
+                if secret_floor_rule("computer-result.json", rendered):
+                    result = {"withheld": True, "reason": "secret floor", "postcondition_verified": False}
+                output = {"schema": "daedalus-computer-result/1", "tool": tool,
+                          "operation_sha256": operation_digest, "result": result,
+                          "mission_id": mission_id, "attempt_id": attempt_id,
+                          "policy_sha256": self.policy_digest,
+                          "host_mutation": tool in _HOST_MUTATION_TOOLS,
+                          "filesystem_scope_kind": ("handle-anchored-computer-workspace" if tool in FILE_TOOLS
+                                                    else "project-registry-read-only" if tool in DAEDALUS_TOOLS
+                                                    else "control-root-ariadne-campaign" if tool in ARIADNE_TOOLS
+                                                    else "computer-policy-workspace-relative")}
+                artifact = store_canonical_json(self.control / "computer-artifacts", output)
+                terminal = granted.authorization.finish_effect(started.receipt, outcome="COMPLETED",
+                    output_digests=(artifact.sha256,), detail_sha256=artifact.sha256)
+                retained = granted.retain_terminal_record(execution)
+                if retained is None:
+                    raise ComputerRefused("terminal evidence could not be retained")
+                return {"ok": True, "state": "completed", "result": result,
+                        "evidence": {"artifact": artifact.to_dict(), "lease_sha256": granted.lease.digest,
+                                     "start_sha256": started.receipt.receipt_sha256,
+                                     "terminal_sha256": terminal.receipt_sha256,
+                                     "binding": {"subject_record_sha256": granted.evidence_records["lease_subject"],
+                                                 "execution_record_sha256": granted.evidence_records["lease_execution:" + execution.execution_id],
+                                                 "execution_request_sha256": execution.digest,
+                                                 "execution_id": execution.execution_id,
+                                                 "source_revision": source_revision,
+                                                 "attempt_id": attempt_id,
+                                                 "operation_sha256": operation_digest,
+                                                 "terminal_record_sha256": retained["record_sha256"]}}}
+        except (Exception, KeyboardInterrupt) as exc:
+            # A failure after entering an adapter is an unknown external outcome.
+            # Keep STARTED for reconciliation; never retry or invent failure.
+            # The one exception is the file adapter's own contract: a plain
+            # ComputerRefused or an interruption it annotates with
+            # effect_state "none" is raised only before any host effect, while
+            # anything it cannot prove carries effect_state "uncertain".
+            # A refusal raised by the post-dispatch checkpoint (cancellation,
+            # deadline, policy drift, re-admission) is observed after the effect
+            # landed; the lease then stays STARTED for reconciliation.
+            effect_state = getattr(exc, "effect_state", None)
+            # G1-IKARUS-46: the daedalus.* family changes nothing on the host by
+            # contract, so a failure before its adapter returned is provably
+            # effect-free (a read that did not finish is not a mutation).
+            provably_no_effect = (external_started and not dispatched and tool in DAEDALUS_TOOLS
+                                  and isinstance(exc, ComputerRefused))
+            # G1-IKARUS-47: the campaign adapter marks its own refusals raised
+            # BEFORE the runner was entered ``effect_state = "none"``; anything
+            # after that is the campaign's own effect and stays for reconciliation.
+            provably_no_effect = provably_no_effect or (external_started and not dispatched and tool in ARIADNE_TOOLS
+                                                        and isinstance(exc, ComputerRefused)
+                                                        and effect_state == "none")
+            provably_no_effect = provably_no_effect or external_started and not dispatched and tool in FILE_TOOLS and (
+                # A plain refusal is raised by the adapter only before an effect;
+                # an interruption is trusted only when the adapter typed it.
+                (isinstance(exc, ComputerRefused) and effect_state in (None, "none"))
+                or (isinstance(exc, KeyboardInterrupt) and effect_state == "none")
+            )
+            record = None
+            if started is not None:
+                # Once an effect receipt exists, its failure leaves a digest-bound
+                # record: error class and message, the adapter's proven effect
+                # state and the paths a reconciliation must inspect. The result
+                # floor applies before anything enters CAS.
+                record = self._store_failure_record(
+                    tool=tool, operation_digest=operation_digest, mission_id=mission_id,
+                    attempt_id=attempt_id, exc=exc, effect_state=effect_state,
+                    external_started=external_started, dispatched=dispatched,
+                    provably_no_effect=provably_no_effect)
+            if started is not None and started.execute and (not external_started or provably_no_effect):
+                try:
+                    granted.authorization.finish_effect(started.receipt, outcome="CANCELLED",
+                        detail_sha256=record.sha256 if record is not None
+                        else canonical_sha({"error": type(exc).__name__}))
+                    granted.retain_terminal_record(execution)
+                except Exception:
+                    pass
+            blocked = not external_started or provably_no_effect
+            failure = {"ok": False, "state": "blocked" if blocked else "reconciliation_required",
+                       "error": str(exc)[:1200], "error_type": type(exc).__name__}
+            if record is not None:
+                failure["evidence"] = {"failure_record": record.to_dict()}
+            return failure
+        finally:
+            self._active_authorization = None
+            self._active_operation = None
+
+    def _store_failure_record(self, *, tool: str, operation_digest: str | None, mission_id: str,
+                              attempt_id: str, exc: BaseException, effect_state: str | None,
+                              external_started: bool, dispatched: bool, provably_no_effect: bool):
+        """Persist what a later reconciliation needs; never mask the failure itself."""
+        recovery = getattr(exc, "recovery_paths", None) or ()
+        failure = {"schema": "daedalus-computer-failure/1", "tool": tool,
+                   "operation_sha256": operation_digest, "mission_id": mission_id, "attempt_id": attempt_id,
+                   "policy_sha256": self.policy_digest, "error_type": type(exc).__name__,
+                   "error": str(exc)[:1200], "effect_state": effect_state,
+                   "recovery_paths": [str(path) for path in recovery],
+                   "external_started": external_started, "dispatched": dispatched,
+                   "provably_no_effect": provably_no_effect}
+        try:
+            rendered = json.dumps(failure, ensure_ascii=False, allow_nan=False)
+            if secret_floor_rule("computer-failure.json", rendered):
+                failure = {"schema": "daedalus-computer-failure/1", "tool": tool,
+                           "operation_sha256": operation_digest, "mission_id": mission_id,
+                           "attempt_id": attempt_id, "policy_sha256": self.policy_digest,
+                           "error_type": type(exc).__name__, "effect_state": effect_state,
+                           "withheld": True, "reason": "secret floor",
+                           "external_started": external_started, "dispatched": dispatched,
+                           "provably_no_effect": provably_no_effect}
+            return store_canonical_json(self.control / "computer-artifacts", failure)
+        except Exception:
+            return None
+
+    def _read_bytes(self, value: str) -> bytes:
+        refuse_workspace_path_io()
+        path = self._policy.path(value, must_exist=True)
+        if not path.is_file() or path.stat().st_size > self._policy.max_file_bytes:
+            raise ComputerRefused("file is not regular or exceeds configured size")
+        with path.open("rb") as stream:
+            data = stream.read(self._policy.max_file_bytes + 1)
+        if len(data) > self._policy.max_file_bytes:
+            raise ComputerRefused("file exceeds configured size")
+        return data
+
+    def _dispatch(self, tool: str, args: dict) -> dict:
+        if tool.startswith("file."):
+            # G1-IKARUS-24/25: the handle-anchored adapter is the only file
+            # seam. It re-admits through the same policy (grant, release fence,
+            # lexical rules), runs check_cancelled after the parent handle is
+            # open, and applies the secret floor to read, write and move. The
+            # legacy pathname helpers below stay fenced and unreachable.
+            from daedalus.runtimes.computer_files import WorkspaceFiles
+            if self._files is None:
+                self._files = WorkspaceFiles(self._policy, self.check_cancelled)
+            return self._files.execute(tool, args)
+        if tool.startswith("vision."):
+            from daedalus.runtimes.computer_vision import OpenCVVision, ImageCoordinateFrame
+            from daedalus.runtimes.computer_ocr import WindowsOCR
+            vision = OpenCVVision(ocr_adapter=WindowsOCR(self.check_cancelled) if tool == "vision.ocr" else None)
+            if tool == "vision.changes":
+                return vision.detect_changes(self._read_bytes(args["before"]), self._read_bytes(args["after"]))
+            frame = None
+            if "observation_id" in args:
+                if self._desktop is None or "desktop.observe" not in self._policy.tools:
+                    raise ComputerRefused("a current policy-scoped desktop observation is required")
+                data, native_frame = self._desktop.capture_png(args["observation_id"])
+                frame = ImageCoordinateFrame(
+                    coordinate_space="desktop", origin_x=native_frame["origin_x"],
+                    origin_y=native_frame["origin_y"], monitor_id=str(native_frame.get("monitor_id", "")),
+                    window_id=str(native_frame["window_id"]),
+                    captured_at=native_frame.get("captured_at"),
+                )
+            else:
+                data = self._read_bytes(args["path"])
+            if tool == "vision.match":
+                return vision.match_template(data, self._read_bytes(args["template"]), threshold=args.get("threshold", .9), frame=frame)
+            return (vision.read_text if tool == "vision.ocr" else vision.inspect)(data, frame=frame)
+        if tool in DESKTOP_TOOLS:
+            from daedalus.runtimes.computer_desktop import DesktopAdapter
+            if self._desktop is None:
+                self._desktop = DesktopAdapter(self._policy, self.check_cancelled, self.control)
+            return self._desktop.execute(tool, args)
+        if tool in BROWSER_TOOLS:
+            from daedalus.runtimes.computer_browser import BrowserAdapter
+            if self._browser is None:
+                self._browser = BrowserAdapter(self._policy, self.check_cancelled, self.control)
+            return self._browser.execute(tool, args)
+        if tool in ARIADNE_TOOLS:
+            # G1-IKARUS-47: the campaign door. The adapter refuses everything it
+            # can before the runner is entered; the runner owns its effect.
+            from daedalus.runtimes.computer_ariadne import AriadneCampaignTool
+            if self._project is None:
+                raise ComputerRefused(_NO_PROJECT_REFUSAL)
+            if self._campaign_runner is None:
+                raise ComputerRefused(_NO_RUNNER_REFUSAL)
+            if self._ariadne is None:
+                self._ariadne = AriadneCampaignTool(self._policy, self._project, self.check_cancelled,
+                                                    self.authority_root, self._campaign_runner)
+            return self._ariadne.execute(args)
+        if tool in DAEDALUS_TOOLS:
+            # G1-IKARUS-46: read-only project observations. The adapter refuses
+            # an unbound or unregistered project itself; nothing here resolves
+            # a path on the model's behalf.
+            from daedalus.runtimes.computer_daedalus import DaedalusObservation
+            if self._project is None:
+                raise ComputerRefused(_NO_PROJECT_REFUSAL)
+            if self._project_readers is None:
+                raise ComputerRefused(_NO_READERS_REFUSAL)
+            if self._daedalus is None:
+                self._daedalus = DaedalusObservation(self._policy, self._project, self.check_cancelled,
+                                                     self.authority_root, self._project_readers)
+            return self._daedalus.execute(tool, args)
+        raise ComputerRefused("unknown computer tool")
+
+    def close(self) -> None:
+        if self._browser is not None:
+            self._browser.close()
+
+
+def computer_status(authority_root: Path, *, project: str | None = None, project_readers: Any = None,
+                    campaign_runner: Any = None) -> dict:
+    try:
+        service = ComputerService(authority_root, project=project, project_readers=project_readers,
+                                  campaign_runner=campaign_runner)
+        return {**service.capabilities(), "configuration_path": str(policy_path(authority_root)),
+                "configuration": service._policy.to_dict()}
+    except (ComputerRefused, OSError, ValueError) as exc:
+        return {"enabled": False, "tools": [], "error": str(exc),
+                "configuration_path": str(policy_path(authority_root)),
+                "setup": "Use /computer setup to initialize separate computer control state."}
+
+
+def setup_computer(authority_root: Path, *, owner_confirmed: bool = False) -> dict:
+    """Explicit interface setup; never exposed in the model's tool inventory.
+
+    Fresh setup stores no tool grants. Programs or browser origins require
+    owner configuration; this function never widens an existing policy or
+    clears an operator's stop marker.
+    """
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, GuardDecision, begin_effect
+
+    if owner_confirmed is not True:
+        raise ComputerRefused("explicit owner setup is required")
+    root = Path(authority_root).resolve()
+    control = control_root(root)
+    destination = policy_path(root)
+    if destination.exists():
+        return {"ok": True, "created": False, **computer_status(root)}
+    workspace = control.parent.parent / "computer-workspaces" / control.name
+    # Do not write dormant unsafe grants into a fresh policy. Owners may add
+    # independently admitted non-path tools later with /computer configure.
+    policy = ComputerPolicy(workspace=workspace, tools=())
+    receipt = begin_effect(
+        "python.ikarus_computer_setup",
+        REGISTRY_BY_ID["python.ikarus_computer_setup"].effects,
+        (process_guard_boundary_decision(), GuardDecision("computer.configuration", True,
+            f"explicit owner setup; fixed workspace; absent policy; sha256={policy.digest}")),
+    )
+    with ExclusiveFileLock(control / "computer-setup.lock", timeout_s=1):
+        if destination.exists():
+            return {"ok": True, "created": False, **computer_status(root)}
+        # Initial setup may arm a previously unused switch. An existing sticky
+        # stop refuses force=False, so setup cannot resume stopped work.
+        switch = KillSwitch(repo_root=root)
+        if not switch.read_state().running:
+            switch.arm(force=False, note="explicit Ikarus computer setup")
+        started = store_canonical_json(control / "computer-artifacts", {
+            "schema": "daedalus-computer-setup/1", "phase": "admitted",
+            "boundary": receipt.to_dict(), "policy_sha256": policy.digest,
+        })
+        workspace.mkdir(parents=True, exist_ok=True)
+        with destination.open("x", encoding="utf-8") as stream:
+            json.dump(policy.to_dict(), stream, indent=2, ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        load_policy(root)
+        finished = store_canonical_json(control / "computer-artifacts", {
+            "schema": "daedalus-computer-setup/1", "phase": "completed",
+            "start_sha256": started.sha256, "policy_sha256": policy.digest,
+        })
+    return {"ok": True, "created": True, "evidence": finished.to_dict(), **computer_status(root)}

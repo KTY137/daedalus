@@ -16,13 +16,14 @@ import pytest
 
 import daedalus.spine.attempt as attempt_mod
 import daedalus.spine.picker as picker
+from daedalus.orchestration.execution import compose_task_attempt as TaskAttempt
+from daedalus.orchestration.execution import offload_port
 from daedalus.spine.bootstrap import refresh_sources
 from daedalus.spine.attempt import (
     STATE_CLEAN,
     STATE_GATES_FAILED,
     GateResult,
     RunnerContext,
-    TaskAttempt,
     TaskSpec,
 )
 from daedalus.spine.ledger import SpineLedger
@@ -359,11 +360,15 @@ def test_external_repo_uses_one_repo_bound_ledger_for_read_and_write(tmp_path,
         captured["kwargs"] = kwargs
         return SimpleNamespace(state="no_change")
 
-    monkeypatch.setattr(attempt_mod, "run_attempt", fake_run)
     args = SimpleNamespace(
         repo_root=str(repo), live=True, artifact_dir=None,
         keep_worktree=False)
-    picker._default_attempt(candidate, args)
+    monkeypatch.setattr(attempt_mod, "run_attempt", fake_run)
+    picker._default_attempt(
+        candidate,
+        args,
+        attempt_ports_factory=lambda _root: (object(), object()),
+    )
     assert captured["kwargs"]["ledger_path"] == default_path
     assert captured["spec"].target_paths == (TARGET,)
     assert captured["spec"].gate_argv == tuple(GATE_ARGV)
@@ -392,6 +397,23 @@ def test_legacy_taskspec_body_and_digest_shape_are_unchanged():
 
 def test_offload_runner_forwards_declared_paths_and_cannot_be_widened(
         tmp_path, monkeypatch):
+    """The curated queue's declared scope steers routing, and a caller that
+    asks for a WIDER path set does not get it.
+
+    COMPOSED THROUGH THE REAL PORT since G1-SCC-CUT1 (adapted 2026-09-02).
+    ``offload_runner`` no longer imports ``daedalus.offload`` -- the kernel sat
+    below the workload and that import was the repository's single recorded
+    boundary violation -- so it now refuses at composition time without an
+    injected ``OffloadPort``. Only HOW this test reaches the runner changed;
+    the three assertions below are the ones it has always made, unaltered.
+
+    Injected ``offload_port()`` rather than a hand-rolled stub, deliberately:
+    the real composition root returns the workload's own ``OffloadCapability``,
+    which calls module-level ``offload`` through its global name, so the
+    monkeypatch below still steers it. A stub port would have proved the
+    widening refusal against a fake and left the real composed path untested --
+    the property lives in ``offload_runner``, but so does the wiring that has
+    to carry it there."""
     captured = {}
 
     def fake_offload(objective, repo_root, **kwargs):
@@ -408,6 +430,7 @@ def test_offload_runner_forwards_declared_paths_and_cannot_be_widened(
         is_cancelled=lambda: False)
 
     runner = attempt_mod.offload_runner(
+        offload_port=offload_port(),
         live=True, paths=["design/visual-lab/src/App.tsx"])
     runner(ctx)
 
@@ -563,7 +586,7 @@ def test_post_gate_binding_error_fails_closed_and_resolves_intent(
         (ctx.worktree / TARGET).write_text("candidate\n", encoding="utf-8")
 
     monkeypatch.setattr(
-        TaskAttempt, "_post_gate_artifact_stable",
+        attempt_mod.TaskAttempt, "_post_gate_artifact_stable",
         lambda self, worktree, artifact: (_ for _ in ()).throw(
             OSError("verification unavailable")))
     try:

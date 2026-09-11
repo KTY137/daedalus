@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from ..schemas import _identifier
+from ..kernel.contracts.base import _identifier
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import ForestEdge
 from ._reference_common import CLAIM_KEYS, REFERENCE_SCHEMA, ReferenceCompileError, safe_relpath, strict_object

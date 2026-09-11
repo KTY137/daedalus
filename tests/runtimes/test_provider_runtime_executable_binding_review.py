@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_runtime_executable_binding as binding
+import daedalus.runtimes.provider.runtime_executable_binding as binding
 
 
 def _function(name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:

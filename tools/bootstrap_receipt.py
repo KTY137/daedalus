@@ -462,8 +462,17 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
                gate_command: tuple[str, ...] | None = None,
                keep_worktree: bool = False,
                leased: bool = False) -> dict:
-    from daedalus.spine.attempt import (TaskAttempt, TaskSpec, command_gate,
-                                        run_attempt)
+    # Composition root, not the bare door. `spine.attempt` is the REGISTERED
+    # effect target and it deliberately owns no workspace, evaluator or scratch
+    # capability: an uncomposed call refuses with AttemptPortMissing before any
+    # effect. G1-HIER-03D migrated the in-tree callers and missed this tool, so
+    # every `run_single` here refused -- on `workspace_port` for the plain path
+    # and additionally on `scratch_cleanup` for `--gate-command`. These three
+    # names are the same registered doors with the production ports injected.
+    from daedalus.orchestration.execution.attempts import (command_gate,
+                                                           compose_task_attempt,
+                                                           run_attempt)
+    from daedalus.spine.attempt import TaskSpec
     from daedalus.spine.bootstrap import gate_discrimination
     from daedalus.spine.ledger import SpineLedger
 
@@ -514,8 +523,9 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
             # with the issuer's own reasons.
             from daedalus.kernel.offload_lease import (
                 WaveLeaseDenied, acquire_attempt_lease)
+            from daedalus.spine.picker import resolve_spine_db_path
 
-            attempt = TaskAttempt(task, **attempt_kwargs)
+            attempt = compose_task_attempt(task, **attempt_kwargs)
             head = base_revision or subprocess.run(
                 ["git", "rev-parse", "HEAD"], cwd=str(target), check=True,
                 capture_output=True, text=True).stdout.strip()
@@ -534,6 +544,12 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
                 containment_evidence=(
                     "TaskAttempt isolated worktree via GitWorktreeManager; "
                     "candidate code never sees the primary checkout"),
+                worktree_root=attempt._manager.worktree_root,
+                # The outer composition supplies the repo-confined ledger path;
+                # the kernel neither owns nor discovers the spine projection.
+                # Same port, same resolver as the gate-1 ignition caller --
+                # deliberately NOT the process-global DAEDALUS_SPINE_DB.
+                intent_ledger_path_resolver=resolve_spine_db_path,
             )
             if isinstance(lease, WaveLeaseDenied):
                 res = None

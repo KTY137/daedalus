@@ -20,16 +20,16 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     ContractProvenance,
-    EffectScope,
-    PolicyDecision,
     _egress_endpoint,
     _identifier,
     _repo_path,
     _sha256,
     _sorted_strings,
 )
+from daedalus.kernel.contracts.policy import PolicyDecision
+from daedalus.kernel.contracts.resources import EffectScope
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     Effect,
@@ -88,9 +88,13 @@ class EffectExecutionRequest:
     egress_endpoints: tuple[str, ...] = ()
     tools: tuple[str, ...] = ()
     secret_refs: tuple[str, ...] = ()
-    max_cost_microusd: int = 0
+    # ``None`` is the explicit representation of a disabled mission-spend
+    # axis.  Zero remains a real (and therefore fully enforced) zero-cost
+    # ceiling for bounded callers; it must never double as "unlimited".
+    max_cost_microusd: int | None = 0
     kill_switch_ref: str = ""
     kill_switch_generation: int = 0
+    operation_sha256: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "execution_id", _identifier(self.execution_id, "execution_id"))
@@ -128,10 +132,14 @@ class EffectExecutionRequest:
             "secret_refs",
             _sorted_strings(self.secret_refs, "secret_refs", identifiers=True),
         )
-        if isinstance(self.max_cost_microusd, bool) or not isinstance(
-            self.max_cost_microusd, int
-        ) or self.max_cost_microusd < 0:
-            raise ValueError("max_cost_microusd must be a non-negative integer")
+        if self.max_cost_microusd is not None and (
+            isinstance(self.max_cost_microusd, bool)
+            or not isinstance(self.max_cost_microusd, int)
+            or self.max_cost_microusd < 0
+        ):
+            raise ValueError(
+                "max_cost_microusd must be a non-negative integer or null"
+            )
         if self.kill_switch_ref:
             object.__setattr__(
                 self,
@@ -142,6 +150,12 @@ class EffectExecutionRequest:
             self.kill_switch_generation, int
         ) or self.kill_switch_generation < 0:
             raise ValueError("kill_switch_generation must be a non-negative integer")
+        if self.operation_sha256 is not None:
+            object.__setattr__(
+                self,
+                "operation_sha256",
+                _sha256(self.operation_sha256, "operation_sha256"),
+            )
         # Validate names against the canonical Effect enum without changing
         # their deterministic sorted representation.
         for value in self.requested_effects:
@@ -151,7 +165,13 @@ class EffectExecutionRequest:
                 raise ValueError(f"unknown requested effect {value!r}") from exc
 
     def to_dict(self) -> dict[str, object]:
-        return dataclasses.asdict(self)
+        body = dataclasses.asdict(self)
+        # Preserve the existing wire identity for generic consumers that do
+        # not yet bind an operation-specific plan. The chip entrypoint requires
+        # this field and therefore always carries it in its execution digest.
+        if self.operation_sha256 is None:
+            body.pop("operation_sha256")
+        return body
 
     @property
     def digest(self) -> str:
@@ -265,14 +285,15 @@ def _scope_requirements(effects: Iterable[str], scope: EffectScope) -> None:
     if values & {Effect.PROCESS_SPAWN, Effect.PROCESS_CONTROL}:
         if not scope.tools:
             raise EffectLeaseScopeError("process effects require explicit tools")
+    if Effect.COMPUTER_USE in values and not scope.tools:
+        raise EffectLeaseScopeError("computer effects require exact tools")
     if Effect.SECRETS in values and not scope.secret_refs:
         raise EffectLeaseScopeError("secret effects require explicit secret_refs")
-    if Effect.SPEND in values and scope.max_cost_microusd is None:
-        raise EffectLeaseScopeError("spend effects require an explicit cost ceiling")
     if not scope.kill_switch_ref:
         raise EffectLeaseScopeError("effectful scope requires a kill_switch_ref")
-    if scope.timeout_s is None:
-        raise EffectLeaseScopeError("effectful scope requires a timeout_s")
+    # max_cost_microusd/timeout_s/max_concurrency may be explicitly null under
+    # an evidenced execution-limit policy. The effect name, kill switch and
+    # write/egress/tool/secret authority above remain mandatory.
 
 
 def _path_within(candidate: str, root: str) -> bool:
@@ -281,7 +302,18 @@ def _path_within(candidate: str, root: str) -> bool:
     return root_path == PurePosixPath(".") or candidate_path == root_path or root_path in candidate_path.parents
 
 
-def _validate_narrowed_scope(request: EffectExecutionRequest, lease: EffectLease) -> None:
+def _validate_narrowed_scope(
+    request: EffectExecutionRequest,
+    lease: EffectLease,
+    authorization_request: EffectLeaseRequest,
+) -> None:
+    if (
+        authorization_request.operation_sha256 is not None
+        and request.operation_sha256 != authorization_request.operation_sha256
+    ):
+        raise EffectLeaseScopeError(
+            "execution operation_sha256 does not match the authorized operation"
+        )
     granted_effects = set(lease.requested_effects)
     requested_effects = set(request.requested_effects)
     if not requested_effects <= granted_effects:
@@ -301,19 +333,25 @@ def _validate_narrowed_scope(request: EffectExecutionRequest, lease: EffectLease
         raise EffectLeaseScopeError("execution requested an unleased tool")
     if not set(request.secret_refs) <= set(scope.secret_refs):
         raise EffectLeaseScopeError("execution requested an unleased secret")
-    if scope.max_cost_microusd is None:
-        if request.max_cost_microusd:
-            raise EffectLeaseScopeError("execution requested spend from a no-spend lease")
-    elif request.max_cost_microusd > scope.max_cost_microusd:
-        raise EffectLeaseScopeError("execution requested cost above the leased ceiling")
+    if scope.max_cost_microusd is not None:
+        if request.max_cost_microusd is None:
+            raise EffectLeaseScopeError(
+                "execution removed the leased cost ceiling"
+            )
+        if request.max_cost_microusd > scope.max_cost_microusd:
+            raise EffectLeaseScopeError(
+                "execution requested cost above the leased ceiling"
+            )
     if request.kill_switch_ref != scope.kill_switch_ref:
         raise EffectLeaseScopeError("execution kill_switch_ref does not match the lease")
     if request.kill_switch_generation != lease.kill_switch_generation:
         raise EffectLeaseScopeError("execution kill-switch generation is stale")
 
     write_effects = {Effect.FILESYSTEM_WRITE.value, Effect.REPOSITORY_MUTATION.value}
+    if Effect.COMPUTER_USE.value in granted_effects and not scope.read_only:
+        write_effects.add(Effect.COMPUTER_USE.value)
     network_effects = {Effect.NETWORK_EGRESS.value, Effect.LISTEN_SOCKET.value}
-    process_effects = {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value}
+    process_effects = {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value, Effect.COMPUTER_USE.value}
     if request.writable_paths and not requested_effects & write_effects:
         raise EffectLeaseScopeError("writable_paths supplied without a write effect")
     if requested_effects & write_effects and not request.writable_paths:
@@ -540,7 +578,19 @@ class EffectLeaseLedger:
         return conn
 
     def _initialize(self) -> None:
-        with self._connect() as conn:
+        # ``with sqlite3.Connection`` commits a transaction; it does NOT close
+        # the connection. Leaving it open handed this store's WAL companion an
+        # indeterminate lifetime: ``-wal`` and ``-shm`` exist exactly while a
+        # connection is open, and the leaked connection here was unreachable
+        # garbage held in a reference cycle, so it was finalized by the
+        # generational collector at an unpredictable moment rather than by
+        # refcounting at method exit. Anything that stats those companions --
+        # the retention-admission topology scan does -- then saw a file that
+        # could vanish between its existence check and its resolve. Closing
+        # here makes the companion state a fact of the code instead of a
+        # function of how much unrelated work the process had allocated.
+        conn = self._connect()
+        try:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS effect_leases (
@@ -581,6 +631,8 @@ class EffectLeaseLedger:
                 "CREATE INDEX IF NOT EXISTS idx_effect_executions_active "
                 "ON effect_executions(lease_sha256, state)"
             )
+        finally:
+            conn.close()
 
     def grant(
         self,
@@ -703,7 +755,7 @@ class EffectLeaseLedger:
             now=verification_instant,
             registry=registry,
         )
-        _validate_narrowed_scope(execution, lease)
+        _validate_narrowed_scope(execution, lease, request)
         registry_map = _registry_map(registry)
         boundary = begin_effect(
             lease.entrypoint_id,
@@ -758,7 +810,8 @@ class EffectLeaseLedger:
                 "SELECT COUNT(*) FROM effect_executions WHERE lease_sha256=? AND state='STARTED'",
                 (lease.digest,),
             ).fetchone()[0]
-            if active >= lease.effect_scope.max_concurrency:
+            concurrency_ceiling = lease.effect_scope.max_concurrency
+            if concurrency_ceiling is not None and active >= concurrency_ceiling:
                 raise EffectLeaseConcurrencyError("effect lease concurrency ceiling reached")
             payload = {
                 "lease_sha256": lease.digest,
@@ -887,10 +940,16 @@ class EffectLeaseLedger:
 
     def execution_state(self, execution_id: str) -> str | None:
         value = _identifier(execution_id, "execution_id")
-        with self._connect() as conn:
+        # ``with sqlite3.Connection`` is a TRANSACTION scope, not a closing
+        # scope: it commits, it does not close. See ``_initialize`` for why
+        # leaving this connection to the garbage collector is not acceptable.
+        conn = self._connect()
+        try:
             row = conn.execute(
                 "SELECT state FROM effect_executions WHERE execution_id=?", (value,)
             ).fetchone()
+        finally:
+            conn.close()
         return None if row is None else str(row["state"])
 
 
@@ -913,7 +972,8 @@ class LeasedEffectAuthorization:
     guard_decisions: tuple[GuardDecision, ...]
     current_kill_switch_generation: int
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = field(
-        default=REGISTRY_BY_ID, repr=False
+        default_factory=lambda: REGISTRY_BY_ID,
+        repr=False,
     )
 
     def __post_init__(self) -> None:

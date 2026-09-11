@@ -6,7 +6,7 @@ file asks the two questions that one cannot:
 1. **Does the guard exist in the process that spends?** The ceiling is not a
    syscall hook. It is three monkeypatched Python functions
    (``subprocess.run``, ``subprocess.Popen``, ``urllib.request.urlopen``)
-   installed by exactly one call, in exactly one function -- ``daedalus.cli
+   installed by exactly one call, in exactly one function -- ``daedalus.interfaces.cli.entry
    :main``. Any OTHER way to start a Python process that spends money is
    entirely outside the ceiling. MEASURED 2026-07-29: five in-repo entry points
    are, plus the out-of-repo ``~/.claude/skills/room/room.py``.
@@ -23,6 +23,7 @@ the moment a new one appears. The holes themselves are written up in
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -155,6 +156,67 @@ _INSTALLS = re.compile(
 _SKIP_PARTS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "build",
                "daedalus.egg-info", ".pytest_cache", "dist", "structcore-rs"}
 
+# Frozen sidecars contain byte-for-byte copies of the canonical Python package.
+# Counting those generated trees as fresh source doors duplicates every
+# installer and can turn one sealed entrypoint into an apparent unguarded one
+# merely because PyInstaller copied it. Keep the whole-repo walk, but bind its
+# identity to authoritative source rather than build output.
+_GENERATED_SOURCE_PREFIXES = (
+    "apps/web/src-tauri/backend/",
+    "apps/web/src-tauri/target/",
+)
+
+
+def _is_generated_source(path: Path, root: Path) -> bool:
+    try:
+        relative = path.relative_to(root).as_posix()
+    except ValueError:
+        return False
+    return relative.startswith(_GENERATED_SOURCE_PREFIXES)
+
+
+def _iter_census_python_files(root: Path):
+    """Every ``*.py`` under ``root`` that belongs to THIS checkout.
+
+    A directory holding its own ``.git`` entry is a DIFFERENT repository -- a
+    linked worktree (where ``.git`` is a file) or a nested clone (where it is a
+    directory) -- and every file inside it is a copy of some other checkout,
+    not a new door in this one. ``rglob`` cannot tell the difference, so it
+    counted the copies as fresh surprises.
+
+    MEASURED 2026-09-02 against the primary checkout, which carries six nested
+    checkouts (five under ``.claude/worktrees/agent-*`` plus one under
+    ``.daedalus_worktrees/``): descending into them invented 42 unguarded
+    entry-point "surprises" and 48 extra installers -- 42/42 and 48/48 of them
+    inside a nested checkout, every one a duplicate of a file already counted
+    here. Excluding nested repositories, both assertions are exactly satisfied.
+
+    A name-based entry in ``_SKIP_PARTS`` cannot express this: the two nesting
+    directories on this machine are named differently, and the next one will be
+    named something else again. So the census asks the filesystem where a
+    repository boundary is instead of guessing at directory names.
+
+    Untracked files are deliberately still scanned. Restricting the census to
+    ``git ls-files`` would kill the same class, but ``runs/`` and ``tools/``
+    scratch paths are not gitignored here, uncommitted code in this tree is
+    live for every session, and the threat this file detects is a runnable
+    process that reaches a paid vendor -- a surprising invoice does not wait
+    for ``git add``.
+
+    ``root`` itself is never tested for ``.git``, so the checkout being
+    censused stays in scope even though it is, of course, a repository.
+    """
+    root = Path(root)
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = [
+            name for name in dirnames
+            if name not in _SKIP_PARTS and not (here / name / ".git").exists()
+        ]
+        for name in filenames:
+            if name.endswith(".py"):
+                yield here / name
+
 
 def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
     """``{repo-relative path: installs_the_guard}`` for every file that is BOTH
@@ -166,8 +228,10 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
     there today, which is exactly when a scope guard is worth installing.
     """
     out: dict[str, bool] = {}
-    for path in Path(root).rglob("*.py"):
-        if any(part in _SKIP_PARTS for part in path.parts):
+    for path in _iter_census_python_files(root):
+        if any(part in _SKIP_PARTS for part in path.parts) or _is_generated_source(
+            path, Path(root)
+        ):
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -184,7 +248,7 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
 # MEASURED 2026-07-29 by running each under a `sitecustomize` probe that reports
 # whether subprocess.run/Popen/urlopen are wrapped in the live process:
 #
-#     python -m daedalus.cli ...      -> run=True  Popen=True  urlopen=True
+#     python -m daedalus.interfaces.cli.entry ...      -> run=True  Popen=True  urlopen=True
 #     python runs/council/room.py     -> run=False Popen=False urlopen=False
 #     python runs/council/summarize.py-> run=False Popen=False urlopen=False
 #     python runs/council/room_server.py -> False/False/False
@@ -230,7 +294,7 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
 #                                   holding a seeded-defect fixture; its real
 #                                   spawns are git and pytest
 #     tools/system_check.py         NOT BILLABLE (INSPECTED 2026-07-29): spawns
-#                                   `python -m daedalus.cli web` and
+#                                   `python -m daedalus.interfaces.cli.entry web` and
 #                                   `daedalus.file_bridge watch`; the `claude`
 #                                   token is a room SPEAKER NAME passed to
 #                                   `room.py say`, which only appends
@@ -418,8 +482,10 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
     silently. If a second install site appears, the coverage story changed and
     docs/SPEND_AND_EGRESS_COVERAGE.md needs rewriting."""
     installers = set()
-    for path in Path(ROOT).rglob("*.py"):
-        if any(part in _SKIP_PARTS for part in path.parts):
+    for path in _iter_census_python_files(ROOT):
+        if any(part in _SKIP_PARTS for part in path.parts) or _is_generated_source(
+            path, ROOT
+        ):
             continue
         if path.name.startswith("test_") or path.parts[-2:][0] == "tests":
             continue
@@ -428,7 +494,14 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
         if re.search(r"^\s*(?:\w+\.)?install_process_guard\(\)", text, re.M):
             installers.add(path.relative_to(ROOT).as_posix())
     assert installers == {
-        "daedalus/cli.py",
+        "daedalus/interfaces/cli/entry.py",
+        # WIDENED 2026-09-05 for the independently runnable Web API process.
+        # The umbrella CLI already installs the guard, but the frozen desktop
+        # sidecar and ``python -m daedalus.interfaces.http.web_api`` enter at
+        # ``web_api.main`` directly.  Its own installation happens before bind
+        # admission or server construction, so those paths retain the same
+        # process-wide spend floor rather than depending on a caller.
+        "daedalus/interfaces/http/web_api.py",
         "tools/operability_drill.py",
         # Widened 2026-07-29 from two sites to seven. The audit that created
         # this test found the ceiling installed in exactly ONE function and
@@ -456,7 +529,7 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
         # missing ceiling would cost the most, because it is the only one that
         # spends REPEATEDLY by design. Its bounds (iterations, wall-clock,
         # spend) are its own; the process guard is the floor under all three.
-        "daedalus/loop.py",
+        "daedalus/orchestration/loop.py",
         # WIDENED 2026-08-18 by the Gate-0 central-wiring migration: the
         # contract module itself now calls install_process_guard() inside
         # process_guard_boundary_decision(), the canonical way an entrypoint

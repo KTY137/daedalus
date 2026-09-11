@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from daedalus.ikarus_supervisor import (  # noqa: E402
+from daedalus.orchestration.ikarus.supervisor import (  # noqa: E402
     MissionSupervisor,
     PlannedItem,
     RoleHarness,
@@ -24,6 +24,9 @@ from daedalus.ikarus_supervisor import (  # noqa: E402
     SupervisorRefused,
     plan_mission,
     verify_state_ledger,
+)
+from daedalus.orchestration.execution import (  # noqa: E402
+    compose_task_attempt,
 )
 from daedalus.schemas import ResourceBudget  # noqa: E402
 from daedalus.spine.attempt import GateResult  # noqa: E402
@@ -113,7 +116,11 @@ def _run(repo, head, run_dir, *, roles=None, items=None, monkeypatch=None):
     items = items or _items()
     session, mission = _plan(repo, head, items)
     supervisor = MissionSupervisor(
-        repo_root=repo, run_dir=run_dir, roles=roles or _coder(), gate_timeout_s=120
+        repo_root=repo,
+        run_dir=run_dir,
+        roles=roles or _coder(),
+        gate_timeout_s=120,
+        attempt_factory=compose_task_attempt,
     )
     final = supervisor.run(session, mission, items)
     return session, mission, supervisor, final

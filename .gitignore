@@ -1,3 +1,7 @@
+# Owner-local scratch: machine-bound build drivers and their logs. Nothing in
+# here is canonical -- the reviewed packager is tools/package_desktop_local.ps1.
+.local/
+
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -27,6 +31,9 @@ inbox/*.json
 .env
 .env.*
 !.env.example
+# Source-web operator settings are latest-only runtime state, not Run Records.
+/config/connections.json
+/config/known_hosts
 *.log
 .DS_Store
 Thumbs.db
@@ -47,6 +54,14 @@ runs/plan_critique/**
 # Invariant 7 (provenance in git).
 runs/budget/ledger.json
 runs/budget/ledger.json.lock
+
+# Fixed, crash-released Managed Bridge OS-lock identity. The file deliberately
+# survives process exit; only the lock ownership is transient runtime state.
+runs/bridge_watcher.lock
+
+# Fixed, crash-released project-registry OS-lock identity. The JSON rows are
+# authoritative; this persistent filename only anchors transient kernel state.
+projects/.registry.lock
 
 # Rust build output (structcore-rs) -- ~0.6 GB of compiled artifacts
 target/
@@ -147,3 +162,55 @@ runs/watchdog/.work.lock
 runs/watchdog/ledger.json
 runs/watchdog/ledger.json.lock
 runs/watchdog/docs-commitmsg.txt
+
+# conport's MCP database, migrations and log. Tool state, 1.8 MB, rebuilt
+# on demand -- the knowledge it holds is projected from tracked sources.
+context_portal/
+
+# Fixed, crash-released offload-metrics OS-lock identity. Same reasoning as
+# the bridge and registry locks above: the file survives process exit by
+# design, only the ownership is transient.
+memory/offload_metrics.local.jsonl.lock
+
+# Machine-bound project registry row for the local checkout. docs/DESKTOP.md
+# calls this runtime state seeded below the external profile root, and it
+# carries an absolute repo_root -- the exact class of hardcoded machine path
+# 5375f0c3 removed. The four tracked sibling rows point at a local user profile and
+# are stale history, not a precedent to follow.
+projects/daedalus.json
+
+# Fleet analysis scratch. The .md dossiers under runs/analysis/ are the
+# deliverable; the .py files beside them are one-off probes and mutation
+# harnesses. Two got committed with G1-SEC-01 as exploit evidence and the
+# Effect Registry scanner correctly refused them: a script with a main()
+# that spawns subprocesses IS an unregistered effectful entrypoint, and
+# runs/ is scanned by design. The durable record of that exploit is the
+# payload and canary result quoted in the packet's commit message.
+runs/analysis/**/*.py
+runs/analysis/**/tmp/
+runs/analysis/**/_scratch/
+runs/analysis/**/*.txt
+memory/events.local.jsonl.lock
+
+# Semgrep Guardian session state, untracked on 2026-09-03. The Guardian keeps a
+# live OAuth access_token and refresh_token in this file, and it was TRACKED
+# until that date -- a loaded gun that had not gone off.
+#
+# What was actually committed (b574717e, d6114b83, pre-rewrite SHAs) was the
+# 140-byte pre-login form: serial, a pseudonymous anonymous_user_id, auth_method
+# and an expiry. No token ever reached a commit -- measured blob by blob, not
+# inferred from the working copy. That distinction is the point of this comment:
+# the working copy of the same path DOES hold a full JWT, and reading it instead
+# of the committed blob is exactly how a false credential-leak alarm gets raised.
+#
+# It is ignored anyway, and the reason is the trap rather than the past: the
+# Guardian rewrites this file on every token refresh, so it is PERMANENTLY dirty,
+# and with eight worktrees running, one broad `git add` would have committed a
+# live credential. Twice it committed the harmless form. The .lock siblings are
+# empty markers, ignored with it so the path stops being tracked at all.
+#
+# Two lanes wrote this entry independently on 2026-09-03; `**/.semgrep/`
+# subsumes the `apps/web/.semgrep/` the other one carried, so the union is
+# these two lines rather than three.
+.semgrep/
+**/.semgrep/

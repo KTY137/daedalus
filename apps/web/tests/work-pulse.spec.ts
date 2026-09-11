@@ -1,3 +1,4 @@
+import { stubLiveProject } from './_live-fixtures';
 import { expect, test } from '@playwright/test';
 import { NOT_BUILT } from './_app';
 
@@ -7,7 +8,8 @@ import { NOT_BUILT } from './_app';
  * EventSource makes watcher/attention/report evidence deterministic, proves
  * the bridge's real watcher vocabulary, and pins bounded recent-report history.
  */
-test('work pulse projects canonical watcher and recent-report evidence honestly', async ({ page }) => {
+test('work rail projects canonical watcher and recent-report evidence honestly', async ({ page }) => {
+  await stubLiveProject(page, 'atlas');
   await page.addInitScript(() => {
     type Listener = EventListenerOrEventListenerObject;
 
@@ -30,7 +32,6 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
         if (name === 'queue' && !this.emitted) {
           this.emitted = true;
           queueMicrotask(() => {
-            const project = new URL(this.url, location.origin).searchParams.get('project');
             this.emit('hello', {
               in_flight: true,
               queue_depth: 3,
@@ -38,9 +39,9 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
               quarantined_count: 1,
               watcher_state: 'busy',
               latest_report: {
+                project: 'atlas',
                 id: 'report-7',
                 name: 'verify-ui',
-                project,
                 lane: 'local_only',
                 agent: 'qa-critic',
                 status: 'done',
@@ -88,12 +89,16 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
   expect(await res!.text(), 'the built web app is missing').not.toMatch(NOT_BUILT);
 
   await expect(page.locator('.cockpit'), 'the cockpit never mounted').toBeVisible({ timeout: 20_000 });
-  const pulse = page.locator('[aria-label="Live-Arbeit"]');
+  await page.getByRole('button', { name: /^Arbeit/ }).click();
+  const pulse = page.locator('.work');
   await expect(pulse).toBeVisible({ timeout: 20_000 });
   await expect(pulse).toContainText('Ausführung live · 1 aktiv · 3 wartend');
-  await expect(pulse).toContainText('Wächter: arbeitet');
-  await expect(pulse).toContainText('3 braucht Aufmerksamkeit · 2 ungelesen · 1 Quarantäne');
-  await expect(pulse).toContainText('Zuletzt berichtet: verify-ui · done · Agent qa-critic · local_only');
+  await expect(pulse).toContainText('Wächter arbeitet');
+  await expect(pulse).toContainText('2 Berichte ungelesen');
+  await expect(pulse).toContainText('1 Lauf zurückgestellt');
+  await expect(pulse.locator('.work-section.past')).toContainText('verify-ui');
+  await expect(pulse.locator('.work-section.past')).toContainText('Agent qa-critic');
+  await expect(pulse.locator('time')).toHaveAttribute('datetime', '2026-09-07T09:40:00Z');
   await expect(pulse).toContainText('52 browser checks green');
 
   // A partially populated hello is incomplete evidence, not proof that the
@@ -123,21 +128,16 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
   // Restore a complete snapshot so the remaining report/disconnect assertions
   // keep proving the same bounded recent-history and last-known-state contract.
   await page.evaluate(() => {
-    const source = (window as unknown as {
-      __workSource?: { url: string; emit(name: string, data: unknown): void };
-    }).__workSource;
-    if (!source) return;
-    const project = new URL(source.url, location.origin).searchParams.get('project');
-    source.emit('hello', {
+    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('hello', {
       in_flight: true,
       queue_depth: 3,
       unread_count: 2,
       quarantined_count: 1,
       watcher_state: 'busy',
       latest_report: {
+        project: 'atlas',
         id: 'report-7',
         name: 'verify-ui',
-        project,
         lane: 'local_only',
         agent: 'qa-critic',
         status: 'done',
@@ -146,18 +146,14 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
       }
     });
   });
-  await expect(pulse).toContainText('3 braucht Aufmerksamkeit · 2 ungelesen · 1 Quarantäne');
+  await expect(pulse).toContainText('2 Berichte ungelesen');
+  await expect(pulse).toContainText('1 Lauf zurückgestellt');
 
   await page.evaluate(() => {
-    const source = (window as unknown as {
-      __workSource?: { url: string; emit(name: string, data: unknown): void };
-    }).__workSource;
-    if (!source) return;
-    const project = new URL(source.url, location.origin).searchParams.get('project');
-    source.emit('report', {
+    (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('report', {
+      project: 'atlas',
       id: 'report-8',
       name: 'lint-core',
-      project,
       lane: 'local_only',
       agent: 'typescript-lint',
       status: 'done',
@@ -165,8 +161,12 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
       created_at: '2026-09-07T09:41:00Z'
     });
   });
-  await expect(pulse).toContainText('Zuletzt berichtet: lint-core · done · Agent typescript-lint · local_only · Typen sauber');
-  await expect(pulse).toContainText('Davor: verify-ui · done · Agent qa-critic · local_only · 52 browser checks green');
+  const reports = pulse.locator('.work-section.past .work-list > li');
+  await expect(reports).toHaveCount(2);
+  await expect(reports.nth(0)).toContainText('lint-core');
+  await expect(reports.nth(0)).toContainText('Agent typescript-lint');
+  await expect(reports.nth(1)).toContainText('verify-ui');
+  await expect(reports.nth(1)).toContainText('52 browser checks green');
 
   await page.evaluate(() => {
     (window as unknown as { __workSource?: { emit(name: string, data: unknown): void } }).__workSource?.emit('heartbeat', {
@@ -174,12 +174,14 @@ test('work pulse projects canonical watcher and recent-report evidence honestly'
       watcher_state: 'wedged'
     });
   });
-  await expect(pulse).toContainText('Wächter: möglicherweise festgefahren');
+  await expect(pulse).toContainText('Wächter möglicherweise festgefahren');
+  await expect(pulse.getByLabel('Empfohlene Wächter-Aktion')).toContainText('nicht erneut dispatchen');
 
   await page.evaluate(() => {
     (window as unknown as { __workSource?: { fail(): void } }).__workSource?.fail();
   });
-  await expect(pulse).toContainText('letzter beobachteter Stand');
-  await expect(pulse).toContainText('beim letzten Verbinden gezählt');
+  await expect(pulse).toContainText('Stand von zuletzt');
+  await expect(pulse).toContainText('beim Verbinden gezählt');
+  await expect(pulse.getByLabel('Empfohlene Wächter-Aktion')).toHaveCount(0);
   await expect(page.locator('.statusline')).toContainText('Ereignisstrom getrennt · letzter Stand: 1 aktiv · 3 wartend');
 });

@@ -37,8 +37,17 @@ def record(*, provider: str, action: str, owner: str = "", risk: str = "",
         "provider": provider, "action": action, "owner": owner,
         "risk": risk, "eligible": eligible, "note": note[:200],
     }
-    with _WRITE_LOCK, LOG.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(row) + "\n")
+    # ``_WRITE_LOCK`` is a threading lock and covers this process only, so the
+    # comment at its definition -- that it stops parallel dispatch interleaving
+    # two rows -- was only ever half true. Every session on this machine writes
+    # this one file. MEASURED 2026-09-02: six concurrent appenders kept 111 of
+    # 120 rows, silently, because overwritten bytes leave no malformed line for
+    # any reader to count. ``summarize`` computes ``fallback_rate`` FROM these
+    # rows, so a lost row moves the number this alarm exists to report.
+    from .journal_io import append_lines
+
+    with _WRITE_LOCK:
+        append_lines(LOG, [json.dumps(row)])
 
 
 def _load() -> list[dict]:

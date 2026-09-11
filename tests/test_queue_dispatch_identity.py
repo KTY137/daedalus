@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from daedalus import conversation as conv
-from daedalus import web_api
+from daedalus.orchestration import conversation as conv
+from daedalus.interfaces.http import web_api
 
 
 def test_queue_binds_canonical_dispatch_identity_from_real_enqueue_result(monkeypatch):
@@ -86,4 +86,5 @@ def test_queue_binds_canonical_dispatch_identity_from_real_enqueue_result(monkey
         "turn_id": 7,
         "dispatch_ref": "task-identity-123",
         "linked": True,
+        "projection": {"state": "awaiting_report"},
     }

@@ -59,7 +59,7 @@ USAGE
     python tools/mutation_score.py --module daedalus/sensitivity.py \
         --tests tests/test_hardening.py tests/test_fence_anchoring.py
 
-    python tools/mutation_score.py --module daedalus/token_monitor.py \
+    python tools/mutation_score.py --module daedalus/interfaces/cli/token_monitor.py \
         --tests tests/test_agent_env.py --sample 12 --json out.json
 
     # falsification control for the SCORER ITSELF: drop a covering test and
@@ -73,6 +73,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -89,6 +90,20 @@ CAUGHT = "CAUGHT"                  # baseline green, a test that was green went 
 SURVIVED = "SURVIVED"              # baseline green, nothing went red -- a HOLE or an equivalent mutant
 NOT_APPLICABLE = "NOT_APPLICABLE"  # the mutation did not apply / changed nothing / did not compile
 INCONCLUSIVE = "INCONCLUSIVE"      # the measurement itself failed (red baseline, timeout, runner error)
+
+MUTANT_TIMEOUT_INCONCLUSIVE = "inconclusive-exit-2"
+MUTANT_TIMEOUT_LEGACY_EXIT_1 = "legacy-timeout-exit-1"
+MUTANT_TIMEOUT_POLICIES = {
+    MUTANT_TIMEOUT_INCONCLUSIVE,
+    MUTANT_TIMEOUT_LEGACY_EXIT_1,
+}
+
+JOB_TIMEOUT_BOUNDED = "bounded"
+JOB_TIMEOUT_LEGACY_UNBOUNDED = "legacy-unbounded"
+JOB_TIMEOUT_POLICIES = {
+    JOB_TIMEOUT_BOUNDED,
+    JOB_TIMEOUT_LEGACY_UNBOUNDED,
+}
 
 # Directory names never copied into a sandbox. Two reasons, both measured on
 # this repo: correctness (a stale ``__pycache__`` would shadow a mutant) and
@@ -140,18 +155,22 @@ class Mutation:
     after: str
     rule: str = ""
     expect_test: str | None = None
+    test_paths: tuple[str, ...] = ()
     start: int = -1
     end: int = -1
 
     @classmethod
     def patch(cls, rel_path: str, find: str, replace: str, *, rule: str = "",
-              expect_test: str | None = None, id: str | None = None) -> "Mutation":
+              expect_test: str | None = None,
+              test_paths: tuple[str, ...] = (),
+              id: str | None = None) -> "Mutation":
         """A hand-written find/replace mutation -- the ``oracle_check.py`` /
         ``self_test.py`` table shape, expressed in this module's vocabulary."""
         return cls(
             id=id or f"patch:{rel_path}:{abs(hash((find, replace))) % 10**8:08d}",
             operator="patch", rel_path=rel_path, line=0, col=0,
             before=find, after=replace, rule=rule, expect_test=expect_test,
+            test_paths=test_paths,
         )
 
     def apply(self, source: str) -> str | None:
@@ -171,6 +190,253 @@ class Mutation:
     def describe(self) -> str:
         where = f"{self.rel_path}:{self.line}" if self.line else self.rel_path
         return f"{where}  {self.before.strip()!r} -> {self.after.strip()!r}"
+
+
+class MutationSpecError(ValueError):
+    """A declarative mutation spec was malformed or no longer anchored."""
+
+
+@dataclass(frozen=True)
+class ExplicitMutationJob:
+    """One target, its baseline selection, and exact hand-written mutants."""
+
+    module: str
+    tests: tuple[str, ...]
+    mutations: tuple[Mutation, ...]
+    timeout_s: float | None = 900.0
+    mutant_test_files: tuple[str, ...] = ()
+    timeout_policy: str = JOB_TIMEOUT_BOUNDED
+
+
+@dataclass(frozen=True)
+class ExplicitMutationSpec:
+    """Validated declarative input for the canonical mutation runner."""
+
+    spec_id: str
+    packet_id: str
+    jobs: tuple[ExplicitMutationJob, ...]
+    path: Path
+    mutant_timeout_policy: str = MUTANT_TIMEOUT_INCONCLUSIVE
+
+
+def _spec_relative_path(repo: Path, value: object, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise MutationSpecError(f"{field_name} must be a non-empty string")
+    normalized = value.replace("\\", "/")
+    pure = Path(normalized)
+    if pure.is_absolute() or ".." in pure.parts:
+        raise MutationSpecError(f"{field_name} must stay within the repository")
+    candidate = (repo / pure).resolve()
+    try:
+        candidate.relative_to(repo)
+    except ValueError as exc:
+        raise MutationSpecError(
+            f"{field_name} resolves outside the repository"
+        ) from exc
+    if not candidate.is_file():
+        raise MutationSpecError(f"{field_name} does not name a file: {normalized}")
+    return candidate.relative_to(repo).as_posix()
+
+
+def load_explicit_spec(
+    repo: str | Path,
+    spec_path: str | Path,
+) -> ExplicitMutationSpec:
+    """Load one strict JSON spec and verify every source anchor exactly once."""
+
+    repo = Path(repo).resolve()
+    raw_path = Path(spec_path)
+    resolved = raw_path.resolve() if raw_path.is_absolute() else (repo / raw_path).resolve()
+    try:
+        resolved.relative_to(repo)
+    except ValueError as exc:
+        raise MutationSpecError("mutation spec resolves outside the repository") from exc
+    try:
+        payload = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise MutationSpecError(f"cannot read mutation spec: {exc}") from exc
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        raise MutationSpecError("mutation spec requires schema_version 1")
+    spec_id = payload.get("spec_id")
+    packet_id = payload.get("packet_id")
+    if not isinstance(spec_id, str) or not spec_id.strip():
+        raise MutationSpecError("mutation spec requires a non-empty spec_id")
+    if not isinstance(packet_id, str) or not packet_id.strip():
+        raise MutationSpecError("mutation spec requires a non-empty packet_id")
+    mutant_timeout_policy = payload.get(
+        "mutant_timeout_policy",
+        MUTANT_TIMEOUT_INCONCLUSIVE,
+    )
+    if (
+        not isinstance(mutant_timeout_policy, str)
+        or mutant_timeout_policy not in MUTANT_TIMEOUT_POLICIES
+    ):
+        raise MutationSpecError(
+            "mutation spec mutant_timeout_policy must be one of: "
+            + ", ".join(sorted(MUTANT_TIMEOUT_POLICIES))
+        )
+    raw_jobs = payload.get("jobs")
+    if not isinstance(raw_jobs, list) or not raw_jobs:
+        raise MutationSpecError("mutation spec requires at least one job")
+
+    jobs: list[ExplicitMutationJob] = []
+    seen_ids: set[str] = set()
+    for job_index, raw_job in enumerate(raw_jobs):
+        if not isinstance(raw_job, dict):
+            raise MutationSpecError(f"jobs[{job_index}] must be an object")
+        module = _spec_relative_path(
+            repo,
+            raw_job.get("module"),
+            f"jobs[{job_index}].module",
+        )
+        raw_tests = raw_job.get("tests")
+        if not isinstance(raw_tests, list) or not raw_tests:
+            raise MutationSpecError(f"jobs[{job_index}].tests must be non-empty")
+        tests: list[str] = []
+        for test_index, selection in enumerate(raw_tests):
+            if not isinstance(selection, str) or not selection.strip():
+                raise MutationSpecError(
+                    f"jobs[{job_index}].tests[{test_index}] must be a string"
+                )
+            base = selection.split("::", 1)[0]
+            relative = _spec_relative_path(
+                repo,
+                base,
+                f"jobs[{job_index}].tests[{test_index}]",
+            )
+            suffix = selection[len(base):]
+            tests.append(relative + suffix)
+        baseline_files = {selection.split("::", 1)[0] for selection in tests}
+        raw_mutant_test_files = raw_job.get("mutant_test_files", [])
+        if not isinstance(raw_mutant_test_files, list):
+            raise MutationSpecError(
+                f"jobs[{job_index}].mutant_test_files must be a list"
+            )
+        mutant_test_files: list[str] = []
+        for test_index, selection in enumerate(raw_mutant_test_files):
+            relative = _spec_relative_path(
+                repo,
+                selection,
+                f"jobs[{job_index}].mutant_test_files[{test_index}]",
+            )
+            mutant_test_files.append(relative)
+        permitted_mutant_test_files = baseline_files | set(mutant_test_files)
+        timeout_policy = raw_job.get("timeout_policy", JOB_TIMEOUT_BOUNDED)
+        if (
+            not isinstance(timeout_policy, str)
+            or timeout_policy not in JOB_TIMEOUT_POLICIES
+        ):
+            raise MutationSpecError(
+                f"jobs[{job_index}].timeout_policy must be one of: "
+                + ", ".join(sorted(JOB_TIMEOUT_POLICIES))
+            )
+        if timeout_policy == JOB_TIMEOUT_LEGACY_UNBOUNDED:
+            if "timeout_s" in raw_job:
+                raise MutationSpecError(
+                    f"jobs[{job_index}].timeout_s must be omitted when "
+                    "timeout_policy is legacy-unbounded"
+                )
+            timeout: float | None = None
+        else:
+            raw_timeout = raw_job.get("timeout_s", 900.0)
+            if (
+                isinstance(raw_timeout, bool)
+                or not isinstance(raw_timeout, (int, float))
+                or not 0 < float(raw_timeout) <= 3600
+            ):
+                raise MutationSpecError(
+                    f"jobs[{job_index}].timeout_s must be in (0, 3600]"
+                )
+            timeout = float(raw_timeout)
+        raw_mutations = raw_job.get("mutations")
+        if not isinstance(raw_mutations, list) or not raw_mutations:
+            raise MutationSpecError(
+                f"jobs[{job_index}].mutations must be non-empty"
+            )
+        source = (repo / module).read_text(encoding="utf-8")
+        mutations: list[Mutation] = []
+        for mutation_index, raw_mutation in enumerate(raw_mutations):
+            if not isinstance(raw_mutation, dict):
+                raise MutationSpecError(
+                    f"jobs[{job_index}].mutations[{mutation_index}] "
+                    "must be an object"
+                )
+            mutation_id = raw_mutation.get("id")
+            find = raw_mutation.get("find")
+            replace = raw_mutation.get("replace")
+            expect_test = raw_mutation.get("expect_test")
+            rule = raw_mutation.get("rule", "")
+            raw_selected_tests = raw_mutation.get("tests", [])
+            if not isinstance(mutation_id, str) or not mutation_id.strip():
+                raise MutationSpecError("every mutation requires a non-empty id")
+            if mutation_id in seen_ids:
+                raise MutationSpecError(f"duplicate mutation id: {mutation_id}")
+            seen_ids.add(mutation_id)
+            if not isinstance(find, str) or not find:
+                raise MutationSpecError(f"{mutation_id}: find must be non-empty")
+            if not isinstance(replace, str) or replace == find:
+                raise MutationSpecError(
+                    f"{mutation_id}: replace must differ from find"
+                )
+            if expect_test is not None and not isinstance(expect_test, str):
+                raise MutationSpecError(
+                    f"{mutation_id}: expect_test must be a string or null"
+                )
+            if not isinstance(rule, str):
+                raise MutationSpecError(f"{mutation_id}: rule must be a string")
+            if not isinstance(raw_selected_tests, list):
+                raise MutationSpecError(f"{mutation_id}: tests must be a list")
+            selected_tests: list[str] = []
+            for selected_index, selection in enumerate(raw_selected_tests):
+                if not isinstance(selection, str) or not selection.strip():
+                    raise MutationSpecError(
+                        f"{mutation_id}.tests[{selected_index}] must be a string"
+                    )
+                base = selection.split("::", 1)[0]
+                relative = _spec_relative_path(
+                    repo,
+                    base,
+                    f"{mutation_id}.tests[{selected_index}]",
+                )
+                if relative not in permitted_mutant_test_files:
+                    raise MutationSpecError(
+                        f"{mutation_id}: selected test {relative} is absent "
+                        "from the job baseline and mutant_test_files"
+                    )
+                selected_tests.append(relative + selection[len(base):])
+            count = source.count(find)
+            if count != 1:
+                raise MutationSpecError(
+                    f"{mutation_id}: expected one source anchor, found {count}"
+                )
+            mutations.append(
+                Mutation.patch(
+                    module,
+                    find,
+                    replace,
+                    id=mutation_id,
+                    rule=rule,
+                    expect_test=expect_test,
+                    test_paths=tuple(dict.fromkeys(selected_tests)),
+                )
+            )
+        jobs.append(
+            ExplicitMutationJob(
+                module=module,
+                tests=tuple(dict.fromkeys(tests)),
+                mutations=tuple(mutations),
+                mutant_test_files=tuple(dict.fromkeys(mutant_test_files)),
+                timeout_s=timeout,
+                timeout_policy=timeout_policy,
+            )
+        )
+    return ExplicitMutationSpec(
+        spec_id=spec_id,
+        packet_id=packet_id,
+        jobs=tuple(jobs),
+        path=resolved,
+        mutant_timeout_policy=mutant_timeout_policy,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -466,7 +732,11 @@ def _strip_ansi(text: str) -> str:
     return _ANSI_RE.sub("", text)
 
 
-def pytest_runner(root: Path, test_paths: list[str], timeout: float) -> RunResult:
+def pytest_runner(
+    root: Path,
+    test_paths: list[str],
+    timeout: float | None,
+) -> RunResult:
     """Run a pytest selection inside ``root`` and return WHICH tests failed.
 
     ``--tb=no -q`` because only the identity of the failures matters here,
@@ -476,9 +746,29 @@ def pytest_runner(root: Path, test_paths: list[str], timeout: float) -> RunResul
     cmd = [sys.executable, "-m", "pytest", "-q", "--tb=no", "--color=no",
            "-p", "no:cacheprovider", *test_paths]
     t0 = time.time()
+    # Every mutation is a fresh source measurement.  CPython's timestamp/size
+    # based bytecode cache can otherwise reuse mutant A's ``.pyc`` for mutant B
+    # when both edits have the same byte length and land within one filesystem
+    # timestamp tick.  That produced a changing survivor set in the first
+    # repository-tree shadow run on Windows.  The Sandbox starts without cache
+    # files; refusing to write them keeps every subprocess bound to the exact
+    # source bytes just written for that mutant.
+    env = {
+        **os.environ,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+    }
+    run_options = {
+        "cwd": str(root),
+        "capture_output": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "env": env,
+    }
+    if timeout is not None:
+        run_options["timeout"] = timeout
     try:
-        proc = subprocess.run(cmd, cwd=str(root), capture_output=True,
-                              encoding="utf-8", errors="replace", timeout=timeout)
+        proc = subprocess.run(cmd, **run_options)
     except subprocess.TimeoutExpired:
         return RunResult(returncode=-1, failing=set(), output="TIMEOUT",
                          seconds=time.time() - t0, timed_out=True)
@@ -524,7 +814,7 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
           mutations: list[Mutation] | None = None,
           n_sample: int | None = None,
           operators: tuple[str, ...] = OPERATORS,
-          timeout: float = 900.0,
+          timeout: float | None = 900.0,
           drop_tests: tuple[str, ...] = (),
           runner=pytest_runner,
           progress=None) -> dict:
@@ -613,13 +903,21 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
                 continue
             sb.write(module_rel, mutated)
             try:
-                res = runner(sb.root, test_paths, timeout)
+                selected_tests = list(m.test_paths) or test_paths
+                res = runner(sb.root, selected_tests, timeout)
             finally:
                 sb.write(module_rel, original)  # always revert, even on a crash
 
             newly = sorted(res.failing - base.failing)
             if res.timed_out:
-                status, detail = INCONCLUSIVE, f"the run timed out after {timeout:.0f}s"
+                detail = (
+                    "the run timed out without a configured deadline"
+                    if timeout is None
+                    else f"the run timed out after {timeout:.0f}s"
+                )
+                status = INCONCLUSIVE
+            elif res.returncode != 0 and not res.failing:
+                status, detail = INCONCLUSIVE, "the run failed without naming a test"
             elif m.expect_test is not None:
                 caught = any(m.expect_test in t for t in newly)
                 status = CAUGHT if caught else SURVIVED
@@ -627,8 +925,6 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
                           f"the test that claims this rule ({m.expect_test}) stayed green")
             elif newly:
                 status, detail = CAUGHT, ""
-            elif res.returncode != 0 and not res.failing:
-                status, detail = INCONCLUSIVE, "the run failed without naming a test"
             else:
                 status, detail = SURVIVED, "no test went red"
             report["results"].append({
@@ -636,6 +932,7 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
                 "status": status, "rule": m.rule, "detail": detail,
                 "before": m.before, "after": m.after,
                 "newly_failing": newly, "seconds": round(res.seconds, 1),
+                "tests": selected_tests, "timed_out": res.timed_out,
             })
     finally:
         sb.destroy()
@@ -653,6 +950,127 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
         report["mutation_score"] = len(caught) / scored
         report["verdict"] = "SURVIVORS" if survived else "NO_SURVIVORS"
     return report
+
+
+def score_explicit_spec(
+    repo: str | Path,
+    spec: ExplicitMutationSpec,
+    *,
+    runner=pytest_runner,
+    progress=None,
+) -> dict:
+    """Score all jobs in one validated spec through the canonical sandbox."""
+
+    repo = Path(repo).resolve()
+    reports: list[dict] = []
+    for job_index, job in enumerate(spec.jobs, 1):
+        callback = None
+        if progress is not None:
+            callback = (
+                lambda i, n, mutation, job_index=job_index: progress(
+                    job_index,
+                    len(spec.jobs),
+                    i,
+                    n,
+                    mutation,
+                )
+            )
+        reports.append(
+            score(
+                repo,
+                job.module,
+                list(job.tests),
+                mutations=list(job.mutations),
+                timeout=job.timeout_s,
+                operators=("explicit_patch",),
+                runner=runner,
+                progress=callback,
+            )
+        )
+
+    baseline_green = all(report.get("baseline_green") for report in reports)
+    has_error = any(report.get("error") for report in reports)
+    survived = sum(report.get("n_survived", 0) for report in reports)
+    caught = sum(report.get("n_caught", 0) for report in reports)
+    not_applicable = sum(
+        report.get("n_not_applicable", 0) for report in reports
+    )
+    inconclusive = sum(report.get("n_inconclusive", 0) for report in reports)
+    timed_out_mutations = [
+        result["id"]
+        for report in reports
+        for result in report.get("results", ())
+        if result.get("timed_out")
+    ]
+    if has_error or not baseline_green or not_applicable or inconclusive:
+        verdict = INCONCLUSIVE
+    elif survived:
+        verdict = "SURVIVORS"
+    else:
+        verdict = "NO_SURVIVORS"
+    return {
+        "schema": 1,
+        "spec_id": spec.spec_id,
+        "packet_id": spec.packet_id,
+        "spec_path": str(spec.path),
+        "jobs": reports,
+        "baseline_green": baseline_green,
+        "n_caught": caught,
+        "n_survived": survived,
+        "n_not_applicable": not_applicable,
+        "n_inconclusive": inconclusive,
+        "mutant_timeout_policy": spec.mutant_timeout_policy,
+        "timed_out_mutations": timed_out_mutations,
+        "verdict": verdict,
+    }
+
+
+def _explicit_spec_exit_code(
+    spec: ExplicitMutationSpec,
+    report: dict,
+) -> int:
+    """Map one explicit-spec report to its declared process-exit contract."""
+
+    if report["verdict"] != INCONCLUSIVE:
+        return 1 if report["n_survived"] else 0
+    timed_out = report.get("timed_out_mutations", ())
+    legacy_timeout_only = (
+        spec.mutant_timeout_policy == MUTANT_TIMEOUT_LEGACY_EXIT_1
+        and bool(timed_out)
+        and report.get("baseline_green") is True
+        and report.get("n_not_applicable", 0) == 0
+        and report.get("n_inconclusive", 0) == len(timed_out)
+    )
+    return 1 if legacy_timeout_only else 2
+
+
+def _legacy_timeout_summary(report: dict) -> str:
+    """Render the historical timeout line for an opted-in legacy campaign."""
+
+    return "timed-out mutations: " + ", ".join(
+        report.get("timed_out_mutations", ())
+    )
+
+
+def render_explicit_spec(report: dict) -> str:
+    """Render a multi-target spec without hiding any per-job evidence."""
+
+    lines = [
+        f"spec   : {report['spec_id']}",
+        f"packet : {report['packet_id']}",
+        "",
+    ]
+    for index, job in enumerate(report["jobs"], 1):
+        lines.append(f"=== job {index}/{len(report['jobs'])} ===")
+        lines.append(render(job))
+        lines.append("")
+    lines.append(
+        f"spec verdict: {report['verdict']} "
+        f"({report['n_caught']} caught, {report['n_survived']} survived, "
+        f"{report['n_not_applicable']} not applicable, "
+        f"{report['n_inconclusive']} inconclusive)"
+    )
+    return "\n".join(lines)
 
 
 def render(report: dict) -> str:
@@ -709,7 +1127,9 @@ def render(report: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", default=str(Path(__file__).resolve().parents[1]))
-    ap.add_argument("--module", required=True, help="module to mutate, repo-relative")
+    source = ap.add_mutually_exclusive_group(required=True)
+    source.add_argument("--module", help="module to mutate, repo-relative")
+    source.add_argument("--spec", help="explicit mutation JSON spec, repo-relative")
     ap.add_argument("--tests", nargs="+", default=[], help="pytest selection to run")
     ap.add_argument("--sample", type=int, default=None,
                     help="score an evenly-spread N of the mutants (deterministic)")
@@ -736,6 +1156,58 @@ def main(argv: list[str] | None = None) -> int:
             (process_guard_boundary_decision(),),
         )
     repo = Path(args.repo).resolve()
+    if args.spec:
+        try:
+            spec = load_explicit_spec(repo, args.spec)
+        except MutationSpecError as exc:
+            print(f"invalid mutation spec: {exc}", file=sys.stderr)
+            return 2
+        if args.list:
+            for job in spec.jobs:
+                for mutation in job.mutations:
+                    print(f"  {mutation.id:40s} {mutation.describe()}")
+            print(
+                f"\n{sum(len(job.mutations) for job in spec.jobs)} "
+                f"explicit mutant(s) in {len(spec.jobs)} job(s)"
+            )
+            return 0
+
+        def explicit_progress(
+            job_i: int,
+            job_n: int,
+            mutation_i: int,
+            mutation_n: int,
+            mutation: Mutation,
+        ) -> None:
+            print(
+                f"  [job {job_i}/{job_n} mutant {mutation_i}/{mutation_n}] "
+                f"{mutation.id} ...",
+                flush=True,
+            )
+
+        report = score_explicit_spec(
+            repo,
+            spec,
+            progress=explicit_progress,
+        )
+        print()
+        print(render_explicit_spec(report))
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(report, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            print(f"\nwrote {args.json}")
+        exit_code = _explicit_spec_exit_code(spec, report)
+        if (
+            exit_code == 1
+            and spec.mutant_timeout_policy == MUTANT_TIMEOUT_LEGACY_EXIT_1
+            and report.get("timed_out_mutations")
+        ):
+            print(_legacy_timeout_summary(report), file=sys.stderr)
+        return exit_code
+
+    assert args.module is not None
     source = (repo / args.module).read_text(encoding="utf-8")
     muts = generate_mutations(source, args.module.replace("\\", "/"),
                               tuple(args.operators))

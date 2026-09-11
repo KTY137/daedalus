@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import sqlite3
@@ -69,7 +70,7 @@ def _environment(tmp_path: Path):
 
 
 def _repack_start_time(ledger: AttemptLedger, timestamp: str) -> None:
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         row = connection.execute(
             "SELECT id, payload FROM intents WHERE kind = 'attempt.lifecycle'"
         ).fetchone()
@@ -88,10 +89,11 @@ def _repack_start_time(ledger: AttemptLedger, timestamp: str) -> None:
             "WHERE intent_id = ? AND state = 'INTENDED'",
             (canonical_json({"payload_sha": digest}), row[0]),
         )
+        connection.commit()
 
 
 def _repack_terminal_time(ledger: AttemptLedger, timestamp: str) -> None:
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         row = connection.execute(
             "SELECT id, detail FROM intent_events "
             "WHERE state = 'COMPLETED' ORDER BY id DESC LIMIT 1"
@@ -107,6 +109,7 @@ def _repack_terminal_time(ledger: AttemptLedger, timestamp: str) -> None:
             "UPDATE intent_events SET detail = ? WHERE id = ?",
             (canonical_json(detail), row[0]),
         )
+        connection.commit()
 
 
 def _complete(store, captured, ledger, coordinator, attempt) -> None:

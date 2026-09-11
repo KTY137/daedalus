@@ -1,0 +1,342 @@
+{
+  "schema": "daedalus-integration-focused-evidence/1",
+  "base_revision": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+  "status": "focused_checks_only_full_integrated_acceptance_pending",
+  "commands": {
+    "backend": "repository venv -m pytest -q (affected provider/runtime/conversation/HTTP suites listed in backend-runtime-final JUnit)",
+    "transport": "repository venv -m pytest -q (provider cancellation/native/OpenAI compatibility suites listed in provider-transport-complete JUnit)"
+  },
+  "reviews": [
+    {
+      "surface": "provider transport",
+      "finding": "Late HTTP error disposal and unbounded body reads",
+      "resolution": "Stop checked before body read; bounded read(500); explicit asynchronous disposal on success, late error and read failure; 101 transport tests pass."
+    },
+    {
+      "surface": "backend integration",
+      "reviewer": "root independent of builder",
+      "result": "Canonical exact provider effect boundaries, callback-free broker, durable numeric cancellation identities and persisted local child observations preserved. No second cancellation registry. Hash recipe byte compatibility retains independent validation and negative mutation controls."
+    },
+    {
+      "surface": "frontend",
+      "finding": "Contradictory local child stop receipts accepted by UI parser",
+      "resolution": "Canonical parser rejects non-requested cancellation and contradictory process_exited/returncode pairs; asynchronous POST completion checks project and generation. Final 549 app tests and 51 scoped browser tests pass."
+    },
+    {
+      "surface": "interrupted stream actions",
+      "finding": "A legacy DOM selector hid executable action offers from interrupted final responses",
+      "resolution": "Test now uses canonical .offer-acts; settleTurn retains partial text and refuses action on stream_interrupted. Initial failed browser run retained before final green 51 cases."
+    },
+    {
+      "surface": "mapping declared periphery",
+      "finding": "Stale reach scope could be ranked beneath a fresh ignore fingerprint; snapshot accept also dropped the new consumed-scope field",
+      "resolution": "Refuse stale reports before ranking; bind portable consumed scope in drift/inventory and preserve in render.accept. 311 tests pass; independent reviewer130 tests pass. Genuine 2-failure mutation and corrected2-pass logs retained."
+    }
+  ],
+  "artifacts": [
+    {
+      "source": "tensor-baseline.log",
+      "sha256": "414bcd5070ad5232c84575d8fe561cc1012c7d0134f2ddcca5b305b3c095c79b",
+      "archive": "tensor-baseline.log.gz",
+      "archive_sha256": "ba4bc422e6791182ae7937639d617ca05c4d1161a902ed46bed77b95dff6b7b6"
+    },
+    {
+      "source": "tensor-baseline.xml",
+      "sha256": "d9e731e9ad0f257faae5a2b6b765b832115fe41fab0a6a9bd7d05e917a880b23",
+      "archive": "tensor-baseline.xml.gz",
+      "archive_sha256": "affcc2259d959f68cc0e7874b5d8690708b0950ddb31124eb528cbafcdca623a",
+      "junit": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "3",
+          "tests": "379",
+          "time": "9.583",
+          "timestamp": "2026-09-08T07:48:34.752356+02:00",
+          "hostname": "SophonOne"
+        }
+      ]
+    },
+    {
+      "source": "backend-runtime-integration.log",
+      "sha256": "eec909661645c388fc1d528dfc4270d52208c4972eb4b442062e75fb9e3f827a",
+      "archive": "backend-runtime-integration.log.gz",
+      "archive_sha256": "7ab6637199e2566abdc33b515449dc0b6e164c0e8fdd8ec85f677bda6feb9a27"
+    },
+    {
+      "source": "backend-runtime-integration.xml",
+      "sha256": "178b1b56b8962f961ae96020d5b3d2d6a95066a4b1fecdbd645b657ba026c625",
+      "archive": "backend-runtime-integration.xml.gz",
+      "archive_sha256": "3d15c1bfce77736f1cefec3522a1038f266ea485f75f06f0dbdee399c98b817c",
+      "junit": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "2",
+          "skipped": "118",
+          "tests": "1845",
+          "time": "94.289",
+          "timestamp": "2026-09-08T08:04:43.748230+02:00",
+          "hostname": "SophonOne"
+        }
+      ]
+    },
+    {
+      "source": "backend-runtime-final.log",
+      "sha256": "8bd9bf5619acefda80312ee9a4bf16cc5285366f5a65096782d53a639ae2cfb1",
+      "archive": "backend-runtime-final.log.gz",
+      "archive_sha256": "042a83e8e49dfadfea4671957edc4941b5d1c499ff31a38f737a7c56cee8e0b6"
+    },
+    {
+      "source": "backend-runtime-final.xml",
+      "sha256": "b08480a33440057a54585abf3ff5072db07759a15f2415b27caa7e883837c1c2",
+      "archive": "backend-runtime-final.xml.gz",
+      "archive_sha256": "867e4913bc2317d23272f9aecd31f615d33595853d74d30f552597c667ec5036",
+      "junit": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "118",
+          "tests": "1860",
+          "time": "98.082",
+          "timestamp": "2026-09-08T08:12:46.295318+02:00",
+          "hostname": "SophonOne"
+        }
+      ]
+    },
+    {
+      "source": "backend-cancellation-hashing-final.xml",
+      "sha256": "c1ec9f8bdc023666a53237d29e4b733823db3f9b9e42a260011fb9d5e44e0e82",
+      "archive": "backend-cancellation-hashing-final.xml.gz",
+      "archive_sha256": "519347465ad28a76d688ea48bf17cedb2a62075f74bd543ac2390108aa08cae1",
+      "junit": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "121",
+          "time": "2.064",
+          "timestamp": "2026-09-08T08:10:04.877764+02:00",
+          "hostname": "SophonOne"
+        }
+      ]
+    },
+    {
+      "source": "backend-cleanup-final.log",
+      "sha256": "2fa7d817d3a3609aa337272f628457e6823dc9a1faf911f609b4bc4b28be2cdb",
+      "archive": "backend-cleanup-final.log.gz",
+      "archive_sha256": "aef324c12d471ea0a2d429a1444d4134992a3d6e6767e41bb460adc03611a64a"
+    },
+    {
+      "source": "backend-cleanup-final.xml",
+      "sha256": "679e62aae2c314ad047d9b2a870542263efffc2987875ea92bf0cdde3133db2a",
+      "archive": "backend-cleanup-final.xml.gz",
+      "archive_sha256": "f53ac0b64d7def5b0996594029d5647953d3d3dba0348cc40fbb6b35bb33227d",
+      "junit": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "115",
+          "time": "1.380",
+          "timestamp": "2026-09-08T08:17:32.129467+02:00",
+          "hostname": "SophonOne"
+        }
+      ]
+    },
+    {
+      "source": "provider-transport-complete.xml",
+      "sha256": "51e36f3617a2025fce2e060ea7497e227e1936b065eaf3be2cfd5c7931351743",
+      "archive": "provider-transport-complete.xml.gz",
+      "archive_sha256": "999460f1bde1b4860c8e21812611c3c06ab68a94171f431539389038343511f6",
+      "junit": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "101",
+          "time": "27.394",
+          "timestamp": "2026-09-08T08:06:15.190320+02:00",
+          "hostname": "SophonOne"
+        }
+      ]
+    },
+    {
+      "source": "provider-transport-review-fix.xml",
+      "sha256": "199fd8aa7a0ff1d3ddd254b42ec38a374491058cf683eab3bc040552fe28f21c",
+      "archive": "provider-transport-review-fix.xml.gz",
+      "archive_sha256": "5b5bd9ed3eff5a8bde88fa5f1eae985b167d9cbc359a66918148ef520265c4ff",
+      "junit": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "43",
+          "time": "0.281",
+          "timestamp": "2026-09-08T08:05:50.559995+02:00",
+          "hostname": "SophonOne"
+        }
+      ]
+    },
+    {
+      "source": "frontend-agent-browser.png",
+      "sha256": "ae414f60d1c7e8cdf9720ef250b01ec1353f12ea90445f48d0b096f4d4c571fc",
+      "archive": "frontend-agent-browser.png.gz",
+      "archive_sha256": "f53bb8bc7515f0938a245a5731b63d97b1cacaf6ed9d5ec634430efe8f505e7a"
+    },
+    {
+      "source": "frontend-baseline-app.log",
+      "sha256": "06973447ff0f97a532677188386fe567a817f2b4d10a5d77407a1dce103bc2a7",
+      "archive": "frontend-baseline-app.log.gz",
+      "archive_sha256": "fb5bb399d3106c8e12fbcc7726d5ee1a5ea4a05837fdca21c2a0a894f11085e4"
+    },
+    {
+      "source": "frontend-baseline-build.log",
+      "sha256": "dfa91e73878c94b77bb7b4818cd65bc27d0b942630de46dc0757c86ee2c68022",
+      "archive": "frontend-baseline-build.log.gz",
+      "archive_sha256": "7ecbee3b87efe2cb88942681a0820c959dc4edc9c577b2e6cb6cad73d0e6953b"
+    },
+    {
+      "source": "frontend-integrated-app.log",
+      "sha256": "5928090580cd5d651ad13dbd20260cdeb603893e1b3b6aa86cabf94f9ea87a71",
+      "archive": "frontend-integrated-app.log.gz",
+      "archive_sha256": "ec4ccc324263f86b668b60d2fbc01b9e021887c4d51bc5a62355558ab05bcf55"
+    },
+    {
+      "source": "frontend-integrated-build.log",
+      "sha256": "c91e87992fa37317a7b04de4aec3224acfe0636c4395b7db15e0fbb7a6203e2c",
+      "archive": "frontend-integrated-build.log.gz",
+      "archive_sha256": "bb89a3bb8a44ac696ffbfcda3e739792dc03e40a36ca380dad6aca5d5a1f9359"
+    },
+    {
+      "source": "frontend-playwright-before-interrupted-offer-fix.json",
+      "sha256": "9faa0cddee3bf43bf1804647d85af46dbf3063fad7fbcc6bc4478662756b4d0b",
+      "archive": "frontend-playwright-before-interrupted-offer-fix.json.gz",
+      "archive_sha256": "92de34ef174905a4a26529b1bf933fb652255b9029d746f11b90b8a7252efcac"
+    },
+    {
+      "source": "frontend-playwright-before-interrupted-offer-fix.log",
+      "sha256": "678e1b34d0ce601e05844eca7e51c5b2c678c1e46063bf0768f1181d592eda21",
+      "archive": "frontend-playwright-before-interrupted-offer-fix.log.gz",
+      "archive_sha256": "2d657bfe232c49d5d6505a6d9f1e205360b8d7a0319c1437d336e95603d6b06f"
+    },
+    {
+      "source": "frontend-playwright-results.json",
+      "sha256": "2bd08b079522bb7fe3cbe87ec7aecc0270e8d9838b4e9bd04f983c36102ce4ca",
+      "archive": "frontend-playwright-results.json.gz",
+      "archive_sha256": "c031abd6eb14c6ddc49f5c979a7cb6c05837074a0d9dce6d66ae6eda43344e1b"
+    },
+    {
+      "source": "frontend-playwright.log",
+      "sha256": "ac57f423427544b6f9b5b8e24525c0a7a8d444d284823cade187751ed45d1a33",
+      "archive": "frontend-playwright.log.gz",
+      "archive_sha256": "d565b2a5e7975762f875df1d74f50cf551695d76078958c6f2ba873844a4aeff"
+    },
+    {
+      "source": "frontend-summary.json",
+      "sha256": "26fe10f5f7c6d23e3739ad7058382d0cac07d675ef49c8bd923b38cd0cd074f9",
+      "archive": "frontend-summary.json.gz",
+      "archive_sha256": "518c9ae18669decd099090bd811922f1496f360091c55c301693baaf7173b6d8"
+    },
+    {
+      "source": "frontend-real-gui-baseline-archive.log",
+      "sha256": "ae9b6f1554c485f7fd9b80c05d9bfb2ce0e6d65e9f842785ac883596a9d1dd1b",
+      "archive": "frontend-real-gui-baseline-archive.log.gz",
+      "archive_sha256": "12a4fff1b702d36c286a56e02c0d3b423c078f085b54116a119728c3bc9bd242"
+    },
+    {
+      "source": "frontend-real-gui-baseline-archive.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-baseline-archive.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "frontend-real-gui-baseline.json",
+      "sha256": "1815965f32395e36f5a5e9edf2e9a1e33b7ef27d87eaa719cad130f7139f924d",
+      "archive": "frontend-real-gui-baseline.json.gz",
+      "archive_sha256": "21337e4164ed23259a54e590f2d8d2ae347fc99e529db1a518e7a3741440f4b1"
+    },
+    {
+      "source": "frontend-real-gui-baseline.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-baseline.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "integration-registry-final.xml",
+      "sha256": "4a078d4654db53d9744a91368bd914373ac83a79150067d4b190ba762b19ea50",
+      "archive": "integration-registry-final.xml.gz",
+      "archive_sha256": "4cd443f609b927315a614c2c22bc5ab8e62fdc891c5a23cccf93e6fa7cd71386"
+    },
+    {
+      "source": "tensor-integrated.log",
+      "sha256": "3366603c836406575b23a36f9dea122893ba7ecc419fa06904d0de2fefdd8c4f",
+      "archive": "tensor-integrated.log.gz",
+      "archive_sha256": "8b04f95be676f548dd7a9fd49ab90cd70aa7a054e402b378e7fb799df8962638"
+    },
+    {
+      "source": "tensor-integrated.xml",
+      "sha256": "6504a4586dcbd204bf7d0b5acb709190d365921776153a969ca34b109b1d372a",
+      "archive": "tensor-integrated.xml.gz",
+      "archive_sha256": "7022473ab64f995584907432c72466f0d48d01b2b66f564aeed12839f862a942"
+    },
+    {
+      "source": "cli-scope-corrected.log",
+      "sha256": "e61e2d43200a346693d872fdd8bbc752477e6dd915d998545e74d4aec05db97c",
+      "archive": "cli-scope-corrected.log.gz",
+      "archive_sha256": "d77fd3375a0ec4c17c7745b16b65cb3180de41a0594c26c05a3c389cf518af66"
+    },
+    {
+      "source": "cli-scope-corrected.xml",
+      "sha256": "eff8900ff78f9d4eb057cda164213763317012c3ea32899c3cbe5934125db812",
+      "archive": "cli-scope-corrected.xml.gz",
+      "archive_sha256": "42fc62cce17e996e36dc473e29997df1620158b42caa491777a0a04e15d23d29"
+    },
+    {
+      "source": "cli-scope-red-mutation.log",
+      "sha256": "806641e1f1e22d37ea8acbc31adb18c911233fde0e2392e1d8016b05037bea24",
+      "archive": "cli-scope-red-mutation.log.gz",
+      "archive_sha256": "861b862ff9e2eb9b2e755b00d9391794d0d8c85caf62157ab701488c6196b63e"
+    },
+    {
+      "source": "cli-scope-red-mutation.xml",
+      "sha256": "b55d41f22acd3aaac4d193c8e49bf98696e353cd68b6404e857286313d0eb34a",
+      "archive": "cli-scope-red-mutation.xml.gz",
+      "archive_sha256": "fb1b6767e86690ed8f7e9845ce0c4f0771337c406ddef33d8e8252e8477196f6"
+    },
+    {
+      "source": "map-final.log",
+      "sha256": "cc4f6c8b4a5e94eeb7de5494d9fd54d076fcb1088876336bace9a83e86132896",
+      "archive": "map-final.log.gz",
+      "archive_sha256": "39f3d64f880122a37575776a8fa50879ed076028e12f2548aefe41a2aa6aa6ac"
+    },
+    {
+      "source": "map-final.xml",
+      "sha256": "7907fa426fa65a6a8e554062932a655e1b0dcac10f9eeb1396d6cfb3953b5017",
+      "archive": "map-final.xml.gz",
+      "archive_sha256": "176cd1dc5297383796f2c3b45f89a68ea702661e8e6679058b279c1485df4380"
+    }
+  ],
+  "gate_transition": false,
+  "frontend": {
+    "baseline_app_passed": 536,
+    "integrated_app_passed": 549,
+    "integrated_browser_passed": 51,
+    "baseline_build": "passed",
+    "integrated_build": "passed",
+    "browser_scope": "built preview with mocked canonical HTTP contracts; real-server full GUI acceptance remains pending",
+    "whitespace_exception": "generated Three.js shader literals retained byte-for-byte in Vite output"
+  },
+  "tensor_integrated": {
+    "passed": 425,
+    "skipped": 3,
+    "includes": "GPU86 and cross-plane directionality verifier repair",
+    "performance_claim": false
+  }
+}

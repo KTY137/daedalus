@@ -30,8 +30,19 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import cli
+from daedalus.interfaces.cli import entry
 from daedalus.council import session as S
+
+
+@pytest.fixture(autouse=True)
+def isolated_ledger(monkeypatch, tmp_path):
+    """Council seats reserve explicitly; no test may touch the real day ledger."""
+    from daedalus.kernel.policy import ledger as L
+
+    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(tmp_path / "budget-ledger.json"))
+    L.reset_default_ledger()
+    yield
+    L.reset_default_ledger()
 from daedalus.council import vendors as V
 
 
@@ -119,7 +130,10 @@ def test_live_true_actually_unlocks_dispatch(tmp_path, spawn_sentinel):
                        council_id="c-live-allowed", store_path=_store(tmp_path),
                        per_call_timeout_s=5.0, wall_clock_s=20.0, live=True)
 
-    binaries = {argv[0] for argv in spawn_sentinel}
+    # The runner resolves a bare command through PATH/PATHEXT before the
+    # spawn (the npm ``codex.CMD`` shim on Windows), so compare the resolved
+    # binary's stem, not the raw argv[0] string.
+    binaries = {Path(argv[0]).stem.lower() for argv in spawn_sentinel}
     assert binaries == {"claude", "codex"}, (
         f"live=True did not reach the shipped transports: {spawn_sentinel}")
     # The council still ran to completion and recorded both seats honestly.
@@ -222,7 +236,7 @@ def no_convene(monkeypatch):
 def test_cli_refuses_a_bare_council_invocation(no_convene, capsys):
     """`daedalus council "q"` used to call four vendors. Now it refuses."""
     with pytest.raises(SystemExit) as excinfo:
-        cli._council(["is this patch safe?"])
+        entry._council(["is this patch safe?"])
     assert excinfo.value.code != 0
     err = capsys.readouterr().err
     assert "--live" in err and "--dry-run" in err
@@ -231,7 +245,7 @@ def test_cli_refuses_a_bare_council_invocation(no_convene, capsys):
 def test_cli_refuses_live_and_dry_run_together(no_convene, capsys):
     """Ambiguous intent about spending money is refused, not resolved."""
     with pytest.raises(SystemExit) as excinfo:
-        cli._council(["is this patch safe?", "--live", "--dry-run"])
+        entry._council(["is this patch safe?", "--live", "--dry-run"])
     assert excinfo.value.code != 0
     assert "contradict" in capsys.readouterr().err
 
@@ -246,7 +260,7 @@ def test_cli_live_flag_authorises_the_spend(monkeypatch, capsys):
 
     monkeypatch.setattr(S, "default_participants", lambda *a, **kw: (_OfflineAdapter(),))
     monkeypatch.setattr(S, "convene", lambda *a, **kw: seen.update(kw) or _Rec())
-    cli._council(["is this patch safe?", "--live"])
+    entry._council(["is this patch safe?", "--live"])
     assert seen.get("live") is True
     assert "rendered" in capsys.readouterr().out
 
@@ -256,8 +270,55 @@ def test_cli_dry_run_names_the_seats_live_would_call(monkeypatch, capsys):
     monkeypatch.setattr(V, "available_vendors", lambda **kw: ())
     monkeypatch.setattr(S, "convene", lambda *a, **kw: pytest.fail(
         "--dry-run called convene"))
-    cli._council(["is this patch safe?", "--dry-run", "--vendors", "anthropic,openai"])
+    entry._council(["is this patch safe?", "--dry-run", "--vendors", "anthropic,openai"])
     out = capsys.readouterr().out
     assert "DRY RUN -- no model was called" in out
     assert "2 real" in out
     assert "ClaudeAdapter" in out and "CodexAdapter" in out
+
+
+def test_live_true_installs_the_budget_net_before_any_vendor_spawn(tmp_path, spawn_sentinel, monkeypatch):
+    """A live council is priced by the process guard, never outside the ledger.
+
+    Measured 2026-09-05: with the daily ceiling at $5.00/$5.00 the CLI council
+    was refused by the guard (correct), while an in-process ``convene(live=True)``
+    reached both vendors unpriced because nothing installed the net. The live
+    opt-in must install it FIRST, before the roster is chained or dispatched.
+    """
+    import daedalus.budget as budget
+
+    order: list[str] = []
+    real_decision = budget.process_guard_boundary_decision
+
+    def spy():
+        order.append("guard")
+        return real_decision()
+
+    monkeypatch.setattr(budget, "process_guard_boundary_decision", spy)
+
+    def spawn(argv, **kw):
+        order.append("spawn")
+        raise OSError("test sentinel: no vendor process may start here")
+
+    monkeypatch.setattr(V, "ManagedProcess", spawn)
+    participants = S.default_participants(["anthropic", "openai"])
+    S.convene("is this safe?", _evidence(), participants, rounds=1,
+              council_id="c-live-priced", store_path=_store(tmp_path),
+              per_call_timeout_s=5.0, wall_clock_s=20.0, live=True)
+    assert order and order[0] == "guard", order
+    assert order.count("guard") == 1
+    assert "spawn" in order
+
+
+def test_live_false_does_not_touch_the_budget_net(tmp_path, monkeypatch):
+    import daedalus.budget as budget
+
+    calls: list[str] = []
+    monkeypatch.setattr(budget, "process_guard_boundary_decision",
+                        lambda: calls.append("guard"))
+    offline = V.ClaudeAdapter(
+        runner=lambda *a, **k: V.RunResult(returncode=0, stdout="CLAIM: nothing to refute")
+    )
+    S.convene("q", _evidence(), [offline], rounds=1, council_id="c-off",
+              store_path=_store(tmp_path), live=False)
+    assert calls == []

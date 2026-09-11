@@ -27,7 +27,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from daedalus import semantic_route as sr
+from daedalus.orchestration import semantic_route as sr
 from daedalus.router import load_agents, route_task
 
 
@@ -391,7 +391,7 @@ class VisibilityTests(_ServerCase):
         """`semantic_route()` returns a bare dict and cannot express provenance
         in its return type, so it must SAY so."""
         host = f"http://127.0.0.1:{_free_port()}"
-        with self.assertLogs("daedalus.semantic_route", level=logging.WARNING) as caught:
+        with self.assertLogs("daedalus.orchestration.semantic_route", level=logging.WARNING) as caught:
             sr.semantic_route("make the plot legible", paths=[], host=host, model="fake-embed")
         blob = "\n".join(caught.output)
         self.assertIn("NEVER RAN", blob)
@@ -399,7 +399,7 @@ class VisibilityTests(_ServerCase):
 
     def test_legacy_wrapper_does_not_warn_when_the_route_ran(self):
         server = self.serve(lambda p: (200, {"embedding": _distinct_vector(p["prompt"])}))
-        with self.assertLogs("daedalus.semantic_route", level=logging.DEBUG) as caught:
+        with self.assertLogs("daedalus.orchestration.semantic_route", level=logging.DEBUG) as caught:
             sr.semantic_route("make the plot legible", paths=[],
                               host=server.host, model="fake-embed")
         self.assertFalse([r for r in caught.records if r.levelno >= logging.WARNING],

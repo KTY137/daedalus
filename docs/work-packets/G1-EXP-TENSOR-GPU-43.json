@@ -1,0 +1,137 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-43",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "20a7ff92eededd45327c7ad54f5d367f2e945d82",
+    "dependencies": "G1-EXP-TENSOR-GPU-42 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "finding",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "implementation",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "focused_tests"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundaries",
+          "finding"
+        ]
+      }
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-43",
+  "title": "Fail closed on retained Forest hyperedges in the canonical relation compiler",
+  "classification": "implementation",
+  "domain": "tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "20a7ff92eededd45327c7ad54f5d367f2e945d82",
+  "owner": {
+    "path": "daedalus/twin/relation_compiler.py",
+    "symbol": "compile_relation_blocks",
+    "parallel_compiler_added": false,
+    "new_validator_subsystem": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_public_api": false
+  },
+  "finding": {
+    "summary": "KnowledgeForest retains hyperedges as first-class evidence and the legacy Fourfold adapter preserves same-plane hyperedge digests while refusing cross-plane pairwise flattening. The canonical multi-relation compiler previously walked only binary Forest edges and verified bindings, so discover-all compilation could silently omit a retained hyperedge instead of reporting an unsupported/lossy projection.",
+    "masterplan_alignment": "The Tensor kernel remains an internal computational view and now exposes this unsupported representational boundary instead of manufacturing or silently dropping semantics.",
+    "existing_semantic_precedent": "The existing single-relation Fourfold projection already refuses retained ForestHyperedge flattening."
+  },
+  "implementation": {
+    "production_commit": "a970ce1655d2e603616e4eb6e2866cc17fc5da85",
+    "code_test_head": "d357b2e61cb30e4eccef4aea68d0ba1ece4ccb33",
+    "production_blob": "396eaca7a797e5990ab56297ea7f8c08f4559e1b",
+    "focused_test_blob": "ce1ffe30f9a2cacc2caebcc0384774cb872f7845",
+    "summary": "compile_relation_blocks now validates retained hyperedge membership against the bound Fourfold snapshot and refuses discover-all or an explicitly selected relation that would require flattening that hyperedge into pairwise relation blocks. An explicitly selected unrelated binary relation may still compile exactly, so selection remains bounded rather than globally disabled by unrelated higher-arity evidence.",
+    "preserved_contracts": [
+      "KnowledgeForest and FourfoldSnapshot remain the semantic authorities consumed by the compiler.",
+      "No hyperedge is flattened into invented pairwise facts.",
+      "Explicit unrelated binary relation selection remains supported and exact.",
+      "Forest binary edge and verified-binding compilation remains in the existing compiler owner.",
+      "No second compiler, validator subsystem, cache, index, backend, registry, semantic plane, or public API was introduced."
+    ]
+  },
+  "focused_tests": {
+    "path": "tests/twin/test_relation_compiler_selected_pruning.py",
+    "blob": "ce1ffe30f9a2cacc2caebcc0384774cb872f7845",
+    "coverage": [
+      "Discover-all refuses a retained same-plane hyperedge rather than silently omitting it.",
+      "An explicitly selected relation matching the retained hyperedge refuses pairwise flattening.",
+      "An explicitly selected unrelated binary relation remains compilable and preserves the expected exact fact and source edge count."
+    ]
+  },
+  "verification": {
+    "verified_head": "d357b2e61cb30e4eccef4aea68d0ba1ece4ccb33",
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "workflow_run_id": 34029318960,
+    "workflow_conclusion": "success",
+    "base_main": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "pr_merge_preview": "01146635fa115b5c1a64ec8d9c44f147ae3593a8",
+    "contract_matrix": "success for Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "diagnostic_profile_arm": "Python 3.12 / PYTHONHASHSEED 0 executed the bounded CPU bitset and TypedRelationBlock validation profiles successfully; these remain diagnostic-only.",
+    "evidence_scope": "PR integration/merge-preview evidence on the exact code/test head; the subsequent closure-record commit contains documentation only and is separately eligible for the same workflow because docs/work-packets is in the workflow path filter."
+  },
+  "claim_boundaries": {
+    "correctness": "Focused higher-arity fail-closed semantics and the existing integrated Fourfold/Tensor contract surface were verified in hosted PR integration.",
+    "performance": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}

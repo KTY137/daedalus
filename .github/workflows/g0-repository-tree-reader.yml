@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-guard-manifest-linear
     paths:
-      - "daedalus/gates/repository_tree.py"
+      - "daedalus/gates/repository/tree.py"
       - "tests/gates/test_repository_tree*.py"
       - "scripts/run_repository_tree_mutations.py"
       - "docs/work-packets/G0-RWI-20H_REPOSITORY_TREE_READER.*"
@@ -100,7 +100,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-repository-tree-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_tree import (
+          from daedalus.gates.repository.tree import (
               RepositorySourceSnapshot,
               RepositoryTreePathError,
               RepositoryTreeRaceError,

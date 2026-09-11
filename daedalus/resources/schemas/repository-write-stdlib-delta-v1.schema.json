@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-stdlib-delta-v1.schema.json",
+  "title": "Daedalus Gate 0 Repository Write Stdlib Delta v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "base_inventory_digest",
+    "scan_input_sha256",
+    "files_scanned",
+    "findings",
+    "finding_count",
+    "canonical_scanner_integrated",
+    "closed",
+    "blockers",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-repository-write-stdlib-delta/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "base_inventory_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scan_input_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "files_scanned": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "line",
+          "column",
+          "kind",
+          "callee",
+          "operation",
+          "blocking"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "not": {
+              "pattern": "(^/|\\\\|(^|/)\\.\\.?(/|$)|//)"
+            }
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "column": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "kind": {
+            "enum": [
+              "archive_or_compressed_write",
+              "ambiguous_archive_or_compressed_mode",
+              "filesystem_mutation",
+              "process_effect_unknown",
+              "stream_write_sink",
+              "ambiguous_stdlib_binding"
+            ]
+          },
+          "callee": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S+$"
+          },
+          "operation": {
+            "type": "string",
+            "minLength": 1,
+            "not": {
+              "pattern": "[\\r\\n]"
+            }
+          },
+          "blocking": {
+            "const": true
+          }
+        }
+      }
+    },
+    "finding_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "canonical_scanner_integrated": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "contains": {
+        "const": "canonical-scanner-integration-missing"
+      },
+      "items": {
+        "enum": [
+          "canonical-scanner-integration-missing",
+          "additional-write-surfaces-present"
+        ]
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

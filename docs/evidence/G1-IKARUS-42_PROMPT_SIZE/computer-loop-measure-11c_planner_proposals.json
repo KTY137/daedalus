@@ -1,0 +1,30 @@
+[
+ {
+  "call": 1,
+  "step": 1,
+  "sha256": "c7255f9504c95108fa9c2aca81f68b1e6dc783d2c7196edd8e7e3af14f073a22",
+  "response": "{\"type\":\"tool\",\"tool\":\"browser.navigate\",\"arguments\":{\"url\":\"http://127.0.0.1:57660/big.html\"}}",
+  "prompt_chars": 2989
+ },
+ {
+  "call": 2,
+  "step": 2,
+  "sha256": "bedfa8867f7f2c65951dad17944d2bf357ae085478d8cfb74409e7220f961e74",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}",
+  "prompt_chars": 24984
+ },
+ {
+  "call": 3,
+  "step": 2,
+  "sha256": "33f113778582687146e09036e0d97553893d0dcc3d811a977eea6b595028bc9c",
+  "response": "{ \"type\": \"plan\", \"steps\": [ \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\" ] }",
+  "prompt_chars": 25643
+ },
+ {
+  "call": 4,
+  "step": 2,
+  "sha256": "c82379f6f5b493aa9e0b79d18824e7d794c8ffab60091ea93fb742e5ac0b577d",
+  "response": "{ \"type\": \"plan\", \"steps\": [ \"Read the page and extract the page title, the three items listed under Today, and the sentinel code.\" ] }",
+  "prompt_chars": 25643
+ }
+]

@@ -42,13 +42,13 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from xml.etree import ElementTree
 
+from daedalus.kernel.contracts.base import ContractProvenance
 from daedalus.runtimes.fault_matrix import (
     RuntimeFaultCatalog,
     RuntimeFaultObservation,
     RuntimeFaultScenario,
 )
 from daedalus.runtimes.host_fault_runner import HostFaultFact
-from daedalus.schemas import ContractProvenance
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
 _SCHEMA = "daedalus-fixture-fault-evidence/1"

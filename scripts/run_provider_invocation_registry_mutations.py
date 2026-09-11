@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "daedalus" / "runtimes" / "provider_invocation_registry.py"
+SOURCE = ROOT / "daedalus" / "runtimes" / "provider" / "invocation_registry.py"
 TESTS = (
     "tests/runtimes/test_provider_invocation_registry.py",
     "tests/runtimes/test_provider_invocation_registry_review.py",

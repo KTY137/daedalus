@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "daedalus"
-version = "0.1.1"
+version = "0.1.6"
 description = "Portable local+cloud multi-agent routing harness (Adam senior crew + Ikarus local bench)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,6 +14,18 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
+# Local computer assistance stays optional; importing the core loads none of
+# these native packages. Browser binaries are installed explicitly by setup.
+computer = [
+    "opencv-python-headless==4.11.0.86", "mss==10.2.0", "playwright==1.62.0",
+    "winrt-Windows.Media.Ocr==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Graphics.Imaging==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Globalization==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections==3.2.1; sys_platform == 'win32'",
+]
+computer-vision = ["opencv-python-headless==4.11.0.86"]
 yaml = ["pyyaml>=6"]   # enables YAML config verification in the verifier gate
 math = ["numpy", "scipy", "networkx"] # optional structural graph analysis
 polyglot = [
@@ -23,14 +35,47 @@ polyglot = [
     "tree-sitter-cpp==0.23.4",
 ]
 root = ["uproot==5.7.5"]
-# Optional graph engine for composing a run brief (daedalus/langgraph_adapter.py).
+# Exact BPE counting for daedalus.structcore.tokens (tokenizer_status() reports
+# whether counts are exact or chars/4). The cl100k_base BPE file is NOT
+# downloaded by daedalus: status is cache-only and refuses to load when the
+# file is absent. Fetch it once, by hand, with
+#   python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
+# Pulls regex and requests. Installed by every `uv sync --locked --all-extras`
+# bootstrap (bootstrap.ps1 / bootstrap.sh); the `test` extra stays BPE-free.
+tokenizer = ["tiktoken==0.14.0"]
+# Optional graph engine for composing a run brief (daedalus/orchestration/langgraph_adapter.py).
 # NOT a runtime dependency of anything: `create_run` defaults to engine="stdlib",
 # nothing under daedalus/ imports langgraph at module scope, and the adapter is
 # one file to delete. Pulls langchain-core and langsmith transitively -- the
 # adapter pins langsmith tracing off explicitly rather than trusting that no
 # environment variable on the machine turns it on.
 orchestration = ["langgraph>=1.2,<2"]
-# Test-time only: nothing under daedalus/ imports either of these, only tests/.
+# Reproducible native-desktop build tools.  CI installs this exact lock-backed
+# extra without selecting ``gpu``; PyInstaller and its transitive bootloader
+# dependencies must never float between builds of the same commit.
+desktop-build = ["pyinstaller==6.22.1"]
+# Reproducible Python distribution builder used by release acceptance only.
+release-build = ["build==1.6.0", "setuptools==84.0.0"]
+# Exact image encoder used only to regenerate the checked-in Blender-derived
+# WebP environment assets. Verification with ``--check`` remains stdlib-only.
+design-build = ["pillow==10.4.0"]
+# Opt-in CUDA 12 research environment.  This is deliberately not part of the
+# zero-dependency core and does not select a Daedalus runtime backend.  CUDA
+# 12.6 is pinned for the Pascal-class GPU still used by the owner workstation;
+# current CUDA 13 PyTorch wheels require Turing or newer.  Newton brings
+# NVIDIA Warp.  CuPy's `ctk` extra supplies the CUDA components, so a system
+# CUDA Toolkit is not required (an NVIDIA driver still is).
+gpu = [
+    # The local version is intentional: without the explicit cu126 source a
+    # conventional pip resolver must fail instead of silently selecting the
+    # CUDA 13 build that dropped Pascal support.
+    "torch==2.14.0+cu126; sys_platform == 'win32' or sys_platform == 'linux'",
+    "newton==1.5.1; sys_platform == 'win32' or sys_platform == 'linux'",
+    "warp-lang==1.17.0; sys_platform == 'win32' or sys_platform == 'linux'",
+    "cupy-cuda12x[ctk]==14.2.0; sys_platform == 'win32' or sys_platform == 'linux'",
+    "cuda-toolkit[cublas,cudart,cufft,curand,cusolver,cusparse,nvrtc]==12.6.3; sys_platform == 'win32' or sys_platform == 'linux'",
+]
+# Test-time only: nothing under daedalus/ imports these, only tests/.
 # The core stays zero-dependency; this extra is what `python -m pytest tests/`
 # (the runner README.md documents) actually needs.
 #   pytest      -- required by 116 of 254 files in tests/ (MEASURED 2026-08-25,
@@ -43,10 +88,52 @@ orchestration = ["langgraph>=1.2,<2"]
 #   hypothesis  -- property-based tests (docs/ABSORPTION.md D1). MPL-2.0 -- see
 #                  ABSORPTION.md D1 bar 3 for why that licence attaches to
 #                  nothing here (imported, never modified/redistributed).
-test = ["pytest>=8", "hypothesis>=6.163"]
+#   jsonschema  -- unconditional Draft 2020-12 contract checks under tests/gates
+#                  and tests/runtimes; intentionally remains outside core.
+#   pytest-asyncio -- executes the unconditional asyncio-marked adapter and
+#                  evolution tests instead of silently skipping coroutines.
+test = [
+    "pytest>=8",
+    # Optional coverage-guided discrimination is installable with test tools;
+    # its absence remains a capability warning in the host preflight.
+    "coverage>=7",
+    "hypothesis>=6.163",
+    "jsonschema>=4.23",
+    "pytest-asyncio>=0.23.5",
+    # pytest-xdist -- the suite is process-bound, not compute-bound: 368 of the
+    #                 612 files under tests/ spawn a subprocess, so a serial run
+    #                 spends most of its wall clock waiting on child processes
+    #                 while 15 of 16 hardware threads idle. [MEASURED 2026-09-02,
+    #                 AMD Ryzen 7 9800X3D, 8 cores / 16 threads, 10548 tests]
+    #                 `-q`                       -> 3030 s (50m25s), CPU avg 9.8%
+    #                 `-q -n auto --dist loadfile` -> 503 s (8m23s), CPU avg 58.4%
+    #                 -- 6.0x. Neither knob above `-n auto` helped: `-n 24` cost
+    #                 525 s and `--dist worksteal` 586 s (splitting a file across
+    #                 workers re-pays its module import on each one, and several
+    #                 files here carry 5-9 s of setup). `loadfile` is also what
+    #                 makes the parallel verdict equal the serial one.
+    #
+    #                 It is NOT wired into an `addopts` default: 77 of this
+    #                 repository's 109 workflows install a bare `pytest` without
+    #                 the `[test]` extra, and an unconditional `-n auto` would
+    #                 turn every one of them into `unrecognized arguments: -n`.
+    #                 So parallelism is an explicit flag (README.md "Tests"),
+    #                 and its absence costs time rather than correctness.
+    "pytest-xdist>=3.6",
+]
+
+# Only torch may resolve from this index.  Keeping it explicit prevents the
+# PyTorch wheel repository from becoming a fallback source for other packages.
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
 
 [project.scripts]
-daedalus = "daedalus.cli:main"
+daedalus = "daedalus.interfaces.cli.entry:main"
 daedalus-chip = "daedalus.chip_design.cli:main"
 
 [tool.setuptools.packages.find]
@@ -55,3 +142,15 @@ exclude = ["tests*", "tools*"]
 
 [tool.setuptools.package-data]
 "daedalus.kairos" = ["_gated_writes_legacy.py.src"]
+"daedalus.chip_design" = ["tcl/*.tcl"]
+"daedalus.resources" = [
+    "agents/*.json",
+    "templates/*.json",
+    "templates/*.md",
+    "templates/agents/*.json",
+    "catalogue/gui/*.json",
+    "catalogue/providers/*.json",
+    "schemas/*.json",
+    "web_dist/*",
+    "web_dist/**/*",
+]

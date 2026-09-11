@@ -1,0 +1,170 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-86",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "97e5e66a07028060005e071270d201a31a28b98b",
+    "dependencies": "G1-EXP-TENSOR-GPU-85 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback restores the compiler-side post-build sum over compiled blocks and removes the focused direct-receipt count-validation contract. No wire, public API, authority, benchmark or promotion state changes are involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-86",
+  "work_packet": "G1-EXP-TENSOR-GPU-86",
+  "title": "Accumulate semantic fact count during canonical block construction",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "97e5e66a07028060005e071270d201a31a28b98b",
+  "scope": "Remove the compiler-side second traversal used only to compute CompiledRelationBlocks.semantic_fact_count after every TypedRelationBlock has already been constructed. Accumulate the exact entry_count during the existing selected-signature construction loop, while retaining CompiledRelationBlocks.__post_init__ as an independent direct-constructor validation boundary. Do not add lazy state, a cache, another receipt family, another compiler, a registry or a second source of truth.",
+  "audit": {
+    "canonical_handoff": "daedalus/twin/relation_compiler.py::compile_relation_blocks -> CompiledRelationBlocks",
+    "previous_behavior": "compile_relation_blocks built the complete bounded compiled list, then traversed that list with sum(block.entry_count for _, block in compiled) to produce semantic_fact_count. CompiledRelationBlocks.__post_init__ independently traversed its validated ordered blocks again to prove the supplied count matches the receipt contents.",
+    "finding": "The receipt-side scan is required for trustworthy direct construction and must remain independent. The compiler-side post-build scan is not required: block.entry_count is already available at the exact point each canonical block is appended, so the compiler can accumulate the same non-negative integer during that existing required pass without retaining new state beyond one scalar counter.",
+    "entry_count_cost": "TypedRelationBlock.entry_count is len(self.values), so accumulation does not traverse block entries and does not alter CSR or semiring semantics."
+  },
+  "implementation": {
+    "production": {
+      "commit": "195d3461ae20b1447ca7084479457f7d5270a4dd",
+      "path": "daedalus/twin/relation_compiler.py",
+      "blob": "7bb1ee0e0cf73e75cf44814272d12266be42dbef",
+      "change": "Initialize semantic_fact_count once beside the existing compiled list, increment it with block.entry_count immediately after each block is appended, and pass that scalar into CompiledRelationBlocks. The separate compiler-side sum over the completed list is removed. CompiledRelationBlocks.__post_init__ is unchanged and still verifies the supplied count independently."
+    },
+    "focused_test": {
+      "commit": "e942285a9956c005f0f683ba358f5f6e47234d51",
+      "path": "tests/twin/test_relation_compiler_receipt_bounds.py",
+      "blob": "e2ceacfda31ed395f2a66d42417f8456b27a9d15",
+      "change": "Extend the existing bounded-receipt test owner with one minimal valid Boolean TypedRelationBlock and prove direct CompiledRelationBlocks construction still rejects semantic_fact_count=0 when the supplied block contains one semantic entry. This pins the independent receipt validation boundary after the compiler-side traversal is removed."
+    },
+    "diff_from_gpu_85": {
+      "commits_before_closure": 2,
+      "production_files": 1,
+      "test_files": 1,
+      "production_additions": 3,
+      "production_deletions": 1,
+      "test_additions": 24,
+      "test_deletions": 1
+    }
+  },
+  "semantic_invariants": {
+    "receipt_validation": "CompiledRelationBlocks.__post_init__ still independently sums validated ordered block entry counts and rejects a mismatching semantic_fact_count for direct construction.",
+    "count_identity": "compile_relation_blocks.semantic_fact_count remains the exact sum of final TypedRelationBlock.entry_count values, including explicit selected empty blocks and deduplicated coordinates.",
+    "canonical_order": "CompiledRelationBlocks still sorts validated blocks by collision-free logical block name; count accumulation does not participate in ordering.",
+    "semiring_behavior": "Boolean, natural and evidence-dag block construction, deduplication and provenance behavior are unchanged.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; the compiled receipt remains a regenerable computational view.",
+    "public_api": "No public API, wire schema, benchmark schema, compatibility facade, promotion or authority contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": true,
+    "test_change": true,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "compiler_post_build_count_traversal_removed": true,
+    "receipt_independent_validation_retained": true,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_receipt_or_compiler_added": false,
+    "summary": "The compiler no longer performs a dedicated second pass over its completed block catalog merely to compute semantic_fact_count. It reuses the already-required block-construction pass for the count, while the immutable receipt keeps its independent validation scan so direct construction cannot forge the aggregate."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "97e5e66a07028060005e071270d201a31a28b98b",
+    "implementation_commit": "195d3461ae20b1447ca7084479457f7d5270a4dd",
+    "focused_test_commit": "e942285a9956c005f0f683ba358f5f6e47234d51",
+    "implementation_head": "e942285a9956c005f0f683ba358f5f6e47234d51",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@7bb1ee0e0cf73e75cf44814272d12266be42dbef",
+    "receipt_bounds_tests": "tests/twin/test_relation_compiler_receipt_bounds.py@e2ceacfda31ed395f2a66d42417f8456b27a9d15",
+    "typed_relation_block_owner": "daedalus/twin/relation_blocks.py@98cd0ebd8517496c0938666360c3d8e5e85378be",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "implementation_head": "e942285a9956c005f0f683ba358f5f6e47234d51",
+    "static_diff": "GPU-85..implementation head is exactly two commits touching relation_compiler.py (+3/-1) and the existing receipt-bounds test owner (+24/-1).",
+    "fourfold_tensor_run_at_packet_write": {
+      "run_id": 34193652515,
+      "status": "queued",
+      "conclusion": null,
+      "claim": "No green claim is made before workflow completion."
+    },
+    "tauri_run_at_packet_write": {
+      "run_id": 34193652382,
+      "status": "in_progress",
+      "conclusion": null,
+      "claim": "No Tauri success/failure claim is made before workflow completion."
+    },
+    "base_gpu_85_evidence": "The previous exact head 97e5e66a07028060005e071270d201a31a28b98b later completed Fourfold/Tensor run 34189235303 successfully and Tauri run 34189235296 with failure; this is retained as base evidence only and is not projected onto GPU-86.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 1,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "dedicated_compiler_count_pass_removed": true,
+    "existing_construction_loop_reused": true,
+    "independent_receipt_validation_retained": true,
+    "existing_test_owner_reused": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-87 only: audit compile_relation_blocks record staging for edge_records and binding_records. Determine whether selected-signature filtering can safely avoid retaining records for relations that will never be compiled without changing discover-all semantics, verified-binding admission checks, hyperedge/undirected refusal precedence, evidence-dag provenance, verified_binding_count receipt semantics or introducing a second discovery/compiler path. Prefer deletion of an unnecessary staging container over another abstraction; if the records are semantically required, retain them and close the audit as research."
+}

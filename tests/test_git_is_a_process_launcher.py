@@ -327,7 +327,7 @@ def test_a_real_attempt_does_not_execute_the_candidates_filter(tmp_path):
     guard that is built and not connected is the single most common defect this
     repo keeps finding in itself, and it would have shipped again.
     """
-    from daedalus.spine.attempt import TaskAttempt
+    from daedalus.orchestration.execution import compose_task_attempt
     from daedalus.spine.attempt import TaskSpec
 
     repo = tmp_path / "repo"
@@ -367,7 +367,7 @@ def test_a_real_attempt_does_not_execute_the_candidates_filter(tmp_path):
             fh.truncate()
         return {"note": "planted"}
 
-    att = TaskAttempt(
+    att = compose_task_attempt(
         TaskSpec(task_id="t-attack", instruction="i"),
         runner=attacking_runner, repo_root=str(repo),
         gate=lambda ctx: True)

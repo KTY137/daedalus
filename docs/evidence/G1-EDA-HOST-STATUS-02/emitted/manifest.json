@@ -1,0 +1,95 @@
+[
+  {
+    "artifact": "emitted/vivado_full.tcl",
+    "bound_identities": {
+      "manifest_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "plan_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "project_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "source_identity_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "trusted_tcl_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "byte_length": 5599,
+    "line_count": 141,
+    "schema": "daedalus-chip-tcl-emit/1",
+    "scope": "full",
+    "sha256": "99e3fc661fcd90b4f51578af81078f84ec8b149ae025333e291673c19305d964",
+    "syntax_check": {
+      "checker": "daedalus-tcl-info-complete/1",
+      "complete": true,
+      "detail": "",
+      "executed": false,
+      "open_construct": "",
+      "open_offset": null,
+      "vendor_acceptance_claimed": false
+    },
+    "target": "vivado-project"
+  },
+  {
+    "artifact": "emitted/vivado_full.harness.tcl",
+    "bound_identities": {
+      "script_scope": "full",
+      "script_sha256": "99e3fc661fcd90b4f51578af81078f84ec8b149ae025333e291673c19305d964",
+      "script_target": "vivado-project"
+    },
+    "byte_length": 11781,
+    "line_count": 238,
+    "schema": "daedalus-chip-tcl-emit/1",
+    "scope": "full",
+    "sha256": "6c3ea9ac5b99166f05049473d195251e3e61015fa53cbeb24ce8f73a1956d222",
+    "syntax_check": {
+      "checker": "daedalus-tcl-info-complete/1",
+      "complete": true,
+      "detail": "",
+      "executed": false,
+      "open_construct": "",
+      "open_offset": null,
+      "vendor_acceptance_claimed": false
+    },
+    "target": "parse-harness"
+  },
+  {
+    "artifact": "emitted/vitis_hls.tcl",
+    "bound_identities": {
+      "kernel_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "plan_sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "byte_length": 2835,
+    "line_count": 72,
+    "schema": "daedalus-chip-tcl-emit/1",
+    "scope": "csynth",
+    "sha256": "80ef3c3ceae3247cb861f07a3b42a2c168fbb5ceedfeb457735d4118f41cd4ed",
+    "syntax_check": {
+      "checker": "daedalus-tcl-info-complete/1",
+      "complete": true,
+      "detail": "",
+      "executed": false,
+      "open_construct": "",
+      "open_offset": null,
+      "vendor_acceptance_claimed": false
+    },
+    "target": "vitis-hls"
+  },
+  {
+    "artifact": "emitted/vitis_hls.harness.tcl",
+    "bound_identities": {
+      "script_scope": "csynth",
+      "script_sha256": "80ef3c3ceae3247cb861f07a3b42a2c168fbb5ceedfeb457735d4118f41cd4ed",
+      "script_target": "vitis-hls"
+    },
+    "byte_length": 7780,
+    "line_count": 177,
+    "schema": "daedalus-chip-tcl-emit/1",
+    "scope": "csynth",
+    "sha256": "f25eabee206754349fff09b1c7bf1e0f0879b191eea1790c4224eaa740626d15",
+    "syntax_check": {
+      "checker": "daedalus-tcl-info-complete/1",
+      "complete": true,
+      "detail": "",
+      "executed": false,
+      "open_construct": "",
+      "open_offset": null,
+      "vendor_acceptance_claimed": false
+    },
+    "target": "parse-harness"
+  }
+]

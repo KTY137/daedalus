@@ -5,7 +5,7 @@ on:
     branches:
       - g0/python-target-structure-linear
     paths:
-      - "daedalus/gates/repository_write_guard_structure.py"
+      - "daedalus/gates/repository/write_guard_structure.py"
       - "tests/gates/test_repository_write_guard_structure*.py"
       - "scripts/run_repository_write_guard_structure_mutations.py"
       - "configs/schemas/repository-write-guard-structure.schema.json"
@@ -106,7 +106,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-guard-structure-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_guard_structure import (
+          from daedalus.gates.repository.write_guard_structure import (
               GuardStructureRecord,
               RepositoryWriteGuardStructureBindingError,
               RepositoryWriteGuardStructureError,

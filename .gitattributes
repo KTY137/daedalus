@@ -17,6 +17,12 @@
 # which re-derives the census from the source and fails when a subject is not
 # covered here. Adding a file that hashes its own bytes without adding a line
 # here is a test failure, not a Windows-only surprise three sessions later.
+
+# The adopted plan and its append-only amendment chain bind their raw SHA-256
+# bytes to each accepted record. Checkout translation must not make a valid
+# owner decision appear to have a different identity on Windows.
+docs/IKARUS_ARIADNE_MASTER_PLAN.md -text
+docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl -text
 #
 # MEASURED 2026-08-22 on this worktree, `git ls-files --eol`: of the 12 byte-pin
 # subjects, 2 carried an attribute and 4 were checked out CRLF.
@@ -38,8 +44,8 @@
 
 # Sources hashed by the gate inventories (daedalus/gates/*_inventory.py read the
 # WORKING-TREE bytes of the module named in their _SOURCE_PATH).
-daedalus/runtimes/provider_target_receipt_ledger.py -text
-daedalus/runtimes/provider_observation.py -text
+daedalus/runtimes/provider/target_receipt_ledger.py -text
+daedalus/runtimes/provider/observation.py -text
 
 # Modules and fixtures that hash their own file to identify the implementation
 # that produced an observation or a fault receipt. Under CRLF the same revision
@@ -93,6 +99,13 @@ runs/watchdog/mission-20260823/pathsens_files.txt -text
 runs/watchdog/mission-20260823/redfiles.txt -text
 runs/watchdog/mission-20260823/suite-run2-head-at-start.txt -text
 
+# The portable Blender archive stores the exact bytes of every source below
+# this directory. Without an explicit pin, core.autocrlf produced a mixed-EOL
+# ZIP on Windows and made `package.py --check` disagree with the same commit on
+# Linux. Keep the complete archive input byte-stable, including future files.
+docs/design/blender-scenes/** -text
+docs/design/Daedalus-Blender-Scenes.zip -text -diff
+
 # The head-revision integration review (tests/gates/
 # test_repository_head_revision_integration_review.py) pins these two by RAW
 # byte blob sha. Unpinned, core.autocrlf=true materialised them with CRLF in
@@ -101,7 +114,8 @@ runs/watchdog/mission-20260823/suite-run2-head-at-start.txt -text
 # 2026-08-24, B6 run 5 baseline_red). Same daemon, same cure as above.
 scripts/run_repository_head_revision_mutations.py -text
 configs/schemas/repository-head-revision-receipt.schema.json -text
-daedalus/gates/repository_head_revision.py -text
+daedalus/resources/schemas/repository-head-revision-receipt.schema.json -text
+daedalus/gates/repository/head_revision.py -text
 tests/gates/test_repository_head_revision.py -text
 tests/gates/test_repository_head_revision_review.py -text
 tests/gates/test_repository_head_revision_schema.py -text
@@ -133,7 +147,7 @@ tests/gates/test_repository_head_revision_wire.py -text
 # `daedalus.ignition.bundle.import_closure(ROOT, EVALUATOR_MODULES)`, 124
 # modules, every one under daedalus/): 123 of 124 resolved `text: unspecified`
 # -- no explicit, non-autocrlf-dependent declaration at all -- the one
-# exception (daedalus/runtimes/provider_observation.py) already pinned above
+# exception (daedalus/runtimes/provider/observation.py) already pinned above
 # for an unrelated reason. And a SECOND measurement the first draft of this
 # section got wrong: checking raw file bytes (not `git ls-files --eol`'s
 # INDEX column, which is always `i/lf`) showed 121 of these 124 files are
@@ -153,36 +167,44 @@ tests/gates/test_repository_head_revision_wire.py -text
 # changed since git's index last cached them clean; the first `git add` (or
 # `git add -A`) that touches one after this file starts asking `-text`'s
 # question would silently flip an unrelated module's committed line endings.
-# The list below is exactly the 124 the bundle's closure computes -- nothing
-# more -- and every one of them has ALSO been renormalised to LF in this
-# worktree (a working-tree-only change; no committed byte moves, matching
-# every -text pin above), so `-text` here changes nothing about to be
-# committed. tests/test_ignition_bundle_gitattributes.py re-derives the
-# closure from source on every run via `git check-attr` and fails on any gap,
-# so a closure that outgrows this list is a red test, not a silent hole --
+# The initial list below was exactly the 124 modules measured above -- nothing
+# more -- and every one of them had ALSO been renormalised to LF in that
+# worktree (a working-tree-only change; no committed byte moved, matching every
+# -text pin above). Guard-driven additions remain explicit: MEASURED 2026-08-30,
+# the current closure contains 175 files, including seven chip-design modules
+# introduced by the canonical EDA execution path. The guard below re-derives
+# the closure from source on every run via `git check-attr` and fails on any
+# gap, so a closure that outgrows this list is a red test, not a silent hole --
 # the same self-healing property a wildcard would have given for free, without
 # the blast radius a wildcard measured to carry here.
 daedalus/__init__.py -text
 daedalus/adapters/events.py -text
-daedalus/agents_registry.py -text
+daedalus/orchestration/agents_registry.py -text
 daedalus/atomic.py -text
-daedalus/benchmark.py -text
-daedalus/bookkeeper.py -text
+daedalus/orchestration/benchmark.py -text
+daedalus/interfaces/cli/bookkeeper.py -text
 daedalus/budget.py -text
 daedalus/build.py -text
-daedalus/categories.py -text
+daedalus/orchestration/categories.py -text
+daedalus/chip_design/contracts.py -text
+daedalus/chip_design/execution_plan.py -text
+daedalus/chip_design/executor.py -text
+daedalus/chip_design/manifest.py -text
+daedalus/chip_design/sources.py -text
+daedalus/chip_design/toolchains.py -text
+daedalus/chip_design/vivado_tcl.py -text
 daedalus/claude_bridge.py -text
-daedalus/claude_detect.py -text
+daedalus/foundation/claude_detect.py -text
 daedalus/config.py -text
-daedalus/context_plan.py -text
+daedalus/orchestration/context_plan.py -text
 daedalus/core.py -text
 daedalus/doctor.py -text
-daedalus/enforce.py -text
+daedalus/interfaces/cli/enforce.py -text
 daedalus/eval/correctness.py -text
 daedalus/eval/harness.py -text
 daedalus/eval/mint.py -text
 daedalus/eval/tasks.py -text
-daedalus/fallback.py -text
+daedalus/orchestration/fallback.py -text
 daedalus/file_bridge.py -text
 daedalus/health.py -text
 daedalus/ignition/__init__.py -text
@@ -210,6 +232,7 @@ daedalus/lanes/__init__.py -text
 daedalus/lanes/checks.py -text
 daedalus/lanes/graph_brief.py -text
 daedalus/lanes/grounding.py -text
+daedalus/limit_policy.py -text
 daedalus/mapping/__init__.py -text
 daedalus/mapping/drift.py -text
 daedalus/mapping/inventory.py -text
@@ -221,9 +244,9 @@ daedalus/memory/__init__.py -text
 daedalus/memory/embeddings.py -text
 daedalus/metrics.py -text
 daedalus/offload.py -text
-daedalus/preservation.py -text
+daedalus/foundation/preservation.py -text
 daedalus/primary_tree.py -text
-daedalus/projects.py -text
+daedalus/foundation/projects.py -text
 daedalus/provider_router.py -text
 daedalus/providers/__init__.py -text
 daedalus/providers/_ollama_native.py -text
@@ -238,11 +261,10 @@ daedalus/providers/personas.py -text
 daedalus/router.py -text
 daedalus/runtimes/broker.py -text
 daedalus/runtimes/profiles.py -text
-daedalus/runtimes/provider_observation.py -text
 daedalus/runtimes/trust.py -text
 daedalus/runtimes/trust_store.py -text
 daedalus/schemas.py -text
-daedalus/semantic_route.py -text
+daedalus/orchestration/semantic_route.py -text
 daedalus/sensitivity.py -text
 daedalus/spine/__init__.py -text
 daedalus/spine/attempt.py -text
@@ -288,4 +310,196 @@ daedalus/twin/contracts.py -text
 daedalus/twin/legacy_forest.py -text
 daedalus/twin/projection_verifier.py -text
 daedalus/twin/reference_compiler.py -text
-daedalus/verifier.py -text
+daedalus/orchestration/verifier.py -text
+daedalus/eval/__init__.py -text
+daedalus/eval/_text_integrity.py -text
+daedalus/eval/report.py -text
+daedalus/eval/tier2.py -text
+daedalus/gates/provider_target_receipt_retention_inventory.py -text
+daedalus/gates/python_target_structure.py -text
+daedalus/gates/repository/tree.py -text
+daedalus/kernel/artifacts.py -text
+daedalus/kernel/source_trees.py -text
+daedalus/runtimes/provider/executable_object_registry.py -text
+daedalus/runtimes/provider/executable_pre_admission.py -text
+daedalus/runtimes/provider/executable_structure.py -text
+daedalus/runtimes/provider/executable_targets.py -text
+daedalus/runtimes/provider/invocation.py -text
+daedalus/runtimes/provider/invocation_abi.py -text
+daedalus/runtimes/provider/invocation_authority.py -text
+daedalus/runtimes/provider/invocation_identity.py -text
+daedalus/runtimes/provider/invocation_payload.py -text
+daedalus/runtimes/provider/invocation_registry.py -text
+daedalus/runtimes/provider/invocation_resolution.py -text
+daedalus/runtimes/provider/runtime_executable_binding.py -text
+daedalus/runtimes/provider/runtime_invocation_binding.py -text
+daedalus/runtimes/provider/target_receipt_retention_admission.py -text
+daedalus/runtimes/provider/target_receipt_retention_completed_evidence.py -text
+daedalus/runtimes/provider/target_receipt_retention_contract.py -text
+daedalus/runtimes/provider/target_receipt_retention_effect_terminal_evidence.py -text
+daedalus/runtimes/provider/target_receipt_retention_preflight.py -text
+daedalus/runtimes/provider/target_receipt_retention_recovery.py -text
+daedalus/runtimes/provider/target_verification.py -text
+daedalus/runtimes/provider/target_verification_contracts.py -text
+daedalus/runtimes/admission/offload_egress.py -text
+daedalus/orchestration/workspace_containment.py -text
+daedalus/foundation/text_integrity.py -text
+
+# Gate-1 evaluator-bundle closure members added by the hierarchy refactor.
+# The closure is recomputed from source on every run by
+# tests/test_ignition_bundle_gitattributes.py, so it grows whenever a packet
+# splits a module or introduces an owner -- and every new member arrives
+# unlisted, which is the recurrence this section's D7 header describes. These
+# 51 are the ones the interfaces/, kernel/contracts/, orchestration/ and
+# runtimes/providers/ splits produced. One explicit line each, not a
+# `daedalus/**/*.py` wildcard: that was measured to -text-pin ~170 modules
+# the bundle never reads.
+#
+# 46 -> 51 in G1-HIER-10, which added no file: pointing eighteen kernel
+# modules at their contract owners instead of the `daedalus.schemas` facade
+# pulled base/evidence/policy/promotion/resources into the bundle's import
+# closure for the first time. Exactly the arrival-unlisted case the paragraph
+# above predicts, caught by the guard test rather than by review.
+daedalus/build_exec.py -text
+daedalus/orchestration/conversation.py -text
+daedalus/orchestration/ikarus/runtime_role.py -text
+daedalus/orchestration/ikarus/supervisor.py -text
+daedalus/interfaces/bridge/__init__.py -text
+daedalus/interfaces/bridge/cli.py -text
+daedalus/interfaces/bridge/conversation.py -text
+daedalus/interfaces/bridge/dispatch.py -text
+daedalus/interfaces/bridge/journal.py -text
+daedalus/interfaces/bridge/projection.py -text
+daedalus/interfaces/bridge/queue.py -text
+daedalus/interfaces/bridge/watcher.py -text
+daedalus/kernel/__init__.py -text
+daedalus/kernel/attempt_execution.py -text
+daedalus/kernel/contracts/__init__.py -text
+daedalus/kernel/contracts/attempts.py -text
+daedalus/kernel/contracts/base.py -text
+daedalus/kernel/contracts/canonical.py -text
+daedalus/kernel/contracts/evaluation.py -text
+daedalus/kernel/contracts/evidence.py -text
+daedalus/kernel/contracts/missions.py -text
+daedalus/kernel/contracts/observations.py -text
+daedalus/kernel/contracts/policy.py -text
+daedalus/kernel/contracts/promotion.py -text
+daedalus/kernel/contracts/resources.py -text
+daedalus/kernel/contracts/runtime.py -text
+daedalus/kernel/events/__init__.py -text
+daedalus/kernel/events/durability.py -text
+daedalus/kernel/events/envelope.py -text
+daedalus/kernel/events/ledger.py -text
+daedalus/kernel/policy/__init__.py -text
+daedalus/kernel/policy/ledger.py -text
+daedalus/kernel/policy/limits.py -text
+daedalus/kernel/policy/pricing.py -text
+daedalus/orchestration/__init__.py -text
+daedalus/orchestration/execution/attempts.py -text
+daedalus/orchestration/legacy_reports.py -text
+daedalus/progress.py -text
+daedalus/progress_sources.py -text
+daedalus/resources/__init__.py -text
+daedalus/runtimes/contracts/claude.py -text
+daedalus/runtimes/contracts/ports.py -text
+daedalus/runtimes/contracts/provider_report.py -text
+daedalus/runtimes/contracts/python_targets.py -text
+daedalus/runtimes/contracts/repository.py -text
+daedalus/runtimes/contracts/retention.py -text
+daedalus/runtimes/execution/budget_process.py -text
+daedalus/runtimes/providers/budget_admission.py -text
+daedalus/runtimes/providers/catalogue.py -text
+daedalus/runtimes/providers/context.py -text
+daedalus/runtimes/providers/contracts.py -text
+daedalus/runtimes/providers/execution_policy.py -text
+daedalus/runtimes/providers/personas.py -text
+daedalus/runtimes/providers/reporting.py -text
+daedalus/runtimes/providers/token_policy.py -text
+
+# The append primitive, pulled into the closure by its consumers rather than
+# by the bundle: memory/__init__.py, metrics.py and progress.py are already
+# members and now import daedalus.journal_io, so it arrived here UNLISTED --
+# exactly the recurrence the D7 header above describes, and it was the guard
+# (tests/test_ignition_bundle_gitattributes.py), not review, that named it.
+# MEASURED 2026-09-02: 8 passed before the repoint, '1 of 206 ... no explicit
+# declaration: daedalus/journal_io.py' after it.
+daedalus/journal_io.py -text
+
+# The Gate-1 Genesis/general-assistant and Fourfold work grew the evaluator
+# bundle after the 2026-09-05 measurement. Later packets extended the explicit
+# set again, so the dynamic closure guard, rather than a stale cardinality in
+# this comment, owns the current census. Keep the entries explicit: a
+# daedalus-wide wildcard would silently change checkout semantics for modules
+# outside the evaluator bundle.
+daedalus/foundation/env.py -text
+daedalus/interfaces/computer_configuration.py -text
+daedalus/kernel/contracts/genesis.py -text
+daedalus/kernel/contracts/registry.py -text
+daedalus/kernel/policy/computer.py -text
+daedalus/orchestration/control_plane.py -text
+daedalus/orchestration/hierarchy.py -text
+daedalus/orchestration/ikarus/__init__.py -text
+daedalus/orchestration/ikarus/act.py -text
+daedalus/orchestration/ikarus/chat.py -text
+daedalus/orchestration/ikarus/cancellation.py -text
+daedalus/orchestration/ikarus/computer_context.py -text
+daedalus/orchestration/ikarus/computer_history.py -text
+daedalus/orchestration/ikarus/computer_loop.py -text
+daedalus/orchestration/ikarus/computer_schedule.py -text
+daedalus/orchestration/ikarus/shell.py -text
+daedalus/orchestration/llm_client.py -text
+daedalus/orchestration/runtime_registry.py -text
+daedalus/runtimes/computer.py -text
+daedalus/runtimes/computer_browser.py -text
+daedalus/runtimes/computer_desktop.py -text
+daedalus/runtimes/computer_files.py -text
+daedalus/runtimes/computer_ocr.py -text
+daedalus/runtimes/computer_vision.py -text
+daedalus/spine/linux_containment.py -text
+daedalus/structcore/report.py -text
+daedalus/twin/relation_blocks.py -text
+daedalus/twin/relation_compiler.py -text
+daedalus/twin/relation_projection.py -text
+daedalus/twin/semiring.py -text
+daedalus/twin/tensor.py -text
+daedalus/twin/two_category.py -text
+
+# The attempt spine, the Ikarus composition modules and the two computer
+# runtimes that packets G1-IKARUS-46 and -47 added grew the closure again.
+# MEASURED 2026-09-11: the Gate 1 Ignition workflow was red on main across
+# all four matrix legs with '13 of 254 Gate-1 evaluator-bundle files have no
+# explicit, non-autocrlf-dependent .gitattributes declaration', and for
+# nothing else.
+#
+# Their INDEX blobs were already LF, so `-text` pins the bytes that are
+# there. Their WORKING COPIES were CRLF, checked out under core.autocrlf
+# before this declaration existed -- and `-text` stops git normalising, so
+# the next `git add` of one would have committed CRLF and broken every byte
+# pin that depends on it, silently, because git's stat cache hides the
+# difference. All thirteen were converted to LF in the same commit, which is
+# why the diff is this file alone.
+daedalus/kernel/attempt_clock.py -text
+daedalus/kernel/attempt_contracts.py -text
+daedalus/kernel/attempt_ledger.py -text
+daedalus/kernel/attempt_spine_reader.py -text
+daedalus/kernel/attempt_workspace.py -text
+daedalus/kernel/attempts.py -text
+daedalus/orchestration/ikarus/claude_attempt_handoff.py -text
+daedalus/orchestration/ikarus/claude_composition.py -text
+daedalus/orchestration/ikarus/effect_bridge.py -text
+daedalus/orchestration/ikarus/oneshot.py -text
+daedalus/orchestration/ikarus/tool_scope.py -text
+daedalus/runtimes/computer_ariadne.py -text
+daedalus/runtimes/computer_daedalus.py -text
+
+# Evidence directories that carry a digest manifest (MANIFEST.json pins the
+# sha256 of every sibling file): the digests are over the committed LF bytes,
+# so a translating checkout would make 19/19 of them mismatch on Windows
+# (measured 2026-09-05 by the G1-IKARUS-26 adversarial review, F1).
+docs/evidence/G1-IKARUS-26_COMPUTER_LOOP_LIVE/** -text
+docs/evidence/G1-IKARUS-30_DESKTOP_VISION_LIVE/** -text
+docs/evidence/G1-IKARUS-32_PLANNER_PROGRESS_LIVE/** -text
+docs/evidence/G1-IKARUS-34_PLAN_PROGRESS_SHAPE/** -text
+docs/evidence/G1-IKARUS-42_PROMPT_SIZE/** -text
+docs/evidence/G1-IKARUS-43_REMOTE_PLANNER_LIVE/** -text
+docs/evidence/G1-IKARUS-45_BOUNDED_PROMPT_VIEW/** -text

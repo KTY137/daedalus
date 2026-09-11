@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import argparse
-import json
+import inspect
 import os
+import sqlite3
 import uuid
 import shutil
 import sys
@@ -12,8 +12,15 @@ from pathlib import Path
 from typing import Any
 
 from .atomic import write_text_atomic
+from .interfaces.bridge import cli as bridge_cli
+from .interfaces.bridge import conversation as bridge_conversation
+from .interfaces.bridge import dispatch as bridge_dispatch
+from .interfaces.bridge import journal as bridge_journal
+from .interfaces.bridge import projection as bridge_projection
+from .interfaces.bridge import queue as bridge_queue
+from .interfaces.bridge import watcher as bridge_watcher
 from .memory import record_from_bridge_report
-from .projects import resolve_repo_root
+from .foundation.projects import resolve_repo_root
 from .spine import envelope
 
 
@@ -39,11 +46,11 @@ BUSY_BUDGET_S = 1800.0
 # get a (non-blocking) warning from enqueue().
 CODEX_INLINE_BRIEF_CHARS = 200
 
-# A request that was interrupted mid-flight is retried on restart, but not
-# forever. A request that reliably HARD-kills the process (a segfault or an OOM
-# inside a provider, not an exception we could catch) would otherwise be
-# re-dispatched -- and on a paid lane re-billed -- on every single restart.
-# After this many dispatches with nothing to show for them it is quarantined.
+# A request interrupted before any durable Effect-Lease start is retried on
+# restart, but not forever. Once a canonical execution has started, the
+# filename-derived replay identity below makes the ledger refuse a second
+# provider effect; this bound remains the last net for pre-start hard kills and
+# non-provider work that never produced a report.
 MAX_ATTEMPTS = 3
 
 # A request whose JSON does not parse is only poison once it has stopped
@@ -53,50 +60,40 @@ MAX_ATTEMPTS = 3
 # request whose only fault was being slow.
 SETTLE_GRACE_S = 5.0
 
+WatcherNotRunning = bridge_queue.WatcherNotRunning
 
-class WatcherNotRunning(RuntimeError):
-    """Raised by enqueue() when no watcher is alive to consume the request.
 
-    MEASURED 2026-07-29, and the reason this exception exists: the watcher's
-    last heartbeat was 2026-07-16T22:51:51Z (pid 9536, dead). The owner's own
-    question -- "how is daedalus currently build and how does it function?" --
-    was enqueued 2026-07-20T12:11:42Z, three and a half days AFTER the only
-    consumer had stopped, and sat in the outbox for nine days. Nothing in the
-    system objected: `enqueue` wrote the file, returned a path, and the caller
-    had every reason to believe work had been queued.
+ConversationProjectionPending = bridge_conversation.ConversationProjectionPending
+ConversationProjectionFailed = bridge_conversation.ConversationProjectionFailed
+TerminalBookkeepingPending = bridge_dispatch.TerminalBookkeepingPending
 
-    `daedalus doctor` did report the dead watcher -- correctly, and with the
-    restart command -- but doctor is a thing you run when you already suspect
-    something. The producer never ran it. A queue that accepts work no consumer
-    will ever take is not a queue; it is a wastebasket with a receipt printer.
 
-    So the check moved to the moment of the mistake. It carries the state, the
-    age, and the exact restart command, because an error that does not say what
-    to do next just relocates the confusion.
+RequestIdentityConflict = bridge_dispatch.RequestIdentityConflict
+TerminalReportPreserved = bridge_dispatch.TerminalReportPreserved
+QuarantineMovePending = bridge_dispatch.QuarantineMovePending
+
+
+def _is_transient_projection_failure(exc: BaseException) -> bool:
+    """Whether retrying the *same report projection* can plausibly succeed.
+
+    The distinction is load-bearing: :class:`ConversationProjectionPending`
+    owns an automatic retry and may move an archived request back to OUTBOX.
+    Integrity disagreements, unknown dispatches, malformed data and other
+    permanent failures must retain their original exception type so the API
+    can surface them without creating a retry loop.
+
+    ConversationStore may wrap a SQLite setup failure in ``ConversationError``;
+    inspect the exception chain so only SQLite BUSY/LOCKED survives that
+    wrapper. An errno-less ``OSError`` is retryable only when its message says
+    it is temporary/busy/locked/timed out; an unqualified I/O complaint is not
+    enough to claim retry ownership. Known permanent filesystem failures such
+    as missing paths, permissions, read-only media and invalid paths are not
+    retry-owned here.
     """
-
-    def __init__(self, hb: dict[str, Any], objective: str) -> None:
-        self.hb = hb
-        self.state = hb.get("state", "unknown")
-        self.restart = hb.get("restart", "python -m daedalus.file_bridge watch --project <project>")
-        if self.state == "stale":
-            age = hb.get("age_s")
-            why = (f"the bridge watcher is DEAD -- its last heartbeat was {age}s ago "
-                   f"(> {STALE_AFTER_S:.0f}s)")
-        else:  # "none"
-            why = ("no bridge watcher has ever recorded a heartbeat here -- "
-                   "none is running")
-        super().__init__(
-            f"REFUSED to enqueue: {why}.\n"
-            f"  objective : {objective[:120]}\n"
-            f"  Nothing would consume this task. It would sit in the outbox\n"
-            f"  indefinitely while looking successfully queued.\n"
-            f"  -> start the consumer:  {self.restart}\n"
-            f"  -> or run the queue once, in the foreground:  "
-            f"python -m daedalus.file_bridge once --project <project>\n"
-            f"  -> or, if you are deliberately queueing ahead of a watcher you\n"
-            f"     will start later:  enqueue(..., require_watcher=False)  /  --force"
-        )
+    return bridge_conversation.is_transient_projection_failure(
+        exc,
+        sqlite_operational_error=sqlite3.OperationalError,
+    )
 
 
 def _stamp() -> str:
@@ -112,22 +109,23 @@ def _seen_dir() -> Path:
 
     Derived from INBOX at call time so tests that patch INBOX get a matching
     ledger for free."""
-    return INBOX / ".seen"
+    return bridge_projection.seen_dir(INBOX)
 
 
 def _latest_log() -> Path:
     """Single well-known append-only file -- one line per finished report --
     so an orchestrator can file-watch exactly one path instead of polling."""
-    return INBOX / "LATEST.log"
+    return bridge_projection.latest_log(INBOX)
 
 
-# -- crash safety: one request -> one report, one log line, one memory record -
+# -- crash safety: one request -> one report, one conversation projection, ...
 #
-# process_request() applies four side effects in sequence (report -> arrival
-# line -> memory record -> archive move). A crash between any two of them left
-# the request sitting in the outbox with some effects already applied, and the
-# restarted watcher redid ALL of them: it re-ran (and on a paid lane re-billed)
-# the work, appended a SECOND LATEST.log line and a SECOND memory record.
+# process_request() applies five possible side effects in sequence (report ->
+# linked-conversation projection -> arrival line -> memory record -> archive
+# move). A crash between any two of the original four left the request sitting
+# in the outbox with some effects already applied, and the restarted watcher
+# redid ALL of them: it re-ran (and on a paid lane re-billed) the work, appended
+# a SECOND LATEST.log line and a SECOND memory record.
 #
 # The cure is a per-request journal keyed by the request filename STEM. That
 # stem is unique by construction only because enqueue() puts a uuid in it --
@@ -138,6 +136,10 @@ def _latest_log() -> Path:
 #   report  -- fixed path + os.replace. Rewriting it is a no-op, and the
 #              expensive work behind it is skipped whenever a COMPLETE report
 #              for the key already exists.
+#   conversation -- the request key is both the dispatch_ref and the stable
+#              source-event identity. A partial unique index on the canonical
+#              spine makes replay return the first fact; no file-journal flag
+#              is asked to decide whether the authoritative write landed.
 #   log     -- the arrival line carries `key=<stem>`; the append is skipped if
 #              the log already contains that key. A content check, no window.
 #   memory  -- two-phase journal flag. The one ambiguous state ("we died with
@@ -147,6 +149,14 @@ def _latest_log() -> Path:
 #              that recovery path and never on the happy path.
 #   archive -- fixed destination path; os.replace overwrites, so even an
 #              interrupted cross-device move resolves to one archived file.
+#
+# Leased Ikarus provider dispatch closes the otherwise ambiguous first window
+# with the canonical Effect-Lease ledger: the journal retains only the stable
+# identity needed to ask that ledger about the exact execution.  The local
+# ``strategy=configure`` path is different: it starts no provider, network or
+# spend effect, and its role write is a deterministic upsert.  A crash after
+# that write but before this report can repeat the convergent local write; it
+# is deliberately not advertised as leased exactly-once provider execution.
 
 
 def _request_key(path: Path) -> str:
@@ -154,13 +164,119 @@ def _request_key(path: Path) -> str:
 
     Safe as a key only because enqueue() embeds a uuid in the name -- the
     older second-resolution stamp was not unique, so neither was this."""
-    return path.stem
+    return bridge_journal.request_key(path)
+
+
+def _request_sha256(payload: dict[str, Any]) -> str:
+    """Canonical identity of the normalized request body behind one key."""
+    return bridge_journal.request_sha256(
+        payload,
+        canonical_sha=envelope.canonical_sha,
+    )
+
+
+def _raw_request_sha256(path: Path) -> str:
+    """Byte identity used when poison input cannot be normalized as JSON."""
+    return bridge_journal.raw_request_sha256(path)
+
+
+def _report_request_binding(report: dict[str, Any], key: str) -> str:
+    """Return the canonical request digest proven by one whole bridge report.
+
+    The report is the terminal authority across the tiny crash window between
+    its atomic publication and the following journal update.  Reusing it
+    without checking its self-contained request binding would let an unrelated
+    or malformed artifact suppress real work; ignoring a valid binding would
+    let replay overwrite the original terminal outcome.  Both are fail-closed.
+    """
+    return bridge_journal.report_request_binding(
+        report,
+        key,
+        request_sha=_request_sha256,
+    )
+
+
+def _quarantine_request_identity_conflict(
+    path: Path,
+    key: str,
+    *,
+    expected: str,
+    observed: str,
+) -> RequestIdentityConflict:
+    """Evict only a contradictory NEW request; preserve the old key artifacts.
+
+    ``quarantine_request`` deliberately is not reused: its report path is
+    ``<key>.report.json``, which is exactly the completed artifact this conflict
+    must not overwrite.  The observed digest gives the contradictory file and
+    sidecar their own deterministic names without minting another authority.
+    """
+    return bridge_dispatch.quarantine_request_identity_conflict(
+        path,
+        key,
+        expected=expected,
+        observed=observed,
+        ports=bridge_dispatch.IdentityConflictPorts(
+            inbox=INBOX,
+            quarantine_dir=_quarantine_dir,
+            now_iso=_now_iso,
+            write_json_atomic=_write_json_atomic,
+            replace=os.replace,
+            move=shutil.move,
+            move_error=shutil.Error,
+        ),
+    )
+
+
+def _effect_identity_for(key: str, entry: dict[str, Any]) -> dict[str, str]:
+    """Return this request's internal, durable Effect-Lease identity.
+
+    The attempt and lease ids are derived from the filename key, never from
+    request JSON.  ``issued_at`` is the only clock input to the signed lease,
+    so it is captured once in the existing per-request crash journal before
+    dispatch.  A missing journal can safely recreate the deterministic ids:
+    if the effect ledger already knows them, changed lease bytes conflict and
+    fail closed instead of authorising a second provider call.
+    """
+    return bridge_journal.effect_identity_for(
+        key,
+        entry,
+        now=lambda: datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+    )
 
 
 def _journal_dir() -> Path:
     """Per-request processing journal. Derived from ARCHIVE at call time so a
     test that patches ARCHIVE gets a matching journal for free."""
-    return ARCHIVE / ".journal"
+    return bridge_journal.journal_dir(ARCHIVE)
+
+
+def _mission_projection_dir(key: str) -> Path:
+    """Internal disposable projection path derived only from the file key."""
+    return bridge_journal.mission_projection_dir(
+        key,
+        journal=_journal_dir(),
+    )
+
+
+def _accepts_keyword(callable_object: Any, keyword: str) -> bool:
+    """Keep old injected test/compatibility callables source-compatible."""
+
+    # ``unittest.mock.Mock`` exposes ``(*args, **kwargs)`` even when its
+    # side-effect function keeps the old narrow ABI.  Inspect that concrete
+    # callable when present so adding this informational projection cannot
+    # make an old injected worker fail after dispatch.
+    side_effect = getattr(callable_object, "side_effect", None)
+    if callable(side_effect):
+        callable_object = side_effect
+    try:
+        parameters = inspect.signature(callable_object).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        or parameter.name == keyword
+        for parameter in parameters
+    )
 
 
 def _quarantine_dir() -> Path:
@@ -188,7 +304,11 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
       racing on the same target wrote one scratch file and one could publish the
       other's half-written bytes. The suffix still ends in ``.tmp``, so no
       consumer glob starts matching it."""
-    write_text_atomic(path, json.dumps(payload, indent=2))
+    return bridge_journal.write_json_atomic(
+        path,
+        payload,
+        write_text=write_text_atomic,
+    )
 
 
 def _read_journal(key: str) -> dict[str, Any]:
@@ -197,15 +317,16 @@ def _read_journal(key: str) -> dict[str, Any]:
     A truncated/corrupt journal reads as empty, i.e. as 'nothing has happened
     yet'. That direction is the safe one: it can cost a repeated step, whereas
     trusting garbage would skip a step that never ran."""
-    try:
-        entry = json.loads(_journal_path(key).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        return {}
-    return entry if isinstance(entry, dict) else {}
+    return bridge_journal.read_journal(key, path_for=_journal_path)
 
 
 def _journal_path(key: str) -> Path:
-    return _journal_dir() / f"{key}.json"
+    return bridge_journal.journal_path(key, journal=_journal_dir())
+
+
+def _request_lock_path(key: str) -> Path:
+    """Cross-process claim for one filename-derived request identity."""
+    return bridge_journal.request_lock_path(key, journal=_journal_dir())
 
 
 def _crash_journal_decision(detail: str):
@@ -218,18 +339,21 @@ def _crash_journal_decision(detail: str):
     """
     from daedalus.spine.effect_boundary import GuardDecision
 
-    journal = _journal_dir()
-    journal.mkdir(parents=True, exist_ok=True)
-    allowed = journal.is_dir()
-    evidence = f"journal={journal}; {detail}"
-    if not allowed:
-        evidence = "journal directory unavailable; " + evidence
+    allowed, evidence = bridge_journal.crash_journal_state(
+        detail,
+        journal=_journal_dir(),
+    )
     return GuardDecision("file_bridge.crash_journal", allowed, evidence)
 
 
 def _write_journal(key: str, entry: dict[str, Any]) -> None:
-    entry["updated"] = _now_iso()
-    _write_json_atomic(_journal_path(key), entry)
+    bridge_journal.write_journal(
+        key,
+        entry,
+        now=_now_iso,
+        path_for=_journal_path,
+        write_json=_write_json_atomic,
+    )
 
 
 def _completed_report(result_path: Path) -> dict[str, Any] | None:
@@ -239,11 +363,7 @@ def _completed_report(result_path: Path) -> dict[str, Any] | None:
     -- but a report left by an older build (plain write_text) can be half a
     document, and reusing one of those would hand back a truncated result as
     if the work had succeeded. Parse before trusting."""
-    try:
-        report = json.loads(result_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        return None
-    return report if isinstance(report, dict) else None
+    return bridge_journal.completed_report(result_path)
 
 
 def _memory_already_recorded(key: str) -> bool:
@@ -254,23 +374,12 @@ def _memory_already_recorded(key: str) -> bool:
     state where the flag alone cannot tell us. Never raises."""
     try:
         from .memory import EVENTS_PATH
-
-        if not EVENTS_PATH.exists():
-            return False
-        needle = json.dumps(key)  # the quoted key, as it appears in the record
-        for line in EVENTS_PATH.read_text(
-                encoding="utf-8", errors="replace").splitlines():
-            if needle not in line:
-                continue
-            try:
-                record = json.loads(line)
-            except (json.JSONDecodeError, ValueError):
-                continue
-            if (record.get("payload") or {}).get("request_file") == key:
-                return True
-    except (OSError, ImportError):
-        pass
-    return False
+    except ImportError:
+        return False
+    return bridge_dispatch.memory_already_recorded(
+        key,
+        events_path=EVENTS_PATH,
+    )
 
 
 def _archive_once(path: Path, key: str) -> bool:
@@ -281,35 +390,23 @@ def _archive_once(path: Path, key: str) -> bool:
     cross-device move (copy landed, source not yet unlinked) resolves to
     exactly one archived file instead of two. Returns False if the request
     could not be moved (locked file) so the caller can retry next poll."""
-    if not path.exists():
-        return True
-    ARCHIVE.mkdir(parents=True, exist_ok=True)
-    dest = ARCHIVE / f"{key}{path.suffix}"
-    try:
-        os.replace(path, dest)
-    except OSError:
-        try:
-            shutil.move(str(path), str(dest))  # cross-device: copy + unlink
-        except (OSError, shutil.Error):
-            return False
-    return True
+    return bridge_dispatch.archive_request_once(
+        path,
+        key,
+        archive=ARCHIVE,
+        replace=os.replace,
+        move=shutil.move,
+        move_error=shutil.Error,
+    )
 
 
 def codex_inline_brief_warning(objective: str, lane: str) -> str | None:
     """Return a warning string when a codex-lane objective smells like an
     inline task brief, else None. Never blocks the enqueue."""
-    if lane != "codex":
-        return None
-    if len(objective) <= CODEX_INLINE_BRIEF_CHARS:
-        return None
-    if "codex_queue" in objective.lower().replace(" ", "_"):
-        return None
-    return (
-        f"codex-lane objective is {len(objective)} chars with no CODEX_QUEUE.md "
-        "reference -- inline briefs bounce on this lane (protocol lesson "
-        "2026-07-11). Put the full brief in docs/CODEX_QUEUE.md in the target "
-        'repo and enqueue a short pointer instead, e.g. '
-        '"Execute task C9 from docs/CODEX_QUEUE.md".'
+    return bridge_queue.codex_inline_brief_warning(
+        objective,
+        lane,
+        character_limit=CODEX_INLINE_BRIEF_CHARS,
     )
 
 
@@ -335,34 +432,24 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
     A `wedged` watcher is ALLOWED (a consumer exists, it is just slow) but
     warns loudly, since the queue behind it may not drain for a while.
 
-    CODEX-LANE PROTOCOL (learned 2026-07-11, cost ~2 h of bounced tasks):
-    the codex lane executes best from a *queue-file task*, not an inline
-    brief. The working pattern is: write the full brief as a task entry in
-    ``docs/CODEX_QUEUE.md`` inside the target repo, then enqueue a short
-    objective that names it ("Execute task C9 from docs/CODEX_QUEUE.md").
-    Long inline objectives on ``--lane codex`` bounce or underperform;
-    :func:`codex_inline_brief_warning` prints a stderr warning (non-blocking)
+    HISTORICAL CODEX-LANE PROTOCOL (learned 2026-07-11, cost ~2 h of bounced
+    tasks): queue-file briefs worked better than inline briefs. The canonical
+    watcher currently refuses this lane until its caller holds runtime-bound
+    broker authority; the retained warning remains negative protocol evidence,
+    not a claim that Codex dispatch is currently enabled.
     when an objective smells like an inline brief (> ~200 chars, no
     CODEX_QUEUE reference).
     """
-    warning = codex_inline_brief_warning(objective, lane)
-    if warning:
-        print(f"WARNING: {warning}", file=sys.stderr)
-
-    # CONSUMER CHECK BEFORE THE WRITE, never after: a refusal must leave no
-    # file behind, or we would have invented a third state ("queued, but we
-    # told you not to count on it") that no reader of the outbox can see.
-    hb = heartbeat_status()
-    if hb["state"] in ("stale", "none"):
-        if require_watcher:
-            raise WatcherNotRunning(hb, objective)
-        print(f"WARNING: queueing with NO live watcher (state={hb['state']}); "
-              f"this task will sit until you run:  {hb['restart']}", file=sys.stderr)
-    elif hb["state"] == "wedged":
-        cur = (hb.get("current") or {}).get("file", "?")
-        print(f"WARNING: the watcher is WEDGED on {cur} "
-              f"({hb.get('busy_for_s')}s > {BUSY_BUDGET_S:.0f}s budget); this task is "
-              f"queued behind it and may not run soon.", file=sys.stderr)
+    bridge_queue.admit_enqueue(
+        objective,
+        lane,
+        require_watcher=require_watcher,
+        stale_after_s=STALE_AFTER_S,
+        busy_budget_s=BUSY_BUDGET_S,
+        warning_for=codex_inline_brief_warning,
+        heartbeat_snapshot=heartbeat_status,
+        emit_warning=lambda message: print(message, file=sys.stderr),
+    )
 
     from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
@@ -371,75 +458,155 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
         REGISTRY_BY_ID["file_bridge.enqueue"].effects,
         (_crash_journal_decision(f"enqueue objective={objective[:40]!r}"),),
     )
-    OUTBOX.mkdir(parents=True, exist_ok=True)
-    slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in objective)[:48].strip("-")
-    # UNIQUENESS FROM THE NAME ITSELF, not from looking first.
-    #
-    # Two earlier versions were both wrong, and the second was mine:
-    #   * `{stamp}-{slug}.json` with SECOND resolution -- two enqueues of one
-    #     objective inside a second produced the same path and the later one
-    #     silently overwrote the earlier. A queue that drops a task under load.
-    #   * then an existence check with a counter, which is check-then-use: two
-    #     PARALLEL producers both see the same free name and both write it.
-    #     Serial callers never notice, which is exactly why the acceptance
-    #     check (which enqueues serially) went green over it.
-    # A uuid cannot collide and needs nobody to look. The stamp and slug stay
-    # because they are what makes the outbox readable to a human.
-    base = f"{_stamp()}-{slug or 'task'}-{uuid.uuid4().hex[:8]}"
-    path = OUTBOX / f"{base}.json"
-    payload = {
-        "objective": objective,
-        "repo_root": repo_root,
-        "paths": paths,
-        "model": model,
-        "source": source,
-        # Ikarus strategy:
-        #   single -> route this one task through Ikarus
-        #   spawn  -> let Ikarus decompose the objective and dispatch the bench
-        "strategy": strategy,
-        # Which lane the watcher may dispatch to:
-        #   auto       -> route; run on the free bench when eligible, else Claude
-        #   local      -> same as auto (prefer the bench), else fall back to Claude
-        #   local_only -> local bench only; never fall back to Claude
-        #   claude     -> always the trusted Claude lane
-        #   codex      -> always the Codex CLI (external, egress-gated; no fallback)
-        "lane": lane,
-    }
-    if project:
-        payload["project"] = project
-    if category:
-        # Additive metadata only -- the role-category tag of the routed/owning
-        # agent, carried through for the UI/bus/reports. Never consulted by
-        # the lane gate in core.process_bridge_payload.
-        payload["category"] = category
-    # Additive, and OMITTED when there is no run in scope -- an untraced
-    # enqueue writes byte-for-byte the request it always wrote, so every
-    # existing reader of the outbox (including a watcher from an older
-    # checkout) is unaffected in both directions.
-    payload = envelope.stamp(payload, trace_id=trace_id)
-    # PUBLISH ATOMICALLY. `write_text` is not one operation to a reader: the
-    # watcher polls this directory, and a plain write lets it glob a file that
-    # is half a JSON document. Writing to a name the watcher's `*.json` glob
-    # cannot match and then `os.replace`-ing it means the request either is not
-    # there or is there complete -- there is no observable in-between.
-    write_text_atomic(path, json.dumps(payload, indent=2))
-    return path
+    return bridge_queue.publish_request(
+        outbox=OUTBOX,
+        objective=objective,
+        repo_root=repo_root,
+        paths=paths,
+        model=model,
+        lane=lane,
+        project=project,
+        source=source,
+        strategy=strategy,
+        category=category,
+        trace_id=trace_id,
+        clock=_stamp,
+        unique_hex=lambda: uuid.uuid4().hex,
+        stamp_trace=envelope.stamp,
+        write_text=write_text_atomic,
+    )
 
 
 def _read_request(path: Path, default_repo_root: str | None) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if "objective" not in payload:
-        raise ValueError("request needs an objective")
-    if "repo_root" not in payload:
-        if not default_repo_root:
-            raise ValueError("request needs repo_root or bridge needs --repo-root")
-        payload["repo_root"] = default_repo_root
-    payload.setdefault("paths", [])
-    payload.setdefault("model", "sonnet")
-    payload.setdefault("lane", "local_only")  # fail-closed: an unlabeled file (hand-dropped/legacy) never spends unattended
-    payload.setdefault("source", "unknown")
-    payload.setdefault("strategy", "single")
-    return payload
+    return bridge_queue.read_request(path, default_repo_root)
+
+
+def _reported_result(report: dict[str, Any]) -> tuple[str | None, str]:
+    """The provider's own status/summary, labelled as reported rather than fact.
+
+    Bridge lanes use two shapes: a top-level ``report`` or local assignments
+    with one nested report each. This extraction is deliberately small and
+    deterministic; the complete report remains the authoritative inbox
+    artifact and is not copied into the conversation spine.
+    """
+    return bridge_projection.reported_result(report)
+
+
+def report_application_truth(
+        report: dict[str, Any]) -> tuple[bool | None, str]:
+    """Return checkout-application truth from retained write evidence.
+
+    This is intentionally owned beside the authoritative bridge report and is
+    shared by the conversation projection and HTTP snapshot.  A terminal
+    failure is not proof of a clean checkout: verify-fail rollback can itself
+    fail and leave measured paths behind.
+    """
+    return bridge_projection.report_application_truth(report)
+
+
+def _conversation_report_fields(
+        key: str, report: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
+    """Conservative conversation projection of one terminal bridge report.
+
+    ``bridge_status=done`` proves that the pipeline produced this report. It
+    does not prove that a proposed patch was applied, verified, or promoted,
+    so the strongest honest state here is PRESENT. Failed/quarantined work is
+    DEGRADED. An unfamiliar terminal word stays UNKNOWN rather than becoming a
+    sixth, accidentally-green state.
+    """
+    from .orchestration import conversation
+    return bridge_projection.conversation_report_fields(
+        key,
+        report,
+        reported=_reported_result,
+        application_truth=report_application_truth,
+        present=conversation.PRESENT,
+        degraded=conversation.DEGRADED,
+        unknown=conversation.UNKNOWN,
+    )
+
+
+def _project_report_to_conversation(key: str, report: dict[str, Any]):
+    """Project a linked report once onto the canonical conversation spine.
+
+    The queue's request key already is the conversation ``dispatch_ref`` and
+    the report's crash-stable identity. Tasks with no link are a strict no-op.
+    For linked tasks, :meth:`ConversationStore.record_dispatch_event` enforces
+    the source identity in SQLite, so a crash/restart after the canonical write
+    returns the existing fact instead of appending a duplicate. No second
+    ledger or file-journal marker decides authoritative event identity.
+    """
+    from .orchestration import conversation
+
+    return bridge_conversation.project_report(
+        key,
+        report,
+        default_db_path=conversation.default_db_path,
+        default_store=conversation.default_store,
+        report_fields=_conversation_report_fields,
+        is_transient_failure=_is_transient_projection_failure,
+    )
+
+
+def reconcile_conversation_report(task_id: str):
+    """Project an already-published terminal report after a late dispatch link.
+
+    This closes the enqueue -> link race without moving report ownership into
+    the API. The task id is accepted only as a plain request key, the resolved
+    path must stay inside ``INBOX``, and a missing/partial report is a no-op.
+    When a complete report exists, the same report-owned projector and stable
+    source identity used by :func:`process_request` are called, so concurrent
+    arrival and post-link reconciliation still produce one canonical event.
+
+    Returns that event when a linked report was projected (or replayed), else
+    ``None``. A transient store/I/O/SQLite-lock failure raises
+    :class:`ConversationProjectionPending`; when the existing journal proves
+    report reuse is safe, the same archived request is returned to OUTBOX for
+    projection-only retry. Integrity, attribution and malformed-data failures
+    retain their original exception type and are never requeued. Failure is
+    never confused with an absent report or an unlinked task.
+    """
+    prepared = bridge_conversation.prepare_reconciliation(
+        task_id,
+        inbox=INBOX,
+        completed_report=_completed_report,
+    )
+    if prepared is None:
+        return None
+    key, report = prepared
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "file_bridge.process",
+        REGISTRY_BY_ID["file_bridge.process"].effects,
+        (_crash_journal_decision(f"reconcile terminal report={key}"),),
+    )
+    return bridge_conversation.finish_reconciliation(
+        key,
+        report,
+        project=_project_report_to_conversation,
+        requeue=_requeue_for_projection,
+    )
+
+
+def _requeue_for_projection(key: str) -> bool:
+    """Return an archived request to OUTBOX for projection-only retry.
+
+    ``key`` has already passed :data:`_REQUEST_KEY_RE`. The fixed archive and
+    outbox names make this idempotent under concurrent reconciliation: either
+    the request is already queued, or exactly one move makes it queued. This is
+    the existing file bus and existing per-request journal, not another retry
+    ledger.
+    """
+    return bridge_conversation.requeue_for_projection(
+        key,
+        archive=ARCHIVE,
+        outbox=OUTBOX,
+        read_journal=_read_journal,
+        replace=os.replace,
+        move=shutil.move,
+        move_error=shutil.Error,
+    )
 
 
 def _note_report_arrival(result_path: Path, report: dict[str, Any],
@@ -456,27 +623,14 @@ def _note_report_arrival(result_path: Path, report: dict[str, Any],
     log this?" flag there is no window between appending and recording it in
     which a crash produces a duplicate line. Without a key (the ad-hoc/manual
     call) it appends unconditionally, as it always did."""
-    lane = report.get("lane") or (report.get("request") or {}).get("lane") or "?"
-    marker = f" key={key}" if key else ""
-    # Appended LAST and only when present, so the line an existing reader
-    # already parses is unchanged up to the point it stops caring. This is the
-    # cheapest surface the join gets: one tail-able file where a trace id shows
-    # up next to the report that carries it.
-    tid = envelope.trace_of(report)
-    marker += f" trace={tid}" if tid else ""
-    line = (f"{_now_iso()} {result_path.name} "
-            f"status={report.get('bridge_status', '?')} lane={lane}{marker}\n")
-    try:
-        log = _latest_log()
-        if key and log.exists():
-            for existing in log.read_text(
-                    encoding="utf-8", errors="replace").splitlines():
-                if existing.endswith(marker):
-                    return  # already announced -- one arrival line per request
-        with log.open("a", encoding="utf-8") as fh:
-            fh.write(line)
-    except OSError:
-        pass  # signal channel only -- never fail the report write over it
+    return bridge_projection.note_report_arrival(
+        result_path,
+        report,
+        key=key,
+        latest_log=_latest_log,
+        now_iso=_now_iso,
+        trace_of=envelope.trace_of,
+    )
 
 
 def quarantine_request(path: Path, reason: str, detail: str) -> Path:
@@ -485,52 +639,76 @@ def quarantine_request(path: Path, reason: str, detail: str) -> Path:
     Writes a `bridge_status: quarantined` report into the inbox (so it shows up
     as UNREAD and in `file_bridge status`), drops a `.error.json` sidecar next
     to the request, and moves the request into runs/processed/quarantine/.
-    Marking the journal is what stops the retry loop if the move itself fails
-    on a locked file: the next poll only retries the move, it does not rewrite
-    the report or the log line."""
-    key = _request_key(path)
-    dest = _quarantine_dir() / path.name
-    report = {
-        "request_file": key,
-        "bridge_status": "quarantined",
-        "error": f"{reason}: {detail}",
-        "reason": reason,
-        "quarantined_at": _now_iso(),
-        "quarantine_path": str(dest),
-    }
-    # THE TRACE COMES FROM THE JOURNAL, not from the request. A quarantine is
-    # exactly the case where the request may be unreadable (poison) or already
-    # moved, so the only surviving record of which run asked for this work is
-    # the journal entry process_request wrote BEFORE dispatching. A give-up is
-    # the report a human most wants to trace back, so it is worth the extra
-    # read.
-    entry = _read_journal(key)
-    report = envelope.stamp(report, trace_id=entry.get(envelope.TRACE_KEY))
-    result_path = INBOX / f"{key}.report.json"
-    _write_json_atomic(result_path, report)
-    _note_report_arrival(result_path, report, key=key)
-    _write_json_atomic(_quarantine_dir() / f"{key}.error.json", report)
-    entry["state"] = "quarantined"
-    entry["key"] = key
-    entry["reason"] = reason
-    _write_journal(key, entry)
-    _quarantine_move(path, key)
-    return result_path
+    If a whole terminal report already occupies that request key, only an
+    exact journal-bound quarantine continuation may resume around it; every
+    other attempt refuses via :class:`TerminalReportPreserved`.  A locked final
+    move is journaled and raised as :class:`QuarantineMovePending`: the next
+    poll retries only that move and cannot rewrite the report or log line."""
+    return bridge_dispatch.quarantine_request(
+        path,
+        reason,
+        detail,
+        ports=bridge_dispatch.QuarantinePorts(
+            inbox=INBOX,
+            trace_key=envelope.TRACE_KEY,
+            request_key=_request_key,
+            quarantine_dir=_quarantine_dir,
+            read_journal=_read_journal,
+            raw_request_sha256=_raw_request_sha256,
+            canonical_sha=envelope.canonical_sha,
+            completed_report=_completed_report,
+            stamp_report=envelope.stamp,
+            now_iso=_now_iso,
+            write_journal=_write_journal,
+            write_json_atomic=_write_json_atomic,
+            project_report=_project_report_to_conversation,
+            conversation_projection_pending=ConversationProjectionPending,
+            conversation_projection_failed=ConversationProjectionFailed,
+            note_report_arrival=_note_report_arrival,
+            quarantine_move=_quarantine_move,
+        ),
+    )
 
 
 def _quarantine_move(path: Path, key: str) -> bool:
-    if not path.exists():
-        return True
-    _quarantine_dir().mkdir(parents=True, exist_ok=True)
-    dest = _quarantine_dir() / f"{key}{path.suffix}"
-    try:
-        os.replace(path, dest)
-    except OSError:
-        try:
-            shutil.move(str(path), str(dest))
-        except (OSError, shutil.Error):
-            return False
-    return True
+    return bridge_dispatch.move_quarantined_request(
+        path,
+        key,
+        quarantine_dir=_quarantine_dir,
+        replace=os.replace,
+        move=shutil.move,
+        move_error=shutil.Error,
+    )
+
+
+def _finish_terminal_report(
+        path: Path, key: str, result_path: Path, report: dict[str, Any],
+        entry: dict[str, Any], steps: dict[str, Any], *,
+        terminal_state: str = "done") -> None:
+    """Finish non-provider effects for one already durable terminal report.
+
+    This is shared by the happy path and the permanent conversation-projection
+    path. Keeping it below the report boundary is what lets the latter archive
+    cleanly without either rerunning paid work or routing a valid report
+    through poison quarantine.
+    """
+    return bridge_dispatch.finish_terminal_report(
+        path,
+        key,
+        result_path,
+        report,
+        entry,
+        steps,
+        ports=bridge_dispatch.TerminalBookkeepingPorts(
+            now_iso=_now_iso,
+            write_journal=_write_journal,
+            note_report_arrival=_note_report_arrival,
+            memory_already_recorded=_memory_already_recorded,
+            record_from_bridge_report=record_from_bridge_report,
+            archive_once=_archive_once,
+        ),
+        terminal_state=terminal_state,
+    )
 
 
 def process_request(path: Path, default_repo_root: str | None = None) -> Path:
@@ -538,14 +716,23 @@ def process_request(path: Path, default_repo_root: str | None = None) -> Path:
 
     Reprocessing the same request -- which is what a restarted watcher does
     with anything still in the outbox -- must not yield two reports, two
-    LATEST.log lines, two memory records or two archived copies. See the
-    "crash safety" note above _request_key for how each of the four steps is
-    made idempotent, and by which mechanism.
+    linked-conversation events, two LATEST.log lines, two memory records or two
+    archived copies. See the "crash safety" note above _request_key for how
+    each of the five possible steps is made idempotent, and by which mechanism.
 
-    Note what is NOT closed: if the process dies between dispatching the work
-    and the report landing, we cannot know whether the provider ran, so the
-    work is retried -- up to MAX_ATTEMPTS, after which the request is
-    quarantined rather than re-dispatched forever."""
+    Lease-bearing Ikarus work also survives the formerly ambiguous provider ->
+    report window: a filename-derived identity is journalled before dispatch,
+    and a retry presents that exact identity to the canonical Effect-Lease
+    ledger.  A durable start therefore returns ``execute=False`` instead of
+    invoking the provider again. ``MAX_ATTEMPTS`` remains the bound for work
+    that never reached a durable effect start.
+
+    Every caller -- the managed watcher, CLI ``once`` and direct recovery --
+    takes the same blocking per-request OS lock.  The global watcher lock alone
+    cannot protect against ``once`` or a second direct consumer; without this
+    claim, both could publish journal/report state for the same key while the
+    Effect ledger correctly allowed only one provider invocation.
+    """
     from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     begin_effect(
@@ -553,96 +740,67 @@ def process_request(path: Path, default_repo_root: str | None = None) -> Path:
         REGISTRY_BY_ID["file_bridge.process"].effects,
         (_crash_journal_decision(f"process request={path.name}"),),
     )
-    INBOX.mkdir(parents=True, exist_ok=True)
-    ARCHIVE.mkdir(parents=True, exist_ok=True)
-    key = _request_key(path)
-    result_path = INBOX / f"{key}.report.json"
-    entry = _read_journal(key)
+    return bridge_dispatch.claim_and_dispatch_request(
+        path,
+        default_repo_root,
+        inbox=INBOX,
+        key_for=_request_key,
+        lock_path_for=_request_lock_path,
+        lock=lambda lock_path, label: _BridgeWatcherLock(
+            lock_path,
+            blocking=True,
+            label=label,
+        ),
+        completed_report=_completed_report,
+        process_claimed=_process_request_claimed,
+    )
 
-    if entry.get("state") == "quarantined":
-        # Already given up on; the only thing left to do is finish evicting it.
-        _quarantine_move(path, key)
-        return result_path
 
-    steps = entry.get("steps") if isinstance(entry.get("steps"), dict) else {}
-    attempts = int(entry.get("attempts") or 0)
-    entry.update({"key": key, "steps": steps, "attempts": attempts,
-                  "state": entry.get("state") or "new"})
+def _process_request_claimed(
+    path: Path,
+    default_repo_root: str | None = None,
+    *,
+    key: str,
+) -> Path:
+    """Implementation of :func:`process_request` under its OS claim."""
+    from .core import process_bridge_payload
 
-    # -- step 1: the work, and the report that commits it -------------------
-    # A complete report for this key IS the receipt that the work happened.
-    # Reusing it is the whole point: re-running is what spends money twice.
-    report = _completed_report(result_path) if steps.get("report") else None
-    if report is None:
-        if attempts >= MAX_ATTEMPTS:
-            return quarantine_request(
-                path, "interrupted",
-                f"dispatched {attempts} times without ever producing a report "
-                "-- refusing to run it again (see runs/processed/.journal)")
-        payload = _read_request(path, default_repo_root)  # poison raises here
-        entry["attempts"] = attempts + 1
-        entry["state"] = "in_flight"
-        entry["lane"] = payload.get("lane")
-        # The journal is a crash-recovery record of THIS request, so it gets
-        # the trace too -- a request that died in flight is exactly the one a
-        # human will be tracing.
-        entry[envelope.TRACE_KEY] = payload.get(envelope.TRACE_KEY)
-        _write_journal(key, entry)  # durable BEFORE the work: survives a kill
-
-        from .core import process_bridge_payload
-        # THE CROSS-PROCESS HOP. The trace was minted in the ENQUEUER'S
-        # process, possibly hours ago and possibly on the other side of a
-        # crash; re-binding it here is what makes the watcher's own downstream
-        # records (spine intents, memory events, anything Ikarus writes) land
-        # under the run that ASKED for the work rather than under nothing.
-        # Binding around the dispatch and not wider keeps a request's trace
-        # from leaking onto the next request in the same watcher process.
-        # adopt_trace, NOT trace_context: an untraced request must stay
-        # untraced. Minting here would give every legacy/hand-dropped request a
-        # private id nothing else shares -- the field would look fully
-        # populated while joining nothing.
-        with envelope.adopt_trace(payload.get(envelope.TRACE_KEY)) as tid:
-            report = process_bridge_payload(payload)
-        # The idempotency key, carried on the artifact itself, so the memory
-        # log can be asked "did this request's record already land?".
-        report["request_file"] = key
-        # Stamp the REPORT with the REQUEST's trace, not the ambient one: the
-        # report is a statement about that request, and the join a human wants
-        # is request -> report. envelope.stamp lets a report that already named
-        # its own trace keep it.
-        if payload.get(envelope.TRACE_KEY):
-            report = envelope.stamp(report, trace_id=tid)
-
-        _write_json_atomic(result_path, report)
-        steps["report"] = True
-        entry["state"] = "reported"
-        _write_journal(key, entry)
-
-    # -- step 2: arrival line (deduped by key, inside _note_report_arrival) --
-    if not steps.get("log"):
-        _note_report_arrival(result_path, report, key=key)
-        steps["log"] = True
-        _write_journal(key, entry)
-
-    # -- step 3: memory record ----------------------------------------------
-    memory_step = steps.get("memory")
-    if memory_step is not True:
-        # "pending" means we died with the append in flight -- the only state
-        # the flag cannot resolve, and the only time we pay for a log scan.
-        if memory_step != "pending" or not _memory_already_recorded(key):
-            steps["memory"] = "pending"
-            _write_journal(key, entry)
-            record_from_bridge_report(report)
-        steps["memory"] = True
-        _write_journal(key, entry)
-
-    # -- step 4: archive ----------------------------------------------------
-    if _archive_once(path, key):
-        steps["archive"] = True
-        entry["state"] = "done"
-        _write_journal(key, entry)
-    return result_path
-
+    return bridge_dispatch.process_claimed_request(
+        path,
+        default_repo_root,
+        key=key,
+        ports=bridge_dispatch.ClaimedDispatchPorts(
+            inbox=INBOX,
+            archive=ARCHIVE,
+            max_attempts=MAX_ATTEMPTS,
+            trace_key=envelope.TRACE_KEY,
+            read_journal=_read_journal,
+            raw_request_sha256=_raw_request_sha256,
+            quarantine_identity_conflict=_quarantine_request_identity_conflict,
+            quarantine_move=_quarantine_move,
+            quarantine_dir=_quarantine_dir,
+            write_journal=_write_journal,
+            quarantine_move_pending=QuarantineMovePending,
+            conversation_projection_failed=ConversationProjectionFailed,
+            quarantine_request=quarantine_request,
+            read_request=_read_request,
+            request_sha256=_request_sha256,
+            completed_report=_completed_report,
+            report_request_binding=_report_request_binding,
+            terminal_report_preserved=TerminalReportPreserved,
+            terminal_bookkeeping_pending=TerminalBookkeepingPending,
+            finish_terminal_report=_finish_terminal_report,
+            effect_identity_for=_effect_identity_for,
+            write_json_atomic=_write_json_atomic,
+            accepts_keyword=_accepts_keyword,
+            mission_projection_dir=_mission_projection_dir,
+            process_bridge_payload=process_bridge_payload,
+            adopt_trace=envelope.adopt_trace,
+            stamp_report=envelope.stamp,
+            project_report=_project_report_to_conversation,
+            conversation_projection_pending=ConversationProjectionPending,
+        ),
+    )
 
 def _looks_unfinished(path: Path, exc: BaseException) -> bool:
     """True when the failure is "this is not JSON yet" rather than "this is
@@ -654,13 +812,12 @@ def _looks_unfinished(path: Path, exc: BaseException) -> bool:
     worse outcome than one extra poll of latency. A structural complaint
     (missing objective, missing repo_root) is not a partial write and is not
     excused here."""
-    if not isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError)):
-        return False
-    try:
-        age = time.time() - path.stat().st_mtime
-    except OSError:
-        return False
-    return age < SETTLE_GRACE_S
+    return bridge_watcher.looks_unfinished(
+        path,
+        exc,
+        settle_grace_s=SETTLE_GRACE_S,
+        now_epoch=time.time,
+    )
 
 
 def handle_poison_request(path: Path, exc: BaseException) -> Path | None:
@@ -675,63 +832,96 @@ def handle_poison_request(path: Path, exc: BaseException) -> Path | None:
         catches everything, not just OSError.
 
     Returns the report path, or None when nothing was written."""
-    if _looks_unfinished(path, exc):
-        print(f"SETTLING {path.name}: not valid JSON yet and modified "
-              f"<{SETTLE_GRACE_S:.0f}s ago -- retrying next poll", flush=True)
-        return None
-    print(f"FAILED {path.name}: {exc}", flush=True)
-    try:
-        result = quarantine_request(path, type(exc).__name__, str(exc))
-        print(f"QUARANTINED {path.name} -> {_quarantine_dir()}", flush=True)
-        return result
-    except Exception as inner:  # noqa: BLE001 -- never let recovery kill the loop
-        print(f"QUARANTINE FAILED {path.name}: {inner}", flush=True)
-        return None
+    return bridge_watcher.handle_poison_request(
+        path,
+        exc,
+        ports=bridge_watcher.PoisonHandlingPorts(
+            settle_grace_s=SETTLE_GRACE_S,
+            inbox=INBOX,
+            looks_unfinished=_looks_unfinished,
+            quarantine_request=quarantine_request,
+            quarantine_dir=_quarantine_dir,
+            request_key=_request_key,
+            conversation_projection_pending=ConversationProjectionPending,
+            conversation_projection_failed=ConversationProjectionFailed,
+            quarantine_move_pending=QuarantineMovePending,
+            terminal_report_preserved=TerminalReportPreserved,
+            emit=print,
+        ),
+    )
 
 
 # -- watcher heartbeat ------------------------------------------------------
 
 _last_idle_beat = 0.0
+_process_identity_pid = os.getpid()
+_process_identity_nonce = uuid.uuid4().hex
+
+
+WatcherOwnershipBusy = bridge_watcher.WatcherOwnershipBusy
+_BridgeWatcherLock = bridge_watcher._BridgeWatcherLock
+
+
+def current_process_identity() -> str:
+    """Return a process-lifetime identity that survives neither restart nor fork.
+
+    A PID by itself is reusable.  The per-process nonce makes a heartbeat from
+    an earlier process distinguishable even when the operating system assigns
+    its PID to the replacement backend.  Refresh after ``fork()`` because the
+    child inherits module globals while acquiring a different PID.
+    """
+
+    global _process_identity_pid, _process_identity_nonce
+    identity, _process_identity_pid, _process_identity_nonce = (
+        bridge_watcher.current_process_identity(
+            pid=os.getpid(),
+            recorded_pid=_process_identity_pid,
+            nonce=_process_identity_nonce,
+            new_nonce=lambda: uuid.uuid4().hex,
+        )
+    )
+    return identity
+
+
+def _watcher_lock_path() -> Path:
+    # Derive this from HEARTBEAT_PATH at call time so tests and deployments
+    # which relocate the canonical bridge state relocate its lock as well.
+    return bridge_watcher.watcher_lock_path(HEARTBEAT_PATH)
 
 
 def write_heartbeat(project: str | None = None, repo_root: str | None = None,
                     interval_s: float | None = None,
                     current: dict[str, Any] | None = None,
-                    force: bool = False) -> None:
+                    force: bool = False,
+                    owner_token: str | None = None,
+                    process_identity: str | None = None) -> None:
     """Best-effort liveness marker written by the watch loop.
 
     Idle beats are throttled to one per IDLE_BEAT_EVERY_S; task start/finish
     beats (``force=True``) always land. Written via temp-file + os.replace so
     a concurrent doctor read never sees a half-written file. Never raises."""
     global _last_idle_beat
-    now = time.time()
-    if not force and current is None and now - _last_idle_beat < IDLE_BEAT_EVERY_S:
-        return
-    payload = {
-        "ts": _now_iso(),
-        "epoch": now,
-        "pid": os.getpid(),
-        "project": project,
-        "repo_root": repo_root,
-        "interval_s": interval_s,
-        "current": current,
-    }
-    try:
-        write_text_atomic(HEARTBEAT_PATH, json.dumps(payload, indent=2))
-        if current is None:
-            _last_idle_beat = now
-    except OSError:
-        pass  # liveness signal only -- never let it kill or slow the watcher
+    _last_idle_beat = bridge_watcher.write_heartbeat(
+        heartbeat_path=HEARTBEAT_PATH,
+        project=project,
+        repo_root=repo_root,
+        interval_s=interval_s,
+        current=current,
+        force=force,
+        owner_token=owner_token,
+        process_identity=process_identity,
+        last_idle_beat=_last_idle_beat,
+        idle_beat_every_s=IDLE_BEAT_EVERY_S,
+        now_epoch=time.time,
+        now_iso=_now_iso,
+        pid=os.getpid(),
+        write_text=write_text_atomic,
+    )
 
 
 def restart_hint(hb: dict[str, Any] | None = None) -> str:
     """The exact one-liner to (re)start the watcher, from heartbeat context."""
-    hb = hb or {}
-    if hb.get("project"):
-        return f"python -m daedalus.file_bridge watch --project {hb['project']}"
-    if hb.get("repo_root"):
-        return f'python -m daedalus.file_bridge watch --repo-root "{hb["repo_root"]}"'
-    return "python -m daedalus.file_bridge watch --project <project>"
+    return bridge_watcher.restart_hint(hb)
 
 
 def heartbeat_status(now: float | None = None) -> dict[str, Any]:
@@ -744,189 +934,74 @@ def heartbeat_status(now: float | None = None) -> dict[str, Any]:
     * ``wedged`` -- a task has been in flight longer than BUSY_BUDGET_S.
     * ``stale``  -- idle beat older than STALE_AFTER_S: watcher is dead.
     """
-    now = time.time() if now is None else now
-    try:
-        hb = json.loads(HEARTBEAT_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        return {"state": "none", "restart": restart_hint(),
-                "detail": "no heartbeat recorded (watcher not running, or "
-                          "started before the heartbeat feature landed)"}
-    age = max(0.0, now - float(hb.get("epoch") or 0.0))
-    out = {
-        "age_s": round(age, 1),
-        "pid": hb.get("pid"),
-        "project": hb.get("project"),
-        "repo_root": hb.get("repo_root"),
-        "current": hb.get("current"),
-        "restart": restart_hint(hb),
-    }
-    current = hb.get("current")
-    if current:
-        busy_for = max(0.0, now - float(current.get("started_epoch") or 0.0))
-        out["busy_for_s"] = round(busy_for, 1)
-        out["state"] = "busy" if busy_for <= BUSY_BUDGET_S else "wedged"
-        return out
-    out["state"] = "alive" if age <= STALE_AFTER_S else "stale"
-    return out
+    return bridge_watcher.heartbeat_status(
+        heartbeat_path=HEARTBEAT_PATH,
+        now=time.time() if now is None else now,
+        stale_after_s=STALE_AFTER_S,
+        busy_budget_s=BUSY_BUDGET_S,
+        restart=restart_hint,
+    )
 
 
 # -- report read-state + status ---------------------------------------------
 
 def unread_reports() -> list[Path]:
     """Reports in the inbox with no .seen marker, oldest first."""
-    if not INBOX.exists():
-        return []
-    seen = _seen_dir()
-    return [p for p in sorted(INBOX.glob("*.report.json"))
-            if not (seen / p.name).exists()]
+    return bridge_projection.unread_reports(inbox=INBOX, seen_dir=_seen_dir)
 
 
 def mark_read(names: list[str] | None = None, all_reports: bool = False) -> list[str]:
     """Acknowledge reports by dropping a marker per report into inbox/.seen/.
     Returns the report names actually marked."""
-    targets: list[Path] = []
-    if all_reports:
-        targets = unread_reports()
-    else:
-        for name in names or []:
-            path = INBOX / name
-            if not path.exists() and not name.endswith(".report.json"):
-                path = INBOX / f"{name}.report.json"
-            if path.exists():
-                targets.append(path)
-    marked = []
-    if targets:
-        _seen_dir().mkdir(parents=True, exist_ok=True)
-    for path in targets:
-        try:
-            (_seen_dir() / path.name).touch()
-            marked.append(path.name)
-        except OSError:
-            pass
-    return marked
+    return bridge_projection.mark_read(
+        names,
+        all_reports,
+        inbox=INBOX,
+        seen_dir=_seen_dir,
+        unread=unread_reports,
+    )
 
 
 def quarantined_requests() -> list[dict[str, Any]]:
     """Requests the watcher gave up on, with why. Surfaced by `status` so a
     quarantine is a thing an operator SEES, not a directory nobody opens."""
-    qdir = _quarantine_dir()
-    if not qdir.exists():
-        return []
-    out = []
-    for path in sorted(qdir.glob("*.json")):
-        if path.name.endswith(".error.json"):
-            continue
-        try:
-            sidecar = json.loads(
-                (qdir / f"{path.stem}.error.json").read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, ValueError):
-            sidecar = {}
-        out.append({"name": path.name, "reason": sidecar.get("reason") or "?",
-                    "error": sidecar.get("error") or "", "path": str(path)})
-    return out
+    return bridge_projection.quarantined_requests(
+        quarantine_dir=_quarantine_dir
+    )
 
 
 def _report_brief(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        payload = {}
-    request = payload.get("request") or {}
-    summary = ((payload.get("report") or {}).get("summary")
-               or payload.get("error") or "")
-    # Provider execution mode is terminal evidence too. Keep exact booleans
-    # only: False means something here (the sealed broker reused a terminal
-    # invocation instead of starting a new provider run), so truthiness would
-    # erase the distinction. Request/chat metadata is intentionally ignored.
-    replay = payload.get("replay")
-    replay = replay if type(replay) is bool else None
-    runtime_receipt = payload.get("runtime_receipt")
-    execution_executed = (
-        runtime_receipt.get("executed")
-        if type(runtime_receipt) is dict
-        and type(runtime_receipt.get("executed")) is bool
-        else None
-    )
-    return {
-        "name": path.name,
-        "status": payload.get("bridge_status") or "?",
-        "lane": payload.get("lane") or request.get("lane") or "?",
-        "project": request.get("project") or "",
-        # Execution attribution is copied only from the terminal report
-        # itself. Request/chat metadata must never be promoted into an
-        # execution identity because routing may change after enqueue.
-        "agent": payload.get("agent") or "",
-        "provider": payload.get("provider") or "",
-        "replay": replay,
-        "execution_executed": execution_executed,
-        "runtime_id": payload.get("runtime_id") or "",
-        "work_item_id": payload.get("work_item_id") or "",
-        "attempt_id": payload.get("attempt_id") or "",
-        "phase": payload.get("phase") or "",
-        "terminal_receipt_sha256": payload.get("terminal_receipt_sha256") or "",
-        "summary": " ".join(str(summary).split())[:160],  # one line for the console
-    }
+    return bridge_projection.report_brief(path)
 
 
 def _project_report_briefs(project: str | None = None) -> list[dict[str, Any]]:
-    """Return terminal reports in deterministic arrival order.
+    """Return finished reports in arrival order for exactly one project.
 
-    A project-scoped projection is deliberately exact. Legacy reports without a
-    project remain visible only in the unfiltered/global view; assigning one to
-    whichever project happens to be selected would manufacture provenance.
+    A report with no project remains visible to the unfiltered operator status,
+    but it is not silently assigned to every project-specific SSE subscriber.
+    The mtime/name tuple makes the newest projection deterministic when two
+    reports land within the filesystem timestamp resolution.
     """
-    if not INBOX.exists():
-        return []
-    rows: list[tuple[int, str, dict[str, Any]]] = []
-    for path in INBOX.glob("*.report.json"):
-        try:
-            arrived_ns = path.stat().st_mtime_ns
-        except OSError:
-            continue
-        brief = _report_brief(path)
-        if project is not None and brief.get("project") != project:
-            continue
-        rows.append((arrived_ns, path.name, brief))
-    rows.sort(key=lambda row: (row[0], row[1]))
-    return [row[2] for row in rows]
+    return bridge_projection.project_report_briefs(
+        project,
+        inbox=INBOX,
+        brief=_report_brief,
+    )
 
 
 def bridge_status(project: str | None = None) -> dict[str, Any]:
     """One-call answer to: is anything queued, is anything running, and are
     there finished reports I have not read yet?"""
-    queued = []
-    for path in sorted(OUTBOX.glob("*.json")) if OUTBOX.exists() else []:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, ValueError):
-            payload = {}
-        if project and payload.get("project") not in (project, None, ""):
-            continue
-        queued.append({"name": path.name, "lane": payload.get("lane") or "?",
-                       "project": payload.get("project") or ""})
-    unread = []
-    for path in unread_reports():
-        brief = _report_brief(path)
-        if project and brief["project"] not in (project, ""):
-            continue
-        unread.append(brief)
-    hb = heartbeat_status()
-    in_flight = hb.get("current") if hb.get("state") in ("busy", "wedged") else None
-    quarantined = quarantined_requests()
-    reports = _project_report_briefs(project)
-    return {
-        "project": project,
-        "watcher": hb,
-        "queued": queued,
-        "queue_depth": len(queued),
-        "in_flight": in_flight,
-        "unread": unread,
-        "unread_count": len(unread),
-        "quarantined": quarantined,
-        "quarantined_count": len(quarantined),
-        "reports_total": len(reports),
-        "latest_log": str(_latest_log()),
-    }
+    return bridge_projection.bridge_status(
+        project,
+        outbox=OUTBOX,
+        unread=unread_reports,
+        brief=_report_brief,
+        heartbeat=heartbeat_status,
+        quarantined=quarantined_requests,
+        reports=_project_report_briefs,
+        latest_log=_latest_log,
+    )
 
 
 def stream_state(project: str | None = None) -> dict[str, Any]:
@@ -934,61 +1009,21 @@ def stream_state(project: str | None = None) -> dict[str, Any]:
     (outbox/inbox/heartbeat) — no git, PowerShell or Ollama — so it can be polled
     once a second to drive the cockpit's live badges without the heavy dashboard.
     """
-    st = bridge_status(project)
-    reports = _project_report_briefs(project)
-    newest = reports[-1] if reports else None
-    return {
-        "queue_depth": st["queue_depth"],
-        "in_flight": 1 if st["in_flight"] else 0,
-        "unread_count": st["unread_count"],
-        "quarantined_count": st["quarantined_count"],
-        "watcher_state": (st["watcher"] or {}).get("state"),
-        "reports_total": len(reports),
-        "latest_report": newest,
-    }
+    return bridge_projection.stream_state(
+        project,
+        status=bridge_status,
+        reports=_project_report_briefs,
+    )
 
 
 def _print_status(status: dict[str, Any]) -> None:
-    hb = status["watcher"]
-    state = hb["state"]
-    if state == "alive":
-        watcher = f"alive (heartbeat {hb['age_s']}s ago, pid {hb.get('pid')})"
-    elif state == "busy":
-        cur = hb.get("current") or {}
-        watcher = f"busy on {cur.get('file', '?')} for {hb.get('busy_for_s')}s (pid {hb.get('pid')})"
-    elif state == "wedged":
-        cur = hb.get("current") or {}
-        watcher = (f"POSSIBLY WEDGED on {cur.get('file', '?')} for {hb.get('busy_for_s')}s "
-                   f"-- investigate, then restart: {hb['restart']}")
-    elif state == "stale":
-        watcher = (f"STALE (last heartbeat {hb['age_s']}s ago > {STALE_AFTER_S:.0f}s) "
-                   f"-- restart: {hb['restart']}")
-    else:
-        watcher = f"{hb.get('detail', 'unknown')} -- start: {hb['restart']}"
-    print(f"Watcher : {watcher}")
-    print(f"Queue   : {status['queue_depth']} queued")
-    for item in status["queued"]:
-        print(f"  {item['name']}  lane={item['lane']}")
-    if status["in_flight"]:
-        print(f"In-flight: {status['in_flight'].get('file', '?')}")
-    print(f"Reports : {status['reports_total']} total, {status['unread_count']} UNREAD")
-    for item in status["unread"]:
-        print(f"  UNREAD {item['name']}  status={item['status']} lane={item['lane']}")
-        if item["summary"]:
-            print(f"         {item['summary']}")
-    if status["unread_count"]:
-        print("Acknowledge: python -m daedalus.file_bridge mark-read --all "
-              "(or name specific reports)")
-    if status.get("quarantined_count"):
-        print(f"QUARANTINED: {status['quarantined_count']} request(s) the watcher "
-              "could not process -- they are NOT queued and will not run")
-        for item in status["quarantined"]:
-            print(f"  {item['name']}  {item['reason']}: {item['error'][:120]}")
-    print(f"Arrival log: {status['latest_log']}")
+    bridge_cli.print_status(status, stale_after_s=STALE_AFTER_S)
 
 
 def watch(default_repo_root: str | None, interval_s: float,
-          project: str | None = None) -> None:
+          project: str | None = None, *, owner_token: str | None = None,
+          process_identity: str | None = None,
+          stop_event: Any | None = None) -> None:
     from daedalus.budget import process_guard_boundary_decision
     from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
@@ -1000,74 +1035,47 @@ def watch(default_repo_root: str | None, interval_s: float,
             process_guard_boundary_decision(),
         ),
     )
-    OUTBOX.mkdir(parents=True, exist_ok=True)
-    INBOX.mkdir(parents=True, exist_ok=True)
-    print("AGENT_BRIDGE_START", flush=True)
-    print(f"Watching {OUTBOX}", flush=True)
-    print("AGENT_BRIDGE_READY", flush=True)
-
-    def _beat(current: dict[str, Any] | None = None, force: bool = False) -> None:
-        write_heartbeat(project=project, repo_root=default_repo_root,
-                        interval_s=interval_s, current=current, force=force)
-
-    while True:
-        _beat()
-        for path in sorted(OUTBOX.glob("*.json")):
-            print(f"Processing {path.name}", flush=True)
-            _beat(current={"file": path.name, "started_epoch": time.time(),
-                           "started_ts": _now_iso()}, force=True)
-            try:
-                result = process_request(path, default_repo_root)
-                print(f"Wrote {result}", flush=True)
-            except Exception as exc:
-                handle_poison_request(path, exc)
-            _beat(force=True)
-        time.sleep(interval_s)
+    token = owner_token or uuid.uuid4().hex
+    identity = process_identity or current_process_identity()
+    scheduled_tick = None
+    if default_repo_root:
+        from daedalus.kairos.scheduler import KairosScheduler
+        scheduler = KairosScheduler()
+        scheduled_tick = lambda: scheduler.dispatch_due_computer(
+            default_repo_root,
+            cancelled=stop_event.is_set if stop_event is not None else None,
+        )
+    bridge_watcher.watch_loop(
+        outbox=OUTBOX,
+        inbox=INBOX,
+        watcher_lock_path=_watcher_lock_path(),
+        default_repo_root=default_repo_root,
+        interval_s=interval_s,
+        project=project,
+        owner_token=token,
+        process_identity=identity,
+        stop_event=stop_event,
+        heartbeat=write_heartbeat,
+        watcher_lock=lambda path: _BridgeWatcherLock(path),
+        process_request=process_request,
+        handle_poison=handle_poison_request,
+        pending_exceptions=(
+            (TerminalBookkeepingPending, "BOOKKEEPING PENDING"),
+            (ConversationProjectionPending, "PROJECTION PENDING"),
+            (ConversationProjectionFailed, "PROJECTION ERROR"),
+            (QuarantineMovePending, "QUARANTINE MOVE PENDING"),
+            (RequestIdentityConflict, "REQUEST IDENTITY CONFLICT"),
+            (WatcherOwnershipBusy, "REQUEST CLAIM PENDING"),
+        ),
+        now_epoch=time.time,
+        now_iso=_now_iso,
+        sleep=time.sleep,
+        scheduled_tick=scheduled_tick,
+    )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="File bridge between Codex and Claude.")
-    sub = parser.add_subparsers(dest="command")
-
-    watch_p = sub.add_parser("watch", help="Watch outbox and process Claude requests.")
-    watch_p.add_argument("--repo-root")
-    watch_p.add_argument("--project")
-    watch_p.add_argument("--interval-s", type=float, default=2.0)
-
-    enqueue_p = sub.add_parser("enqueue", help="Create a Claude request in outbox.")
-    enqueue_p.add_argument("objective")
-    enqueue_p.add_argument("--repo-root")
-    enqueue_p.add_argument("--project")
-    enqueue_p.add_argument("--paths", nargs="*", default=[])
-    enqueue_p.add_argument("--model", default="sonnet")
-    enqueue_p.add_argument("--lane", default="auto",
-                           choices=["auto", "claude", "local", "local_only", "codex"],
-                           help="auto/local prefer the free bench; local_only never calls Claude; "
-                                "claude forces the trusted lane; codex forces the external "
-                                "Codex CLI (egress-gated, no fallback)")
-    enqueue_p.add_argument("--source", default="unknown",
-                           choices=["unknown", "codex", "claude", "user", "ikarus"],
-                           help="who queued the request")
-    enqueue_p.add_argument("--strategy", default="single", choices=["single", "spawn"],
-                           help="single routes one task; spawn lets Ikarus decompose and fan out")
-    enqueue_p.add_argument("--force", action="store_true",
-                           help="queue even though no watcher is alive to run it "
-                                "(default: REFUSE, because such a task just sits)")
-
-    once_p = sub.add_parser("once", help="Process current outbox requests once.")
-    once_p.add_argument("--repo-root")
-    once_p.add_argument("--project")
-
-    status_p = sub.add_parser(
-        "status", help="Queue depth, in-flight task, watcher liveness, UNREAD reports.")
-    status_p.add_argument("--project", help="filter queue/reports to one project")
-    status_p.add_argument("--json", action="store_true")
-
-    mark_p = sub.add_parser(
-        "mark-read", help="Acknowledge finished reports (drops markers in inbox/.seen/).")
-    mark_p.add_argument("names", nargs="*", help="report file names (with or without .report.json)")
-    mark_p.add_argument("--all", action="store_true", help="mark every unread report as read")
-
+    parser = bridge_cli.build_parser()
     args = parser.parse_args()
     if args.command in ("watch", "enqueue", "once", "mark-read"):
         # Queue status stays fail-open read-only inspection; every mutating
@@ -1080,47 +1088,31 @@ def main() -> None:
             REGISTRY_BY_ID["cli.file_bridge"].effects,
             (process_guard_boundary_decision(),),
         )
-    if args.command == "watch":
-        watch(resolve_repo_root(args.repo_root, args.project), args.interval_s,
-              project=args.project)
-    elif args.command == "enqueue":
-        try:
-            print(enqueue(args.objective, resolve_repo_root(args.repo_root, args.project),
-                          args.paths, args.model, args.lane, args.project,
-                          args.source, args.strategy,
-                          require_watcher=not args.force))
-        except WatcherNotRunning as exc:
-            # A refusal is a normal, expected outcome here -- report it as a
-            # message and a non-zero exit, not as an unhandled traceback that
-            # buries the remedy under a stack.
-            print(str(exc), file=sys.stderr)
-            raise SystemExit(2)
-    elif args.command == "once":
-        OUTBOX.mkdir(parents=True, exist_ok=True)
-        repo_root = resolve_repo_root(args.repo_root, args.project) if (args.repo_root or args.project) else None
-        for path in sorted(OUTBOX.glob("*.json")):
-            # Same recovery as the watcher: one poison request must not abort
-            # the requests queued behind it.
-            try:
-                print(process_request(path, repo_root))
-            except Exception as exc:  # noqa: BLE001
-                handle_poison_request(path, exc)
-    elif args.command == "status":
-        status = bridge_status(args.project)
-        if args.json:
-            print(json.dumps(status, indent=2))
-        else:
-            _print_status(status)
-    elif args.command == "mark-read":
-        if not args.names and not args.all:
-            print("nothing to do: pass report names or --all")
-        else:
-            marked = mark_read(args.names, all_reports=args.all)
-            print(f"marked {len(marked)} report(s) read")
-            for name in marked:
-                print(f"  {name}")
-    else:
-        parser.print_help()
+    bridge_cli.dispatch(
+        args,
+        parser=parser,
+        ports=bridge_cli.BridgeCliPorts(
+            outbox=OUTBOX,
+            resolve_repo_root=resolve_repo_root,
+            watch=watch,
+            enqueue=enqueue,
+            process_request=process_request,
+            handle_poison_request=handle_poison_request,
+            bridge_status=bridge_status,
+            print_status=_print_status,
+            mark_read=mark_read,
+            watcher_ownership_busy=WatcherOwnershipBusy,
+            watcher_not_running=WatcherNotRunning,
+            pending_exceptions=(
+                (TerminalBookkeepingPending, "BOOKKEEPING PENDING"),
+                (ConversationProjectionPending, "PROJECTION PENDING"),
+                (ConversationProjectionFailed, "PROJECTION ERROR"),
+                (QuarantineMovePending, "QUARANTINE MOVE PENDING"),
+                (RequestIdentityConflict, "REQUEST IDENTITY CONFLICT"),
+                (WatcherOwnershipBusy, "REQUEST CLAIM PENDING"),
+            ),
+        ),
+    )
 
 
 if __name__ == "__main__":

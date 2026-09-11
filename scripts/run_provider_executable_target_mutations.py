@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / "daedalus/runtimes/provider_executable_targets.py"
+MODULE = ROOT / "daedalus/runtimes/provider/executable_targets.py"
 BEHAVIOR = "tests/runtimes/test_provider_executable_targets.py"
 REVIEW = "tests/runtimes/test_provider_executable_targets_review.py"
 

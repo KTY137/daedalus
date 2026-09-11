@@ -12,6 +12,10 @@ import subprocess
 import pytest
 
 import daedalus.spine.attempt as attempt_mod
+from daedalus.orchestration.execution import (
+    pytest_gate as composed_pytest_gate,
+    remove_gate_tmpdir,
+)
 from daedalus.spine.attempt import GitCommandError, PrimaryCheckoutWrite
 
 # Windows spellings that name the SAME directory as a plain drive-letter path.
@@ -274,7 +278,7 @@ def test_gate_scratch_removal_does_not_follow_a_junction_planted_in_it(tmp_path)
     victim = _init_repo(tmp_path / "primary_checkout")
     assert _make_junction(tmpdir / "trap", victim), "could not stage the attack"
 
-    assert attempt_mod._remove_gate_tmpdir(tmpdir) is None
+    assert remove_gate_tmpdir(tmpdir) is None
     assert not tmpdir.exists()
     assert (victim / "tracked.txt").read_text() == "original\n"
     assert (victim / ".git").exists()
@@ -303,7 +307,7 @@ def test_gate_scratch_removal_is_routed_through_the_guarded_walker(tmp_path,
 
     monkeypatch.setattr(worktree_module, '_remove_tree_no_follow', refusing_remove)
 
-    report = attempt_mod._remove_gate_tmpdir(tmpdir)
+    report = remove_gate_tmpdir(tmpdir)
 
     assert calls == [str(tmpdir)], "the guarded walker was not the thing that ran"
     assert report and "was NOT removed" in report
@@ -336,7 +340,7 @@ def test_the_gate_reports_a_scratch_directory_it_could_not_remove(tmp_path,
     ctx = attempt_mod.RunnerContext(worktree=worktree, branch="b",
                                     base_revision="HEAD", task=task,
                                     is_cancelled=lambda: False)
-    result = attempt_mod.pytest_gate(task.gate_paths, timeout_s=120)(ctx)
+    result = composed_pytest_gate(task.gate_paths, timeout_s=120)(ctx)
 
     assert seen, "the gate's finally: never removed its scratch directory"
     assert "SENTINEL was NOT removed" in result.output, (

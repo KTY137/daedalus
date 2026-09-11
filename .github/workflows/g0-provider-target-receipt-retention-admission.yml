@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-target-receipt-retention-preflight-linear
     paths:
-      - "daedalus/runtimes/provider_target_receipt_retention_admission.py"
+      - "daedalus/runtimes/provider/target_receipt_retention_admission.py"
       - "configs/schemas/provider-target-receipt-retention-admission.schema.json"
       - "tests/runtimes/test_provider_target_receipt_retention_admission*.py"
       - "scripts/run_provider_target_receipt_retention_admission_mutations.py"
@@ -120,7 +120,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-retention-admission-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_target_receipt_retention_admission import (
+          from daedalus.runtimes.provider.target_receipt_retention_admission import (
               ProviderTargetReceiptRetentionAdmissionReceipt,
               verify_provider_target_receipt_retention_admission,
           )

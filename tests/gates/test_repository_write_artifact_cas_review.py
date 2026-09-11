@@ -5,7 +5,7 @@ import ast
 from daedalus.spine.ledger import ROOT
 
 
-TARGET = ROOT / "daedalus" / "gates" / "repository_write_artifact_cas.py"
+TARGET = ROOT / "daedalus" / "gates" / "repository" / "write_artifact_cas.py"
 SOURCE = TARGET.read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE, filename=str(TARGET))
 

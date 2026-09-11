@@ -28,6 +28,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from daedalus.kernel.approvals import ApprovalLedger, ConsumedOwnerApproval
+from daedalus.kernel.contracts.base import _identifier, _revision
+from daedalus.kernel.contracts.evidence import EvidencePacket
 from daedalus.kernel.promotion_trust_root import (
     PREAUTHORIZATION_STAGE,
     PROMOTION_STAGES,
@@ -36,7 +38,6 @@ from daedalus.kernel.promotion_trust_root import (
     _append_record,
     evaluate_promotion_trust,
 )
-from daedalus.schemas import EvidencePacket, _identifier, _revision
 from daedalus.spine.envelope import canonical_sha
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")

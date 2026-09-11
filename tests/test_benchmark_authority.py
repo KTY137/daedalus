@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from daedalus import benchmark
+from daedalus.orchestration import benchmark
 
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -2,7 +2,7 @@
 
 WHY THIS EXISTS
 ---------------
-``daedalus/skills.py`` reads a ``SKILL.md`` as inert data and says so in its own
+``daedalus/foundation/skills.py`` reads a ``SKILL.md`` as inert data and says so in its own
 docstring: "nothing here is a capability, and nothing here participates in a
 safety decision". That was correct and it left a hole: something has to MAKE the
 safety decision, and until now that something was a human squinting at a

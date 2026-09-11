@@ -1,7 +1,11 @@
 ---
-tags: [findings, git, recovery]
+tags:
+- findings
+- git
+- recovery
 created: 2026-08-17
 source: ../../docs/recovery/BRANCH_CLEANUP_20260817.md
+permalink: main/findings/branch-cleanup-20260817
 ---
 
 # Branch-Cleanup (2026-08-17)

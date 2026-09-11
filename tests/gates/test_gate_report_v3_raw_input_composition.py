@@ -22,15 +22,15 @@ from types import SimpleNamespace
 
 import pytest
 
-import daedalus.gates.repository_write_classification as classification
+import daedalus.gates.repository.write_classification as classification
 import daedalus.gates.report_v3 as report_v3
-import daedalus.gates.repository_write_effect_lease as effect_lease_module
-import daedalus.gates.repository_write_evidence_materialization as materialization_module
-import daedalus.gates.repository_write_evidence_origin as origin_module
-import daedalus.gates.repository_write_guard_structure as guard_module
-import daedalus.gates.repository_write_runtime_conformance as conformance_module
-import daedalus.gates.repository_write_source_anchor_semantics as anchor_module
-from daedalus.gates.repository_write_classification import (
+import daedalus.gates.repository.write_effect_lease as effect_lease_module
+import daedalus.gates.repository.write_evidence_materialization as materialization_module
+import daedalus.gates.repository.write_evidence_origin as origin_module
+import daedalus.gates.repository.write_guard_structure as guard_module
+import daedalus.gates.repository.write_runtime_conformance as conformance_module
+import daedalus.gates.repository.write_source_anchor_semantics as anchor_module
+from daedalus.gates.repository.write_classification import (
     _STAGE_REPORT_TYPES,
     _STAGE_VERIFIERS,
     AuthenticationStage,

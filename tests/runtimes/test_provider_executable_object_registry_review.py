@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-TARGET = ROOT / "daedalus/runtimes/provider_executable_object_registry.py"
+TARGET = ROOT / "daedalus/runtimes/provider/executable_object_registry.py"
 
 
 def _tree() -> ast.Module:

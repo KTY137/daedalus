@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import threading
+import json
 
 import pytest
 
 from daedalus.providers import _ollama_native as native
-from daedalus.providers._openai_compat import ProviderCancelled
+from daedalus.providers._openai_compat import ProviderCancelled, ProviderHTTPError
 
 
 _FRAME = b'{"message":{"content":"hello"},"done":false}\n'
@@ -166,3 +167,58 @@ def test_invalid_poll_interval_fails_before_connection(monkeypatch):
     with pytest.raises(ValueError, match="poll_interval_s must be > 0"):
         next(stream)
     assert opened == 0
+
+
+@pytest.mark.parametrize("cancelled", [None, lambda: False])
+def test_stream_preserves_uncapped_timeout_and_native_options(monkeypatch, cancelled):
+    requests = []
+
+    def connect(request, *, timeout):
+        requests.append((request.full_url, json.loads(request.data), timeout))
+        return _Response([_FRAME, _DONE])
+
+    monkeypatch.setattr(native.urllib.request, "urlopen", connect)
+    assert list(_stream(
+        timeout_s=None, cancelled=cancelled, keep_alive="30m", num_ctx=8192,
+        num_predict=128, think=False, force_json={"type": "object"},
+    )) == ["hello"]
+    assert len(requests) == 1
+    url, body, timeout = requests[0]
+    assert url == "http://127.0.0.1:11434/api/chat"
+    assert timeout is None
+    assert body["keep_alive"] == "30m"
+    assert body["options"] == {"num_ctx": 8192, "num_predict": 128, "temperature": 0.0}
+    assert body["think"] is False
+    assert body["format"] == {"type": "object"}
+    assert body["stream"] is True
+
+
+@pytest.mark.parametrize("cancelled", [None, lambda: False])
+@pytest.mark.parametrize("frame", [
+    b"[]\n", b"null\n", b"not-json\n", b'{"error":"failed"}\n',
+    b"", b'{"done":"false"}\n',
+])
+def test_invalid_native_frame_is_terminal_without_replay(monkeypatch, cancelled, frame):
+    calls = []
+
+    def connect(*args, **kwargs):
+        calls.append(1)
+        return _Response([_FRAME, frame])
+
+    monkeypatch.setattr(native.urllib.request, "urlopen", connect)
+    stream = _stream(cancelled=cancelled)
+    assert next(stream) == "hello"
+    with pytest.raises(ProviderHTTPError):
+        next(stream)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("cancelled", [None, lambda: False])
+def test_native_timeout_error_with_disabled_deadline_keeps_error_type(monkeypatch, cancelled):
+    def fail(*args, **kwargs):
+        assert kwargs["timeout"] is None
+        raise TimeoutError("socket timed out")
+
+    monkeypatch.setattr(native.urllib.request, "urlopen", fail)
+    with pytest.raises(ProviderHTTPError, match="timed out"):
+        list(_stream(timeout_s=None, cancelled=cancelled))

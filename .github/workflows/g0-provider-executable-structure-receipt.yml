@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-executable-target-manifest-linear
     paths:
-      - "daedalus/runtimes/provider_executable_structure.py"
+      - "daedalus/runtimes/provider/executable_structure.py"
       - "configs/schemas/provider-executable-structure-receipt.schema.json"
       - "tests/runtimes/test_provider_executable_structure*.py"
       - "scripts/run_provider_executable_structure_mutations.py"
@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-provider-structure-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_executable_structure import (
+          from daedalus.runtimes.provider.executable_structure import (
               ProviderExecutableStructureReceipt,
               VerifiedProviderExecutableTarget,
               verify_provider_executable_structure,

@@ -37,6 +37,7 @@ from daedalus.budget import (
     ENV_CEILING,
     ENV_MAX_CALLS,
     ENV_PERIOD,
+    ENV_PERIOD_CEILING_ENABLED,
     UNKNOWN_CALL_USD,
     BudgetRefused,
     BudgetUnavailable,
@@ -47,6 +48,12 @@ from daedalus.budget import (
     price_call,
 )
 from daedalus.sensitivity import lane_for_host
+from daedalus.limit_policy import (
+    ExecutionLimitPolicy,
+    LimitAxes,
+    MODE_CUSTOM,
+    MODE_UNBOUNDED_EXECUTION,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,7 +66,9 @@ ROOT = Path(__file__).resolve().parents[1]
 def _clean_env(monkeypatch, tmp_path):
     """Every test starts with NO budget configuration and its own ledger, so a
     stray env var on the developer's box can never make a refusal test pass."""
-    for var in (ENV_CEILING, ENV_MAX_CALLS, ENV_PERIOD, B.ENV_ON_UNKNOWN,
+    for var in (ENV_CEILING, ENV_PERIOD_CEILING_ENABLED,
+                B.ENV_EXECUTION_LIMIT_POLICY, ENV_MAX_CALLS,
+                ENV_PERIOD, B.ENV_ON_UNKNOWN,
                 B.ENV_LEDGER, B.ENV_SUBSCRIPTIONS):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv(B.ENV_LEDGER, str(tmp_path / "ledger.json"))
@@ -122,6 +131,9 @@ def test_a_missing_ledger_is_a_fresh_ledger_not_a_failure(led):
 @pytest.mark.parametrize("var, value", [
     (ENV_CEILING, "abc"), (ENV_CEILING, ""), (ENV_CEILING, "-1"),
     (ENV_CEILING, "0"), (ENV_CEILING, "inf"), (ENV_CEILING, "nan"),
+    (ENV_PERIOD_CEILING_ENABLED, "maybe"),
+    (ENV_PERIOD_CEILING_ENABLED, "disabled-ish"),
+    (B.ENV_EXECUTION_LIMIT_POLICY, "{invalid"),
     (ENV_MAX_CALLS, "lots"), (ENV_MAX_CALLS, "0"), (ENV_MAX_CALLS, "-4"),
     (ENV_PERIOD, "forever"), (ENV_PERIOD, "hour"),
 ])
@@ -140,9 +152,187 @@ def test_no_configuration_means_the_default_cap_not_infinity(tmp_path):
     """Absence of configuration is not absence of a cap."""
     plain = Ledger(tmp_path / "ledger.json")
     assert plain.ceiling_usd() == DEFAULT_CEILING_USD
+    assert plain.period_ceiling_enabled() is True
     assert plain.max_calls() == B.DEFAULT_MAX_CALLS
     with pytest.raises(BudgetRefused):
         plain.reserve(_est(DEFAULT_CEILING_USD + 0.01), label="over the default")
+
+
+def test_explicit_uncapped_mode_records_paid_spend_without_a_numeric_sentinel(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv(ENV_CEILING, "1.00")
+    monkeypatch.setenv(ENV_PERIOD_CEILING_ENABLED, "false")
+    uncapped = Ledger(tmp_path / "ledger.json", max_calls=3)
+
+    uncapped.reserve(_est(25.00), label="owner-confirmed uncapped call").settle()
+    state = uncapped.state()
+
+    assert state.period_ceiling_enabled is False
+    assert state.ceiling_usd == pytest.approx(1.00)  # retained fallback
+    assert state.effective_period_ceiling_usd is None
+    assert state.remaining_usd is None
+    assert state.spent_usd == pytest.approx(25.00)
+    assert json.loads(json.dumps(state.as_dict(), allow_nan=False))[
+        "effective_period_ceiling_usd"
+    ] is None
+
+
+def test_uncapped_period_usd_does_not_disable_the_call_count_cap(tmp_path):
+    uncapped = Ledger(
+        tmp_path / "ledger.json",
+        ceiling_usd=0.01,
+        period_ceiling_enabled=False,
+        max_calls=1,
+    )
+    uncapped.reserve(_est(50.00), label="first paid call").settle()
+
+    with pytest.raises(BudgetRefused) as excinfo:
+        uncapped.reserve(_est(50.00), label="fanout still bounded")
+
+    refusal = excinfo.value
+    assert "call-count cap" in refusal.reason
+    assert "explicitly uncapped" in str(refusal)
+    assert refusal.as_dict()["remaining_period_usd"] is None
+
+
+def test_uncapped_period_usd_keeps_explicit_envelopes_bounded(tmp_path):
+    uncapped = Ledger(
+        tmp_path / "ledger.json",
+        ceiling_usd=0.01,
+        period_ceiling_enabled=False,
+        max_calls=10,
+    )
+    envelope = uncapped.open_envelope(2.00, label="finite mission", lease_id="lease-1")
+    uncapped.reserve(_est(1.50), label="inside mission").settle()
+
+    with pytest.raises(BudgetRefused) as excinfo:
+        uncapped.reserve(_est(0.51), label="past mission cap")
+
+    assert excinfo.value.envelope is not None
+    assert "leased spend ceiling" in excinfo.value.reason
+    assert "period USD ceiling is uncapped" in str(excinfo.value)
+    envelope.close()
+
+
+def test_policy_changes_do_not_reset_or_block_settlement_of_existing_money(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv(ENV_CEILING, "1.00")
+    monkeypatch.setenv(ENV_PERIOD_CEILING_ENABLED, "true")
+    led = Ledger(tmp_path / "ledger.json", max_calls=10)
+    reservation = led.reserve(_est(0.75), label="already authorised")
+
+    monkeypatch.setenv(ENV_PERIOD_CEILING_ENABLED, "false")
+    reservation.settle(actual_usd=0.70)
+
+    state = led.state()
+    assert state.spent_usd == pytest.approx(0.70)
+    assert state.reserved_usd == pytest.approx(0.0)
+    assert state.calls == 1
+    assert state.period_ceiling_enabled is False
+
+
+def test_unbounded_execution_disables_all_three_budget_refusals_but_records_all(
+        tmp_path):
+    policy = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+    led = Ledger(
+        tmp_path / "ledger.json",
+        ceiling_usd=0.01,
+        max_calls=1,
+        execution_limit_policy=policy,
+    )
+    envelope = led.open_envelope(0.10, label="record-only mission")
+
+    with envelope:
+        led.reserve(_est(10.0), label="first unbounded draw").settle()
+        led.reserve(_est(20.0), label="second unbounded draw").settle()
+        view = led.envelope_state(envelope.id)
+
+    state = led.state()
+    assert state.spent_usd == pytest.approx(30.0)
+    assert state.calls == 2
+    assert state.effective_period_ceiling_usd is None
+    assert state.remaining_usd is None
+    assert state.effective_max_calls is None
+    assert state.remaining_calls is None
+    assert state.envelope_hold_usd == pytest.approx(0.0)
+    assert view is not None
+    assert view["mission_spend_enforced"] is False
+    assert view["effective_cap_usd"] is None
+    assert view["remaining_usd"] is None
+    assert view["drawn_usd"] == pytest.approx(30.0)
+    assert set(state.effective_limit_axes.values()) == {False}
+    json.dumps(state.as_dict(), allow_nan=False)
+
+    data = json.loads(led.path.read_text(encoding="utf-8"))
+    settled = [row for row in data["entries"] if row["kind"] == "settle"]
+    assert len(settled) == 2
+    assert all(row["limit_policy"] == policy.as_dict() for row in settled)
+    assert all(
+        row["limit_policy_fingerprint_sha256"] == policy.fingerprint_sha256
+        for row in settled
+    )
+
+
+def test_custom_call_and_mission_disables_do_not_disable_period_usd(tmp_path):
+    policy = ExecutionLimitPolicy(
+        mode=MODE_CUSTOM,
+        configured=LimitAxes(
+            period_usd=True,
+            billable_calls=False,
+            mission_spend=False,
+        ),
+    )
+    led = Ledger(
+        tmp_path / "ledger.json",
+        ceiling_usd=1.0,
+        max_calls=1,
+        execution_limit_policy=policy,
+    )
+    envelope = led.open_envelope(0.10, label="mission fallback only")
+    assert led.state().envelope_hold_usd == pytest.approx(0.0)
+
+    with envelope:
+        led.reserve(_est(0.60), label="past mission fallback").settle()
+        led.reserve(_est(0.30), label="past call fallback").settle()
+        with pytest.raises(BudgetRefused, match="spend ceiling"):
+            led.reserve(_est(0.11), label="period still bounded")
+
+    state = led.state()
+    assert state.spent_usd == pytest.approx(0.90)
+    assert state.calls == 2
+    assert state.billable_call_ceiling_enabled is False
+    assert state.mission_spend_ceiling_enabled is False
+    assert state.period_ceiling_enabled is True
+
+
+def test_existing_envelope_keeps_captured_mission_policy_after_global_change(
+        tmp_path, monkeypatch):
+    bounded = ExecutionLimitPolicy()
+    unbounded = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+    monkeypatch.setenv(
+        B.ENV_EXECUTION_LIMIT_POLICY, bounded.to_env_value()
+    )
+    led = Ledger(tmp_path / "ledger.json", ceiling_usd=5.0, max_calls=10)
+    bounded_envelope = led.open_envelope(0.10, label="captured bounded")
+
+    monkeypatch.setenv(
+        B.ENV_EXECUTION_LIMIT_POLICY, unbounded.to_env_value()
+    )
+    with bounded_envelope:
+        with pytest.raises(BudgetRefused, match="leased spend ceiling"):
+            led.reserve(_est(0.11), label="old contract remains bounded")
+        old_view = led.envelope_state(bounded_envelope.id)
+
+    unbounded_envelope = led.open_envelope(0.10, label="captured unbounded")
+    with unbounded_envelope:
+        led.reserve(_est(0.20), label="new contract is unbounded").settle()
+        new_view = led.envelope_state(unbounded_envelope.id)
+
+    assert old_view is not None and old_view["mission_spend_enforced"] is True
+    assert old_view["effective_cap_usd"] == pytest.approx(0.10)
+    assert new_view is not None and new_view["mission_spend_enforced"] is False
+    assert new_view["effective_cap_usd"] is None
+    assert new_view["drawn_usd"] == pytest.approx(0.20)
 
 
 def test_a_lock_we_cannot_take_refuses(led, monkeypatch):
@@ -499,6 +689,32 @@ def test_a_paid_binary_is_recognised_however_it_is_reached(argv, vendor):
 
 
 @pytest.mark.parametrize("argv", [
+    ["claude", "--version"],
+    [r"C:\Program Files\Claude\claude.exe", "--version"],
+    [r"C:\Users\operator\AppData\Roaming\npm\claude.cmd", "--version"],
+    ["codex", "--version"],
+    [r"C:\Program Files\Codex\codex.exe", "--version"],
+    [r"C:\Users\operator\AppData\Roaming\npm\codex.cmd", "--version"],
+    ["codex", "login", "status"],
+    [r"C:\Users\operator\AppData\Roaming\npm\codex.cmd", "login", "status"],
+])
+def test_exact_read_only_vendor_probes_are_not_billed(argv):
+    assert classify_argv(argv) is None
+
+
+@pytest.mark.parametrize("argv, vendor", [
+    (["claude", "--version", "explain this screenshot"], "anthropic_cli"),
+    (["claude", "--version", "--model", "opus"], "anthropic_cli"),
+    ([r"C:\Tools\claude.exe", "--version", "extra"], "anthropic_cli"),
+    (["codex", "--version", "explain this screenshot"], "openai_cli"),
+    (["codex", "login", "status", "explain this screenshot"], "openai_cli"),
+    ([r"C:\Tools\codex.cmd", "login", "status", "--json"], "openai_cli"),
+])
+def test_read_only_probe_prefixes_with_extra_arguments_remain_billed(argv, vendor):
+    assert classify_argv(argv) == vendor
+
+
+@pytest.mark.parametrize("argv", [
     ["git", "status", "--porcelain"],
     ["git", "commit", "-m", "fix the claude bridge"],
     ["python", "-m", "pytest"],
@@ -566,6 +782,47 @@ def test_the_interposer_refuses_BEFORE_the_binary_is_spawned(monkeypatch, tmp_pa
         subprocess.run(["claude", "-p", "build the whole feature"])
     assert calls == [], "the vendor was spawned despite a refusal"
     assert "claude" in str(ei.value)
+
+
+def test_the_interposer_never_reserves_for_exact_read_only_vendor_probes(
+        monkeypatch, tmp_path):
+    monkeypatch.setenv(ENV_CEILING, "0.01")
+    monkeypatch.setenv(ENV_MAX_CALLS, "1")
+    monkeypatch.setenv(B.ENV_LEDGER, str(tmp_path / "l.json"))
+    B.reset_default_ledger()
+    calls = _spy(monkeypatch)
+    B.install_process_guard()
+
+    probes = [
+        [r"C:\Tools\claude.exe", "--version"],
+        [r"C:\Tools\codex.cmd", "--version"],
+        [r"C:\Tools\codex.cmd", "login", "status"],
+    ]
+    for argv in probes:
+        assert subprocess.run(argv) == "spawned"
+
+    assert calls == probes
+    assert B.ledger().state().calls == 0
+    assert not (tmp_path / "l.json").exists()
+
+
+@pytest.mark.parametrize("argv", [
+    ["claude", "--version", "explain this screenshot"],
+    [r"C:\Tools\codex.cmd", "--version", "extra"],
+    [r"C:\Tools\codex.cmd", "login", "status", "extra"],
+])
+def test_the_interposer_refuses_extra_arguments_after_a_probe_prefix(
+        monkeypatch, tmp_path, argv):
+    monkeypatch.setenv(ENV_CEILING, "0.01")
+    monkeypatch.setenv(B.ENV_LEDGER, str(tmp_path / "l.json"))
+    B.reset_default_ledger()
+    calls = _spy(monkeypatch)
+    B.install_process_guard()
+
+    with pytest.raises(BudgetRefused):
+        subprocess.run(argv)
+
+    assert calls == []
 
 
 def test_the_interposer_lets_a_funded_call_through_exactly_once(monkeypatch, tmp_path):
@@ -657,19 +914,23 @@ def test_install_is_idempotent_and_uninstall_restores(monkeypatch):
 # exist today -- this regex is what makes the next one visible.
 _SPAWN = re.compile(
     r"subprocess\.(run|Popen|call|check_call|check_output)"
-    r"|from subprocess import"
+    r"|from subprocess import|import subprocess as"
     r"|urlopen\(|os\.system\(|os\.spawn"
     r"|requests\.(post|get|request)|httpx\.|aiohttp\.|http\.client")
 _VENDOR = re.compile(r"""["'](claude|codex|agy)["']|_exe\(["'](claude|codex)["']\)"""
                      r"""|api\.(anthropic|openai|deepseek)\.com""")
+_VENDOR_PATH = re.compile(r"(?:^|/)[^/]*(?:claude|codex|agy)[^/]*\.py$", re.IGNORECASE)
 
 # Files that match the crude scan but do NOT spend, each with the reason.
 _NOT_BILLABLE = {
-    "daedalus/budget.py": "this module; it names the vendors in order to price them",
+    "daedalus/budget.py": "the stable effect facade; it names the adapter ports",
+    "daedalus/runtimes/execution/budget_process.py":
+        "the interposer implementation; it classifies and wraps calls but "
+        "does not itself select or invoke a vendor",
     "daedalus/doctor.py": "`codex --version` / `login status`: no tokens generated",
-    "daedalus/runtime_registry.py": "`<binary> --version` probe only",
-    "daedalus/claude_detect.py": "detects the CLI, never invokes it",
-    "daedalus/accelerators.py": "nvidia-smi and a local /api/tags probe",
+    "daedalus/orchestration/runtime_registry.py": "`<binary> --version` probe only",
+    "daedalus/foundation/claude_detect.py": "detects the CLI, never invokes it",
+    "daedalus/foundation/accelerators.py": "nvidia-smi and a local /api/tags probe",
     "daedalus/core.py": "dispatches to the sites below; spawns nothing itself",
     "daedalus/providers/claude_cli.py": "delegates to claude_bridge.ask_claude",
     "runs/council/room_server.py": "delegates to room.ask_*; its own urlopen is "
@@ -707,8 +968,9 @@ def scan(root, paths) -> set[str]:
     out = set()
     for path in paths:
         text = Path(path).read_text(encoding="utf-8", errors="replace")
-        if _SPAWN.search(text) and _VENDOR.search(text):
-            out.add(Path(path).relative_to(root).as_posix())
+        relative = Path(path).relative_to(root).as_posix()
+        if _SPAWN.search(text) and (_VENDOR.search(text) or _VENDOR_PATH.search(relative)):
+            out.add(relative)
     return out
 
 
@@ -790,6 +1052,17 @@ def test_the_surprise_check_does_not_fire_on_innocent_code(tmp_path):
     assert scan(tmp_path, [innocent]) == set()
 
 
+def test_the_surprise_check_sees_an_opaque_command_in_a_vendor_adapter(tmp_path):
+    """A sealed absolute command path must not make its vendor bridge invisible."""
+    planted = tmp_path / "claude_bridge.py"
+    planted.write_text(
+        "import subprocess as local_subprocess\n"
+        "local_subprocess.run([command_path, '-p'])\n",
+        encoding="utf-8",
+    )
+    assert scan(tmp_path, [planted]) == {"claude_bridge.py"}
+
+
 def test_the_non_vacuity_check_actually_fires_when_the_regex_dies():
     """A dead regex finds nothing, reports no surprises, and looks green."""
     assert blind_spots(set(), B.BILLABLE_SITES), (
@@ -828,6 +1101,7 @@ def test_the_staleness_check_actually_fires_on_a_moved_site(tmp_path):
 @pytest.mark.parametrize("line", [
     'proc = subprocess.run([exe, "-p"])',
     'from subprocess import run',
+    'import subprocess as local_subprocess',
     'subprocess.check_output(["codex", "exec"])',
     'os.system("claude -p")',
     'requests.post("https://api.anthropic.com/v1/messages")',
@@ -852,7 +1126,27 @@ def test_the_register_is_honest_about_what_is_not_yet_wired():
     when a site starts reserving for itself, flip its flag here and in the
     register, so 'guarded' never drifts into wishful thinking."""
     explicit = explicit_sites(B.BILLABLE_SITES)
-    assert explicit == [], (
+    # G1-COUNCIL-02 (2026-09-05): the council CLI seat reserves for itself
+    # through ``guard(self.budget_vendor, model, label=...)`` around
+    # run_managed and settles at the CLI's reported cost. Verified by
+    # tests/test_council_vendors.py (seat accounting: settle, release when
+    # never spawned, ValueError on an empty budget_vendor) and by
+    # test_an_explicit_reservation_is_not_double_charged_by_the_interposer.
+    # G1-IKARUS-36 (2026-09-08): both Ikarus voice spawns reserve for
+    # themselves through ``guard("anthropic_cli", model,
+    # cli_budget_cap_usd=...)`` and settle at the CLI's reported
+    # ``total_cost_usd``. The streaming twin HAD to: the interposer's Popen
+    # branch opens and closes its reservation inside ``Popen.__init__``,
+    # before any child stdout exists, so it can never settle measured.
+    # Verified by tests/test_ikarus_voice_invocation.py (measured settlement,
+    # cap-derived estimate, release when never spawned, settle-at-estimate on
+    # timeout) and by
+    # test_an_explicit_reservation_is_not_double_charged_by_the_interposer.
+    assert explicit == [
+        "daedalus/council/vendors.py::_CliAdapter._dispatch",
+        "daedalus/orchestration/ikarus/shell.py::_claude",
+        "daedalus/orchestration/ikarus/shell.py::_claude_stream",
+    ], (
         "a site now claims an explicit reservation; verify it and update this "
         f"expectation: {explicit}")
     assert len(B.BILLABLE_SITES) >= 17
@@ -864,7 +1158,29 @@ def test_the_register_is_honest_about_what_is_not_yet_wired():
         "daedalus/council/vendors.py::OllamaAdapter._dispatch",
         "daedalus/council/vendors.py::_CliAdapter._dispatch",
         "daedalus/providers/_openai_compat.py::chat_completion",
+        "daedalus/providers/_openai_compat.py::chat_completion_receipt",
     ], f"the set of scan-invisible spend sites changed: {invisible}"
+
+
+def test_both_halves_of_the_delegating_openai_entrypoint_are_registered():
+    """The register must keep naming the function that actually spends.
+
+    G1-EVAL-USAGE-01 made ``chat_completion`` a one-line wrapper over
+    ``chat_completion_receipt``: the request object and the ``_post``/``_send``
+    call moved into the sibling. Both are public entrances that spend, and a
+    register naming only the wrapper reads as coverage it no longer has.
+    Money is still accounted for either way -- both funnel through the single
+    ``_send`` the runtime interposer wraps -- but the honest accounting is the
+    point of this list.
+    """
+    registered = {
+        site["func"] for site in B.BILLABLE_SITES
+        if site["file"] == "daedalus/providers/_openai_compat.py"
+    }
+    assert {"chat_completion", "chat_completion_receipt"} <= registered, (
+        f"the OpenAI-compatible spend register no longer names both entrances: "
+        f"{sorted(registered)}"
+    )
 
 
 # ===========================================================================

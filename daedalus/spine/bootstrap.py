@@ -66,6 +66,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from ..kernel.attempt_execution import (
+    AttemptEvaluatorPort,
+    AttemptWorkspacePort,
+    OffloadPort,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 
 #: Where a discrimination measurement is recorded. Absent means unproven; it
@@ -176,7 +182,7 @@ def refresh_sources(repo_root: str | Path,
     snapshot = root / "docs" / "architecture-state.json"
     before = _recorded_head(snapshot)
     try:
-        code, detail = _run([sys.executable, "-m", "daedalus.cli", "map"])
+        code, detail = _run([sys.executable, "-m", "daedalus.interfaces.cli.entry", "map"])
     except Exception as e:                       # noqa: BLE001 - reported, not raised
         code, detail = 1, f"{type(e).__name__}: {e}"
     after = _recorded_head(snapshot)
@@ -554,6 +560,10 @@ class ShadowResult:
 
 def shadow_run(repo_root: str | Path, *,
                runner: Callable[[Any], Any],
+               attempt_ports_factory: Callable[
+                   [str | Path | None],
+                   tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+               ] | None = None,
                refresh: bool = True,
                limit: int = 10,
                artifact_dir: str | Path | None = None,
@@ -605,9 +615,19 @@ def shadow_run(repo_root: str | Path, *,
         return _finish("sources_unavailable" if degraded else "no_candidate")
 
     top = queue.candidates[0]
-    from daedalus.spine.attempt import run_attempt
-    from daedalus.spine.attempt import pytest_gate_argv
+    from daedalus.spine.attempt import (
+        AttemptPortMissing,
+        pytest_gate_argv,
+        run_attempt,
+    )
     from daedalus.spine.picker import resolve_spine_db_path
+
+    if not callable(attempt_ports_factory):
+        raise AttemptPortMissing(
+            "shadow_run attempt execution requires an injected "
+            "attempt_ports_factory from orchestration"
+        )
+    workspace_port, evaluator_port = attempt_ports_factory(root)
 
     task = top.to_task_spec()
     if task.gate_argv:
@@ -633,15 +653,29 @@ def shadow_run(repo_root: str | Path, *,
             "sources_unavailable",
             task_id=top.task_id,
             source=top.source)
-    res = run_attempt(task, runner=runner, repo_root=str(root),
-                      ledger_path=ledger_path,
-                      artifact_dir=str(artifact_dir) if artifact_dir else None,
-                      keep_worktree=keep_worktree)
+    res = run_attempt(
+        task,
+        runner=runner,
+        repo_root=str(root),
+        workspace_port=workspace_port,
+        evaluator_port=evaluator_port,
+        ledger_path=ledger_path,
+        artifact_dir=str(artifact_dir) if artifact_dir else None,
+        keep_worktree=keep_worktree,
+    )
     state = "gated" if getattr(res, "ok", False) else getattr(res, "state", "error")
     return _finish(state, task_id=top.task_id, source=top.source, attempt=res)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    attempt_ports_factory: Callable[
+        [str | Path | None],
+        tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+    ] | None = None,
+    offload_port: OffloadPort | None = None,
+) -> int:
     import argparse
 
     # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape. There
@@ -691,11 +725,20 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from daedalus.spine.attempt import offload_runner
 
-    kwargs: dict[str, Any] = {"live": bool(args.live)}
+    # ``offload`` is composed by the caller, not imported here: the
+    # ``spine-no-outer-layers`` rule of docs/architecture/import-boundaries.json
+    # names ``daedalus.offload`` as forbidden to this layer. shadow_run already
+    # refuses without ``attempt_ports_factory``, so this door could not run a
+    # live attempt uncomposed before this packet either.
+    kwargs: dict[str, Any] = {
+        "offload_port": offload_port,
+        "live": bool(args.live),
+    }
     if args.local_only:
         kwargs["availability"] = {"claude_cli": False, "ollama": True,
                                   "deepseek": False, "codex_cli": False}
     res = shadow_run(args.repo_root, runner=offload_runner(**kwargs),
+                     attempt_ports_factory=attempt_ports_factory,
                      refresh=not args.no_refresh, limit=args.limit,
                      artifact_dir=args.artifact_dir,
                      keep_worktree=args.keep_worktree)

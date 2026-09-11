@@ -1,0 +1,190 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-110",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "3e4e92cdac45ef4bd0c60dab985c436937e2101b",
+    "dependencies": "G1-EXP-TENSOR-GPU-103, G1-EXP-TENSOR-GPU-105, G1-EXP-TENSOR-GPU-106, G1-EXP-TENSOR-GPU-109, ReferenceCompileResult, Gate-1 ignition receipt, Fourfold evidence packet, CompiledRelationBlocks",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "decision",
+          "finding"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "claim_boundaries",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "focused_contract",
+          "audit",
+          "focused_contract_head"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence",
+          "audit"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_bounded_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "finding",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-110",
+  "title": "Retain stateless Forest and relation membership verification after existing-receipt authority audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-09",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "3e4e92cdac45ef4bd0c60dab985c436937e2101b",
+  "focused_contract_head": "595b5eda6cb0d0c8a694da21604b18bc6aefe123",
+  "scope": "Audit the existing revision-bound result and receipt surfaces at the natural Gate-1 before/after owner before considering any shortcut around compile_relation_blocks Forest-integrity or retained-relation membership verification. Determine whether an already-authoritative contract carries both the exact supplied Forest identity and a verified relation-digest-to-ForestEdge association. Prefer retaining existing checks over minting a trusted caller parameter, persistent index, cache or second receipt family.",
+  "audit": {
+    "reference_compile_result": {
+      "path": "daedalus/twin/reference_compiler.py",
+      "finding": "ReferenceCompileResult naturally co-locates the KnowledgeForest and FourfoldSnapshot plus source identities, but it is a plain frozen result record rather than a canonical verification receipt. It has no __post_init__ pairing check and no retained digest-to-edge association. The focused contract constructs a mismatched Forest/snapshot result successfully and proves the unchanged relation compiler still refuses it at the independent source_forest_sha256 check.",
+      "safe_to_trust_for_skipping_forest_digest": false,
+      "safe_relation_digest_edge_mapping_present": false
+    },
+    "gate1_ignition_receipt": {
+      "path": "daedalus/ignition/gate1.py",
+      "finding": "The existing fourfold receipt block records base/candidate source-bundle digests, base/candidate snapshot digests and the IgnitionGraphDelta. It does not record an authoritative Forest object/artifact or a relation-digest-to-edge association. GPU-104 already proved the graph delta does not encode same-plane relation changes.",
+      "safe_to_use_as_tensor_incremental_receipt": false
+    },
+    "fourfold_evidence_packet": {
+      "path": "daedalus/kernel/fourfold_evidence.py",
+      "finding": "Fourfold evidence correctly binds candidate artifact identity, source revision, exact snapshot digest and snapshot.source_forest_sha256, and stores exact snapshot bytes. It does not store the supplied KnowledgeForest bytes/object and does not carry a digest-to-ForestEdge association. It proves candidate/snapshot/Forest-digest provenance, not which concrete Forest edge corresponds to each retained relation digest without examining the Forest.",
+      "safe_to_replace_aggregate_forest_verification": false,
+      "safe_to_replace_per_edge_membership_verification": false
+    },
+    "compiled_relation_blocks_receipt": {
+      "path": "daedalus/twin/relation_compiler.py",
+      "finding": "CompiledRelationBlocks binds source_forest_sha256 and its ProjectionSubject binds the exact Fourfold snapshot digest, but this receipt exists only after compile_relation_blocks has completed the checks under audit. Reusing its own output as pre-compilation trust would be circular and cannot remove first-pass verification.",
+      "safe_as_precompile_authority": false
+    }
+  },
+  "focused_contract": {
+    "path": "tests/twin/test_relation_digest_authority_seam.py",
+    "new_test": "test_reference_compile_result_is_not_a_forest_pairing_authority_receipt",
+    "behavior": "A caller can construct ReferenceCompileResult with a Forest whose content digest no longer matches the retained Fourfold snapshot. The result record accepts the pair, while compile_relation_blocks fails closed with 'snapshot does not bind the supplied Forest digest'.",
+    "reason": "This pins the exact trust boundary that would be violated by treating ReferenceCompileResult as a pre-verified receipt merely because Gate 1 naturally owns both before/after compile results."
+  },
+  "finding": {
+    "existing_authoritative_shortcut_found": false,
+    "aggregate_forest_check_removable": false,
+    "per_edge_membership_hash_removable": false,
+    "new_receipt_or_index_justified": false,
+    "incremental_tensor_unblocked": false,
+    "summary": "No existing revision-bound result/receipt simultaneously proves the supplied Forest object and carries an authoritative retained relation digest-to-ForestEdge association. ReferenceCompileResult is natural ownership, not trust authority; Gate-1 receipts and Fourfold evidence bind revision/snapshot identities but not the missing mapping; CompiledRelationBlocks is downstream output. GPU-110 therefore retains both current stateless verification passes and closes without production changes."
+  },
+  "decision": {
+    "closed": true,
+    "production_change": false,
+    "focused_contract_change": true,
+    "new_public_api": false,
+    "new_receipt_family": false,
+    "new_digest_index": false,
+    "new_compiler_cache": false,
+    "trusted_digest_parameter_added": false,
+    "new_graph_authority": false,
+    "summary": "Do not optimize the measured relation-hash seam by weakening authority. Move the Gardener search to the next measured compiler bucket instead."
+  },
+  "unsafe_shortcuts_rejected": [
+    "treat any ReferenceCompileResult instance as proof that its Forest and snapshot still match",
+    "treat the Gate-1 graph delta as a same-plane relation delta receipt",
+    "treat a Fourfold evidence item's source_forest_sha256 as a digest-to-edge map",
+    "feed a prior CompiledRelationBlocks receipt back as trusted pre-compilation authority",
+    "add a Tensor-owned persistent digest-to-edge index",
+    "add a caller-supplied trusted Forest digest that skips recomputing the supplied object"
+  ],
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "3e4e92cdac45ef4bd0c60dab985c436937e2101b",
+    "base_exact_head_fourfold_tensor": "34309619494:completed/success on 3e4e92cdac45ef4bd0c60dab985c436937e2101b",
+    "base_exact_head_tauri": "34309619532:completed/success on 3e4e92cdac45ef4bd0c60dab985c436937e2101b",
+    "focused_contract_commit": "595b5eda6cb0d0c8a694da21604b18bc6aefe123",
+    "focused_test_path": "tests/twin/test_relation_digest_authority_seam.py",
+    "focused_test_blob": "9a52c254cdaa9275abed391f75adcabd5686e813",
+    "reference_compiler_blob": "daedalus/twin/reference_compiler.py@a131e5001a609565892ffcfd64ec835bfa02debe",
+    "gate1_blob": "daedalus/ignition/gate1.py@6267e2c4c44210b93db919571fe15b8535ec2bd4",
+    "fourfold_evidence_blob": "daedalus/kernel/fourfold_evidence.py@e52c953cb436e35c9caf2e86d3a43276d6c05d7b",
+    "relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "forest_blob_unchanged": "daedalus/structcore/forest.py@ebd0c964bd955a386b392ee58aaa1c6f1786a936",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "kind": "focused trust-boundary contract plus exact-code audit of existing revision-bound result/receipt surfaces",
+    "masterplan_checked_first": true,
+    "base_exact_head_fourfold_tensor_green": true,
+    "base_exact_head_tauri_green": true,
+    "focused_contract_written": true,
+    "focused_contract_exact_head_fourfold_tensor_green": false,
+    "focused_contract_note": "Hosted Actions for the new focused head were not yet visible when this packet was first written; no green claim is made until a matching run is observed.",
+    "manual_full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 0,
+    "workflow_files_changed": 0,
+    "documentation_files_changed": 1,
+    "base_to_contract_diff": "1 test file; +32/-0 before the work-packet closure record",
+    "existing_contracts_reused": true,
+    "new_production_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "claim_boundaries": [
+    "GPU-110 is an authority audit and focused fail-closed contract, not a latency or memory benchmark.",
+    "GPU-102 timing remains diagnostic attribution only; no speedup is inferred from retaining or removing any pass.",
+    "No production incremental Tensor path exists as a result of GPU-110.",
+    "No Tensor-vs-Forest, GPU/Tensor-Core, CrewAI or AlphaEvolve superiority claim.",
+    "No OwnerApproval, PromotionReceipt, merge, Ready-for-Review or Gate transition."
+  ],
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_bounded_step": "GPU-111 should move to the next measured, authority-neutral compiler bucket: explicit selected-signature handling. Audit whether the existing requested RelationSignature objects can be reused directly by tuple key so selected-mode edges do not construct a fresh RelationSignature per Forest edge. Preserve discover-all semantics, avoid a persistent cache or new abstraction, and measure the existing GPU-100/102 probe before claiming any benefit."
+}

@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.runtimes.provider_invocation_authority as authority_module
+import daedalus.runtimes.provider.invocation_authority as authority_module
 
 
 SOURCE_PATH = Path(inspect.getsourcefile(authority_module) or "")
@@ -122,7 +122,7 @@ def test_signature_covers_nested_authorities_and_registry_contract() -> None:
     signing_source = ast.get_source_segment(SOURCE, signing) or ""
     assert "self.to_dict" in signing_source
     assert 'body["signature_sha256"] = "0" * 64' in signing_source
-    assert "canonical_sha" in _calls(signing)
+    assert "_canonical_digest" in _calls(signing)
 
     contract = next(
         node

@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.loop import IterationResult, LoopBounds, LoopReport, render
-from daedalus.text_integrity import (
+from daedalus.orchestration.loop import IterationResult, LoopBounds, LoopReport, render
+from daedalus.foundation.text_integrity import (
     TERMINAL_FIELD_MAX_CHARS,
     safe_terminal_text,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LOOP_SOURCE = ROOT / "daedalus" / "loop.py"
+LOOP_SOURCE = ROOT / "daedalus" / "orchestration" / "loop.py"
 
 _REPORT_FIELDS = {
     "run_id",
@@ -192,7 +192,10 @@ def test_every_runtime_text_surface_is_ascii_bounded_and_evidence_immutable(
 def test_loop_uses_neutral_canonical_terminal_helper() -> None:
     source = LOOP_SOURCE.read_text(encoding="utf-8")
 
-    assert "from .text_integrity import safe_terminal_text" in source
+    # The OWNER path, not just the leaf name: G1-FLAT-04 moved the helper
+    # into daedalus/foundation/, and this assertion is about which module
+    # supplies safe_terminal_text, so it has to name the one that does.
+    assert "from ..foundation.text_integrity import safe_terminal_text" in source
     assert "def _terminal_text" not in source
     assert "from .eval" not in source
     assert "daedalus.eval" not in source

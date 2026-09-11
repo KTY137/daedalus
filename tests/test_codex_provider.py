@@ -15,8 +15,15 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from daedalus import core, metrics
+from daedalus.limit_policy import (
+    ExecutionLimitPolicy,
+    LimitAxes,
+    LimitPolicyError,
+    MODE_CUSTOM,
+    MODE_UNBOUNDED_EXECUTION,
+)
 from daedalus.offload import offload
-from daedalus.projects import load_project
+from daedalus.foundation.projects import load_project
 from daedalus.provider_router import route_and_select
 from daedalus.providers import get_provider
 from daedalus.providers.codex_cli import CodexCLIProvider
@@ -40,14 +47,31 @@ def _completed(returncode=0, stdout="", stderr=""):
                                        stdout=stdout, stderr=stderr)
 
 
-def _write_last_message(payload_text):
+class _FakeCodex:
     """Side effect for the mocked subprocess.run: emulate `codex exec` writing
-    its final agent message to the --output-last-message file."""
-    def _side_effect(cmd, **kwargs):
+    its final agent message to the --output-last-message file, and record the
+    prompt it was handed.
+
+    The prompt arrives on the child's STDIN, not in argv (packet G1-SEC-01: a
+    Windows .cmd shim re-parses argv through cmd.exe). It is read here while
+    the handle is still open -- the provider's temp dir is gone by the time a
+    test inspects ``call_args``."""
+
+    def __init__(self, payload_text):
+        self.payload_text = payload_text
+        self.prompt = ""
+
+    def __call__(self, cmd, **kwargs):
         out_path = cmd[cmd.index("--output-last-message") + 1]
-        Path(out_path).write_text(payload_text, encoding="utf-8")
+        Path(out_path).write_text(self.payload_text, encoding="utf-8")
+        stdin = kwargs.get("stdin")
+        if hasattr(stdin, "read"):
+            self.prompt = stdin.read().decode("utf-8")
         return _completed(0)
-    return _side_effect
+
+
+def _write_last_message(payload_text):
+    return _FakeCodex(payload_text)
 
 
 class CodexProviderRunTests(unittest.TestCase):
@@ -84,6 +108,10 @@ class CodexProviderRunTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--sandbox") + 1], "workspace-write")
         self.assertIn("--skip-git-repo-check", cmd)
         self.assertIn("--output-schema", cmd)
+        # PROMPT is "-": codex reads the instructions from stdin, so no argv
+        # element carries model/user text into the .CMD shim's cmd.exe relay.
+        self.assertEqual(cmd[-1], "-")
+        self.assertNotIn("Daedalus Bridge Protocol v1.", " ".join(cmd))
         self.assertEqual(run.call_args.kwargs.get("cwd"), self.repo)
         self.assertEqual(run.call_args.kwargs.get("timeout"), 5)
 
@@ -139,6 +167,63 @@ class CodexProviderRunTests(unittest.TestCase):
             out = self._run()
         self.assertEqual(out["report"]["status"], "blocked")
         self.assertIn("could not be launched", out["report"]["summary"])
+
+    def test_unbounded_policy_removes_timeout_token_and_path_hint_caps(self):
+        paths = [f"docs/note-{index}.md" for index in range(20)]
+        policy = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+        fake = _write_last_message(json.dumps(VALID_REPORT))
+        with patch(
+            "daedalus.providers.codex_cli.subprocess.run",
+            side_effect=fake,
+        ) as run:
+            out = self._run(
+                paths=paths,
+                timeout_s=1,
+                execution_limit_policy=policy,
+            )
+
+        self.assertIsNone(run.call_args.kwargs["timeout"])
+        prompt = fake.prompt
+        self.assertIn(paths[-1], prompt)
+        self.assertNotIn("Minimize tokens:", prompt)
+        self.assertIn("unabridged detail", prompt)
+        self.assertEqual(out["execution_limit_policy"], policy.as_dict())
+        self.assertEqual(
+            out["execution_limit_policy_sha256"], policy.fingerprint_sha256
+        )
+
+    def test_custom_axes_are_independent_and_legacy_default_stays_bounded(self):
+        paths = [f"docs/note-{index}.md" for index in range(20)]
+        work_scope_off = ExecutionLimitPolicy(
+            mode=MODE_CUSTOM,
+            configured=LimitAxes(work_scope=False),
+        )
+        unbounded = _write_last_message(json.dumps(VALID_REPORT))
+        with patch(
+            "daedalus.providers.codex_cli.subprocess.run",
+            side_effect=unbounded,
+        ):
+            self._run(paths=paths, execution_limit_policy=work_scope_off)
+        unbounded_scope_prompt = unbounded.prompt
+        self.assertIn(paths[-1], unbounded_scope_prompt)
+        self.assertIn("Minimize tokens:", unbounded_scope_prompt)
+
+        bounded = _write_last_message(json.dumps(VALID_REPORT))
+        with patch(
+            "daedalus.providers.codex_cli.subprocess.run",
+            side_effect=bounded,
+        ) as run:
+            self._run(paths=paths)
+        bounded_prompt = bounded.prompt
+        self.assertNotIn(paths[-1], bounded_prompt)
+        self.assertIn(paths[11], bounded_prompt)
+        self.assertEqual(run.call_args.kwargs["timeout"], 5)
+
+    def test_invalid_execution_policy_refuses_before_egress_or_subprocess(self):
+        with patch("daedalus.providers.codex_cli.subprocess.run") as run:
+            with self.assertRaises(LimitPolicyError):
+                self._run(execution_limit_policy={"mode": "unbounded_execution"})
+        run.assert_not_called()
 
 
 class CodexEgressGateTests(unittest.TestCase):
@@ -251,60 +336,25 @@ class CodexLaneBridgeTests(unittest.TestCase):
         payload.update(overrides)
         return payload
 
-    def test_codex_lane_dispatches_to_provider(self):
-        out = {"provider": "codex_cli", "persona": "Cody", "agent": "docs-dev",
-               "report": VALID_REPORT}
+    def test_codex_lane_fails_closed_until_provider_is_brokered(self):
         with patch.object(CodexCLIProvider, "available", return_value=True), \
-                patch.object(CodexCLIProvider, "run", return_value=out) as run:
-            report = core.process_bridge_payload(self._payload())
-        run.assert_called_once()
-        self.assertEqual(report["bridge_status"], "done")
-        self.assertEqual(report["lane"], "codex")
-        self.assertEqual(report["report"]["status"], "done")
-        # no project policy loaded -> fail-closed: read-only sandbox
-        self.assertFalse(run.call_args.kwargs["writable"])
-
-    def test_codex_lane_remains_read_only_until_forge(self):
-        out = {"provider": "codex_cli", "persona": "Riley", "agent": "ui-ux-dev",
-               "report": VALID_REPORT}
-        payload = self._payload(project="project_tct",
-                                objective="Draft docstrings for the scan panel",
-                                paths=["TCT_app/gui/scan_panel.py"])
-        with patch.object(CodexCLIProvider, "available", return_value=True), \
-                patch.object(CodexCLIProvider, "run", return_value=out) as run:
-            report = core.process_bridge_payload(payload)
-        self.assertEqual(report["bridge_status"], "done")
-        self.assertFalse(run.call_args.kwargs["writable"])
-        self.assertIsNotNone(run.call_args.kwargs["policy"])
-        self.assertIn("advisory-only", report["mutation_blocked"])
-
-    def test_codex_lane_refuses_denied_path_before_dispatch(self):
-        payload = self._payload(project="project_tct",
-                                paths=["TCT_app/devices/motor_grbl.py"])
-        with patch.object(CodexCLIProvider, "run", MagicMock()) as run, \
-                patch.object(CodexCLIProvider, "available", return_value=True):
-            report = core.process_bridge_payload(payload)
-        run.assert_not_called()
-        self.assertEqual(report["bridge_status"], "failed")
-        self.assertEqual(report["lane"], "codex")
-        self.assertIn("egress policy refused", report["error"])
-
-    def test_codex_lane_never_falls_back_to_claude(self):
-        with patch.object(CodexCLIProvider, "available", return_value=True), \
-                patch.object(CodexCLIProvider, "run", side_effect=RuntimeError("boom")), \
-                patch("daedalus.core._ask_claude_report") as ask:
-            report = core.process_bridge_payload(self._payload())
-        ask.assert_not_called()
-        self.assertEqual(report["bridge_status"], "failed")
-        self.assertEqual(report["lane"], "codex")
-
-    def test_codex_lane_reports_missing_cli(self):
-        with patch.object(CodexCLIProvider, "available", return_value=False), \
                 patch.object(CodexCLIProvider, "run", MagicMock()) as run:
             report = core.process_bridge_payload(self._payload())
         run.assert_not_called()
         self.assertEqual(report["bridge_status"], "failed")
-        self.assertIn("not on PATH", report["error"])
+        self.assertEqual(report["lane"], "codex")
+        self.assertIn("Effect Lease", report["error"])
+        self.assertIn("broker", report["error"])
+
+    def test_codex_lane_never_falls_back_to_claude(self):
+        with patch.object(CodexCLIProvider, "available", return_value=True), \
+                patch.object(CodexCLIProvider, "run", MagicMock()) as run, \
+                patch("daedalus.core._ask_claude_report") as ask:
+            report = core.process_bridge_payload(self._payload())
+        run.assert_not_called()
+        ask.assert_not_called()
+        self.assertEqual(report["bridge_status"], "failed")
+        self.assertEqual(report["lane"], "codex")
 
     def test_availability_from_doctor_includes_codex(self):
         ready = {"claude_cli": True, "can_offload_local": False,

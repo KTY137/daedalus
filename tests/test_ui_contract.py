@@ -13,7 +13,8 @@ import urllib.error
 import urllib.request
 from unittest import mock
 
-from daedalus import core, web_api
+from daedalus import core
+from daedalus.interfaces.http import web_api
 
 
 # The keys BOTH surfaces depend on. If someone adds a key the webview needs,

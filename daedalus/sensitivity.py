@@ -164,8 +164,30 @@ SECRET_FLOOR_CONTENT: tuple[str, ...] = (
     # ~70ms. A shape-based floor still cannot reach these (documented, not chased):
     # unquoted values (password: secret / YAML unquoted), a secret split across
     # lines, or a value whose first embedded escaped quote is within 4 chars.
-    r"""(?i)(?:passwd|password|pwd|secret|token|api[_-]?key|access[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])[^'"\n]{4,}\1""",
-    r"""(?i)(?:passwd|password|pwd|secret|token|api[_-]?key|access[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])\1\1[^\n]{4,}""",
+    #
+    # ``(?<!tik)token`` (2026-09-09). ``token`` had no left boundary, so it
+    # matched inside ``TIKTOKEN_``: `G1-TOKENIZER-01`'s
+    # ``TIKTOKEN_ENCODING = "cl100k_base"`` -- a public encoding name -- was
+    # floored as a credential, as was a COMMENT containing ``# tiktoken: "..."``.
+    #
+    # Why the narrow exclusion and not a general left boundary. A boundary like
+    # ``(?<![A-Za-z0-9])token`` reads cleaner and would also stop matching
+    # ``mytoken``/``apitoken``/``usertoken`` -- plausible names for a REAL
+    # secret in careless code. Between over-firing on a public constant and
+    # under-firing on a credential, this table must prefer over-firing; so the
+    # exclusion is exactly the colliding library name and nothing more.
+    # `tokenizer`/`detokenize` style collisions are NOT fixed by this and are
+    # recorded rather than chased: they begin with the keyword, so no
+    # left-boundary rule would help either.
+    #
+    # Paid for by rewriting ``api[_-]?key|access[_-]?key`` as
+    # ``(?:api|access)[_-]?key`` -- the identical keyword set, 4 characters
+    # shorter. That mattered: the first attempt at this fix pushed both
+    # patterns to 203 characters, and ``_compile_labeled`` refused to build the
+    # table. It failed LOUDLY, which is the whole point of that assertion, and
+    # is why the cap is not simply raised here. Current length 199; headroom 1.
+    r"""(?i)(?:passwd|password|pwd|secret|(?<!tik)token|(?:api|access)[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])[^'"\n]{4,}\1""",
+    r"""(?i)(?:passwd|password|pwd|secret|(?<!tik)token|(?:api|access)[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])\1\1[^\n]{4,}""",
 )
 
 # Human-readable label per floor-content pattern, so the ``withheld`` report
@@ -207,7 +229,7 @@ GENERIC_MID_RISK_TERMS: tuple[str, ...] = (
 # THE SECOND HALF OF THIS TUPLE IS THE HARNESS'S OWN GOVERNANCE, and it was
 # missing. MEASURED against ``DEFAULT_POLICY`` -- which is what
 # ``path_write_blocked(path, None)`` uses, and what a
-# ``python -m daedalus.loop --repo-root ... --arm`` without ``--project``
+# ``python -m daedalus.orchestration.loop --repo-root ... --arm`` without ``--project``
 # reaches through ``KairosScheduler(project=None)``:
 #
 #     WRITABLE  AGENTS.md
@@ -506,6 +528,27 @@ _LOOPBACK_LITERALS = frozenset({"127.0.0.1", "::1", "[::1]"})
 ENV_TRUSTED_HOSTS = "DAEDALUS_TRUSTED_HOSTS"
 
 
+def is_loopback_literal(
+    host: str | None,
+    *,
+    allow_bracketed_ipv6: bool = True,
+) -> bool:
+    """Whether ``host`` is one of the canonical numeric loopback literals.
+
+    Unlike :func:`is_loopback_host`, this deliberately accepts no URL, port,
+    alternate 127/8 address, or name.  Protocol contracts that serialize a
+    bare connect host can therefore reuse the single loopback table without
+    widening their wire grammar or minting another local copy of that table.
+    """
+
+    if not isinstance(host, str):
+        return False
+    raw = host.strip().lower()
+    if raw not in _LOOPBACK_LITERALS:
+        return False
+    return allow_bracketed_ipv6 or raw != "[::1]"
+
+
 def is_loopback_host(host: str | None) -> bool:
     """Is ``host`` PHYSICALLY this machine? Undeclarable, unwidenable.
 
@@ -587,7 +630,21 @@ def declared_trusted_hosts() -> frozenset[str]:
     """
     import os  # local, matching this module's deliberately small import surface
 
-    raw = os.environ.get(ENV_TRUSTED_HOSTS, "") or ""
+    return parse_declared_trusted_hosts(os.environ.get(ENV_TRUSTED_HOSTS, "") or "")
+
+
+def parse_declared_trusted_hosts(raw: str) -> frozenset[str]:
+    """The parsing half of :func:`declared_trusted_hosts`, without the read.
+
+    Split out so a projection can say what a GIVEN declaration would resolve to
+    without reading this process's environment and without re-deriving the
+    rule.  This module's own standing instruction applies: there is one answer
+    to "which addresses did the operator declare", and a settings panel that
+    computed a second one would be the copy that drifts -- and it would drift
+    in the worst direction, listing a name like ``localhost`` as a declared
+    trust-boundary host when the rule below deliberately drops every name.
+    """
+
     out: set[str] = set()
     for part in raw.split(","):
         entry = part.strip()

@@ -1,0 +1,155 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-MAP-07",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "d47560a86e257edc05116b9561389182e6976153",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "implementation",
+          "authority",
+          "source"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation",
+          "gardener"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "gardener",
+          "next"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification"
+        ]
+      }
+    }
+  },
+  "id": "G1-GARDEN-MAP-07",
+  "title": "Selectively reintegrate declared project-center semantics from packet/g1-map-02",
+  "status": "closed-implemented",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "d47560a86e257edc05116b9561389182e6976153",
+  "source": {
+    "branch": "packet/g1-map-02",
+    "head_at_assessment": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
+    "selected_commit": "37ca6080f24cdb2ba9e05b6ea1a31f666bbb616c",
+    "selected_blobs": {
+      "daedalus/structcore/ignore.py": "ed713f808f60f77a2109d3b11dfe7c51cf5935d0",
+      "tests/test_structcore_center_directive.py": "e74b012094994df28e73df46add8d3854a579a8d"
+    },
+    "not_transplanted": {
+      "tests/test_mapping_scope.py": "d793822860b09bd6447c3079a886586098360972",
+      "reason": "the legacy mapping-scope test belongs to a broader packet state not yet selectively contained on the current canonical line; importing it would widen this work packet beyond the declared-center owner and focused regression"
+    },
+    "ref_retained": true,
+    "wholesale_merge": false,
+    "archive_target_used": false
+  },
+  "implementation": {
+    "commit": "4f2c4c5e7b6661367d0bf70f51bf34e9c96665ae",
+    "strategy": "reuse the exact historical production and focused-test blobs on the current canonical gardening tree, without making packet/g1-map-02 a parent",
+    "behavior": [
+      "recognise center: lines in .daedalusignore as project-scope directives rather than ignore patterns",
+      "parse one or multiple declared center roots with comma or whitespace separation",
+      "resolve project scope with non-empty explicit center first, DAEDALUS_CENTER second, and the repository declaration last",
+      "preserve ignore-rule composition and include the resolved center in the existing ProjectScope fingerprint"
+    ],
+    "parallel_abstraction_added": false,
+    "new_public_api_surface": false
+  },
+  "verification_binding": {
+    "commit": "96476c7000ff8aba73843965769abd5b5a491fad",
+    "workflow": ".github/workflows/gate1-ignition.yml",
+    "workflow_blob": "e188b5459a812082b0c389b3ea6b5965884942aa",
+    "change": "bind daedalus/structcore/ignore.py and tests/test_structcore_center_directive.py to the existing Gate 1 workflow and run the focused regression inside its existing Python/hash-seed matrix",
+    "new_workflow_added": false
+  },
+  "verification": {
+    "gate1": {
+      "run_id": 34005431694,
+      "event": "pull_request",
+      "head_sha": "96476c7000ff8aba73843965769abd5b5a491fad",
+      "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "merge_preview_sha": "07dd438dd4118ca23d0b862625d9d4de1fc4f1fa",
+      "conclusion": "success",
+      "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+      "matrix_jobs": "all successful",
+      "isolated_wheel": "successful",
+      "focused_test_in_command": "tests/test_structcore_center_directive.py",
+      "representative_job": {
+        "job_id": 101411642375,
+        "python": "CPython 3.12.14",
+        "hash_seed": "0",
+        "result": "210 passed, 13 warnings in 141.05s"
+      },
+      "claim_type": "PR merge-preview integration evidence, not raw-head checkout evidence"
+    },
+    "fourfold_tensor": {
+      "run_id": 34005431779,
+      "event": "pull_request",
+      "head_sha": "96476c7000ff8aba73843965769abd5b5a491fad",
+      "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "conclusion": "success",
+      "contract_matrix": "successful",
+      "isolated_wheel": "successful",
+      "repository_collection": "successful",
+      "full_repository_suite": "manual-only/skipped",
+      "claim_type": "PR integration evidence"
+    },
+    "claim_boundary": {
+      "raw_head_checkout_green_claim": false,
+      "full_repository_test_suite_claim": false,
+      "performance_claim": false,
+      "tensor_vs_forest_claim": false,
+      "crewai_claim": false,
+      "alphaevolve_claim": false
+    }
+  },
+  "gardener": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "archive_write": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "parallel_abstraction_added": false,
+    "source_branch_preserved": true,
+    "historical_blobs_preserved_and_reused": true
+  },
+  "authority": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "automatic_merge": false,
+    "gate_transition": false
+  },
+  "next": "Keep packet/g1-map-02 as an evidence-bearing ref while its remaining unique mapping commits are assessed commit-by-commit. A separate bounded packet may also implement the MAP-06 coverage dependency decision using a freshly regenerated current uv.lock. Do not wholesale-merge packet/g1-map-02 and do not move it into archive/legacy-20260830."
+}

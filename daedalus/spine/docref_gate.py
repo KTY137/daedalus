@@ -41,7 +41,7 @@ Fact preservation -- whether the edit quietly deleted an unrelated true
 sentence. That needs the document's text from the instant BEFORE the write, and
 this process runs after it, inside a sandbox, with no honest source for it
 (``git show HEAD:`` is a lie whenever the tree was already dirty). It is checked
-where the before-image actually exists: ``daedalus.verifier.verify``'s prose
+where the before-image actually exists: ``daedalus.orchestration.verifier.verify``'s prose
 branch, fed from the writer's own rollback backups. The two checks are not
 redundant and neither subsumes the other -- this one asks "did the claimed thing
 get fixed honestly", the other asks "did anything else quietly vanish".

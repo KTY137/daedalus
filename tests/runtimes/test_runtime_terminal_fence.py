@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import importlib.util
 import sys
@@ -15,10 +16,12 @@ from daedalus.runtimes import trust_store
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
     RuntimeProviderTrustFenceError,
-    run_runtime_provider,
+)
+from runtime_provider_test_double import (
+    run_runtime_provider_test_double as run_runtime_provider,
 )
 from daedalus.runtimes.fixture_fault_collector import report_runtime_fault_outcome
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )
@@ -168,7 +171,7 @@ def _rotate_record_identity(ledger, record) -> None:
         reason="",
     )
     assert rotated.record_sha256 != record.record_sha256
-    with ledger._connect() as connection:
+    with contextlib.closing(ledger._connect()) as connection:
         connection.execute("BEGIN IMMEDIATE")
         ledger._replace(connection, rotated)
         connection.execute("COMMIT")
@@ -225,7 +228,7 @@ def test_quarantine_waits_until_completed_receipt_is_durable(
     ):
         if outcome == "completed":
             finish_entered.set()
-            assert finish_release.wait(timeout=5)
+            assert finish_release.wait(timeout=45), "terminal fence was not released"
         terminals.append(outcome)
         return original_finish(
             self,
@@ -254,15 +257,17 @@ def test_quarantine_waits_until_completed_receipt_is_durable(
         except BaseException as exc:  # pragma: no cover - surfaced by assertion
             error_box.append(exc)
 
-    broker_thread = threading.Thread(target=invoke_broker)
-    broker_thread.start()
-    assert finish_entered.wait(timeout=5)
-
+    # Interpreter/filesystem startup is not the ordering property under test.
+    # A five-second setup deadline failed on the Windows 3.12 hosted runner;
+    # retain a bounded wait but always release/join workers on assertion failure.
+    broker_thread = threading.Thread(target=invoke_broker, daemon=True)
     quarantine_done = threading.Event()
+    quarantine_started = threading.Event()
     quarantine_error: list[BaseException] = []
 
     def quarantine() -> None:
         try:
+            quarantine_started.set()
             trust.quarantine(
                 runtime_id=capability.runtime_id,
                 envelope_sha256=capability.runtime_envelope_sha256,
@@ -271,20 +276,26 @@ def test_quarantine_waits_until_completed_receipt_is_durable(
             )
         except BaseException as exc:  # pragma: no cover - surfaced by assertion
             quarantine_error.append(exc)
-        quarantine_done.set()
+        finally:
+            quarantine_done.set()
 
-    quarantine_thread = threading.Thread(target=quarantine)
-    quarantine_thread.start()
+    quarantine_thread = threading.Thread(target=quarantine, daemon=True)
+    broker_thread.start()
+    try:
+        assert finish_entered.wait(timeout=30), f"broker did not reach terminal fence: {error_box!r}"
+        quarantine_thread.start()
+        assert quarantine_started.wait(timeout=10), "quarantine worker did not start"
+        # BEGIN IMMEDIATE protects terminal persistence; quarantine must not
+        # complete while the receipt's release is deliberately withheld.
+        assert quarantine_done.wait(timeout=0.1) is False
+    finally:
+        finish_release.set()
+        broker_thread.join(timeout=30)
+        if quarantine_thread.ident is not None:
+            quarantine_thread.join(timeout=30)
 
-    # The terminal fence owns BEGIN IMMEDIATE while the effect receipt is being
-    # persisted, so a concurrent quarantine cannot commit in the middle.
-    assert quarantine_done.wait(timeout=0.1) is False
-    finish_release.set()
-    broker_thread.join(timeout=10)
-    quarantine_thread.join(timeout=10)
-
-    assert not broker_thread.is_alive()
-    assert not quarantine_thread.is_alive()
+    assert not broker_thread.is_alive(), "broker worker did not terminate"
+    assert not quarantine_thread.is_alive(), "quarantine worker did not terminate"
     assert not error_box
     assert not quarantine_error
     result = result_box["result"]

@@ -23,6 +23,7 @@ go red would mean the checks measure nothing.
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 
 import pytest
@@ -30,6 +31,44 @@ import pytest
 from daedalus.ignition import checks as ignition_checks
 from daedalus.ignition import gate1
 from daedalus.schemas import EvidencePacket, MissionContract
+from daedalus.spine import picker as spine_picker
+from daedalus.spine.killswitch import KillSwitch
+from daedalus.spine.ledger import SpineLedger
+from daedalus.storage import ArtifactStore
+
+
+_TEST_SWITCH: KillSwitch | None = None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_ignition_switch(tmp_path_factory):
+    """Isolate both operator prerequisites used by the attempt-lease issuer."""
+
+    global _TEST_SWITCH
+    authority_state = tmp_path_factory.mktemp("ignition-authority")
+    switch = KillSwitch(authority_state / "permit")
+    switch.arm()
+    ledger_path = authority_state / "spine.sqlite3"
+    ledger = SpineLedger(ledger_path)
+    ledger.close()
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr(
+        spine_picker,
+        "resolve_spine_db_path",
+        lambda *_args, **_kwargs: (ledger_path, None),
+    )
+    _TEST_SWITCH = switch
+    try:
+        yield
+    finally:
+        _TEST_SWITCH = None
+        patcher.undo()
+        switch.stop("test module complete")
+
+
+def _run_gate1(**kwargs):
+    assert _TEST_SWITCH is not None
+    return gate1.run_gate1_ignition(switch=_TEST_SWITCH, **kwargs)
 
 
 # --------------------------------------------------------------------------- #
@@ -38,7 +77,7 @@ from daedalus.schemas import EvidencePacket, MissionContract
 @pytest.fixture(scope="module")
 def slice_result(tmp_path_factory):
     receipts = tmp_path_factory.mktemp("ignition-receipts")
-    return gate1.run_gate1_ignition(
+    return _run_gate1(
         receipt_root=receipts,
         collected_at="2026-08-22T00:00:00Z",
     )
@@ -49,10 +88,10 @@ def replayed(tmp_path_factory):
     """The same inputs, run twice into the same receipt directory."""
 
     receipts = tmp_path_factory.mktemp("ignition-replay")
-    first = gate1.run_gate1_ignition(
+    first = _run_gate1(
         receipt_root=receipts, collected_at="2026-08-22T00:00:00Z"
     )
-    second = gate1.run_gate1_ignition(
+    second = _run_gate1(
         receipt_root=receipts, collected_at="2026-08-22T00:00:00Z"
     )
     return first, second
@@ -188,7 +227,7 @@ def test_a_refused_lease_is_a_blocker_not_a_silent_unleased_run(
 
     monkeypatch.setattr(gate1, "WaveLeaseDenied", _Denied)
     monkeypatch.setattr(gate1, "acquire_attempt_lease", lambda *a, **kw: _Denied())
-    result = gate1.run_gate1_ignition(
+    result = _run_gate1(
         receipt_root=tmp_path / "receipts",
         collected_at="2026-08-22T00:00:00Z",
     )
@@ -374,6 +413,62 @@ def test_assurance_falls_when_no_check_is_anchored():
     assert "outside the candidate's write scope" in reason and problem
 
 
+def _item(slice_result, evidence_id):
+    for item in slice_result.packet.items:
+        if item.evidence_id == evidence_id:
+            return item
+    raise AssertionError(f"no evidence item {evidence_id!r}")
+
+
+def test_the_behavior_item_names_the_module_that_actually_judged_it(slice_result):
+    """`criterion_paths` is a claim about what judged, and it was wrong.
+
+    It named ``daedalus/ignition/gate1.py``. The probe body and the result
+    contract are ``daedalus.ignition.runner._BEHAVIOR_PROBE`` and
+    ``_validated_behavior``; this module only reads the answer back. G1-ISO-01
+    moved the probe into a child interpreter, which made the stale name wrong
+    in a second way as well.
+    """
+    detail = _item(slice_result, "gate1-behavior").details
+
+    assert "daedalus/ignition/runner.py" in detail["criterion_paths"]
+    assert "daedalus/ignition/gate1.py" not in detail["criterion_paths"]
+
+
+def test_the_behavior_item_states_its_own_residual(slice_result):
+    """It used to borrow the composed checks' reason, which it has no claim to.
+
+    The composed reason describes an anchored conformance suite frozen in the
+    judged tree outside every work item's target_paths. The behavior probe has
+    no such anchor: its criterion is module code, and its answer channel is
+    forgeable in four lines through ``__main__`` under ``python -I -c``. An
+    item that cites someone else's seal is overstating what it is worth.
+    """
+    behavior = _item(slice_result, "gate1-behavior").details["assurance_reason"]
+    composed = _item(slice_result, "gate1-check-pytest").details["assurance_reason"]
+
+    assert behavior != composed, "the behavior item is still citing another check's seal"
+    assert "runner.py" in behavior
+    assert "__main__" in behavior, "the measured forgery residual is not stated"
+    assert "not a verdict sealed from the candidate" in behavior
+
+
+def test_the_derived_assurance_reaches_every_item(slice_result):
+    """No item carries an assurance the derivation did not produce.
+
+    HONEST LIMIT, stated because the alternative is a test that looks like a
+    guard and is not: in a green run every item is `deterministic`, so this
+    cannot distinguish "derived" from "asserted the same value". It is a
+    consistency assertion, and the discriminating case -- a run where the
+    derivation returns `unverified` -- is refused at packet assembly by
+    `kernel.contracts.canonical` before any item is observable. That refusal
+    is covered by `test_an_unverified_assurance_prevents_the_packet`.
+    """
+    assurances = {item.assurance for item in slice_result.packet.items}
+
+    assert len(assurances) == 1, f"items disagree about assurance: {assurances}"
+
+
 def test_an_unverified_assurance_prevents_the_packet(slice_result):
     """The kernel refuses the packet rather than downgrading it -- confirm it."""
 
@@ -535,16 +630,21 @@ def test_a_half_finished_rename_is_refused_and_still_writes_a_receipt(
         )
 
     monkeypatch.setattr(gate1, "plan_work_items", crippled)
-    result = gate1.run_gate1_ignition(
+    result = _run_gate1(
         receipt_root=tmp_path / "receipts", collected_at="2026-08-22T00:00:00Z"
     )
-    assert result.packet is None
+    assert result.packet is not None
+    assert result.packet.evaluation_status == "failed"
+    assert result.candidate_snapshot is None
+    assert not any(item.evaluator == "fourfold.snapshot-binding" for item in result.packet.items)
     assert result.receipt_path.exists()
     assert result.receipt["schema"] == "daedalus-gate1-ignition-receipt/1"
-    assert result.receipt["evidence_packet"]["packet_sha256"] is None
+    assert result.receipt["evidence_packet"]["packet_sha256"] == result.packet.digest
+    assert result.receipt["evidence_packet"]["evaluation_status"] == "failed"
+    _retained_packet_bytes(result)
     assert any("does not compile" in blocker for blocker in result.blockers)
     assert any("did not produce a gated candidate" in b for b in result.blockers)
-    assert result.receipt["promotion"]["status"] == "nominated, not promoted"
+    assert result.receipt["promotion"]["status"] == "refused, not promoted"
 
 
 # --------------------------------------------------------------------------- #
@@ -652,6 +752,7 @@ def test_a_vacuous_criterion_turns_every_node_into_a_guard(tmp_path):
 COMPLETE_REPLAY = {
     "is_replay": True,
     "same_fixture": True,
+    "previous_run_complete": True,
     "criterion_changed_since_previous": False,
     "mission_id_stable": True,
     "work_item_ids_stable": True,
@@ -706,6 +807,124 @@ def test_a_comparison_that_could_not_be_measured_is_not_a_pass(missing):
     assert gate1._replay_blockers({"is_replay": True}) != []
 
 
+def test_a_predecessor_that_did_not_complete_is_not_a_replay():
+    """G1-RENOVATION-01 finding F2: ``previous_run_complete`` was a conjunct of
+    ``replay_demonstrated`` and of nothing else.
+
+    MEASURED 2026-09-06, three consecutive ``python -m daedalus.ignition`` runs:
+    run 1 exited 1 with an evaluator-bundle blocker; run 2 exited **0** with
+    ``blockers: []`` while ``replay.replay_demonstrated`` was ``false``, because
+    run 1 had not completed. A CI job gating on the exit code would have read
+    run 2 as a demonstrated Gate-1 replay.
+    """
+
+    blockers = gate1._replay_blockers({**COMPLETE_REPLAY, "previous_run_complete": False})
+    assert len(blockers) == 1
+    assert "previous run did not complete" in blockers[0]
+
+
+def test_a_predecessor_whose_completeness_was_not_measured_is_not_a_pass():
+    """The module's own rule: a field that is not there is not a pass."""
+
+    partial = {k: v for k, v in COMPLETE_REPLAY.items() if k != "previous_run_complete"}
+    blockers = gate1._replay_blockers(partial)
+    assert len(blockers) == 1
+    assert "incomplete" in blockers[0] and "previous_run_complete" in blockers[0]
+
+
+def test_a_criterion_change_is_refused_even_when_every_identity_matched():
+    """The second half of the same hole. ``_replay_blockers`` named a criterion
+    change only inside the ``unstable`` branch, so a predecessor written before
+    the discrimination block existed -- no ``conformance_test_sha256`` at all,
+    therefore ``criterion_changed_since_previous`` true -- came back with no
+    blocker at all while ``replay_demonstrated`` was false."""
+
+    blockers = gate1._replay_blockers({
+        **COMPLETE_REPLAY,
+        "criterion_changed_since_previous": True,
+        "previous_conformance_test_sha256": None,
+    })
+    assert len(blockers) == 1 and "criterion change" in blockers[0]
+
+
+def _exit_code(body, packet=object()):
+    """The exit code ``python -m daedalus.ignition`` computes.
+
+    Spelled here the way ``daedalus/ignition/__main__.py:78`` spells it --
+    ``1 if result.blockers or result.packet is None else 0`` -- over the
+    receipt's own blocker list, which is what ``IgnitionSliceResult.blockers``
+    is read back from (``gate1.py:1342``).
+    """
+
+    return 1 if (body.get("blockers") or packet is None) else 0
+
+
+def _synthetic_receipt(*, blockers, collected_at="2026-09-06T00:00:00Z"):
+    """A receipt body shaped like the ones ``_build_receipt`` produces.
+
+    Only the fields ``write_receipt``'s replay comparison reads are filled in;
+    everything the comparison does not touch is left out on purpose, so a
+    future field this test does not know about cannot make it pass by accident.
+    """
+
+    return {
+        "mission_id": "mission-gate1-voltage-ignition",
+        "work_item_ids": ["wi-000-aaaaaaaaaaaa", "wi-001-bbbbbbbbbbbb"],
+        "mission_sha256": "c" * 64,
+        "collected_at": collected_at,
+        "blockers": list(blockers),
+        "evidence_packet": {"packet_sha256": "d" * 64, "evaluation_status": "passed"},
+        "checks": {"pytest": {"report_sha256": "e" * 64}},
+        "fourfold": {"graph_delta_sha256": "f" * 64},
+        "evaluator_bundle": {"digest": "1" * 64},
+        "discrimination": {
+            "before_state": {
+                "conformance_test_sha256": ignition_checks.CONFORMANCE_TEST_SHA256
+            }
+        },
+        "replay": {
+            "base_revision": "a" * 40,
+            "candidate_revision": "b" * 64,
+            "fixture_tree_sha256": "9" * 64,
+        },
+    }
+
+
+def test_exit_zero_implies_replay_demonstrated(tmp_path):
+    """The Gate-1 door's exit code and its replay claim must agree.
+
+    B1's run 1 ended in blockers (evaluator-bundle drift against a stale
+    receipt); run 2 was clean in every way except that its predecessor had not
+    completed -- and it exited 0. This is that sequence, driven through the one
+    function that can make the comparison, ``write_receipt``.
+    """
+
+    receipts = tmp_path / "receipts"
+    _, first = gate1.write_receipt(
+        _synthetic_receipt(blockers=["the previous receipt was produced by a "
+                                     "different evaluator bundle (6f6326038841)"]),
+        receipts,
+    )
+    assert _exit_code(first) == 1
+    assert first["replay"]["replay_demonstrated"] is False
+
+    _, second = gate1.write_receipt(_synthetic_receipt(blockers=[]), receipts)
+    assert second["replay"]["is_replay"] is True
+    assert second["replay"]["previous_run_complete"] is False
+    assert (_exit_code(second) == 0) == (
+        second["replay"]["replay_demonstrated"] is True
+    ), (
+        "exit 0 with replay_demonstrated false is what a CI job reads as a "
+        "demonstrated Gate-1 replay: " + json.dumps(second["blockers"])
+    )
+
+    # ...and the third run, whose predecessor DID complete, is the replay.
+    _, third = gate1.write_receipt(_synthetic_receipt(blockers=[]), receipts)
+    assert third["replay"]["previous_run_complete"] is True
+    assert third["replay"]["replay_demonstrated"] is True
+    assert _exit_code(third) == 0
+
+
 def test_a_previous_receipt_from_another_fixture_is_not_a_replay():
     """Every identity in the replay block is a function of the fixture tree.
     Comparing across two fixtures would report a deterministic slice as
@@ -722,7 +941,7 @@ def test_a_single_run_receipt_does_not_claim_replay(replayed, tmp_path):
     rather than let silence stand in for evidence (plan section 10 asks for
     restart/replay)."""
 
-    fresh = gate1.run_gate1_ignition(
+    fresh = _run_gate1(
         receipt_root=tmp_path / "fresh-receipts", collected_at="2026-08-23T00:00:00Z"
     )
     assert fresh.receipt["replay"]["is_replay"] is False
@@ -768,7 +987,11 @@ def test_the_fixture_is_byte_identical_in_every_checkout():
 
     offenders = []
     for path in sorted(gate1.DEFAULT_FIXTURE.rglob("*")):
-        if not path.is_file():
+        if (
+            not path.is_file()
+            or "__pycache__" in path.parts
+            or path.suffix in {".pyc", ".pyo"}
+        ):
             continue
         blob = path.read_bytes()
         if bytes([13]) in blob:  # a carriage return
@@ -928,3 +1151,167 @@ def test_the_blocker_is_measured_not_asserted(slice_result):
         assert len(blocker["measured"]) == len(weak)
     else:
         assert blocker is None
+
+
+def _retained_packet_bytes(result):
+    store = ArtifactStore(result.receipt_path.parent / "store")
+    projected = result.receipt["evidence_packet"]["packet_locator"]
+    locator = store.load_locator(projected["locator_uri"].split(":")[-1])
+    store.verify(locator)
+    assert locator.portable_summary() == projected
+    assert locator.artifact_sha256 == result.packet.digest
+    payload = store.get_bytes(locator.artifact_sha256)
+    assert payload == result.packet.to_json().encode("utf-8")
+    assert EvidencePacket.from_dict(json.loads(payload)).digest == result.packet.digest
+    return payload
+
+
+def test_real_failed_candidate_evidence_survives_two_later_successful_candidates(
+    tmp_path, monkeypatch, record_property,
+):
+    """Run all three arms before asserting retention, including on old source.
+
+    The only candidate perturbation changes one CSV value after composition
+    and before identity capture. Real compilation, pytest, schema and link
+    checks still execute. No observation or verdict is manufactured here.
+    """
+    from daedalus.kernel.source_trees import SourceTreeStore
+
+    receipts = tmp_path / "retention-receipts"
+    mission_store = receipts / gate1.SESSION_MISSION_ID / "store"
+    original_compose = gate1.compose_candidate
+    original_put = ArtifactStore.put_bytes
+    original_capture = SourceTreeStore.capture_tree
+    observed_outputs = []
+    captured_candidates = []
+    observation_dir = tmp_path / "three-run-retention-observations"
+    observation_dir.mkdir()
+    composition_count = 0
+    perturbation = {}
+
+    def compose_with_first_bad_value(*args, **kwargs):
+        nonlocal composition_count
+        candidate = original_compose(*args, **kwargs)
+        composition_count += 1
+        if composition_count == 1:
+            csv = candidate / "data/events.csv"
+            before = csv.read_bytes()
+            assert before.splitlines()[0] == b"id,bias_voltage"
+            assert before.count(b"1,125.0\n") == 1
+            after = before.replace(b"1,125.0\n", b"1,not-a-number\n")
+            csv.write_bytes(after)
+            perturbation.update(before_sha256=hashlib.sha256(before).hexdigest(),
+                                after_sha256=hashlib.sha256(after).hexdigest())
+        return candidate
+
+    def observe_put(store, data, *args, **kwargs):
+        locator = original_put(store, data, *args, **kwargs)
+        if store.root.resolve() == mission_store.resolve():
+            observed_outputs.append((locator, bytes(data)))
+            # Independent test custody retains the red baseline even though
+            # the old production reset deletes its own earlier outputs. Only
+            # the real store is used below to establish production retention.
+            (observation_dir / f"{locator.artifact_sha256}.bin").write_bytes(bytes(data))
+        return locator
+
+    def observe_capture(store, source, *args, **kwargs):
+        result = original_capture(store, source, *args, **kwargs)
+        if kwargs.get("tree_id") == f"{gate1.SESSION_MISSION_ID}-candidate":
+            from pathlib import Path
+            captured_candidates.append((result.ref.sha256, (Path(source) / "data/events.csv").read_bytes()))
+            (observation_dir / f"candidate-{len(captured_candidates)}.csv").write_bytes(captured_candidates[-1][1])
+        return result
+
+    results = []
+    raw_receipts = []
+    outputs_after_run = []
+    fixture_before = gate1.tree_digest(gate1.DEFAULT_FIXTURE)
+    with monkeypatch.context() as patcher:
+        patcher.setattr(gate1, "compose_candidate", compose_with_first_bad_value)
+        patcher.setattr(ArtifactStore, "put_bytes", observe_put)
+        patcher.setattr(SourceTreeStore, "capture_tree", observe_capture)
+        for index in range(3):
+            result = _run_gate1(
+                receipt_root=receipts, workspace=tmp_path / f"retention-work-{index}",
+                collected_at="2026-08-22T00:00:00Z", gate_timeout_s=300,
+            )
+            results.append(result)
+            raw_receipts.append(result.receipt_path.read_bytes())
+            (observation_dir / f"receipt-{index}.json").write_bytes(raw_receipts[-1])
+            outputs_after_run.append(len(observed_outputs))
+
+    # Retain measurements even on the expected red baseline before inspecting
+    # the new packet/retention behavior. All three actual runs have completed.
+    measurement = {
+        "completed_invocations": len(results), "perturbation": perturbation,
+        "observed_output_counts": outputs_after_run,
+        "runs": [{
+            "packet_status": r.packet.evaluation_status if r.packet else None,
+            "packet_sha256": r.packet.digest if r.packet else None,
+            "candidate_source_sha256": r.candidate_source_tree.ref.sha256,
+            "evaluator_bundle_sha256": r.receipt["evaluator_bundle"]["digest"],
+            "receipt_sha256": hashlib.sha256(raw).hexdigest(),
+            "cost": r.receipt.get("cost"), "blockers": list(r.blockers),
+        } for r, raw in zip(results, raw_receipts)],
+    }
+    record_property("three_run_retention_measurement", json.dumps(measurement, sort_keys=True))
+    record_property("three_run_retention_evidence_dir", str(observation_dir))
+    (observation_dir / "measurement.json").write_text(
+        json.dumps(measurement, indent=2), encoding="utf-8",
+    )
+    (observation_dir / "observed-locators.json").write_text(json.dumps([
+        locator.portable_summary() for locator, _ in observed_outputs
+    ], indent=2), encoding="utf-8")
+    assert composition_count == 3 and len(captured_candidates) == 3
+    assert b"not-a-number" in captured_candidates[0][1]
+    assert all(b"not-a-number" not in row for _, row in captured_candidates[1:])
+    assert [identity for identity, _ in captured_candidates] == [r.candidate_source_tree.ref.sha256 for r in results]
+    assert gate1.tree_digest(gate1.DEFAULT_FIXTURE) == fixture_before
+    first, second, third = results
+    assert first.candidate_snapshot is not None
+    assert all(p.status == "complete" for p in first.candidate_snapshot.planes)
+    assert first.receipt["checks"]["pytest"]["passed"] is False
+    assert first.receipt["checks"]["schema"]["passed"] is False
+    assert first.receipt["checks"]["link"]["passed"] is True
+    assert len({r.receipt["evaluator_bundle"]["digest"] for r in results}) == 1
+
+    assert first.packet is not None
+    assert first.packet.evaluation_status == "failed"
+    assert first.blockers and first.receipt["promotion"]["status"] == "refused, not promoted"
+    assert second.packet is not None and second.packet.evaluation_status == "passed"
+    assert all(c["passed"] is True for c in second.receipt["checks"].values())
+    assert second.receipt["replay"]["previous_run_complete"] is False
+    assert second.receipt["replay"]["replay_demonstrated"] is False
+    assert second.blockers
+    assert third.packet is not None and third.packet.evaluation_status == "passed"
+    assert third.receipt["replay"]["previous_run_complete"] is True
+    assert third.receipt["replay"]["replay_demonstrated"] is True
+    assert not third.blockers
+
+    store = ArtifactStore(mission_store)
+    for locator, payload in observed_outputs:
+        store.verify(locator)
+        assert store.get_bytes(locator.artifact_sha256) == payload
+    for result in results:
+        _retained_packet_bytes(result)
+        for item in result.packet.items:
+            locator = store.load_locator(item.evidence_locator.split(":")[-1])
+            store.verify(locator)
+            assert locator.artifact_sha256 == item.output_sha256
+    for raw in raw_receipts:
+        own_receipt_objects = [(locator, payload) for locator, payload in observed_outputs if payload == raw]
+        assert own_receipt_objects, "finalized receipt bytes must be stored before latest publication"
+        assert store.get_bytes(hashlib.sha256(raw).hexdigest()) == raw
+    for predecessor, result in zip(raw_receipts, results[1:]):
+        previous = result.receipt["replay"]["previous_receipt"]
+        assert previous["sha256"] == hashlib.sha256(predecessor).hexdigest()
+        locator = store.load_locator(previous["locator"]["locator_uri"].split(":")[-1])
+        store.verify(locator)
+        assert store.get_bytes(locator.artifact_sha256) == predecessor
+    assert third.receipt_path.read_bytes() == raw_receipts[-1]
+    assert json.loads(raw_receipts[-1]) == third.receipt
+    first_items = {i.evidence_id: i for i in first.packet.items}
+    pytest_output = store.get_bytes(first_items["gate1-check-pytest"].output_sha256).decode("utf-8")
+    schema_output = store.get_bytes(first_items["gate1-check-schema"].output_sha256).decode("utf-8")
+    assert "test_repository_parses_every_csv_row" in pytest_output
+    assert "not-a-number" in schema_output

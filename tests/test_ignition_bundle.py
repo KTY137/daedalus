@@ -18,8 +18,41 @@ import pytest
 from daedalus.ignition import bundle as ignition_bundle
 from daedalus.ignition import checks as ignition_checks
 from daedalus.ignition import gate1
+from daedalus.spine import picker as spine_picker
+from daedalus.spine.killswitch import KillSwitch
+from daedalus.spine.ledger import SpineLedger
 
 ROOT = Path(__file__).resolve().parents[1]
+_TEST_SWITCH: KillSwitch | None = None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_ignition_switch(tmp_path_factory):
+    global _TEST_SWITCH
+    authority_state = tmp_path_factory.mktemp("bundle-authority")
+    switch = KillSwitch(authority_state / "permit")
+    switch.arm()
+    ledger_path = authority_state / "spine.sqlite3"
+    ledger = SpineLedger(ledger_path)
+    ledger.close()
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr(
+        spine_picker,
+        "resolve_spine_db_path",
+        lambda *_args, **_kwargs: (ledger_path, None),
+    )
+    _TEST_SWITCH = switch
+    try:
+        yield
+    finally:
+        _TEST_SWITCH = None
+        patcher.undo()
+        switch.stop("test module complete")
+
+
+def _run_gate1(**kwargs):
+    assert _TEST_SWITCH is not None
+    return gate1.run_gate1_ignition(switch=_TEST_SWITCH, **kwargs)
 
 
 def _bundle(root: Path = ROOT, **kw):
@@ -110,16 +143,18 @@ def test_a_changed_evaluator_changes_the_digest(tmp_path):
 
 
 def test_the_digest_does_not_move_with_line_endings(tmp_path):
-    """Checkout stability, measured. The first version hashed raw bytes and
-    reported every evaluator as uncommitted on a clean Windows checkout, because
-    autocrlf gives the working file CRLF while the blob is LF. git's own content
-    digest is what makes the bundle identity the same on any machine."""
+    """Checkout stability under the condition this test claims to model:
+    ``core.autocrlf=true`` normalizes an LF commit and a CRLF working copy to
+    the same Git content identity, while the raw running bytes remain distinct.
+    Configure that condition in the throwaway repository rather than inheriting
+    an operator-specific global Git setting."""
 
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "core.autocrlf", "true"], check=True)
     module = repo / "judge.py"
     module.write_bytes(b"def verdict():\n    return True\n")
     subprocess.run(["git", "-C", str(repo), "add", "judge.py"], check=True)
@@ -268,15 +303,14 @@ def test_an_untracked_evaluator_is_not_reported_as_committed(tmp_path):
 # import_closure: pytest loads it by directory position, not by an import
 # statement any evaluator module writes, so it was invisible by construction.
 def test_pytest_plugins_are_measured_on_this_host():
-    """Not mocked: the real query, on the real host, must come back as a
-    measurement (a list, however short) rather than an error -- the floor
-    this repo's own dependencies guarantee (anyio, hypothesis and
-    pytest-asyncio are all installed, MEASURED 2026-08-24)."""
+    """The real query on the real host must produce a measurement rather than
+    an error. An empty list is a valid measurement on a minimal CI environment;
+    requiring an arbitrary third-party plugin would make the test depend on an
+    unrelated package installation rather than on the bundle contract."""
 
     plugins, error = ignition_bundle._pytest_plugins()
     assert error is None
     assert plugins is not None
-    assert len(plugins) >= 1
     assert all({"name", "version"} <= set(row) for row in plugins)
 
 
@@ -430,8 +464,8 @@ def test_a_bundle_that_differs_only_in_the_environment_still_round_trips(monkeyp
 @pytest.fixture(scope="module")
 def two_runs(tmp_path_factory):
     receipts = tmp_path_factory.mktemp("bundle-replay")
-    first = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
-    second = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    first = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    second = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     return first, second
 
 
@@ -493,14 +527,14 @@ def test_a_predecessor_without_a_bundle_is_refused_and_told_apart(two_runs, tmp_
     import json as _json
 
     receipts = tmp_path / "no-bundle"
-    first = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    first = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     assert first.receipt["evaluator_bundle"]["digest"]
     path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
     body = _json.loads(path.read_text(encoding="utf-8"))
     del body["evaluator_bundle"]
     path.write_text(_json.dumps(body, indent=2, sort_keys=True) + chr(10), encoding="utf-8")
 
-    second = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    second = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     replay = second.receipt["replay"]
     assert replay["same_evaluator_bundle"] is False
     assert replay["previous_evaluator_bundle_digest"] is None
@@ -529,13 +563,21 @@ def test_a_replay_needs_two_complete_runs(tmp_path):
     import json as _json
 
     receipts = tmp_path / "incomplete"
-    first = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    first = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
     body = _json.loads(path.read_text(encoding="utf-8"))
+    # BOTH lists, because since G1-RENOVATION-02A they mean different things:
+    # ``blockers`` is what the run reports (execution blockers plus whatever the
+    # replay comparison added), ``execution_blockers`` is the run's OWN failure.
+    # ``previous_run_complete`` reads the second one -- a predecessor blocked
+    # only by ITS replay comparison is still a complete run, or one blocked run
+    # would block every run after it forever. A real run that ends in blockers
+    # writes both, which is what this line simulates.
     body["blockers"] = ["a blocker the previous run ended with"]
+    body["execution_blockers"] = ["a blocker the previous run ended with"]
     path.write_text(_json.dumps(body, indent=2, sort_keys=True) + chr(10), encoding="utf-8")
 
-    second = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    second = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     replay = second.receipt["replay"]
     assert replay["same_evaluator_bundle"] is True      # the bundle did not move
     assert replay["previous_run_complete"] is False
@@ -549,7 +591,7 @@ def test_two_receipts_without_a_bundle_do_not_read_as_the_same_bundle(tmp_path):
     import json as _json
 
     receipts = tmp_path / "bundleless"
-    gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
     body = _json.loads(path.read_text(encoding="utf-8"))
     del body["evaluator_bundle"]

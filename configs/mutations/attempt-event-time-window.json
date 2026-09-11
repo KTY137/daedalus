@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "spec_id": "attempt-event-time-window",
+  "packet_id": "G1-MUT-02F",
+  "jobs": [
+    {
+      "module": "daedalus/kernel/attempt_spine_reader.py",
+      "tests": [
+        "tests/kernel/test_isolated_attempt_time_tampering.py",
+        "tests/kernel/test_isolated_attempt_time_and_preflight.py",
+        "tests/kernel/test_isolated_attempt_lifecycle.py",
+        "tests/kernel/test_isolated_attempt_lifecycle_adversarial.py",
+        "tests/kernel/test_isolated_attempt_spine_wire_review.py"
+      ],
+      "timeout_policy": "legacy-unbounded",
+      "mutations": [
+        {
+          "id": "accept-arbitrary-historical-record-time",
+          "find": "_MAX_TRANSITION_SKEW_SECONDS = 60.0",
+          "replace": "_MAX_TRANSITION_SKEW_SECONDS = 10**12"
+        },
+        {
+          "id": "accept-record-time-after-event",
+          "find": "    if delta < 0:\n        raise AttemptStateError(\n            f\"{label} record time follows its Event-Store transition\"\n        )\n",
+          "replace": "    if False:\n        raise AttemptStateError(\n            f\"{label} record time follows its Event-Store transition\"\n        )\n"
+        },
+        {
+          "id": "skip-terminal-time-binding",
+          "find": "                if state == STATE_COMPLETED:\n                    _transition_time(\n                        _terminal_time(terminal_result),\n                        resolved_ts,\n                        label=\"attempt completion\",\n                    )\n",
+          "replace": ""
+        }
+      ]
+    }
+  ]
+}

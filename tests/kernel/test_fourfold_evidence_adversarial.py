@@ -15,7 +15,9 @@ from daedalus.kernel.fourfold_evidence import (
     verify_fourfold_evidence_packet,
     verify_fourfold_nomination_receipt,
 )
-from daedalus.schemas import ContractProvenance, EvidencePacket, ResourceUsage
+from daedalus.kernel.source_trees import SourceTreeStore
+from daedalus.schemas import ContractProvenance, EvidenceItem, EvidencePacket, ResourceUsage
+from daedalus.storage import ArtifactStore
 from daedalus.twin import FourfoldSnapshot, PlaneSnapshot, compile_reference_project
 
 
@@ -243,5 +245,106 @@ def test_same_candidate_from_stale_revision_is_refused() -> None:
         verify_fourfold_evidence_packet(
             packet,
             snapshot=stale_compiled.snapshot,
+            expectation=expectation,
+        )
+
+
+@pytest.mark.parametrize("status", ["failed", "inconclusive"])
+@pytest.mark.parametrize("with_store", [False, True])
+def test_negative_packets_remain_rejected_by_public_verifier_and_nomination(
+    tmp_path: Path, status: str, with_store: bool,
+) -> None:
+    """Build canonical negatives independently of the new assembler mode."""
+    source_store = SourceTreeStore(tmp_path / "source-cas")
+    source = source_store.capture_tree(
+        FIXTURE,
+        tree_id="negative-nomination-source",
+        source_revision=REVISION,
+        origin="tests.negative-nomination",
+        created_at=NOW.isoformat(),
+    )
+    compiled = compile_reference_project(
+        FIXTURE,
+        source_revision=REVISION,
+        created_at=NOW.isoformat(),
+        source_tree_sha256=source.ref.sha256,
+    )
+    store = ArtifactStore(tmp_path / "evidence-cas")
+    expectation = FourfoldEvidenceExpectation(
+        candidate_artifact_sha256=source.ref.sha256,
+        candidate_artifact_locator=source.locator,
+        snapshot_sha256=compiled.snapshot.digest,
+        source_revision=REVISION,
+    )
+    positive = assemble_fourfold_evidence_packet(
+        snapshot=compiled.snapshot,
+        candidate_artifact_sha256=source.ref.sha256,
+        candidate_artifact_locator=source.locator,
+        packet_id="negative-nomination-packet",
+        mission_id="negative-nomination-mission",
+        attempt_id="negative-nomination-attempt",
+        attempt_contract_sha256=_sha("negative-nomination-attempt"),
+        policy_decision_sha256=_sha("negative-nomination-policy"),
+        collected_at=NOW.isoformat(),
+        store=store,
+    )
+    nomination_arguments = {
+        "snapshot": compiled.snapshot,
+        "expectation": expectation,
+        "nomination_id": "negative-nomination-control",
+        "reasons": ("positive structural control",),
+        "created_at": NOW.isoformat(),
+    }
+    positive_nomination = assemble_fourfold_nomination_receipt(
+        packet=positive, **nomination_arguments,
+    )
+    output = b"retained measured refusal\n"
+    output_sha = _sha(output)
+    output_provenance = ContractProvenance(
+        origin="tests.negative-nomination-output",
+        source_revision=REVISION,
+        created_at=NOW.isoformat(),
+        input_digests=(output_sha,),
+    )
+    stored = store.put_bytes(output, provenance=output_provenance.to_dict())
+    assert store.get_bytes(store.verify(stored).artifact_sha256) == output
+    item = EvidenceItem(
+        evidence_id="negative-nomination-check",
+        evaluator="tests.negative-nomination-check",
+        verdict="failed" if status == "failed" else "error",
+        assurance="deterministic" if status == "failed" else "unverified",
+        output_sha256=output_sha,
+        evidence_locator=stored.locator_uri,
+        collected_at=NOW.isoformat(),
+        provenance=_provenance_with(output_provenance, stored.locator_sha256),
+    )
+    negative = dataclasses.replace(
+        positive,
+        evaluation_status=status,
+        items=(*positive.items, item),
+        provenance=_provenance_with(positive.provenance, output_sha),
+    )
+    assert EvidencePacket.from_dict(negative.to_dict()) == negative
+    # Rebind the receipt to the actual negative digest so an unrelated stale
+    # evidence digest cannot be the reason nomination verification refuses.
+    matching_nomination = dataclasses.replace(
+        positive_nomination,
+        evidence_packet_sha256=negative.digest,
+        provenance=_provenance_with(positive_nomination.provenance, negative.digest),
+    )
+    with pytest.raises(FourfoldEvidenceMismatch, match="evaluation_status"):
+        verify_fourfold_evidence_packet(
+            negative,
+            snapshot=compiled.snapshot,
+            expectation=expectation,
+            store=store if with_store else None,
+        )
+    with pytest.raises(FourfoldEvidenceMismatch, match="evaluation_status"):
+        assemble_fourfold_nomination_receipt(packet=negative, **nomination_arguments)
+    with pytest.raises(FourfoldEvidenceMismatch, match="evaluation_status"):
+        verify_fourfold_nomination_receipt(
+            matching_nomination,
+            packet=negative,
+            snapshot=compiled.snapshot,
             expectation=expectation,
         )

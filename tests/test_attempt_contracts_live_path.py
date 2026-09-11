@@ -33,9 +33,11 @@ from daedalus.schemas import (  # noqa: E402
     ResourceBudget,
     RuntimeManifest,
 )
+from daedalus.orchestration.execution import (  # noqa: E402
+    compose_task_attempt as TaskAttempt,
+)
 from daedalus.spine.attempt import (  # noqa: E402
     GateResult,
-    TaskAttempt,
     TaskSpec,
 )
 from daedalus.spine.ledger import SpineLedger  # noqa: E402

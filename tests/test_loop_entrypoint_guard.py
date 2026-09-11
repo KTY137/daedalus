@@ -1,8 +1,8 @@
-"""`python -m daedalus.loop` is a console door, and it must open like one.
+"""`python -m daedalus.orchestration.loop` is a console door, and it must open like one.
 
-The codex round-2 security seat named the exact opening: ``daedalus/loop.py``
+The codex round-2 security seat named the exact opening: ``daedalus/orchestration/loop.py``
 ends with ``if __name__ == "__main__": raise SystemExit(main())``, which is
-reachable directly and never passes through ``daedalus.cli:main``'s dispatch --
+reachable directly and never passes through ``daedalus.interfaces.cli.entry:main``'s dispatch --
 the place where every other console entrypoint installs the process-wide spend
 guard.  ``loop.main`` did install it by hand, which is the right effect and the
 wrong evidence: nothing mechanically required the line to still be there, so
@@ -88,7 +88,7 @@ def hook(event, args):
             events.append(["write", str(path)])
 
 
-import daedalus.loop as loop
+import daedalus.orchestration.loop as loop
 
 sys.addaudithook(hook)
 code = loop.main(["--max-iterations", "0"])
@@ -147,7 +147,7 @@ def test_the_spend_guard_precedes_every_effect_in_the_module_tail(traced_run):
 def test_the_module_tail_starts_at_the_canonical_boundary(traced_run):
     kinds = [kind for kind, _ in traced_run["events"]]
     assert "boundary" in kinds, (
-        "`python -m daedalus.loop` reached its work without a canonical effect "
+        "`python -m daedalus.orchestration.loop` reached its work without a canonical effect "
         "start; it is a second console door into cli.daedalus's effects"
     )
     started = [
@@ -182,13 +182,13 @@ def test_the_bounds_refusal_is_what_stopped_this_run(traced_run):
 def test_loop_main_is_registered_and_anchored():
     row = REGISTRY_BY_ID["cli.loop"]
 
-    assert row.target == "daedalus.loop:main"
+    assert row.target == "daedalus.orchestration.loop:main"
     assert row.wiring is Wiring.CENTRAL
     assert row.guard_contracts == ("budget.process_guard",)
     assert Effect.SPEND in row.effects
     assert Effect.NETWORK_EGRESS in row.effects
     assert {(anchor.target, anchor.call) for anchor in row.anchors} == {
-        ("daedalus.loop:main", "begin_effect")
+        ("daedalus.orchestration.loop:main", "begin_effect")
     }
 
 
@@ -200,7 +200,7 @@ def test_the_boundary_start_precedes_argument_parsing_in_the_source():
     branch can reach an effect around it.
     """
 
-    module = ast.parse((ROOT / "daedalus" / "loop.py").read_text(encoding="utf-8"))
+    module = ast.parse((ROOT / "daedalus" / "orchestration" / "loop.py").read_text(encoding="utf-8"))
     main = next(
         node
         for node in module.body

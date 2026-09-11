@@ -1,0 +1,390 @@
+/*
+ * The instruments: the decision card and the status line.
+ *
+ * Both report what the system currently knows, and both must stay readable
+ * when what they know is "nothing yet" — a loading instrument that looks like
+ * a reading is the defect this file exists to avoid. The two share one
+ * indicator vocabulary: a filled `.dot` is a settled fact (ok/warn/bad/muted),
+ * a ringed, breathing `.dot.pending` is a question still open — see the
+ * status-line section below for the tone rules both parts obey.
+ *
+ * The decision card has two shapes for two different jobs. `.decision.quiet`
+ * is what it is most of the time — nothing pending, or not read yet — and
+ * stays a single quiet line so it does not compete with the page it sits
+ * above. The full card only appears when there is something to actually
+ * decide, and that is where this file spends its weight: hierarchy in the
+ * head, a chip for automatic notes and errors, room for the "Warum" report.
+ */
+
+/* -------------------------------------------------------------- decision */
+
+.decision { padding: var(--u3); display: grid; gap: var(--u1); }
+/* Loading and empty are not a smaller card — they are a status line, exactly
+   like the footer's. One row, no border, no padding to speak of: real estate
+   this card only earns back once there is an actual decision in it. */
+.decision.quiet {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  padding: var(--u1) 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.decision.quiet p { margin: 0; }
+.decision-head { display: flex; align-items: center; justify-content: space-between; gap: var(--u2); }
+.decision-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+/* The one accent placement this card gets: a live dot next to the eyebrow,
+   only when a decision is actually open, saying this the way the nav badge
+   and the status line's blocked-promotion chip already say "needs you". */
+.decision-count {
+  display: inline-flex;
+  align-items: center;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+}
+.decision-title {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: var(--fs-lg);
+}
+.decision-sub, .decision-none { color: var(--ink2); font-size: var(--fs-sm); }
+.decision-acts { display: flex; gap: var(--u2); margin-top: var(--u2); flex-wrap: wrap; }
+.decision-acts button {
+  min-height: 44px;
+  padding: 0 var(--u4);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.decision-acts button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.decision-acts button.quiet { background: transparent; border-color: transparent; color: var(--ink2); text-decoration: underline; }
+.decision-acts button:disabled { opacity: 0.5; cursor: default; }
+/* The decision card reports only an explicit user handoff. Errors therefore
+   carry the same distinct instrument grammar as any other failed action. */
+.decision-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+.decision-error { color: var(--bad); }
+.decision-why { margin-top: var(--u2); border-top: var(--border) solid var(--line2); padding-top: var(--u2); font-size: var(--fs-sm); }
+.decision-summary { white-space: pre-wrap; }
+.decision-list { margin-top: var(--u2); }
+.decision-list > span { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); }
+.decision-list ul { margin: var(--u1) 0 0 var(--u3); }
+.decision-list.risk ul { color: var(--bad); }
+
+/* ------------------------------------------------------------ work rail */
+
+/*
+ * ARBEIT — the overview panel. Three sections, each a small heading with a
+ * count and a list of one-line facts. It is deliberately the same grammar as
+ * the Protokoll under an answer: a glyph-free label, a datum, and never a
+ * padded row for something nobody measured.
+ */
+.work { display: grid; gap: var(--u4); min-width: 0; }
+.work-section { display: grid; gap: var(--u1); min-width: 0; }
+.work-head { display: flex; align-items: baseline; gap: var(--u2); margin: 0; }
+.work-title {
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.work-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.work-section.wait .work-count { background: var(--warn); color: var(--warn-ink); }
+.work-section.live .work-count { background: color-mix(in srgb, var(--live) 26%, transparent); color: var(--ink); }
+.work-none { margin: 0; font-size: var(--fs-xs); color: var(--ink3); line-height: 1.5; }
+.work-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.work-row {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--u1) 0 var(--u1) var(--u2);
+  border-left: 2px solid var(--line);
+}
+.work-row.live { border-left-color: var(--live); }
+.work-row.bad { border-left-color: var(--bad); }
+.work-row.quiet { border-left-color: transparent; padding-top: var(--u1); }
+.work-row > button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.work-row > button:hover .work-row-what,
+.work-row > button:focus-visible .work-row-what { color: var(--accent); }
+.work-row > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius-sm); }
+.work-row-what {
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  color: var(--ink);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.work-row.quiet .work-row-what { color: var(--ink3); }
+.work-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u1) var(--u2);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  line-height: 1.45;
+}
+.work-row-meta > * + *::before { content: '·'; margin-right: var(--u2); }
+.work-row-meta code { font-family: var(--font-mono); color: var(--ink2); }
+.work-row-meta b { font-weight: var(--datum-weight); color: var(--ink2); }
+.work-row-meta b.mono { font-family: var(--font-mono); }
+.work-stale { color: var(--warn); }
+
+/* One dispatch, opened onto what the bus actually says about it. */
+.work-detail { display: grid; gap: var(--u1); padding-top: var(--u1); }
+.work-detail-note { margin: 0; font-size: var(--fs-xs); color: var(--ink3); line-height: 1.45; }
+.work-detail-note.bad { color: var(--bad); }
+.work-detail-summary { margin: 0; font-size: var(--fs-xs); color: var(--ink2); line-height: 1.45; }
+.work-detail-list { display: grid; gap: 2px; font-size: var(--fs-xs); color: var(--ink3); }
+.work-detail-list > span {
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+}
+.work-detail-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.work-detail-list code { font-family: var(--font-mono); color: var(--ink2); overflow-wrap: anywhere; }
+.work-detail-more { color: var(--ink3); }
+
+/* The timeline of one unit: the backend's own sentence about how far along
+   it is, then the recorded steps, each with the source that recorded it. */
+.timeline { display: grid; gap: var(--u1); }
+.timeline-toggle {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.timeline-toggle:hover,
+.timeline-toggle:focus-visible { color: var(--accent); text-decoration-color: var(--accent); outline: none; }
+.steps { list-style: none; margin: 0; padding: 0 0 0 var(--u2); display: grid; gap: 2px; border-left: var(--border) solid var(--line2); }
+.step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--u1) var(--u2);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  line-height: 1.45;
+}
+.step-when { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink3); }
+.step-kind { color: var(--ink); }
+.step.ok .step-kind { color: var(--ok); }
+.step.bad .step-kind { color: var(--bad); }
+.step.warn .step-kind { color: var(--warn); }
+.step-kind.mono { font-family: var(--font-mono); }
+/* The source is mandatory in the log and therefore always drawn. */
+.step-source { color: var(--ink2); }
+.step-detail { display: inline-flex; flex-wrap: wrap; gap: var(--u1) var(--u2); }
+.step-detail code { font-family: var(--font-mono); color: var(--ink2); overflow-wrap: anywhere; }
+
+/* The activity log is closed until asked: the ledger read is bounded but not
+   free, and a rail that paid for it on every glance would be a dashboard. */
+.work-log { display: grid; gap: var(--u1); }
+.work-log-toggle {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.work-log-toggle:hover,
+.work-log-toggle:focus-visible { color: var(--accent); text-decoration-color: var(--accent); outline: none; }
+
+/* The rail tab says how many things wait, the same way the view switch does. */
+.rail-badge {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  text-align: center;
+}
+.rail-tabs button.on .rail-badge { background: color-mix(in srgb, var(--accent-ink) 22%, transparent); color: var(--accent-ink); }
+/* Something ARRIVED while the reader was elsewhere. A count that merely grew
+   is not news; a report that landed unwatched is. */
+.rail-badge.new { background: var(--live); color: var(--room2); }
+
+/* ------------------------------------------------------------ statusline */
+
+.statusline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u1);
+  font-size: var(--fs-xs);
+  color: var(--ink2);
+}
+.status-details-toggle { display: none; }
+/* Two deliberate rows, not an accidental wrap: scope+trust first, index and
+   liveness second. Each row wraps on its own if it must — a wrapped SECOND
+   row then reads as "more detail below", not as a fact orphaned mid-sentence. */
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u1) var(--u3);
+}
+.status-row.secondary { color: var(--ink3); }
+.status-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u1) var(--u4);
+}
+/* The group boundary — the only rule stronger than the " · " already inside a
+   group. Height comes from the line box, not a fixed number, so it sits right
+   at any type size a theme picks. */
+.status-sep {
+  align-self: stretch;
+  width: var(--border);
+  min-height: 1em;
+  background: var(--line2);
+}
+.status-item { display: inline-flex; align-items: center; gap: 6px; }
+/* The health item is a control, so it is a control-sized target. The rest of
+   the bar is text and stays text. */
+.status-item.link {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0 var(--u1);
+  min-height: 44px;
+  text-align: left;
+}
+.status-item.ok { color: var(--ok); }
+.status-item.warn { color: var(--live); }
+.status-item.bad { color: var(--bad); }
+.status-item.muted { color: var(--ink3); }
+/* Unknown is its own tone, never "muted" — muted is a known, settled fact
+   (kein tree-sitter, kein Ereignisstrom); pending is a question still open. */
+.status-item.pending { color: var(--ink3); }
+
+/* A real finding gets weight a plain count never does: a tinted, bordered
+   chip, colour drawn from the tone already set above via currentColor so it
+   never needs its own token. Pending stays plain text — an open question is
+   not yet a problem and should not shout like one. */
+.status-item.bad,
+.status-item.warn {
+  padding: 1px var(--u2);
+  border-radius: var(--radius-sm);
+  border: var(--border) solid color-mix(in oklab, currentColor 40%, transparent);
+  background: color-mix(in oklab, currentColor 14%, transparent);
+}
+
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.dot.muted { background: var(--ink3); }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--live); }
+.dot.bad { background: var(--bad); }
+/* A ring, not a fill — "we have not read this yet" is a different shape from
+   "we read it and it is quiet", not just a different word next to it. */
+.dot.pending {
+  box-sizing: border-box;
+  background: transparent;
+  border: 1.5px solid var(--ink3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-item.pending,
+  .dot.pending {
+    animation: status-pending-breathe 1.8s ease-in-out infinite;
+  }
+}
+@keyframes status-pending-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+
+/* The reason there is no percentage, kept on screen. This was briefly a
+   `title` attribute, which is mouse-only — so the backend's own sentence,
+   the honest half, was unreachable by keyboard and inconsistently exposed to
+   screen readers. */
+.work-no-fraction { color: var(--ink3); }
+
+/* Did the work land, and — when nobody can say — the backend's sentence
+   explaining why not. `_derive_applied` returns null rather than true when it
+   cannot tell; "nicht nachweisbar" is that null, and it is never green. */
+.work-applied { display: grid; gap: 4px; margin: var(--u1) 0 0; font-size: var(--fs-xs); }
+.work-applied b { color: var(--ink); }
+.work-applied.ok b { color: var(--ok); }
+.work-applied.warn b { color: var(--warn); }
+.work-applied-why { color: var(--ink3); line-height: 1.45; }
+
+/* A lane that ran somewhere other than where it was requested. `local_only`
+   exists to keep work off external providers, so this is a containment
+   question rather than a detail, and it is coloured like one. */
+.work-lane-diverged { color: var(--bad); }
+
+/* "No provider accepted this" — a fact on a finished task, previously drawn
+   as nothing at all. */
+.work-no-provider { color: var(--warn); }

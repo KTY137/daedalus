@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.gates.repository_write_stdlib_delta as delta
+import daedalus.gates.repository.write_stdlib_delta as delta
 
 
 def _source_tree() -> tuple[str, ast.Module]:
@@ -150,4 +150,4 @@ def test_repository_relative_path_contract_rejects_normalization_aliases() -> No
 
 def test_module_path_is_inside_expected_strangler_boundary() -> None:
     path = Path(inspect.getsourcefile(delta) or "").as_posix()
-    assert path.endswith("daedalus/gates/repository_write_stdlib_delta.py")
+    assert path.endswith("daedalus/gates/repository/write_stdlib_delta.py")

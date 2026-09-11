@@ -106,7 +106,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-artifact-cas-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_artifact_cas import (
+          from daedalus.gates.repository.write_artifact_cas import (
               RepositoryWriteArtifactCASRoot,
               RepositoryWriteArtifactResolutionReceipt,
               ResolvedRepositoryWriteArtifact,

@@ -1,0 +1,183 @@
+{
+ "port": "57660",
+ "objective": "Open http://127.0.0.1:57660/notes.html in the browser, read the page, and report the page title, the three items listed under Today, and the sentinel code.",
+ "planner": "codex",
+ "elapsed_s": 89.11713027954102,
+ "policy_sha256": "a8623bf4bb60f6c16071fe22cb6ef561c65c52fcf9677550b929341c73f4695c",
+ "report": {
+  "ok": true,
+  "state": "completed",
+  "mission_id": "computer-loop-43-codex-r5",
+  "mission_sha256": "f7722a0f07124b7ae84eaa60b2492ff9d15f3490a91467bfc037b9c43b32492f",
+  "mission_artifact": {
+   "sha256": "4642c6b2d7204b363ac66b9126a189e10815cea65844d1f0072357c42455030a",
+   "locator": "artifact-locator:sha256:4642c6b2d7204b363ac66b9126a189e10815cea65844d1f0072357c42455030a"
+  },
+  "steps": [
+   {
+    "step": 1,
+    "tool": "browser.navigate",
+    "outcome": {
+     "ok": true,
+     "state": "completed",
+     "result": {
+      "status": "observed",
+      "observation_id": "b1fe45f8b9b2453299d55f889ac0e611",
+      "url": "http://127.0.0.1:57660/notes.html",
+      "document_sha256": "71aff5c8d1bff5d24f1b2617504ef2bb283b0dc5dcd9e80c1891f352e2ad710f",
+      "text": "Daedalus stage 13 notes\n\nThis is a static page served from loopback for the Ikarus computer-loop measurement.\n\nToday\nwater the ficus\nrenew the library card\ncall the dentist at 15:00\n\nSentinel: TANGERINE-4471",
+      "controls": [],
+      "untrusted_page_content": true,
+      "network_refusals": [],
+      "postcondition_verified": false,
+      "page_javascript": false,
+      "dynamic_applications_available": false
+     },
+     "evidence": {
+      "artifact": {
+       "sha256": "73821bd557b732739592a11cd9711f52341794f2e74f3d1eaaf49087f9fa044e",
+       "locator": "artifact-locator:sha256:73821bd557b732739592a11cd9711f52341794f2e74f3d1eaaf49087f9fa044e"
+      },
+      "lease_sha256": "39c20017b6e9573cf702dc6dcde914d9924d7ab4c5fe8cdce4d6b999492e92c4",
+      "start_sha256": "14e0ecc9fb775424c8d4e08d821fd26c514b945b7e1bb1ea9b693c11ce84a226",
+      "terminal_sha256": "b2a4787a959a5b3da981a1474a1e4346d954d337ae2512c64e6d2e7b70de19d9",
+      "binding": {
+       "subject_record_sha256": "27c6424d827687a9d71a57887652c2562559e1d0196c47c1d70687d2dad922bb",
+       "execution_record_sha256": "281bd0f1f3b6cac8928b2b1052453b039e745519d8cc1e988e4764c717373f73",
+       "execution_request_sha256": "d21a6b1aa5ff9319b34c93739d220fb3281e8da3f1dbca369e44920e2c4ba52e",
+       "execution_id": "computer-77ea8c72cb6b489886bfea40582b4389-exec-0",
+       "source_revision": "07646d899354b19d5f2328f4dd9c149686c1d6b6792378ade5c1248d9a535598",
+       "attempt_id": "computer-loop-43-codex-r5-step-0001",
+       "operation_sha256": "6efd5b03d9a178b113a284798c0b0bd0ff801dcb06f9327df4a78656d8c6bb78",
+       "terminal_record_sha256": "59c774be842eef85f99b5819ebc525344c346d25a718c5361c3e58ec1937ca8f"
+      }
+     }
+    },
+    "artifact": {
+     "sha256": "ba0f4b9e1ac950e9ae290d2355087b792a6573b6a0d29a4bc35f748a26596ba8",
+     "locator": "artifact-locator:sha256:ba0f4b9e1ac950e9ae290d2355087b792a6573b6a0d29a4bc35f748a26596ba8"
+    },
+    "withheld_from_planner": false
+   },
+   {
+    "step": 2,
+    "tool": "browser.read",
+    "outcome": {
+     "ok": true,
+     "state": "completed",
+     "result": {
+      "status": "observed",
+      "observation_id": "d1c6d70f7f3f491d9c9674b8fead279f",
+      "url": "http://127.0.0.1:57660/notes.html",
+      "document_sha256": "71aff5c8d1bff5d24f1b2617504ef2bb283b0dc5dcd9e80c1891f352e2ad710f",
+      "text": "Daedalus stage 13 notes\n\nThis is a static page served from loopback for the Ikarus computer-loop measurement.\n\nToday\nwater the ficus\nrenew the library card\ncall the dentist at 15:00\n\nSentinel: TANGERINE-4471",
+      "controls": [],
+      "untrusted_page_content": true,
+      "network_refusals": [],
+      "postcondition_verified": false,
+      "page_javascript": false,
+      "dynamic_applications_available": false
+     },
+     "evidence": {
+      "artifact": {
+       "sha256": "31f0572c2de5504bdcf2eaeff3146ee98190a5ab9c0b024c03e74bbbab68f755",
+       "locator": "artifact-locator:sha256:31f0572c2de5504bdcf2eaeff3146ee98190a5ab9c0b024c03e74bbbab68f755"
+      },
+      "lease_sha256": "d6733fd2a2ff74da3f41e803bdec61b25d56dac51b4d53c1b99d3d0a30733087",
+      "start_sha256": "cffc11484ed01b956a259e6270efc18c394486013d713d146b13c14fd87a8c60",
+      "terminal_sha256": "e4c7c25eb40da6175d0ed156eb2017e7dc2de57f4c3cbb2bacbb414a719d12db",
+      "binding": {
+       "subject_record_sha256": "22d8b75c1bee93c5a94228796d6f44df625a3612cd38597536b5b2a4db8a558a",
+       "execution_record_sha256": "0ac7ce89b5104abc53245164fa934834f88805ad87bc70343cf83ed1ec6b155c",
+       "execution_request_sha256": "b1f31f6e6b5dbfb61d278db0a725871e61b9f0dbfcf560a525c7dcf9601268c8",
+       "execution_id": "computer-c39003679adac705ec7282f5ac64f66e-exec-0",
+       "source_revision": "07646d899354b19d5f2328f4dd9c149686c1d6b6792378ade5c1248d9a535598",
+       "attempt_id": "computer-loop-43-codex-r5-step-0002",
+       "operation_sha256": "6a2b5998c29d7c72674a92ae24f9ef88b440446b21944bbb5a7df01f765345ab",
+       "terminal_record_sha256": "d39b35b91543684c014bd48d12e689e9977e2933c47629ec6b743ee09c25e676"
+      }
+     }
+    },
+    "artifact": {
+     "sha256": "f8329b4cbaec1891771865a81878139ee3ce715a1e6405d8961300a8eb7e5202",
+     "locator": "artifact-locator:sha256:f8329b4cbaec1891771865a81878139ee3ce715a1e6405d8961300a8eb7e5202"
+    },
+    "withheld_from_planner": false
+   }
+  ],
+  "summary": "2 tool operation(s) completed; evidence is retained. The planner's task-level conclusion remains advisory.",
+  "planner_summary": "Page title: Daedalus stage 13 notes. Today: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471.",
+  "authority_root": "<SCRATCH>\\subject",
+  "planner_calls": 4,
+  "tool_steps": 2,
+  "replans": 0,
+  "repair_calls": 0,
+  "plan": {
+   "advisory": true,
+   "revision": 1,
+   "steps": [
+    "Open http://127.0.0.1:57660/notes.html in the browser.",
+    "Read the page DOM to verify the page title, the three items under Today, and the sentinel code, then report them."
+   ],
+   "artifact": {
+    "sha256": "8e01120d61f39e6f298471066d110de28788e96ec8ced5392a9554204c354b33",
+    "locator": "artifact-locator:sha256:8e01120d61f39e6f298471066d110de28788e96ec8ced5392a9554204c354b33"
+   }
+  },
+  "proposals": [
+   {
+    "sha256": "8e01120d61f39e6f298471066d110de28788e96ec8ced5392a9554204c354b33",
+    "locator": "artifact-locator:sha256:8e01120d61f39e6f298471066d110de28788e96ec8ced5392a9554204c354b33"
+   },
+   {
+    "sha256": "ca22fe4c476c640c43d4658bd68586025307096c14326af391f7ff46114191cd",
+    "locator": "artifact-locator:sha256:ca22fe4c476c640c43d4658bd68586025307096c14326af391f7ff46114191cd"
+   },
+   {
+    "sha256": "85cdc24a1e5e9e7cfd8c1cc557ee9f540acede8c67ac1ee49867df73807651ea",
+    "locator": "artifact-locator:sha256:85cdc24a1e5e9e7cfd8c1cc557ee9f540acede8c67ac1ee49867df73807651ea"
+   },
+   {
+    "sha256": "b59967c2fd56a0bccd369d8dc43c0cb0d40abd883c3bc466a83add4a4c79ee9d",
+    "locator": "artifact-locator:sha256:b59967c2fd56a0bccd369d8dc43c0cb0d40abd883c3bc466a83add4a4c79ee9d"
+   }
+  ],
+  "planner": {
+   "provider": "codex_cli",
+   "model": null,
+   "remote_context": true
+  },
+  "plan_progress": {
+   "tool_steps_since_plan": 2,
+   "next_step_index": null,
+   "next_step": null,
+   "open_steps": [],
+   "every_step_has_a_tool_step": true
+  },
+  "prompt_chars_max": 7687,
+  "planner_context_tokens": null,
+  "context_estimate": "chars/4",
+  "prompt_overflow_calls": null,
+  "task_success_verified": false,
+  "elapsed_s": 77.68005559999983,
+  "summary_tokens_absent_from_observations": {
+   "version": "v1",
+   "checked": 2,
+   "absent": [],
+   "grounded_in": {
+    "15:00": [
+     1,
+     2
+    ],
+    "TANGERINE-4471": [
+     1,
+     2
+    ]
+   }
+  },
+  "report_artifact": {
+   "sha256": "c18092f2bc6c040af6fea38a754a381f02b4ed736b1b12cf1d4367d2758418b5",
+   "locator": "artifact-locator:sha256:c18092f2bc6c040af6fea38a754a381f02b4ed736b1b12cf1d4367d2758418b5"
+  }
+ }
+}

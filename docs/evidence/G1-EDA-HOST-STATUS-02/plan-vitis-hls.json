@@ -1,0 +1,69 @@
+{
+  "clock_period": "10",
+  "effects": [
+    "filesystem_write",
+    "process_control",
+    "process_spawn"
+  ],
+  "emitted_tcl": {
+    "bound_identities": {
+      "kernel_sha256": "9c4b5a7dfccbb0d1447045abf748861669c880ffa9e7bebd1942188c51ccb689",
+      "plan_sha256": "0b508f3c83f3887692b37d706d2782334bedc82ebb0b7bcbc4596695a67fdbce"
+    },
+    "byte_length": 2999,
+    "commands": [
+      "add_files",
+      "close_project",
+      "create_clock",
+      "csynth_design",
+      "open_project",
+      "open_solution",
+      "set_part",
+      "set_top"
+    ],
+    "expected_outputs": [
+      "csynth.rpt",
+      "hls_summary.txt"
+    ],
+    "line_count": 72,
+    "schema": "daedalus-chip-tcl-emit/1",
+    "scope": "csynth",
+    "sha256": "cb06941227a8aa772b23ace0f66e3ea54e0319cd4188134582cb6ebc6ae65565",
+    "syntax_check": {
+      "checker": "daedalus-tcl-info-complete/1",
+      "complete": true,
+      "detail": "",
+      "executed": false,
+      "open_construct": "",
+      "open_offset": null,
+      "vendor_acceptance_claimed": false
+    },
+    "target": "vitis-hls",
+    "text": "# Daedalus emitted AMD Vitis HLS C synthesis flow.\n#\n# schema:     daedalus-chip-tcl-emit/1\n# target:     vitis-hls\n# scope:      csynth\n# emitter:    daedalus.chip_design.tcl_emit\n# invocation: vitis_hls -f <this file>\n#\n# Bound identities. This script is a plan for exactly these inputs; if a\n# digest below no longer matches, re-emit instead of editing this file.\n#   kernel_sha256: 9c4b5a7dfccbb0d1447045abf748861669c880ffa9e7bebd1942188c51ccb689\n#   plan_sha256:   0b508f3c83f3887692b37d706d2782334bedc82ebb0b7bcbc4596695a67fdbce\n#\n# Daedalus emitted this text and did not run it. The emitting command\n# spawns no process. A passing Tcl completeness check is not evidence\n# that AMD Vivado or Vitis HLS accepts this script, and this file is\n# neither a build result nor a promotion.\n\nset daedalus_kernel {<FIXTURE>/kernel/vadd.cpp}\nset daedalus_project_dir {<FIXTURE>/kernel/.daedalus-chip/plans/hls/vadd/hls_project}\nset daedalus_output_dir {<FIXTURE>/kernel/.daedalus-chip/plans/hls/vadd/reports}\nset daedalus_top {vadd}\nset daedalus_part {xcu250-figd2104-2L-e}\nset daedalus_solution {solution1}\nset daedalus_clock_period 10\nset daedalus_kernel_sha256 {9c4b5a7dfccbb0d1447045abf748861669c880ffa9e7bebd1942188c51ccb689}\nset daedalus_plan_sha256 {0b508f3c83f3887692b37d706d2782334bedc82ebb0b7bcbc4596695a67fdbce}\n\nproc daedalus_fail {message code} {\n    puts stderr \"DAEDALUS_VITIS_HLS_EMITTED_ERROR code=$code message=$message\"\n    catch {close_design}\n    catch {close_project}\n    exit $code\n}\n\nif {![file exists $daedalus_kernel]} {\n    daedalus_fail \"kernel source is missing: $daedalus_kernel\" 30\n}\nfile mkdir $daedalus_output_dir\n\nopen_project -reset $daedalus_project_dir\nadd_files $daedalus_kernel\nset_top $daedalus_top\nopen_solution -reset $daedalus_solution -flow_target vivado\nset_part $daedalus_part\ncreate_clock -period $daedalus_clock_period -name default\ncsynth_design\n\nset daedalus_report [file join $daedalus_project_dir \\\n    $daedalus_solution syn report ${daedalus_top}_csynth.rpt]\nif {![file exists $daedalus_report]} {\n    daedalus_fail \"csynth report is missing: $daedalus_report\" 31\n}\nfile copy -force $daedalus_report \\\n    [file join $daedalus_output_dir csynth.rpt]\n\nset daedalus_summary_path \\\n    [file join $daedalus_output_dir hls_summary.txt]\nset daedalus_summary [open $daedalus_summary_path w]\nputs $daedalus_summary \"schema=daedalus-chip-tcl-emit/1\"\nputs $daedalus_summary \"scope=csynth\"\nputs $daedalus_summary \"part=$daedalus_part\"\nputs $daedalus_summary \"top=$daedalus_top\"\nputs $daedalus_summary \"solution=$daedalus_solution\"\nputs $daedalus_summary \"clock_period=$daedalus_clock_period\"\nputs $daedalus_summary \"kernel_sha256=$daedalus_kernel_sha256\"\nputs $daedalus_summary \"plan_sha256=$daedalus_plan_sha256\"\nclose $daedalus_summary\n\nclose_project\nputs \"DAEDALUS_VITIS_HLS_EMITTED_OK scope=csynth\"\nexit 0\n"
+  },
+  "emitted_tcl_sha256": "cb06941227a8aa772b23ace0f66e3ea54e0319cd4188134582cb6ebc6ae65565",
+  "invocation_template": [
+    "vitis_hls",
+    "-f",
+    "<script the operator saved>"
+  ],
+  "kernel": "<FIXTURE>\\kernel\\vadd.cpp",
+  "kernel_byte_length": 239,
+  "kernel_sha256": "9c4b5a7dfccbb0d1447045abf748861669c880ffa9e7bebd1942188c51ccb689",
+  "live_runner_available": false,
+  "network_capability_requested": false,
+  "os_network_confinement_claimed": false,
+  "os_secret_isolation_claimed": false,
+  "output_dir": "<FIXTURE>\\kernel\\.daedalus-chip\\plans\\hls\\vadd\\reports",
+  "part": "xcu250-figd2104-2L-e",
+  "project_dir": "<FIXTURE>\\kernel\\.daedalus-chip\\plans\\hls\\vadd\\hls_project",
+  "project_root": "<FIXTURE>\\kernel",
+  "promotion": false,
+  "schema": "daedalus-chip-vitis-hls-plan/1",
+  "scope": "csynth",
+  "secret_capability_requested": false,
+  "security_boundary_claimed": false,
+  "solution": "solution1",
+  "target": "vitis-hls",
+  "top": "vadd"
+}

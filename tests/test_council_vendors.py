@@ -32,6 +32,29 @@ PLANTED_KEY = "AKIA" + "IOSFODNN7EXAMPLE"
 # --------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def isolated_ledger(monkeypatch, tmp_path):
+    """Council seats reserve their spend explicitly; no test may touch the
+    real day ledger, and every test starts from an empty one."""
+    from daedalus.kernel.policy import ledger as L
+
+    path = tmp_path / "budget-ledger.json"
+    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(path))
+    L.reset_default_ledger()
+    yield path
+    L.reset_default_ledger()
+
+
+def _ledger_closes(path):
+    import json
+
+    if not path.exists():
+        # A refused reservation writes nothing: an absent ledger is an empty one.
+        return {"entries": [], "spent_usd": 0.0, "calls": 0, "open": {}}, []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data, [e for e in data["entries"] if e.get("kind") in ("settle", "release")]
+
+
 class RecordingRunner:
     """Captures every spawn so a test can assert on what the vendor received."""
 
@@ -651,6 +674,35 @@ def test_run_managed_kills_a_hang_and_reports_timeout():
     assert result.timed_out is True
 
 
+def test_run_managed_timeout_does_not_depend_on_named_stdio_cleanup(monkeypatch, tmp_path):
+    """A Windows stdio deletion race must not replace a proven timeout."""
+
+    class CleanupLockedDirectory:
+        def __init__(self, *args, **kwargs):
+            self.path = tmp_path / "locked-named-stdio"
+            self.path.mkdir()
+
+        def __enter__(self):
+            return str(self.path)
+
+        def __exit__(self, exc_type, exc, tb):
+            raise PermissionError(32, "stdio handle is still inherited", self.path / "err")
+
+    # This deterministically reproduces the old failure: its return value was
+    # discarded when TemporaryDirectory.__exit__ raised during eager rmtree.
+    monkeypatch.setattr(V.tempfile, "TemporaryDirectory", CleanupLockedDirectory)
+    result = V.run_managed(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        stdin_text="",
+        timeout_s=0.05,
+        cwd=str(tmp_path),
+        env=V.council_env(),
+    )
+
+    assert result.timed_out is True
+    assert result.spawn_error == ""
+
+
 def test_run_managed_missing_binary_is_a_spawn_error_not_an_exception():
     with tempfile.TemporaryDirectory() as cwd:
         result = V.run_managed(
@@ -662,6 +714,33 @@ def test_run_managed_missing_binary_is_a_spawn_error_not_an_exception():
         )
     assert result.returncode is None
     assert result.spawn_error.startswith("not_on_path")
+
+
+def test_run_managed_resolves_a_bare_command_through_path_and_pathext(tmp_path):
+    """A bare command name is resolved the way a shell would, then spawned.
+
+    Windows ``CreateProcess`` does not consult ``PATHEXT``, so the npm
+    ``codex.CMD`` shim was ``not_on_path`` for the council even though
+    ``shutil.which("codex")`` found it (measured 2026-09-05: both live seats
+    reported ``transport_error``). The runner resolves ``argv[0]`` first.
+    """
+    shim_dir = tmp_path / "shims"
+    shim_dir.mkdir()
+    if sys.platform == "win32":
+        (shim_dir / "shimcli.cmd").write_text("@echo shim-ok" + chr(13) + chr(10), encoding="ascii")
+    else:
+        shim = shim_dir / "shimcli"
+        shim.write_text("#!/bin/sh" + chr(10) + "echo shim-ok" + chr(10), encoding="ascii")
+        shim.chmod(0o755)
+    env = dict(V.council_env())
+    env["PATH"] = str(shim_dir) + os.pathsep + env.get("PATH", "")
+    with tempfile.TemporaryDirectory() as cwd:
+        result = V.run_managed(
+            ["shimcli"], stdin_text="", timeout_s=20, cwd=cwd, env=env,
+        )
+    assert result.spawn_error == "", result
+    assert result.returncode == 0, result
+    assert result.stdout.strip() == "shim-ok"
 
 
 # --------------------------------------------------------------------------
@@ -683,3 +762,76 @@ def test_vendor_reply_is_frozen():
     reply = V.VendorReply(vendor="local", actor="council.local.x", model="x", status="ok")
     with pytest.raises(dataclasses.FrozenInstanceError):
         reply.status = "error"  # type: ignore[misc]
+
+
+def test_claude_seat_settles_at_the_reported_cost_not_the_worst_case(isolated_ledger):
+    """Measured 2026-09-05: a one-word Claude CLI reply cost $0.34 by the CLI's
+    own ``total_cost_usd`` and was booked at the $3.00 worst case; two such
+    bookings consumed the $5.00 day ceiling. A reported price is a known price."""
+    import json
+
+    payload = {"type": "result", "is_error": False, "result": "PONG",
+               "total_cost_usd": 0.34, "duration_ms": 3560, "usage": {"input_tokens": 2}}
+    runner = RecordingRunner(V.RunResult(returncode=0, stdout=json.dumps(payload)))
+    reply = V.ClaudeAdapter(runner=runner).ask("q", timeout_s=5)
+    assert reply.status == "ok" and reply.content == "PONG"
+    data, closes = _ledger_closes(isolated_ledger)
+    assert [(e["kind"], e["usd"], e["estimate_usd"], e["vendor"]) for e in closes] == [
+        ("settle", 0.34, 3.0, "anthropic_cli")]
+    assert data["spent_usd"] == 0.34 and data["calls"] == 1 and data["open"] == {}
+    assert closes[0]["label"].startswith("council seat anthropic")
+
+
+def test_seat_whose_executable_is_missing_releases_its_reservation(isolated_ledger):
+    runner = RecordingRunner(V.RunResult(returncode=None,
+                                         spawn_error="not_on_path: [WinError 2] no codex"))
+    reply = V.CodexAdapter(runner=runner).ask("q", timeout_s=5)
+    assert reply.status == "unavailable" and reply.reason == "not_on_path"
+    data, closes = _ledger_closes(isolated_ledger)
+    assert [(e["kind"], e["usd"], e["vendor"]) for e in closes] == [("release", 0.0, "openai_cli")]
+    assert "spawned" in closes[0]["reason"]
+    assert data["spent_usd"] == 0.0 and data["calls"] == 0 and data["open"] == {}
+
+
+def test_timed_out_or_unpriced_seat_settles_at_the_worst_case(isolated_ledger):
+    """An unknown actual is not a free actual: a killed process and a vendor
+    that reports no price both keep the conservative estimate."""
+    hung = RecordingRunner(V.RunResult(returncode=None, timed_out=True))
+    assert V.CodexAdapter(runner=hung).ask("q", timeout_s=5).status == "timeout"
+    spoke = RecordingRunner(V.RunResult(returncode=0, stdout="PONG"))
+    assert V.CodexAdapter(runner=spoke).ask("q", timeout_s=5).status == "ok"
+    data, closes = _ledger_closes(isolated_ledger)
+    assert [(e["kind"], e["usd"], e["vendor"]) for e in closes] == [
+        ("settle", 2.0, "openai_cli"), ("settle", 2.0, "openai_cli")]
+    assert data["spent_usd"] == 4.0 and data["calls"] == 2
+
+
+def test_seat_reservation_refused_by_the_ceiling_is_budget_exhausted_and_spawns_nothing(
+        isolated_ledger, monkeypatch):
+    from daedalus.kernel.policy import ledger as L
+
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "1.00")   # below the $3.00 worst case
+    L.reset_default_ledger()
+    reply = V.ClaudeAdapter(runner=ExplodingRunner()).ask("q", timeout_s=5)
+    assert reply.status == "unavailable" and reply.reason == "budget_exhausted"
+    assert "BUDGET REFUSED" in reply.stderr and "council seat anthropic" in reply.stderr
+    data, closes = _ledger_closes(isolated_ledger)
+    assert closes == [] and data["spent_usd"] == 0.0
+
+
+def test_budget_refusal_is_recorded_as_budget_exhausted_not_transport_error():
+    """The guard's refusal is a named reason in the bus vocabulary, not a crash."""
+    from daedalus.kernel.policy.ledger import BudgetRefused
+
+    def refused_runner(argv, **kw):
+        raise BudgetRefused(
+            label="subprocess.Popen: claude -p", vendor="anthropic_cli", model="?",
+            estimate_usd=3.0, spent_usd=5.0, reserved_usd=0.0, ceiling_usd=5.0,
+            calls=2, open_calls=0, want_calls=1, max_calls=40,
+            reason="spend ceiling would be crossed (basis=worst_case)",
+        )
+
+    reply = V.ClaudeAdapter(runner=refused_runner).ask("q", timeout_s=5)
+    assert reply.status == "unavailable"
+    assert reply.reason == "budget_exhausted"
+    assert "BUDGET REFUSED" in reply.stderr

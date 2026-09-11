@@ -1,4 +1,8 @@
 ---
+permalink: main/templates/amendment-proposal
+---
+
+---
 tags: [amendments]
 created: {{date}}
 status: draft

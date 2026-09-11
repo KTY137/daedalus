@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-evidence-index-v2-linear
     paths:
-      - "daedalus/gates/repository_write_artifact_verifier.py"
+      - "daedalus/gates/repository/write_artifact_verifier.py"
       - "configs/schemas/repository-write-artifact-verification-receipt-v1.schema.json"
       - "scripts/run_repository_write_artifact_verifier_mutations.py"
       - "tests/gates/test_repository_write_artifact_verifier*.py"
@@ -97,4 +97,4 @@ jobs:
       - run: python -m venv /tmp/daedalus-repository-write-verifier-wheel
       - run: /tmp/daedalus-repository-write-verifier-wheel/bin/pip install dist/*.whl
       - working-directory: /tmp
-        run: /tmp/daedalus-repository-write-verifier-wheel/bin/python -c "from daedalus.gates.repository_write_artifact_verifier import RepositoryWriteArtifactVerificationReceipt, verify_repository_write_artifact; assert RepositoryWriteArtifactVerificationReceipt is not None and callable(verify_repository_write_artifact)"
+        run: /tmp/daedalus-repository-write-verifier-wheel/bin/python -c "from daedalus.gates.repository.write_artifact_verifier import RepositoryWriteArtifactVerificationReceipt, verify_repository_write_artifact; assert RepositoryWriteArtifactVerificationReceipt is not None and callable(verify_repository_write_artifact)"

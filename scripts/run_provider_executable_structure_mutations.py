@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = Path("daedalus/runtimes/provider_executable_structure.py")
+MODULE = Path("daedalus/runtimes/provider/executable_structure.py")
 TESTS = ("tests/runtimes/test_provider_executable_structure.py",)
 
 MUTATIONS = (

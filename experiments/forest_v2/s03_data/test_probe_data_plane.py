@@ -524,6 +524,20 @@ def test_python_accounting_adds_up_and_parses_every_scanned_file(tmp_path):
     assert py["parsed_without_ddl"] == 2
 
 
+def test_checkout_parent_named_like_an_excluded_dir_does_not_hide_the_tree(tmp_path):
+    root = tmp_path / ".claude" / "worktrees" / "sample"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "table.py").write_text(
+        'SQL = "CREATE TABLE t (id INTEGER)"\n', encoding="utf-8"
+    )
+
+    scope = dp.Scope(ddl_roots=("src",), json_roots=(), csv_roots=())
+    found = dp.collect(root, scope)
+
+    assert found.python["scanned"] == 1
+    assert [node.name for node in found.sqlite_nodes] == ["t"]
+
+
 def test_a_prefilter_can_no_longer_hide_an_unparseable_file(tmp_path):
     """Regression for the reported denominator artifact.
 

@@ -28,12 +28,20 @@ from daedalus.build_exec import EffectBounds, WaveExecutor
 from daedalus.kairos.scheduler import Assignment, KairosScheduler
 from daedalus.kernel.effects import EffectLeaseConcurrencyError
 from daedalus.kernel.offload_lease import (
-    acquire_wave_offload_lease, control_root,
+    acquire_wave_offload_lease as _kernel_acquire_wave_offload_lease, control_root,
 )
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[1])
 REVISION = "b" * 40
+
+
+def acquire_wave_offload_lease(*args, **kwargs):
+    kwargs.setdefault("egress_admission", admit_offload_egress)
+    kwargs.setdefault("worktree_root_resolver", resolve_worktree_root)
+    return _kernel_acquire_wave_offload_lease(*args, **kwargs)
 
 
 @pytest.fixture

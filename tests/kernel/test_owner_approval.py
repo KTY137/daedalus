@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import dataclasses
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -232,7 +234,7 @@ def test_tampered_signature_or_wrong_expectation_leaves_no_row(tmp_path) -> None
             approval(),
             expected=expectation(candidate_artifact_sha256="a" * 64),
         )
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM owner_approval_consumptions_v2"
         ).fetchone()[0] == 0
@@ -332,22 +334,24 @@ def test_corrupt_consumption_and_row_mismatch_fail_closed(tmp_path) -> None:
     corrupt_path = tmp_path / "corrupt.sqlite3"
     corrupt = ledger(corrupt_path)
     receipt = consume(corrupt, signed)
-    with sqlite3.connect(corrupt_path) as connection:
+    with contextlib.closing(sqlite3.connect(corrupt_path)) as connection:
         connection.execute(
             "UPDATE owner_approval_consumptions_v2 SET consumption_json=?",
             ("{",),
         )
+        connection.commit()
     with pytest.raises(ApprovalStateError, match="corrupt"):
         corrupt.verify_consumption(receipt, keyring=KEYRING)
 
     mismatch_path = tmp_path / "mismatch.sqlite3"
     mismatch = ledger(mismatch_path)
     receipt2 = consume(mismatch, signed)
-    with sqlite3.connect(mismatch_path) as connection:
+    with contextlib.closing(sqlite3.connect(mismatch_path)) as connection:
         connection.execute(
             "UPDATE owner_approval_consumptions_v2 SET capability_sha256=?",
             ("f" * 64,),
         )
+        connection.commit()
     with pytest.raises(ApprovalStateError, match="persisted authority"):
         mismatch.verify_consumption(receipt2, keyring=KEYRING)
 
@@ -357,7 +361,7 @@ def test_persisted_approval_and_expectation_bytes_are_reauthenticated(tmp_path) 
     path = tmp_path / "approvals.sqlite3"
     authority = ledger(path)
     receipt = consume(authority, signed)
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         stored = json.loads(
             connection.execute(
                 "SELECT approval_json FROM owner_approval_consumptions_v2"
@@ -368,6 +372,7 @@ def test_persisted_approval_and_expectation_bytes_are_reauthenticated(tmp_path) 
             "UPDATE owner_approval_consumptions_v2 SET approval_json=?",
             (json.dumps(stored, sort_keys=True, separators=(",", ":")),),
         )
+        connection.commit()
     with pytest.raises(
         (ApprovalSignatureError, ApprovalStateError),
         match="signature mismatch|persisted authority|corrupt",
@@ -377,7 +382,7 @@ def test_persisted_approval_and_expectation_bytes_are_reauthenticated(tmp_path) 
 
 def test_nonempty_legacy_authority_requires_explicit_migration(tmp_path) -> None:
     path = tmp_path / "approvals.sqlite3"
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         connection.execute(
             "CREATE TABLE owner_approval_consumptions (approval_sha256 TEXT)"
         )
@@ -385,6 +390,7 @@ def test_nonempty_legacy_authority_requires_explicit_migration(tmp_path) -> None
             "INSERT INTO owner_approval_consumptions VALUES (?)",
             ("a" * 64,),
         )
+        connection.commit()
     with pytest.raises(ApprovalStateError, match="explicit migration"):
         ApprovalLedger(path)
 
@@ -484,3 +490,69 @@ def test_owner_approval_json_schema_is_closed_and_complete() -> None:
     assert schema["properties"]["operation"] == {"const": "promote-candidate"}
     assert schema["properties"]["provenance"] == {"$ref": "#/$defs/provenance"}
     assert schema["$defs"]["provenance"]["additionalProperties"] is False
+
+
+def _sqlite_is_open(db) -> tuple[bool, bool]:
+    """Return ``(companion_present, handle_open)`` for a SQLite database.
+
+    ``-wal``/``-shm`` companions exist exactly while a connection is open; on
+    Windows an open SQLite handle additionally blocks renaming the database
+    file. The second detector is journal-mode independent.
+    """
+
+    database = Path(db)
+    companion = Path(f"{database}-wal").exists() or Path(f"{database}-shm").exists()
+    moved = database.with_suffix(database.suffix + ".rename-probe")
+    try:
+        os.rename(database, moved)
+    except OSError:
+        return companion, True
+    os.rename(moved, database)
+    return companion, False
+
+
+def test_every_approval_ledger_connection_is_closed_and_consumption_commits(
+    tmp_path,
+) -> None:
+    """The approval ledger must not leave connections to the collector.
+
+    ``_initialize``, ``verify_consumption`` and ``consumed`` used
+    ``with self._connect() as connection``. For sqlite3 that is a TRANSACTION
+    scope, not a closing scope: it commits and does not close. The leaked
+    connection was unreachable garbage held in a reference cycle, so it was
+    finalized by the generational collector at an unpredictable moment rather
+    than by refcounting at method exit, giving this store's ``-wal``/``-shm``
+    companions an indeterminate lifetime.
+
+    MEASURED on the pre-fix tree: after ``ApprovalLedger(...)`` the ``-wal``
+    companion existed and the database file was still locked; after
+    ``gc.collect()`` both were gone.
+
+    Deliberately no ``gc.collect()`` before the assertions: collecting first
+    finalizes the leaked connection and makes this test pass against the
+    unfixed code, which is exactly how this defect class stayed hidden.
+
+    ``consume`` is included as a control. It already used try/finally, so it
+    was never leaking, and it is the write path whose commit must still land.
+    """
+
+    database = tmp_path / "approvals.sqlite3"
+    signed = approval()
+
+    authority = ledger(database)
+    assert _sqlite_is_open(database) == (False, False), "_initialize leaked"
+
+    receipt = consume(authority, signed)
+    assert _sqlite_is_open(database) == (False, False), "consume leaked"
+
+    assert authority.verify_consumption(receipt, keyring=KEYRING) == receipt
+    assert _sqlite_is_open(database) == (False, False), "verify_consumption leaked"
+
+    assert authority.consumed(signed.digest)
+    assert _sqlite_is_open(database) == (False, False), "consumed leaked"
+
+    # The consumption COMMIT survived every explicit close, and is visible to a
+    # ledger instance that never owned the writing connection.
+    reopened = ledger(database)
+    assert reopened.consumed(signed.digest)
+    assert reopened.verify_consumption(receipt, keyring=KEYRING) == receipt

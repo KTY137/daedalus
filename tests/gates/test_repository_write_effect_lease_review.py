@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-TARGET = ROOT / "daedalus/gates/repository_write_effect_lease.py"
+TARGET = ROOT / "daedalus/gates/repository/write_effect_lease.py"
 SOURCE = TARGET.read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
 

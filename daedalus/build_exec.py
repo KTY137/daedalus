@@ -73,6 +73,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -84,6 +85,11 @@ from .kairos.scheduler import (
     Assignment,
     KairosScheduler,
     spend_refused_result,
+)
+from .limit_policy import (
+    ExecutionLimitPolicy,
+    LimitPolicyError,
+    load_from_env as load_limit_policy,
 )
 
 
@@ -203,10 +209,35 @@ class EffectBounds:
     source_revision: str
     max_spend_usd: float | None = None
     timeout_s: float | None = None
+    #: The owner policy captured when this run was admitted.  Numeric fields
+    #: above remain the configured fallback values; this explicit snapshot
+    #: decides whether each one is effective.  Keeping both is what lets an
+    #: unbounded run retain honest attribution without inventing Infinity or
+    #: rewriting the operator's configured values.
+    limit_policy: ExecutionLimitPolicy | None = None
     trace_id: str | None = None
     #: The run's own KillSwitch. Shared so the lease's generation and the
     #: loop's cancel token read ONE permit; two switches could disagree.
     switch: Any = None
+    #: Optional stable identity for an *internal* crash replay.  These three
+    #: values are all-or-nothing: the issuer still authenticates and persists
+    #: the lease, while a durable caller (the file bridge) can reproduce its
+    #: exact bytes after a process restart.  Ordinary waves omit them and keep
+    #: their fresh per-run identity.
+    attempt_id: str | None = None
+    lease_id: str | None = None
+    issued_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        replay_values = (self.attempt_id, self.lease_id, self.issued_at)
+        if any(value is not None for value in replay_values) and not all(
+            value is not None for value in replay_values
+        ):
+            raise ValueError(
+                "attempt_id, lease_id and issued_at must be supplied together"
+            )
+        if self.issued_at is not None and self.issued_at.tzinfo is None:
+            raise ValueError("issued_at must be timezone-aware")
 
 
 def _leaseable_paths(paths: Any, repo_root: str) -> tuple[list[str], list[str]]:
@@ -351,10 +382,21 @@ class WaveExecutor:
                  effect_bounds: "EffectBounds | None" = None) -> None:
         self.availability = availability
         # WHAT THIS WAVE'S CAPABILITY IS BOUNDED BY. None means "not supplied",
-        # and that is not the same as "unbounded": _acquire_wave_lease then
-        # leases ZERO spend and reads the run's revision from the checkout, so
-        # the missing declaration narrows the grant instead of widening it.
+        # and that is not the same as "unbounded": the explicit limit policy
+        # below, never a missing number, is the only thing that widens a run.
         self.effect_bounds = effect_bounds
+        try:
+            captured_policy = (effect_bounds.limit_policy
+                               if effect_bounds is not None else None)
+            self.limit_policy = captured_policy or load_limit_policy()
+        except LimitPolicyError as exc:
+            raise ValueError(
+                f"execution limit policy is invalid: {exc}"
+            ) from exc
+        if not isinstance(self.limit_policy, ExecutionLimitPolicy):
+            raise TypeError(
+                "effect_bounds.limit_policy must be an ExecutionLimitPolicy"
+            )
         # WHERE THE ATTEMPT-LIFECYCLE EVENTS GO. Defaulted to None (=
         # daedalus.progress.default_log()) so every existing construction is
         # unchanged. A driver that already owns a log -- LoopDriver does --
@@ -365,8 +407,38 @@ class WaveExecutor:
 
     def _scheduler_for(self, session: BuildSession) -> KairosScheduler:
         scheduler = KairosScheduler(availability=self.availability, project=session.project)
-        scheduler.max_workers = max(1, int(session.max_workers))
+        if self.limit_policy.enforces("concurrency"):
+            scheduler.max_workers = max(1, int(session.max_workers))
+        else:
+            # "Unbounded" means no Daedalus-owned worker ceiling.  A finite
+            # saved plan still has a finite number of tasks, so using the
+            # largest wave size starts every task that actually exists without
+            # a MAX_INT sentinel or an unbounded thread factory.
+            full_wave = max((len(wave.tasks) for wave in session.waves), default=1)
+            scheduler.max_workers = max(1, full_wave)
+            # Isolated write attempts may fan out across that whole wave too.
+            # The unsafe shared-checkout write path is still refused by
+            # run_wave independently of this resource policy.
+            scheduler.max_parallel_writes = scheduler.max_workers
         return scheduler
+
+    def _apply_wave_concurrency_policy(
+        self, scheduler: KairosScheduler, wave: Wave
+    ) -> None:
+        """Remove Daedalus worker ceilings for this finite admitted wave.
+
+        ``run_wave`` is also a public entrypoint and callers may supply their
+        own scheduler instead of going through :meth:`run`; applying the
+        snapshot here prevents that path from accidentally retaining the
+        configured worker cap.  Containment and the shared-checkout parallel
+        write refusal are separate safety decisions and remain untouched.
+        """
+
+        if self.limit_policy.enforces("concurrency"):
+            return
+        full_wave = max(1, len(wave.tasks))
+        scheduler.max_workers = full_wave
+        scheduler.max_parallel_writes = full_wave
 
     @staticmethod
     def _task_dicts(wave: Wave,
@@ -534,6 +606,9 @@ class WaveExecutor:
                 reasons=(reason,),
             )
 
+        from .orchestration.workspace_containment import resolve_worktree_root
+        from .runtimes.admission.offload_egress import admit_offload_egress
+
         return acquire_wave_offload_lease(
             repo_root,
             source_revision=revision,
@@ -549,6 +624,8 @@ class WaveExecutor:
                                              parallel=parallel),
             writable_paths=declared,
             lanes=sorted({a.lane for a in live}),
+            egress_admission=admit_offload_egress,
+            worktree_root_resolver=resolve_worktree_root,
             tools=tools,
             max_spend_usd=(bounds.max_spend_usd if bounds else None),
             timeout_s=(bounds.timeout_s if bounds else None),
@@ -565,12 +642,14 @@ class WaveExecutor:
                 "a write-mode assignment would reach the unisolated dispatch path"
             ),
             write_policy_blocked=blocked,
+            limit_policy=self.limit_policy,
             switch=(bounds.switch if bounds else None),
             trace_id=(bounds.trace_id if bounds else None),
+            lease_id=(bounds.lease_id if bounds else None),
+            now=(bounds.issued_at if bounds else None),
         )
 
-    @staticmethod
-    def _open_spend_envelope(lease: Any, wave: Wave) -> tuple[Any, dict[str, Any] | None]:
+    def _open_spend_envelope(self, lease: Any, wave: Wave) -> tuple[Any, dict[str, Any] | None]:
         """Turn the lease's ``max_cost_microusd`` into money that actually stops.
 
         THE GAP THIS CLOSES. ``EffectScope.max_cost_microusd`` was, until this
@@ -600,7 +679,15 @@ class WaveExecutor:
 
         scope = lease.lease.effect_scope
         micro = scope.max_cost_microusd
-        cap_usd = 0.0 if not micro else float(micro) / 1_000_000.0
+        bounds = self.effect_bounds
+        # The envelope ledger still attributes every draw when Mission spend
+        # enforcement is disabled.  In that case the lease's *effective* cap
+        # is null, while the configured numeric fallback remains available for
+        # display and for a later bounded admission.
+        cap_usd = (float(bounds.max_spend_usd)
+                   if micro is None and bounds is not None
+                   and bounds.max_spend_usd is not None
+                   else (0.0 if not micro else float(micro) / 1_000_000.0))
         # The envelope outlives the lease by nothing: a hold whose wave is over
         # must stop holding the day's money. `timeout_s` is the wave's own
         # bound, doubled so a wave that ends exactly at its timeout still
@@ -614,7 +701,15 @@ class WaveExecutor:
                 label=(f"wave {wave.index} "
                        f"({getattr(lease.request, 'mission_id', '') or '?'})"),
                 lease_id=lease.lease.lease_id,
-                ttl_s=ttl)
+                ttl_s=ttl,
+                # Only the durable bridge replay path supplies a stable
+                # attempt/lease identity.  If that process died after the hold
+                # landed but before offload.begin_effect committed a start,
+                # recover the exact hold instead of reserving the same lease a
+                # second time.  Ordinary waves retain fresh-envelope semantics.
+                reuse_open_lease=bool(
+                    bounds is not None and bounds.attempt_id is not None
+                ))
         except budget.BudgetRefused as exc:
             return None, {"reason": exc.message(), "detail": exc.as_dict(),
                           "cap_usd": cap_usd}
@@ -736,6 +831,7 @@ class WaveExecutor:
         at the last instant before anything is dispatched, and then handed
         down -- see ``_accepts_cancel`` for why the hand-down is conditional.
         """
+        self._apply_wave_concurrency_policy(scheduler, wave)
         tasks = self._task_dicts(wave, curated_gates)
         assignments = scheduler.accept(tasks, repo_root=repo_root)
         write_n = sum(1 for a in assignments if a.accepted and a.mode == "write")
@@ -817,10 +913,14 @@ class WaveExecutor:
         nonce = uuid.uuid4().hex[:8]
         lease = None
         envelope = None
+        executions = None
         if not dry_run:
+            bounds = self.effect_bounds
             lease = self._acquire_wave_lease(
                 scheduler, wave, assignments, repo_root, session=session, task_dicts=tasks,
-                attempt_id=f"w{wave.index}-{nonce}",
+                attempt_id=(bounds.attempt_id if bounds is not None
+                            and bounds.attempt_id is not None
+                            else f"w{wave.index}-{nonce}"),
                 gated=gated_write_wave, has_writes=has_writes,
                 parallel=wave_parallel)
             if lease is not None and not getattr(lease, "granted", False):
@@ -850,13 +950,41 @@ class WaveExecutor:
                     path_conflicts=conflicts, results=refused,
                     mission_id=getattr(session, "mission_id", ""))
 
+            executions = {
+                pos: lease.execution_for(
+                    pos, _leaseable_paths(t.paths, repo_root)[0])
+                for pos, t in enumerate(wave.tasks)
+            } if lease is not None else None
+
+            # A durable caller may be replaying this exact wave after the
+            # provider already finished but before its outer report landed.
+            # Ask the canonical Effect-Lease ledger before reserving money.
+            # When every execution already has a durable start, dispatch below
+            # can only receive ``execute=False`` from begin_effect; opening a
+            # fresh envelope first would add a second hold and could even make
+            # the harmless ledger replay fail at the period ceiling.
+            replay_only = False
+            if (lease is not None and executions
+                    and bounds is not None and bounds.attempt_id is not None):
+                from .kernel.effect_replay import inspect_effect_execution
+
+                replay_only = all(
+                    inspect_effect_execution(lease.authorization, execution)
+                    is not None
+                    for execution in executions.values()
+                )
+
             # ---- THE MONEY, RESERVED AT THE LEASE'S CEILING --------------- #
             # Immediately after the grant and before anything is dispatched,
             # for the same reason the lease itself is acquired here: a wave
             # that cannot hold its own budget must leave no half-open attempt
             # behind. Without this the lease's max_cost_microusd was a number
             # in a receipt and the only real cap was the day's.
-            envelope, spend_refusal = self._open_spend_envelope(lease, wave)
+            envelope, spend_refusal = (
+                (None, None)
+                if replay_only
+                else self._open_spend_envelope(lease, wave)
+            )
             if spend_refusal is not None:
                 receipt = lease.receipt() if lease is not None else None
                 refused = [
@@ -1010,11 +1138,6 @@ class WaveExecutor:
                 return run_write_wave(scheduler, repo_root, tasks, assignments,
                                       auto_promote=write_wave_policy, **extra)
         else:
-            executions = {
-                pos: lease.execution_for(
-                    pos, _leaseable_paths(t.paths, repo_root)[0])
-                for pos, t in enumerate(wave.tasks)} if lease is not None else None
-
             def _dispatch() -> list[dict[str, Any]]:
                 return scheduler.dispatch(
                     repo_root, tasks, dry_run=dry_run, parallel=wave_parallel,
@@ -1192,7 +1315,8 @@ class WaveExecutor:
             resume: bool = True, stop_on_bounce: bool = False,
             checkpoint_every_wave: bool = False,
             runs_dir: str | Path | None = None,
-            update_architecture: bool = True) -> BuildRunReport:
+            update_architecture: bool = True,
+            persist_session: bool = True) -> BuildRunReport:
         """Execute every wave of ``session``, in order, collecting results back
         onto each task and (unless ``dry_run``) persisting the session.
 
@@ -1204,6 +1328,10 @@ class WaveExecutor:
         ``resume=True`` (default) skips any wave whose tasks are already all
         terminal (``landed``/``bounced``) -- safe to call repeatedly on the
         same session as it progresses, or after a crash.
+
+        ``persist_session=False`` is for a caller that already owns durable
+        request/report recovery (the File Bridge). It changes no execution
+        semantics and suppresses only this legacy BuildSession projection.
 
         ``checkpoint_every_wave=False`` (default) saves the session once, at
         the end. ``BuildSession.save()`` mints a fresh second-resolution
@@ -1241,7 +1369,7 @@ class WaveExecutor:
             result = self.run_wave(scheduler, wave, root, session=session, dry_run=dry_run, parallel=wave_parallel)
             wave_results.append(result)
 
-            if checkpoint_every_wave and not dry_run:
+            if checkpoint_every_wave and not dry_run and persist_session:
                 session.save(runs_dir, update_architecture=update_architecture)
 
             if stop_on_bounce and result.bounced_tasks:
@@ -1260,7 +1388,7 @@ class WaveExecutor:
                 break
 
         snapshot_path = None
-        if not dry_run:
+        if not dry_run and persist_session:
             snapshot_path = str(session.save(runs_dir, update_architecture=update_architecture))
 
         return BuildRunReport(
@@ -1311,8 +1439,18 @@ def main() -> None:
 
     session = load_session(args.session)
     executor = WaveExecutor()
-    report = executor.run(
-        session, repo_root=args.repo_root, dry_run=not args.live,
+    root = args.repo_root or session.repo_root
+    source_revision = executor._source_revision(root)
+    if source_revision is None:
+        raise SystemExit(
+            "build session repository HEAD is unavailable; refusing to run "
+            "without MissionContract source provenance"
+        )
+    from .orchestration import run_mission
+
+    _mission, report = run_mission(
+        session, source_revision=source_revision, executor=executor,
+        repo_root=args.repo_root, dry_run=not args.live,
         parallel_advisory=not args.no_parallel_advisory, resume=not args.no_resume,
         stop_on_bounce=args.stop_on_bounce, checkpoint_every_wave=args.live,
     )

@@ -4,12 +4,18 @@ import ast
 from pathlib import Path
 
 import daedalus.kernel as kernel
+from daedalus.kernel.contracts.promotion import PromotionReceipt as HierarchyPromotionReceipt
 from daedalus.schemas import PromotionReceipt
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "daedalus"
-SCHEMA_PATH = Path("daedalus/schemas.py")
+SCHEMA_PATH = Path("daedalus/kernel/contracts/canonical.py")
+COMPATIBILITY_PATHS = {
+    Path("daedalus/schemas.py"),
+    Path("daedalus/kernel/contracts/__init__.py"),
+    Path("daedalus/kernel/contracts/promotion.py"),
+}
 
 
 def _production_modules() -> tuple[Path, ...]:
@@ -86,7 +92,10 @@ def test_promotion_receipt_imports_cannot_select_another_authority() -> None:
             if any(alias.name == "PromotionReceipt" for alias in node.names):
                 imports.append((_relative(path), node.module))
 
-    assert all(module == "daedalus.schemas" for _, module in imports)
+    assert all(
+        path in COMPATIBILITY_PATHS or module == "daedalus.schemas"
+        for path, module in imports
+    )
 
 
 def test_promotion_receipt_cannot_be_shadowed_or_subclassed() -> None:
@@ -134,6 +143,7 @@ def test_promotion_receipt_cannot_be_shadowed_or_subclassed() -> None:
 
 def test_canonical_promotion_receipt_identity_is_stable() -> None:
     assert PromotionReceipt.CONTRACT_TYPE == "daedalus.promotion"
+    assert HierarchyPromotionReceipt is PromotionReceipt
     compatibility_export = getattr(kernel, "PromotionReceipt", PromotionReceipt)
     assert compatibility_export is PromotionReceipt
 
@@ -165,4 +175,4 @@ def test_obsolete_kernel_receipt_authority_is_absent() -> None:
 def test_kernel_remains_a_strangler_not_contract_authority() -> None:
     source = (PACKAGE / "kernel" / "__init__.py").read_text(encoding="utf-8")
     assert "not a second contract authority" in source
-    assert "canonical wire contracts remain in :mod:`daedalus.schemas`" in source
+    assert "canonical wire contracts are owned by :mod:`daedalus.kernel.contracts`" in source

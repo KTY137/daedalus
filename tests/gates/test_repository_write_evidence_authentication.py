@@ -5,7 +5,7 @@ import hashlib
 
 import pytest
 
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     AUTHENTICATED_EVIDENCE_KINDS,
     STAGE_VERDICT_ABSENT,
     STAGE_VERDICT_NOT_APPLICABLE,
@@ -28,27 +28,27 @@ from daedalus.gates.repository_write_classification import (
     surface_binding_sha256,
     verify_non_runtime_conformity_binding,
 )
-from daedalus.gates.repository_write_effect_lease import (
+from daedalus.gates.repository.write_effect_lease import (
     EffectLeaseReplayRecord,
     RepositoryWriteEffectLeaseReport,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     MaterializedEvidenceRecord,
     RepositoryWriteEvidenceMaterializationReport,
     evidence_subject_sha256,
 )
-from daedalus.gates.repository_write_evidence_origin import (
+from daedalus.gates.repository.write_evidence_origin import (
     RepositoryWriteEvidenceOriginReport,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2,
     RepositoryWriteSurface,
 )
-from daedalus.gates.repository_write_runtime_conformance import (
+from daedalus.gates.repository.write_runtime_conformance import (
     RepositoryWriteRuntimeConformanceReport,
     RuntimeConformanceReplayRecord,
 )
-from daedalus.gates.repository_write_source_anchor_semantics import (
+from daedalus.gates.repository.write_source_anchor_semantics import (
     RepositoryWriteSourceAnchorSemanticsReport,
     SourceAnchorSemanticRecord,
 )

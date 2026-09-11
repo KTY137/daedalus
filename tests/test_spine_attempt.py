@@ -14,6 +14,10 @@ from pathlib import Path
 import pytest
 
 import daedalus.spine.attempt as attempt_mod
+from daedalus.orchestration.execution import (
+    command_gate,
+    compose_task_attempt as TaskAttempt,
+)
 from daedalus.spine.attempt import (
     INTENT_KIND,
     STATE_CANCELLED,
@@ -26,9 +30,7 @@ from daedalus.spine.attempt import (
     GateResult,
     PrimaryCheckoutWrite,
     RunnerContext,
-    TaskAttempt,
     TaskSpec,
-    command_gate,
     pytest_gate_argv,
 )
 from daedalus.spine.durability import (
@@ -805,9 +807,10 @@ def test_command_gate_records_effective_containment_attestation(
 
     seen = {}
 
-    def _contained(argv, worktree, out_path, tmpdir):
+    def _contained(argv, worktree, out_path, tmpdir, *, timeout_s=None):
         seen["argv"] = tuple(argv)
         seen["worktree"] = worktree
+        seen["timeout_s"] = timeout_s
         out_path.write_text("contained build passed\n", encoding="utf-8")
         return _ContainedProcess(), _Log()
 
@@ -820,7 +823,11 @@ def test_command_gate_records_effective_containment_attestation(
 
     assert verdict.passed is True
     assert verdict.command == argv
-    assert seen == {"argv": argv, "worktree": worktree}
+    assert seen == {
+        "argv": argv,
+        "worktree": worktree,
+        "timeout_s": attempt_mod.DEFAULT_GATE_TIMEOUT_S,
+    }
     assert verdict.containment is attestation
     block = verdict.summary()["containment"]
     assert block["requested"] is True
@@ -966,7 +973,10 @@ def test_absent_fail_to_pass_leaves_the_plain_pytest_gate_untouched(
     at = TaskAttempt(task, runner=writing_runner({"a.txt": "a\n"}), repo_root=repo)
 
     assert at._gate is sentinel
-    assert calls == [(("tests/test_a.py",), {})]
+    assert len(calls) == 1
+    assert calls[0][0] == ("tests/test_a.py",)
+    assert tuple(calls[0][1]) == ("scratch_cleanup",)
+    assert callable(calls[0][1]["scratch_cleanup"])
 
 
 def test_gate_returning_a_bare_bool_is_accepted_and_says_so(repo, worktree_root,

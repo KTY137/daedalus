@@ -16,7 +16,10 @@ import { collect, NOT_BUILT } from './_app';
  * live payload rather than against a fixture.
  */
 
-const COCKPIT = '/';
+const acceptanceProject = process.env.DAEDALUS_GUI_PROJECT || '';
+const COCKPIT = acceptanceProject
+  ? `/?project=${encodeURIComponent(acceptanceProject)}`
+  : '/';
 
 async function openCockpit(page: Page): Promise<void> {
   const res = await page.goto(COCKPIT, { waitUntil: 'domcontentloaded' });
@@ -62,6 +65,10 @@ async function selectedProject(page: Page): Promise<string> {
 
 test.describe('cockpit', () => {
   test('opens on a real neighbourhood, and says what it did not draw', async ({ page }) => {
+    // A cold, real source index owns a four-minute readiness budget. The
+    // helper already carried that bound, but Playwright's 60-second default
+    // used to terminate the test before the helper's assertion could use it.
+    test.setTimeout(300_000);
     const signals = collect(page);
     await openCockpit(page);
     await waitForStage(page);
@@ -92,6 +99,88 @@ test.describe('cockpit', () => {
       }
     }
 
+    expect(signals.pageErrors, `the page threw: ${signals.pageErrors.join(' | ')}`).toHaveLength(0);
+  });
+
+  test('Fourfold switches between layers, sphere and the explicit whole graph', async ({ page }) => {
+    const signals = collect(page);
+    const scopes: string[] = [];
+    await page.route('**/api/fourfold?**', async (route) => {
+      const url = new URL(route.request().url());
+      const whole = url.searchParams.get('graph_nodes') === 'all';
+      scopes.push(url.searchParams.get('graph_nodes') || '');
+      const nodes = [
+        { id: 'src/app.ts', plane: 'code', kind: 'module', language: 'typescript', loc: 80, score: 8, fan_in: 3 },
+        { id: 'src/store.ts', plane: 'code', kind: 'module', language: 'typescript', loc: 42, score: 4, fan_in: 1 },
+        { id: 'type:src/app.ts#Message', plane: 'type', kind: 'type', language: '', loc: 0, score: 0, fan_in: 0 },
+        { id: 'dataset:events', plane: 'data', kind: 'dataset', language: '', loc: 0, score: 0, fan_in: 0 },
+        { id: 'README.md', plane: 'knowledge', kind: 'document', language: 'markdown', loc: 30, score: 0, fan_in: 0 },
+        ...(whole ? [{ id: 'src/all.ts', plane: 'code', kind: 'module', language: 'typescript', loc: 12, score: 1, fan_in: 0 }] : [])
+      ];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          project: 'fixture',
+          generated_at: '2026-09-04T10:00:00Z',
+          warnings: [],
+          fourfold: {
+            schema: 'daedalus-fourfold-read/1',
+            repository_id: 'fixture',
+            snapshot_sha256: 'a'.repeat(64),
+            forest_sha256: 'b'.repeat(64),
+            revision: 'b'.repeat(64),
+            revision_basis: 'forest-content',
+            assurance: 'legacy-forest-projection',
+            planes: ['code', 'type', 'data', 'knowledge'].map((plane) => ({
+              plane,
+              status: 'partial',
+              reason: 'browser fixture',
+              node_count: nodes.filter((node) => node.plane === plane).length,
+              shown_count: nodes.filter((node) => node.plane === plane).length,
+              relation_count: 1
+            })),
+            graph: {
+              nodes,
+              edges: [
+                { source: 'src/app.ts', target: 'src/store.ts', relation: 'imports', directed: true, weight: 1, cross_plane: false, assurance: 'observed' },
+                { source: 'src/app.ts', target: 'type:src/app.ts#Message', relation: 'uses_type', directed: true, weight: 1, cross_plane: true, assurance: 'verified' },
+                { source: 'README.md', target: 'src/app.ts', relation: 'documents', directed: true, weight: 1, cross_plane: true, assurance: 'verified' }
+              ],
+              n_nodes_total: 6,
+              n_nodes_shown: nodes.length,
+              n_modules_total: 3,
+              n_modules_shown: whole ? 3 : 2,
+              n_edges_total: 3,
+              n_edges_eligible: 3,
+              n_edges_offmap: 0,
+              n_hyperedges_total: 1,
+              n_bindings_total: 2,
+              truncated: !whole,
+              scope: whole ? 'all' : 'bounded'
+            }
+          }
+        })
+      });
+    });
+
+    await openCockpit(page);
+    await waitForStage(page);
+    await page.getByRole('button', { name: 'Fourfold', exact: true }).click();
+
+    await expect(page.getByRole('heading', { name: 'Vier Ebenen' })).toBeVisible();
+    await expect(page.locator('.fourfold-canvas canvas').first(), 'Sigma drew no WebGL canvas').toBeVisible();
+    await expect(page.locator('.fourfold-stage')).toHaveAttribute('data-layout', 'layers');
+    await page.getByRole('button', { name: 'Kugel', exact: true }).click();
+    await expect(page.locator('.fourfold-stage')).toHaveAttribute('data-layout', 'sphere');
+    await expect(page.locator('.fourfold-guides.sphere > i')).toHaveCount(4);
+
+    await page.getByRole('button', { name: 'Ganzer Graph', exact: true }).click();
+    await expect(page.locator('.fourfold-stage')).toHaveAttribute('data-scope', 'all');
+    await expect(page.locator('.fourfold-census')).toContainText('alle 3 Module angezeigt');
+    expect(scopes).toContain('800');
+    expect(scopes).toContain('all');
     expect(signals.pageErrors, `the page threw: ${signals.pageErrors.join(' | ')}`).toHaveLength(0);
   });
 
@@ -144,11 +233,6 @@ test.describe('cockpit', () => {
   });
 
   test('switching project replaces the map instead of relabelling it', async ({ page }) => {
-    // This is a frontend isolation invariant, not a filesystem benchmark.  The
-    // previous live-project version picked the first machine-local registry row;
-    // on Linux CI that is commonly a Windows-only checkout, so the spec waited
-    // five minutes and then skipped.  Keep the preceding spec live, but make
-    // the actual switch window deterministic with two disjoint project payloads.
     const rows = [
       { name: 'switch-alpha', repo_root: 'C:\\fixtures\\switch-alpha', team: {}, reachable: true },
       { name: 'switch-beta', repo_root: 'C:\\fixtures\\switch-beta', team: {}, reachable: true }
@@ -183,7 +267,7 @@ test.describe('cockpit', () => {
       await route.fulfill({
         json: {
           ok: true,
-          generated_at: '2026-09-07T00:00:00Z',
+          generated_at: '2026-09-04T12:00:00Z',
           project: name,
           warnings: [],
           structure: {
@@ -224,11 +308,17 @@ test.describe('cockpit', () => {
     expect([...firstModules].sort()).toEqual(nodes['switch-alpha'].map((node) => node.module).sort());
 
     await page.locator('.scope-trigger').click();
-    const others = await page.locator('.scope-menu li button:not(.on)').allInnerTexts();
-    expect(others.map((name) => name.trim())).toEqual(['switch-beta']);
-    const second = others[0].trim();
+    const otherOptions = page.locator('.scope-menu li button:not(.on)', {
+      has: page.locator('[data-project-reachable="true"]')
+    });
+    await expect(otherOptions).toHaveCount(1);
 
-    await page.getByRole('button', { name: second, exact: true }).click();
+    const secondOption = otherOptions.first();
+    const second = await secondOption.locator('[data-project-name]').getAttribute('data-project-name');
+    expect(second, 'the project option did not expose its stable registered identity').toBeTruthy();
+    if (!second) throw new Error('the project option did not expose its stable registered identity');
+
+    await secondOption.click();
     await expect.poll(() => secondRequestSeen, { timeout: 10_000 }).toBe(true);
 
     // While the second scan is held, the first project's map must be GONE and
@@ -255,6 +345,199 @@ test.describe('cockpit', () => {
 
     const status = await page.locator('.statusline').innerText();
     expect(status, 'the status line still names the previous project').toContain(second);
+  });
+
+  test('structure, governance and live callbacks stay inside the exact project generation', async ({ page }) => {
+    const rows = [
+      { name: 'epoch-alpha', repo_root: 'C:\\fixtures\\epoch-alpha', team: {}, reachable: true },
+      { name: 'epoch-beta', repo_root: 'C:\\fixtures\\epoch-beta', team: {}, reachable: true }
+    ];
+    const structurePayload = (name: string) => ({
+      ok: true,
+      generated_at: '2026-09-05T00:00:00Z',
+      project: name,
+      warnings: [],
+      structure: {
+        backend: { tree_sitter: true, lizard: true },
+        repo_root: rows.find((row) => row.name === name)?.repo_root,
+        n_files: 1,
+        languages: { fixture: { files: 1, loc: 1 } },
+        totals: { unit_clusters: 0, window_clusters: 0, safety_fenced: 0 },
+        hotspots: [], clones: [], window_clones: [], fan_in: [],
+        graph: {
+          nodes: [], edges: [], n_nodes_total: 0, n_edges_total: 0,
+          n_edges_eligible: 0, n_edges_shown: 0, n_edges_offmap: 0
+        }
+      }
+    });
+    const governancePayload = (name: string, allowed: boolean) => ({
+      ok: true,
+      generated_at: '2026-09-05T00:00:00Z',
+      project: name,
+      warnings: [],
+      promotion_allowed: allowed,
+      verdict: `${name}-verdict`,
+      state: allowed ? 'working' : 'absent',
+      head: `${name}-head`,
+      gates: [],
+      blockers: allowed ? [] : [{ gate: 'fixture', state: 'absent', why: `${name}-blocked` }]
+    });
+
+    // Closing an EventSource does not erase a callback the browser already
+    // queued. Retain listeners deliberately so the old alpha source can fire
+    // after beta, and again after a new alpha generation exists.
+    await page.addInitScript(() => {
+      const sources: Array<{
+        url: string;
+        listeners: Map<string, Set<(event: Event) => void>>;
+      }> = [];
+      class ControlledProjectEventSource {
+        static readonly CONNECTING = 0;
+        static readonly OPEN = 1;
+        static readonly CLOSED = 2;
+        readonly CONNECTING = 0;
+        readonly OPEN = 1;
+        readonly CLOSED = 2;
+        readonly url: string;
+        readonly withCredentials = false;
+        readyState = ControlledProjectEventSource.OPEN;
+        onopen: ((event: Event) => void) | null = null;
+        onmessage: ((event: MessageEvent) => void) | null = null;
+        onerror: ((event: Event) => void) | null = null;
+        readonly listeners = new Map<string, Set<(event: Event) => void>>();
+
+        constructor(url: string | URL) {
+          this.url = String(url);
+          sources.push(this);
+        }
+
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject | null) {
+          if (!listener) return;
+          const callback = typeof listener === 'function' ? listener : (event: Event) => listener.handleEvent(event);
+          const bucket = this.listeners.get(type) || new Set<(event: Event) => void>();
+          bucket.add(callback);
+          this.listeners.set(type, bucket);
+        }
+
+        removeEventListener() { /* queued-listener fixture */ }
+
+        dispatchEvent(event: Event) {
+          for (const listener of this.listeners.get(event.type) || []) listener(event);
+          if (event.type === 'error') this.onerror?.(event);
+          return true;
+        }
+
+        close() {
+          this.readyState = ControlledProjectEventSource.CLOSED;
+        }
+      }
+
+      Object.defineProperty(window, 'EventSource', { configurable: true, value: ControlledProjectEventSource });
+      Object.defineProperty(window, '__projectEventSourceCount', {
+        configurable: true,
+        value: (project: string) => sources.filter((source) => {
+          const url = new URL(source.url, location.origin);
+          return url.pathname === '/api/events' && url.searchParams.get('project') === project;
+        }).length,
+      });
+      Object.defineProperty(window, '__emitProjectEvent', {
+        configurable: true,
+        value: (project: string, occurrence: number, type: string, data: Record<string, unknown>) => {
+          const matches = sources.filter((source) => {
+            const url = new URL(source.url, location.origin);
+            return url.pathname === '/api/events' && url.searchParams.get('project') === project;
+          });
+          const source = matches[occurrence];
+          if (!source) throw new Error(`no EventSource ${occurrence} for ${project}`);
+          source.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(data) }));
+        },
+      });
+    });
+
+    let betaStructureSeen = false;
+    let betaGovernanceSeen = false;
+    let releaseBetaStructure!: () => void;
+    let releaseBetaGovernance!: () => void;
+    const betaStructureGate = new Promise<void>((resolve) => { releaseBetaStructure = resolve; });
+    const betaGovernanceGate = new Promise<void>((resolve) => { releaseBetaGovernance = resolve; });
+
+    await page.route('**/api/projects', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], projects: rows }
+    }));
+    await page.route('**/api/structure**', async (route) => {
+      const name = new URL(route.request().url()).searchParams.get('project') || '';
+      if (name === 'epoch-beta') {
+        betaStructureSeen = true;
+        await betaStructureGate;
+      }
+      await route.fulfill({ json: structurePayload(name) });
+    });
+    await page.route('**/api/governance**', async (route) => {
+      const name = new URL(route.request().url()).searchParams.get('project') || '';
+      if (name === 'epoch-beta') {
+        betaGovernanceSeen = true;
+        await betaGovernanceGate;
+      }
+      await route.fulfill({ json: governancePayload(name, name === 'epoch-alpha') });
+    });
+
+    const sourceCount = (name: string) => page.evaluate(
+      (projectName) => (window as unknown as { __projectEventSourceCount: (project: string) => number })
+        .__projectEventSourceCount(projectName),
+      name,
+    );
+    const emit = (name: string, occurrence: number, type: string, data: Record<string, unknown>) => page.evaluate(
+      ({ projectName, occurrenceIndex, eventType, payload }) => (
+        window as unknown as {
+          __emitProjectEvent: (project: string, occurrence: number, type: string, data: Record<string, unknown>) => void;
+        }
+      ).__emitProjectEvent(projectName, occurrenceIndex, eventType, payload),
+      { projectName: name, occurrenceIndex: occurrence, eventType: type, payload: data },
+    );
+    const chooseProject = async (name: string) => {
+      await page.locator('.scope-trigger').click();
+      await page.locator(`.scope-menu [data-project-name="${name}"]`).click();
+      await expect.poll(() => selectedProject(page)).toBe(name);
+    };
+
+    await openCockpit(page);
+    await expect(page.locator('.statusline')).toContainText('C:\\fixtures\\epoch-alpha');
+    await expect(page.locator('.statusline')).toContainText('Promotion offen');
+    await expect.poll(() => sourceCount('epoch-alpha')).toBe(1);
+    await emit('epoch-alpha', 0, 'hello', { queue_depth: 7, unread_count: 0, quarantined_count: 0 });
+    await expect(page.locator('.statusline')).toContainText('7 wartend');
+
+    await chooseProject('epoch-beta');
+    await expect.poll(() => betaStructureSeen && betaGovernanceSeen).toBe(true);
+    const betaPending = page.locator('.statusline');
+    await expect(betaPending).not.toContainText('C:\\fixtures\\epoch-alpha');
+    await expect(betaPending).not.toContainText('Promotion offen');
+    await expect(betaPending).not.toContainText('7 wartend');
+
+    // An alpha callback queued before close must not become beta's live state.
+    await emit('epoch-alpha', 0, 'hello', { queue_depth: 91, unread_count: 0, quarantined_count: 0 });
+    await page.waitForTimeout(100);
+    await expect(betaPending).not.toContainText('91 wartend');
+
+    releaseBetaStructure();
+    releaseBetaGovernance();
+    await expect(betaPending).toContainText('C:\\fixtures\\epoch-beta');
+    await expect(betaPending).toContainText('Promotion gesperrt');
+    await expect.poll(() => sourceCount('epoch-beta')).toBe(1);
+    await emit('epoch-beta', 0, 'hello', { queue_depth: 2, unread_count: 0, quarantined_count: 0 });
+    await expect(betaPending).toContainText('2 wartend');
+
+    await chooseProject('epoch-alpha');
+    await expect.poll(() => sourceCount('epoch-alpha')).toBe(2);
+    await expect(page.locator('.statusline')).not.toContainText('2 wartend');
+
+    // Project name alone is insufficient after A -> B -> A: the first alpha
+    // stream belongs to an obsolete generation and must remain inert.
+    await emit('epoch-alpha', 0, 'hello', { queue_depth: 93, unread_count: 0, quarantined_count: 0 });
+    await page.waitForTimeout(100);
+    await expect(page.locator('.statusline')).not.toContainText('93 wartend');
+    await emit('epoch-alpha', 1, 'hello', { queue_depth: 3, unread_count: 0, quarantined_count: 0 });
+    await expect(page.locator('.statusline')).toContainText('3 wartend');
   });
 
   test('the theme decides the composition, and switching one re-lays the surface', async ({ page }) => {
@@ -285,7 +568,7 @@ test.describe('cockpit', () => {
     await expect(builtIns).toHaveCount(BUILT_INS.length);
     for (const spec of BUILT_INS) {
       await expect(
-        page.locator('.studio-body .theme-list').first().locator('.theme-name', { hasText: spec.name }),
+        page.locator('.studio-body .theme-list').first().getByText(spec.name, { exact: true }),
         `the built-in ${spec.id} is not listed`
       ).toHaveCount(1);
     }
@@ -312,8 +595,8 @@ test.describe('cockpit', () => {
     await page.getByRole('button', { name: 'Themes' }).click();
     const startId = await page.evaluate(() => document.documentElement.dataset.themeId);
 
-    await page.getByRole('tab', { name: 'Farbe' }).click();
-    await page.getByLabel('Akzent als CSS-Farbe', { exact: true }).fill('#7fd4ff');
+    await page.getByRole('tab', { name: 'Farben', exact: true }).click();
+    await page.getByLabel('Akzentfarbe als CSS-Farbe', { exact: true }).fill('#7fd4ff');
 
     await expect
       .poll(() => page.evaluate(() => document.documentElement.dataset.themeId), { timeout: 10_000 })
@@ -337,7 +620,7 @@ test.describe('cockpit', () => {
     expect(state.stored[0].forkedFrom, 'the fork does not record what it came from').toBe(startId);
 
     // The built-in must be untouched and still selectable.
-    await page.getByRole('tab', { name: 'Themes' }).click();
+    await page.getByRole('tab', { name: 'Looks', exact: true }).click();
     await expect(page.locator('.studio-body .theme-list').first().locator('li')).toHaveCount(BUILT_INS.length);
   });
 
@@ -347,7 +630,7 @@ test.describe('cockpit', () => {
 
     /**
      * "status" is the one word that routes deterministically
-     * (daedalus/ikarus_os.py::classify -> SHELL_DETERMINISTIC), so this spec
+     * (daedalus/orchestration/ikarus/shell.py::classify -> SHELL_DETERMINISTIC), so this spec
      * exercises the whole conversation path — stream, deltas, final envelope,
      * provenance stamp — without reaching a paid vendor. A test that spends
      * money to prove a text box works is a test nobody runs twice.
@@ -451,6 +734,12 @@ test.describe('cockpit', () => {
     await openCockpit(page);
     await waitForStage(page);
 
+    // Registered projects differ on every real machine. Ask about a module the
+    // selected project's live map actually exposed instead of assuming the
+    // first reachable checkout contains Daedalus' `attempt.py`.
+    const [target] = await drawnModules(page);
+    expect(target, 'the live map exposed no module to plan context for').toBeTruthy();
+
     await goChat(page);
 
     const toggle = page.getByRole('button', { name: 'Was würde gelesen?' });
@@ -459,7 +748,7 @@ test.describe('cockpit', () => {
     // as decoration.
     await expect(toggle).toBeDisabled();
 
-    await page.getByLabel('Nachricht an Ikarus').fill('was passiert wenn ich attempt.py aendere');
+    await page.getByLabel('Nachricht an Ikarus').fill(`was passiert wenn ich ${target} aendere`);
     await expect(toggle).toBeEnabled();
     await toggle.click();
 
@@ -496,8 +785,8 @@ test.describe('cockpit', () => {
      * was "im theme editor hardstuck bei Farbe". Height is the assertion,
      * because visibility was never the problem.
      */
-    for (const name of ['Farbe', 'Schrift', 'Form', 'Bühne', 'Aufbau', 'Daten']) {
-      await page.getByRole('tab', { name }).click();
+    for (const name of ['Farben', 'Schrift', 'Material', 'Szene', 'Layout', 'Dateien']) {
+      await page.getByRole('tab', { name, exact: true }).click();
       const tabs = page.locator('.studio-tabs');
       const box = await tabs.boundingBox();
       expect(box, 'the tab row has no box at all').not.toBeNull();
@@ -507,10 +796,10 @@ test.describe('cockpit', () => {
       ).toBeGreaterThanOrEqual(40);
 
       // …and a second way back that does not depend on that row.
-      await expect(page.getByRole('button', { name: /Zurück zur Theme-Liste/ })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Alle Looks', exact: true })).toBeVisible();
     }
 
-    await page.getByRole('button', { name: /Zurück zur Theme-Liste/ }).click();
+    await page.getByRole('button', { name: 'Alle Looks', exact: true }).click();
     await expect(page.locator('.studio-body .theme-list').first()).toBeVisible();
   });
 
@@ -545,7 +834,7 @@ test.describe('cockpit', () => {
     /**
      * THE POINT. A row of one-shot answers looks identical to a conversation
      * until you reload. The backend has had a durable conversation store the
-     * whole time (daedalus/conversation.py); it simply had no caller.
+     * whole time (daedalus/orchestration/conversation.py); it simply had no caller.
      */
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('.talk-main')).toBeVisible({ timeout: 60_000 });
@@ -557,7 +846,7 @@ test.describe('cockpit', () => {
     await expect(page.locator('.turn.ikarus').first()).toBeVisible();
   });
 
-  test('settings names the brain, the autonomy level and what is reachable', async ({ page }) => {
+  test('settings names the brain and does not offer browser-local automatic dispatch', async ({ page }) => {
     await openCockpit(page);
     await waitForStage(page);
 
@@ -586,12 +875,12 @@ test.describe('cockpit', () => {
       .filter((t) => !reachableNames.map((n) => n.trim()).includes(t));
     expect(extra, `the brain picker offered runtimes that are not reachable: ${extra.join(', ')}`).toHaveLength(0);
 
-    // All four autonomy levels, and the dangerous one says what it does.
-    const levels = await panel.locator('.autonomy button b').allInnerTexts();
-    expect(levels.map((l) => l.trim())).toEqual(['Aus', 'Vorschläge', 'Entwürfe mit Grenzen', 'Alles']);
-    await panel.locator('.autonomy button', { hasText: 'Alles' }).click();
-    await expect(panel.locator('.settings-hint.bad', { hasText: /ohne Klick in dein Repository/ })).toBeVisible();
-    await panel.locator('.autonomy button', { hasText: 'Aus' }).first().click();
+    // Automatic task admission is a canonical project policy, not a browser
+    // preference. The old local "Ohne Rückfrage" switch and its private log
+    // must not come back under Settings; a task offer is tested at the turn.
+    await expect(panel.getByText('Ohne Rückfrage', { exact: true })).toHaveCount(0);
+    await expect(panel.getByText('Nichts ist bisher ohne deinen Klick passiert.', { exact: true })).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('daedalus-autonomy'))).toBeNull();
   });
 
   test('the composer is live, or it is not there', async ({ page }) => {

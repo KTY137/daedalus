@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_executable_targets import (
+from daedalus.runtimes.provider.executable_targets import (
     ProviderExecutableTargetAuthority,
     ProviderExecutableTargetBindingError,
     ProviderExecutableTargetDescriptor,
@@ -18,17 +18,17 @@ from daedalus.runtimes.provider_executable_targets import (
     issue_provider_executable_target_authority,
     project_provider_executable_targets,
 )
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
     issue_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderAdapterDescriptor,
     ProviderInvocationRegistryManifest,
     build_provider_invocation_registry_manifest,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     issue_provider_observation_authority,
 )
 

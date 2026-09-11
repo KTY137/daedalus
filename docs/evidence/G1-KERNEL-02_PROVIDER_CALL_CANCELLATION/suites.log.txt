@@ -1,0 +1,125 @@
+G1-KERNEL-02 — test runs
+========================
+
+Host: Windows 11, CPython 3.13.14, worktree .venv, branch loop/lane2-provider-cancel
+stacked on 585b7ea4. Ten lane agents share this box; the durations below say
+"this ran", not "this is how long it takes".
+
+Command form: <worktree>/.venv/Scripts/python.exe -m pytest <files> -q
+
+
+1. The new tests against the BASE file (585b7ea4's _openai_compat.py)
+--------------------------------------------------------------------
+    tests/providers/test_openai_compat_cancellation.py
+
+    ImportError while importing test module ...
+    E   ImportError: cannot import name 'DEFAULT_CANCEL_POLL_S' from
+        'daedalus.providers._openai_compat'
+    1 error in 3.09s
+
+The contract does not exist at the base revision. This is the honest baseline
+for an additive packet: there is nothing to fail differently, the names are
+simply absent.
+
+
+2. The new tests WITH the change
+--------------------------------
+    tests/providers/test_openai_compat_cancellation.py
+    16 passed in 24.46s
+
+(An earlier run of the same file, before the probe-ordering fix in section 4,
+also read 16 passed in 25.80s.)
+
+
+3. Mutation A — the budget bridge removed
+------------------------------------------
+Mutant: `_budget_explicit_bridge` returns `lambda: None` even when the calling
+thread is inside an explicit reservation.
+
+    -k "explicit_reservation or reserved_exactly_once"
+
+    FAILED tests/providers/test_openai_compat_cancellation.py::
+        test_a_call_inside_an_explicit_reservation_is_not_reserved_twice
+    E   AssertionError: the same call was reserved again: ['remote_inference']
+    E   assert ['remote_inference'] == []
+    1 failed, 1 passed, 14 deselected in 9.59s
+
+So the worker thread really would double-book a call that the caller had
+already reserved, and the test really notices.
+
+
+4. Mutation B — the in-flight probe check removed
+--------------------------------------------------
+Mutant: the body of the wait loop in `run_cancellable` becomes `pass`, so
+`cancelled()` is never consulted once the request is running.
+
+    -k "in_flight_call_ends or parked_on_the_body"
+
+    FAILED ...::test_an_in_flight_call_ends_when_the_probe_flips
+    FAILED ...::test_a_call_parked_on_the_body_is_cancellable_too
+    E   Failed: DID NOT RAISE ProviderCancelled
+    2 failed, 14 deselected in 139.50s (0:02:19)
+
+139.5 s for two tests whose server delay is 60 s each: without the probe check
+the calls waited for the server, exactly as Momus's "hang or fall" requires.
+
+Mutation B also found a real defect IN THE TESTS. The first mutant run failed
+with
+
+    AssertionError: assert 'in flight' in
+        'cancelled before chat-completions opened a connection'
+
+which is the wrong refusal: the `_FlipAfter` probes were constructed BEFORE the
+`slow_server` fixture, so on a slow box the probe was already True at the
+pre-flight check and the test would have passed without ever reaching an
+in-flight call. Probes are now built after the server is up, and all three
+cancellation tests assert which refusal fired.
+
+
+5. Affected suites, with the change
+------------------------------------
+Batch 1 — providers, council, and the four provider-adjacent files:
+
+    tests/providers tests/test_providers_report.py
+    tests/test_provider_execution_limit_policy.py tests/test_provider_secrets_rows.py
+    tests/test_provider_rollback_single_source.py tests/test_codex_provider.py
+    tests/test_ollama_native.py tests/test_ollama_remote_lane.py
+    tests/test_ollama_rescue_reason.py tests/test_deepseek_substitution_guard.py
+    tests/test_deepseek_write_toggle.py tests/test_council_vendors.py
+
+    295 passed, 15 subtests passed in 332.60s (0:05:32)
+
+Batch 2 — the budget register and its drift detector, which is what would
+notice a new spend site or a renamed `chat_completion`:
+
+    tests/test_budget.py tests/test_budget_is_installed.py
+    tests/test_uncapped_budget_consumers.py tests/test_verify_test_budget.py
+
+    191 passed, 11 subtests passed in 34.44s
+
+Batch 3 — the Gate-0 static conformance scanner:
+
+    tests/test_effect_boundary.py tests/test_cli_effect_boundary.py
+
+    92 passed in 206.72s (0:03:26)
+
+    Run separately because a full-tree AST scan competes badly with nine other
+    agents. Expected green, and the reason is checkable rather than hopeful: the
+    only new call this packet adds inside a scanned package is
+    `threading.Thread`, which is not in `_HIGH_IMPACT_CALLS` (subprocess.*,
+    urlopen, http.client, socket.create_connection, ThreadingHTTPServer), no
+    entrypoint was added, and `ProviderCancelled(RuntimeError)` matches none of
+    the `_class_surface` bases. The `ThreadingHTTPServer` in the new test file
+    is invisible to this scan: SCAN_PACKAGES is ("daedalus", "tools", "runs").
+
+Not run, and why: `tests/test_ikarus_shells.py` (Lane 5 owns it and it has a
+known order dependency), and the eval/kairos suites, which reach
+`chat_completion` only through fakes and cannot see an additive keyword.
+
+
+6. Work packet index
+--------------------
+    <worktree>/.venv/Scripts/python.exe tools/index_work_packets.py --render
+    exit=0, JSON rendered; G1-KERNEL-02 present with all six required sections
+    (primary_acceptance_claim, scope, contracts_and_behavior, acceptance_matrix,
+     migration_and_rollback, evidence_expected_failures_and_review).

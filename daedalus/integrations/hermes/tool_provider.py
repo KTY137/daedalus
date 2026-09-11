@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from hashlib import sha256
 import json
 from typing import Callable, Iterable, Mapping, Protocol
 
-from .protocol import canonical_sha256
+try:
+    from .protocol import canonical_sha256
+except ModuleNotFoundError:
+    # The full Hermes protocol package is landed independently.  This is its
+    # canonical digest algorithm, retained here only so this additive boundary
+    # remains import-safe until that package is available.
+    def canonical_sha256(value: object) -> str:
+        encoded = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        return sha256(encoded).hexdigest()
 
 
 class HermesToolError(ValueError):
@@ -247,52 +262,22 @@ class DaedalusToolProvider:
         tool = self._tools.get(name)
         if tool is None:
             observation = "tool refused: not present in the authenticated Daedalus tool scope"
-            return ToolOutcome(
-                ok=False,
-                observation=observation,
-                observation_digest=canonical_sha256({"observation": observation}),
-                receipt_digest=canonical_sha256({"refusal": "unknown_tool", "invocation": invocation_digest}),
-                invocation_digest=invocation_digest,
-                refusal="unknown_tool",
-            )
+            return ToolOutcome(False, observation, canonical_sha256({"observation": observation}), canonical_sha256({"refusal": "unknown_tool", "invocation": invocation_digest}), invocation_digest, "unknown_tool")
         try:
             _validate_value(dict(arguments), tool.parameters)
         except HermesToolError:
             observation = "tool refused: arguments do not satisfy the authenticated schema"
-            return ToolOutcome(
-                ok=False,
-                observation=observation,
-                observation_digest=canonical_sha256({"observation": observation}),
-                receipt_digest=canonical_sha256({"refusal": "invalid_arguments", "invocation": invocation_digest}),
-                invocation_digest=invocation_digest,
-                refusal="invalid_arguments",
-            )
+            return ToolOutcome(False, observation, canonical_sha256({"observation": observation}), canonical_sha256({"refusal": "invalid_arguments", "invocation": invocation_digest}), invocation_digest, "invalid_arguments")
         try:
             raw = self._invoker(name, dict(arguments))
             observation, receipt_digest = _normalize_result(raw)
             if len(observation) > self._max_observation_characters:
                 observation = observation[: self._max_observation_characters]
-                ok = False
-                refusal = "observation_truncated"
+                ok, refusal = False, "observation_truncated"
             else:
-                ok = True
-                refusal = ""
-            return ToolOutcome(
-                ok=ok,
-                observation=observation,
-                observation_digest=canonical_sha256({"observation": observation}),
-                receipt_digest=receipt_digest,
-                invocation_digest=invocation_digest,
-                refusal=refusal,
-            )
+                ok, refusal = True, ""
+            return ToolOutcome(ok, observation, canonical_sha256({"observation": observation}), receipt_digest, invocation_digest, refusal)
         except BaseException as exc:
             error_type = type(exc).__name__
             observation = f"tool failed inside the Daedalus kernel boundary: {error_type}"
-            return ToolOutcome(
-                ok=False,
-                observation=observation,
-                observation_digest=canonical_sha256({"observation": observation}),
-                receipt_digest=canonical_sha256({"failure_type": error_type, "invocation": invocation_digest}),
-                invocation_digest=invocation_digest,
-                refusal="kernel_tool_failure",
-            )
+            return ToolOutcome(False, observation, canonical_sha256({"observation": observation}), canonical_sha256({"failure_type": error_type, "invocation": invocation_digest}), invocation_digest, "kernel_tool_failure")

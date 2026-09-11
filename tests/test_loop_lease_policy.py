@@ -35,6 +35,8 @@ from daedalus.kernel.offload_lease import (
 )
 from daedalus.sensitivity import Policy
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[1])
 AGENTENV = Path(REPO_ROOT) / ".agentenv" / "agentenv.json"
@@ -64,6 +66,8 @@ def _lease(switch, attempt_id, *, repo_root=REPO_ROOT, **kw):
         contained=True,
         containment_evidence=MECHANISM,
         switch=switch,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     body.update(kw)
     return acquire_wave_offload_lease(repo_root, attempt_id=attempt_id, **body)
@@ -180,6 +184,29 @@ def test_resolve_write_policy_reports_every_failure_mode_as_unusable(tmp_path):
     assert loaded.sha256 == hashlib.sha256(cfg.read_bytes()).hexdigest()
 
 
+def test_resolve_explicit_write_policy_is_authority_confined_and_byte_bound(tmp_path):
+    root = tmp_path / "authority"
+    policy = root / "control" / "chip.json"
+    policy.parent.mkdir(parents=True)
+    policy.write_text(
+        json.dumps({"policy": {"write_allow": ["."]}}), encoding="utf-8"
+    )
+
+    loaded = resolve_write_policy(root, policy_path="control/chip.json")
+
+    assert loaded.usable and loaded.confined
+    assert loaded.origin == str(policy.resolve())
+    assert loaded.sha256 == hashlib.sha256(policy.read_bytes()).hexdigest()
+
+    outside = tmp_path / "outside.json"
+    outside.write_text(
+        json.dumps({"policy": {"write_allow": ["."]}}), encoding="utf-8"
+    )
+    refused = resolve_write_policy(root, policy_path=outside)
+    assert not refused.usable
+    assert "outside" in refused.error
+
+
 # --------------------------------------------------------------------------- #
 # containment.attempt: derived, not asserted                                   #
 # --------------------------------------------------------------------------- #
@@ -219,7 +246,8 @@ def test_a_failed_derivation_denies_even_with_caller_evidence(switch, monkeypatc
     # silently stubbing a narrower contract than the issuer calls.
     monkeypatch.setattr(
         module, "derive_wave_containment",
-        lambda root, worktree_root=None, *, authority_root=None: (
+        lambda root, worktree_root=None, *, authority_root=None,
+        worktree_root_resolver=None: (
             False, "the attempt isolation root overlaps the checkout"))
     denied = _lease(switch, "w-f2derive")
     assert isinstance(denied, WaveLeaseDenied)
@@ -238,3 +266,74 @@ def test_a_denied_lease_still_produces_a_canonical_record(switch):
     assert not denied.policy_decision.effect_scope.has_effects
     digests = denied.policy_decision.provenance.input_digests
     assert len(digests) == len(set(digests))
+
+
+# --------------------------------------------------------------------------- #
+# the evidence may not outgrow the contract that has to carry it                #
+# --------------------------------------------------------------------------- #
+def test_elide_middle_keeps_both_ends_and_marks_the_cut():
+    """The bound must stay diagnosable: a volume and a leaf, never a stump."""
+    from daedalus.kernel.offload_lease import _elide_middle
+
+    assert _elide_middle("short", 90) == "short"
+    long = "C:/volume/" + ("x" * 400) + "/isolated-workspace"
+    bounded = _elide_middle(long, 90)
+    assert len(bounded) == 90
+    assert bounded.startswith("C:/volume/")
+    assert bounded.endswith("/isolated-workspace")
+    assert "..." in bounded
+    # A budget too small to say anything is a bug, not a shorter string.
+    with pytest.raises(ValueError):
+        _elide_middle(long, 4)
+
+
+def test_a_deep_checkout_cannot_overflow_the_containment_reason_contract(
+    switch, tmp_path
+):
+    """A grant must survive its own diagnostics.
+
+    MEASURED (G1-CHIP-01). ``canonical._sorted_strings`` refuses a
+    ``PolicyDecision.reasons`` entry over 1000 characters, and this issuer put
+    up to five ABSOLUTE PATHS plus the caller's mechanism into ONE
+    ``containment.attempt`` reason. At a 92-character pytest ``--basetemp`` the
+    reason reached 1046 characters and the contract raised where it should have
+    recorded -- the length of the checkout path decided whether the issuer's
+    answer could be represented at all.
+
+    The depth is built HERE rather than taken from ``--basetemp``, so this
+    cannot pass merely because pytest was pointed at a short directory.
+    """
+    deep = tmp_path
+    for segment in ("d" * 60, "e" * 60, "f" * 60, "g" * 60):
+        deep = deep / segment
+    deep.mkdir(parents=True)
+    planned = deep / "isolated-workspace"
+    assert len(str(planned)) > 260
+
+    lease = _lease(
+        switch,
+        "w-deeproot",
+        containment_evidence="mechanism " * 400,
+        worktree_root_resolver=lambda _root: str(planned),
+    )
+    assert isinstance(lease, WaveOffloadLease)
+
+    reasons = lease.policy_decision.reasons
+    # THE CONTRACT, quoted: `canonical._sorted_strings` calls
+    # `_non_empty(value, item_name, max_length=1000)`.
+    assert reasons and all(len(reason) <= 1000 for reason in reasons)
+
+    evidence = next(r for r in reasons if r.startswith("containment.attempt:"))
+    # Bounded, but not gutted: the derivation is still named, the planned root
+    # is still identifiable by its leaf, and the verdict prose is still there.
+    assert "primary_tree.planned_overlap_reason" in evidence
+    assert "isolated-workspace" in evidence
+    assert "in both directions" in evidence
+    assert "caller mechanism: mechanism" in evidence
+    # THE DISCRIMINATOR. Bounding each path is NOT interchangeable with bounding
+    # only the composed result. MEASURED by mutating `_evidence_path` to the
+    # identity: the whole-string backstop then keeps the length legal but eats
+    # the MIDDLE, and the subject checkout -- the other half of the comparison
+    # this reason exists to record -- disappears, leaving a sentence that reads
+    # as though the planned root had been compared with itself.
+    assert Path(REPO_ROOT).name in evidence

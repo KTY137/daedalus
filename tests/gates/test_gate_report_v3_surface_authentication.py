@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from daedalus.gates import report_v3
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     AuthenticationStage,
     EvidenceBinding,
     EvidenceKind,
@@ -21,7 +21,7 @@ from daedalus.gates.repository_write_classification import (
     project_repository_write_classifications,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2,
     RepositoryWriteSurface,
 )

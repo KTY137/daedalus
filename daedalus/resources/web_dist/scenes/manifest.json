@@ -1,0 +1,1195 @@
+{
+  "version": 1,
+  "coordinateSystem": "Y_UP",
+  "scenes": {
+    "porcelain": {
+      "id": "porcelain",
+      "url": "/scenes/porcelain.glb",
+      "camera": {
+        "name": "Porcelain / hero",
+        "type": "perspective",
+        "position": [
+          6.5,
+          5.5,
+          10.8000002
+        ],
+        "quaternion": [
+          -0.1617087,
+          0.2637936,
+          0.0449092,
+          0.9498665
+        ],
+        "target": [
+          0.0,
+          1.08,
+          -0.0
+        ],
+        "near": 0.10000000149011612,
+        "far": 500.0,
+        "aspect": 1.6,
+        "fovDegrees": 21.9541941088321
+      },
+      "environment": {
+        "color": [
+          0.73,
+          0.84,
+          0.94
+        ],
+        "strength": 0.4000000059604645
+      },
+      "lights": [
+        {
+          "name": "Morning sun",
+          "type": "sun",
+          "color": [
+            1.0,
+            0.92,
+            0.78
+          ],
+          "power": 1.600000023841858,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "quaternion": [
+            -0.5606108,
+            -0.3642466,
+            0.112344,
+            0.7351318
+          ],
+          "target": [
+            6.6150098,
+            -7.4240389,
+            -1.0607972
+          ],
+          "angle": 0.08500000089406967
+        },
+        {
+          "name": "Key / tall softbox",
+          "type": "area",
+          "color": [
+            1.0,
+            0.94,
+            0.83
+          ],
+          "power": 950.0,
+          "position": [
+            -3.5999999,
+            6.5,
+            3.9999998
+          ],
+          "quaternion": [
+            -0.3619742,
+            -0.3302408,
+            -0.1389025,
+            0.8605939
+          ],
+          "target": [
+            1.0784812,
+            -0.6476817,
+            -1.198313
+          ],
+          "width": 4.5,
+          "height": 6.0
+        },
+        {
+          "name": "Rim / blue sky",
+          "type": "area",
+          "color": [
+            0.68,
+            0.86,
+            1.0
+          ],
+          "power": 1100.0,
+          "position": [
+            4.0,
+            5.0,
+            -1.5000002
+          ],
+          "quaternion": [
+            -0.2025157,
+            0.7682209,
+            0.2922302,
+            0.5323773
+          ],
+          "target": [
+            -2.9960442,
+            -1.6462417,
+            1.1235187
+          ],
+          "width": 3.0,
+          "height": 5.0
+        },
+        {
+          "name": "Top / narrow crystal highlight",
+          "type": "area",
+          "color": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "power": 850.0,
+          "position": [
+            0.0,
+            6.5,
+            -2.5000002
+          ],
+          "quaternion": [
+            -1e-07,
+            0.8407744,
+            0.5413858,
+            1e-07
+          ],
+          "target": [
+            -3e-07,
+            -2.6036644,
+            1.6380298
+          ],
+          "width": 4.0,
+          "height": 1.0
+        }
+      ],
+      "fog": null,
+      "sourceSha256": "5afd4b59ab3bce85b85d507ce646dd245e068427a0f59fb792543d7b7f1d104f",
+      "flattenedProceduralMaterials": [],
+      "excludedRenderHelpers": [
+        "Morning sun",
+        "Left reflection flag",
+        "Key / tall softbox",
+        "Rim / blue sky",
+        "Top / narrow crystal highlight",
+        "Window mullion 00",
+        "Window mullion 01",
+        "Window mullion 02",
+        "Window mullion 03",
+        "Porcelain / detail"
+      ],
+      "vertices": 20316,
+      "triangles": 37846,
+      "primitives": 4,
+      "bounds": {
+        "min": [
+          -100.0,
+          -0.4,
+          -21.0
+        ],
+        "max": [
+          100.0,
+          11.999999,
+          21.0
+        ]
+      },
+      "bytes": 719004,
+      "sha256": "4b498c9ec348d8d108f77983bcd5e2ba338f3bc5c5f292875e1e72d545a941d3",
+      "seconds": 4.22,
+      "extensions": [
+        "KHR_materials_transmission",
+        "KHR_materials_ior"
+      ]
+    },
+    "graphite": {
+      "id": "graphite",
+      "url": "/scenes/graphite.glb",
+      "camera": {
+        "name": "Graphite / hero camera",
+        "type": "orthographic",
+        "position": [
+          8.5,
+          12.5,
+          16.0
+        ],
+        "quaternion": [
+          -0.2684754,
+          0.234125,
+          0.0674455,
+          0.9319643
+        ],
+        "target": [
+          0.0,
+          1.2,
+          0.1499999
+        ],
+        "near": 0.10000000149011612,
+        "far": 500.0,
+        "aspect": 1.6,
+        "fovDegrees": 24.61603250457722,
+        "orthoScale": 12.600000381469727,
+        "xmag": 6.300000190734863,
+        "ymag": 3.9375001192092896
+      },
+      "environment": {
+        "color": [
+          0.055,
+          0.069,
+          0.094
+        ],
+        "strength": 0.25
+      },
+      "lights": [
+        {
+          "name": "Key / large silk",
+          "type": "area",
+          "color": [
+            0.9,
+            0.95,
+            1.0
+          ],
+          "power": 1550.0,
+          "position": [
+            -4.0,
+            10.0,
+            2.9999995
+          ],
+          "quaternion": [
+            -0.4535888,
+            -0.3854405,
+            -0.2267944,
+            0.7708808
+          ],
+          "target": [
+            -0.1148548,
+            1.2584286,
+            0.0861421
+          ],
+          "width": 8.0,
+          "height": 5.0
+        },
+        {
+          "name": "Rim / ice strip",
+          "type": "area",
+          "color": [
+            0.55,
+            0.73,
+            1.0
+          ],
+          "power": 1100.0,
+          "position": [
+            6.0,
+            6.0,
+            -3.0000002
+          ],
+          "quaternion": [
+            -0.1606493,
+            0.809963,
+            0.259936,
+            0.5005846
+          ],
+          "target": [
+            -1.2739296,
+            0.1808577,
+            0.6369665
+          ],
+          "width": 2.0,
+          "height": 7.0
+        },
+        {
+          "name": "Edge / tall white strip",
+          "type": "area",
+          "color": [
+            0.95,
+            0.97,
+            1.0
+          ],
+          "power": 1250.0,
+          "position": [
+            -6.0,
+            5.0,
+            -2.0000002
+          ],
+          "quaternion": [
+            -0.1462025,
+            -0.785473,
+            -0.2028452,
+            0.5661369
+          ],
+          "target": [
+            2.3005733,
+            0.1579995,
+            0.7668579
+          ],
+          "width": 1.5,
+          "height": 7.0
+        },
+        {
+          "name": "Front / soft fill",
+          "type": "area",
+          "color": [
+            0.72,
+            0.82,
+            1.0
+          ],
+          "power": 400.0,
+          "position": [
+            0.0,
+            4.5000005,
+            8.0
+          ],
+          "quaternion": [
+            -0.204747,
+            0.0,
+            0.0,
+            0.9788149
+          ],
+          "target": [
+            0.0,
+            0.4918118,
+            -1.1615734
+          ],
+          "width": 7.0,
+          "height": 3.0
+        },
+        {
+          "name": "Top / reflected ribbon",
+          "type": "area",
+          "color": [
+            1.0,
+            0.96,
+            0.91
+          ],
+          "power": 850.0,
+          "position": [
+            1.0,
+            9.0,
+            -1.0000004
+          ],
+          "quaternion": [
+            -0.2487103,
+            0.7021576,
+            0.60044,
+            0.2908431
+          ],
+          "target": [
+            -0.0976415,
+            -0.8787832,
+            0.097643
+          ],
+          "width": 3.0,
+          "height": 8.0
+        }
+      ],
+      "fog": null,
+      "sourceSha256": "286ea20561e52cc8e404438ace7e69bf4b434cb68e85696e50e784223657ac03",
+      "flattenedProceduralMaterials": [],
+      "excludedRenderHelpers": [
+        "Key / large silk",
+        "Rim / ice strip",
+        "Edge / tall white strip",
+        "Front / soft fill",
+        "Top / reflected ribbon"
+      ],
+      "vertices": 33225,
+      "triangles": 25296,
+      "primitives": 12,
+      "bounds": {
+        "min": [
+          -100.0,
+          -0.275,
+          -21.0
+        ],
+        "max": [
+          100.0,
+          2.7,
+          21.0
+        ]
+      },
+      "bytes": 934236,
+      "sha256": "ea709aa07202840819d964724e9d5a206c805bc2e65abfb293f81ebd5f8d2f8f",
+      "seconds": 0.23,
+      "extensions": [
+        "KHR_materials_transmission",
+        "KHR_materials_emissive_strength",
+        "KHR_materials_ior"
+      ]
+    },
+    "daylight": {
+      "id": "daylight",
+      "url": "/scenes/daylight.glb",
+      "camera": {
+        "name": "Spatial / architectural composition",
+        "type": "perspective",
+        "position": [
+          5.8000002,
+          2.7,
+          9.8000002
+        ],
+        "quaternion": [
+          0.0088068,
+          0.170863,
+          -0.0015273,
+          0.9852543
+        ],
+        "target": [
+          0.15,
+          2.9999998,
+          -6.0
+        ],
+        "near": 0.10000000149011612,
+        "far": 500.0,
+        "aspect": 1.6,
+        "fovDegrees": 31.41727491983436
+      },
+      "environment": {
+        "color": [
+          0.67,
+          0.8,
+          0.96
+        ],
+        "strength": 0.3400000035762787,
+        "gradient": [
+          {
+            "position": 0.0,
+            "color": [
+              0.67,
+              0.8,
+              0.96
+            ]
+          },
+          {
+            "position": 0.2199999988079071,
+            "color": [
+              0.4,
+              0.62,
+              0.88
+            ]
+          },
+          {
+            "position": 0.800000011920929,
+            "color": [
+              0.16,
+              0.32,
+              0.62
+            ]
+          }
+        ]
+      },
+      "lights": [
+        {
+          "name": "Sun / warm late morning",
+          "type": "sun",
+          "color": [
+            1.0,
+            0.84,
+            0.63
+          ],
+          "power": 5.5,
+          "position": [
+            -12.0,
+            15.999999,
+            -22.0
+          ],
+          "quaternion": [
+            -0.0674049,
+            -0.9325912,
+            -0.2493254,
+            0.2521252
+          ],
+          "target": [
+            -7.6335206,
+            11.0097361,
+            -14.5146055
+          ],
+          "angle": 0.02094395086169243
+        },
+        {
+          "name": "Opening / broad sky bounce",
+          "type": "area",
+          "color": [
+            0.65,
+            0.81,
+            1.0
+          ],
+          "power": 550.0,
+          "position": [
+            0.0,
+            6.9999995,
+            -7.0000005
+          ],
+          "quaternion": [
+            -1e-07,
+            0.952476,
+            0.3046138,
+            1e-07
+          ],
+          "target": [
+            -8e-07,
+            1.1972532,
+            1.1442075
+          ],
+          "width": 9.0,
+          "height": 9.0
+        },
+        {
+          "name": "Front / warm reflected sunlight",
+          "type": "area",
+          "color": [
+            1.0,
+            0.86,
+            0.67
+          ],
+          "power": 1000.0,
+          "position": [
+            -6.0,
+            7.0,
+            4.9999995
+          ],
+          "quaternion": [
+            -0.1562299,
+            -0.3771723,
+            -0.0647125,
+            0.9105743
+          ],
+          "target": [
+            0.6666675,
+            3.6666663,
+            -1.666666
+          ],
+          "width": 6.0,
+          "height": 6.0
+        }
+      ],
+      "fog": null,
+      "sourceSha256": "ef256d11497147c789e4a1a97a64cf1b858ece14e86a8e5776dc63b0ec33164d",
+      "flattenedProceduralMaterials": [
+        "Architecture / warm mineral plaster",
+        "Floor / honed limestone",
+        "Furniture / ivory travertine",
+        "Horizon / calm water"
+      ],
+      "excludedRenderHelpers": [
+        "Sun / warm late morning",
+        "Opening / broad sky bounce",
+        "Front / warm reflected sunlight"
+      ],
+      "vertices": 8771,
+      "triangles": 5004,
+      "primitives": 7,
+      "bounds": {
+        "min": [
+          -750.0,
+          -0.46,
+          -331.0
+        ],
+        "max": [
+          750.0,
+          12.0,
+          13.5
+        ]
+      },
+      "bytes": 247560,
+      "sha256": "5a50c04feb4573d8bd972240bc6a45681265575a2fe04a487ced6484bb01c63c",
+      "seconds": 0.12,
+      "extensions": []
+    },
+    "dusk": {
+      "id": "dusk",
+      "url": "/scenes/dusk.glb",
+      "camera": {
+        "name": "Spatial / architectural composition",
+        "type": "perspective",
+        "position": [
+          5.8000002,
+          2.7,
+          9.8000002
+        ],
+        "quaternion": [
+          0.0088068,
+          0.170863,
+          -0.0015273,
+          0.9852543
+        ],
+        "target": [
+          0.15,
+          2.9999998,
+          -6.0
+        ],
+        "near": 0.10000000149011612,
+        "far": 500.0,
+        "aspect": 1.6,
+        "fovDegrees": 31.41727491983436
+      },
+      "environment": {
+        "color": [
+          0.97,
+          0.47,
+          0.21
+        ],
+        "strength": 0.20000000298023224,
+        "gradient": [
+          {
+            "position": 0.0,
+            "color": [
+              0.97,
+              0.47,
+              0.21
+            ]
+          },
+          {
+            "position": 0.2199999988079071,
+            "color": [
+              0.3,
+              0.27,
+              0.49
+            ]
+          },
+          {
+            "position": 0.800000011920929,
+            "color": [
+              0.09,
+              0.14,
+              0.3
+            ]
+          }
+        ]
+      },
+      "lights": [
+        {
+          "name": "Sun / low amber",
+          "type": "sun",
+          "color": [
+            1.0,
+            0.49,
+            0.21
+          ],
+          "power": 2.0999999046325684,
+          "position": [
+            -53.0,
+            7.7999897,
+            -240.0
+          ],
+          "quaternion": [
+            -0.0017204,
+            -0.9939759,
+            -0.015768,
+            0.108445
+          ],
+          "target": [
+            -50.8447075,
+            7.4827981,
+            -230.2401733
+          ],
+          "angle": 0.03141592815518379
+        },
+        {
+          "name": "Front / dusk bounce",
+          "type": "area",
+          "color": [
+            0.45,
+            0.53,
+            1.0
+          ],
+          "power": 250.0,
+          "position": [
+            0.0,
+            6.0000005,
+            5.9999995
+          ],
+          "quaternion": [
+            -0.2075916,
+            0.0,
+            0.0,
+            0.9782156
+          ],
+          "target": [
+            0.0,
+            1.9386148,
+            -3.1381154
+          ],
+          "width": 9.0,
+          "height": 9.0
+        },
+        {
+          "name": "Opening / amber sky bounce",
+          "type": "area",
+          "color": [
+            1.0,
+            0.48,
+            0.23
+          ],
+          "power": 420.0,
+          "position": [
+            -3.0,
+            3.9999995,
+            -9.0
+          ],
+          "quaternion": [
+            -0.0354422,
+            -0.9583167,
+            -0.1367758,
+            0.2483249
+          ],
+          "target": [
+            1.6625242,
+            1.2024853,
+            -0.6074572
+          ],
+          "width": 7.0,
+          "height": 7.0
+        },
+        {
+          "name": "Bench / cove spill",
+          "type": "area",
+          "color": [
+            1.0,
+            0.46,
+            0.14
+          ],
+          "power": 18.0,
+          "position": [
+            5.9000001,
+            0.55,
+            -1.8
+          ],
+          "quaternion": [
+            -1e-07,
+            0.7677516,
+            0.6407475,
+            1e-07
+          ],
+          "target": [
+            5.9000001,
+            -9.2886992,
+            -0.011148
+          ],
+          "width": 2.5,
+          "height": 0.20000000298023224
+        }
+      ],
+      "fog": null,
+      "sourceSha256": "d9699700abfbeab1c601c61dfc27cf04e57b4e0b2f0eac0fd118d9c3c892d669",
+      "flattenedProceduralMaterials": [
+        "Architecture / warm mineral plaster",
+        "Floor / honed limestone",
+        "Furniture / ivory travertine",
+        "Horizon / calm water"
+      ],
+      "excludedRenderHelpers": [
+        "Sun / low amber",
+        "Front / dusk bounce",
+        "Opening / amber sky bounce",
+        "Bench / cove spill"
+      ],
+      "vertices": 14485,
+      "triangles": 15492,
+      "primitives": 9,
+      "bounds": {
+        "min": [
+          -750.0,
+          -0.46,
+          -331.0
+        ],
+        "max": [
+          750.0,
+          12.0,
+          13.5
+        ]
+      },
+      "bytes": 449812,
+      "sha256": "464eb53e457271f263bafd5bf5bd8f5281fb3d6c9a3ab6e04ccbfb82fb916dc2",
+      "seconds": 0.14,
+      "extensions": [
+        "KHR_materials_emissive_strength"
+      ]
+    },
+    "studio": {
+      "id": "studio",
+      "url": "/scenes/studio.glb",
+      "camera": {
+        "name": "Spatial / architectural composition",
+        "type": "perspective",
+        "position": [
+          5.8000002,
+          2.7,
+          9.8000002
+        ],
+        "quaternion": [
+          0.0088068,
+          0.170863,
+          -0.0015273,
+          0.9852543
+        ],
+        "target": [
+          0.15,
+          2.9999998,
+          -6.0
+        ],
+        "near": 0.10000000149011612,
+        "far": 500.0,
+        "aspect": 1.6,
+        "fovDegrees": 31.41727491983436
+      },
+      "environment": {
+        "color": [
+          0.75,
+          0.82,
+          0.91
+        ],
+        "strength": 0.3400000035762787,
+        "gradient": [
+          {
+            "position": 0.0,
+            "color": [
+              0.75,
+              0.82,
+              0.91
+            ]
+          },
+          {
+            "position": 0.2199999988079071,
+            "color": [
+              0.64,
+              0.72,
+              0.85
+            ]
+          },
+          {
+            "position": 0.800000011920929,
+            "color": [
+              0.47,
+              0.58,
+              0.78
+            ]
+          }
+        ]
+      },
+      "lights": [
+        {
+          "name": "Gallery / skylight sun",
+          "type": "sun",
+          "color": [
+            0.9,
+            0.95,
+            1.0
+          ],
+          "power": 1.649999976158142,
+          "position": [
+            -5.0,
+            13.0,
+            -8.000001
+          ],
+          "quaternion": [
+            -0.0958599,
+            -0.8978663,
+            -0.354578,
+            0.2427374
+          ],
+          "target": [
+            -1.3208821,
+            6.1673522,
+            -1.6929398
+          ],
+          "angle": 0.06108652427792549
+        },
+        {
+          "name": "Gallery / large skylight",
+          "type": "area",
+          "color": [
+            0.86,
+            0.92,
+            1.0
+          ],
+          "power": 1550.0,
+          "position": [
+            -3.0,
+            9.0,
+            -7.0000005
+          ],
+          "quaternion": [
+            -0.0792236,
+            -0.9003326,
+            -0.3859711,
+            0.1848002
+          ],
+          "target": [
+            -0.2839262,
+            1.7571411,
+            -0.662497
+          ],
+          "width": 7.0,
+          "height": 7.0
+        },
+        {
+          "name": "Gallery / back skylight",
+          "type": "area",
+          "color": [
+            0.95,
+            0.97,
+            1.0
+          ],
+          "power": 1800.0,
+          "position": [
+            -3.0,
+            7.9999995,
+            -14.0
+          ],
+          "quaternion": [
+            -0.2046367,
+            -0.7952958,
+            -0.4092735,
+            0.3976478
+          ],
+          "target": [
+            1.6499043,
+            -0.1373353,
+            -10.5125694
+          ],
+          "width": 5.0,
+          "height": 5.0
+        },
+        {
+          "name": "Gallery / front silk",
+          "type": "area",
+          "color": [
+            1.0,
+            0.96,
+            0.88
+          ],
+          "power": 800.0,
+          "position": [
+            0.0,
+            8.0,
+            7.9999995
+          ],
+          "quaternion": [
+            -0.2470874,
+            0.0,
+            0.0,
+            0.9689932
+          ],
+          "target": [
+            0.0,
+            3.2114787,
+            -0.7789559
+          ],
+          "width": 9.0,
+          "height": 9.0
+        }
+      ],
+      "fog": null,
+      "sourceSha256": "c8cc4488484768407fb219deab0ad0aad9de1a5e134812c74a8143fe5079529d",
+      "flattenedProceduralMaterials": [
+        "Architecture / warm mineral plaster",
+        "Floor / honed limestone",
+        "Furniture / ivory travertine",
+        "Gallery / cool chalk",
+        "Olive / foreground chalk planter",
+        "Olive / inner gallery chalk planter"
+      ],
+      "excludedRenderHelpers": [
+        "Gallery / skylight sun",
+        "Gallery / large skylight",
+        "Gallery / back skylight",
+        "Gallery / front silk"
+      ],
+      "vertices": 20134,
+      "triangles": 17696,
+      "primitives": 15,
+      "bounds": {
+        "min": [
+          -15.0,
+          -0.44,
+          -28.5
+        ],
+        "max": [
+          15.0,
+          12.0,
+          13.5
+        ]
+      },
+      "bytes": 590448,
+      "sha256": "709d9b9ca6b61a2a8442c8904cf68a93c0ab3989a06149de60df89148802538c",
+      "seconds": 0.48,
+      "extensions": []
+    },
+    "techno-forest": {
+      "id": "techno-forest",
+      "url": "/scenes/techno-forest.glb",
+      "camera": {
+        "name": "Forest / immersive trail camera",
+        "type": "perspective",
+        "position": [
+          0.15,
+          2.8499999,
+          11.5
+        ],
+        "quaternion": [
+          0.0381484,
+          -0.0058778,
+          0.0002244,
+          0.9992548
+        ],
+        "target": [
+          0.45,
+          4.7999997,
+          -14.0
+        ],
+        "near": 0.10000000149011612,
+        "far": 500.0,
+        "aspect": 1.6,
+        "fovDegrees": 46.79552985868633
+      },
+      "environment": {
+        "color": [
+          0.055,
+          0.115,
+          0.16
+        ],
+        "strength": 0.3499999940395355
+      },
+      "lights": [
+        {
+          "name": "Moon canopy / broad key",
+          "type": "area",
+          "color": [
+            0.52,
+            0.76,
+            1.0
+          ],
+          "power": 6500.0,
+          "position": [
+            -1.0,
+            15.999999,
+            -15.000001
+          ],
+          "quaternion": [
+            -0.0203132,
+            -0.8929791,
+            -0.4478113,
+            0.0405065
+          ],
+          "target": [
+            -0.4585012,
+            7.9858198,
+            -9.0435152
+          ],
+          "width": 9.0,
+          "height": 9.0
+        },
+        {
+          "name": "Foreground / cool reflection",
+          "type": "area",
+          "color": [
+            0.38,
+            0.67,
+            0.79
+          ],
+          "power": 1700.0,
+          "position": [
+            -1.0,
+            8.0,
+            5.9999995
+          ],
+          "quaternion": [
+            -0.2572978,
+            -0.0534327,
+            -0.0142505,
+            0.9647485
+          ],
+          "target": [
+            -0.0423494,
+            3.0202174,
+            -2.618856
+          ],
+          "width": 10.0,
+          "height": 10.0
+        },
+        {
+          "name": "Depth / silver mist",
+          "type": "area",
+          "color": [
+            0.64,
+            0.84,
+            1.0
+          ],
+          "power": 6500.0,
+          "position": [
+            2.0,
+            9.9999981,
+            -34.0
+          ],
+          "quaternion": [
+            -0.0079441,
+            0.9870888,
+            0.1513554,
+            0.0518089
+          ],
+          "target": [
+            1.0012479,
+            7.0037417,
+            -24.5118523
+          ],
+          "width": 7.0,
+          "height": 7.0
+        },
+        {
+          "name": "Warm glade / restrained amber",
+          "type": "area",
+          "color": [
+            1.0,
+            0.5,
+            0.22
+          ],
+          "power": 750.0,
+          "position": [
+            5.0,
+            4.9999995,
+            -12.0
+          ],
+          "quaternion": [
+            -0.1193769,
+            0.8664039,
+            0.2483785,
+            0.4164152
+          ],
+          "target": [
+            -1.6226625,
+            -0.2981286,
+            -6.70187
+          ],
+          "width": 5.0,
+          "height": 5.0
+        }
+      ],
+      "fog": {
+        "color": [
+          0.18,
+          0.33,
+          0.4
+        ],
+        "density": 0.018
+      },
+      "sourceSha256": "51bdba464232319b8703f1ec3605f7c3df1005f7caa9226688260bc3d69787a5",
+      "flattenedProceduralMaterials": [
+        "Forest / carbon-mineral bark"
+      ],
+      "excludedRenderHelpers": [
+        "Single bounded mist volume",
+        "Moon canopy / broad key",
+        "Foreground / cool reflection",
+        "Depth / silver mist",
+        "Warm glade / restrained amber"
+      ],
+      "vertices": 172162,
+      "triangles": 115386,
+      "primitives": 12,
+      "bounds": {
+        "min": [
+          -18.5,
+          -0.2786223,
+          -49.0
+        ],
+        "max": [
+          18.5,
+          13.8482285,
+          14.0
+        ]
+      },
+      "bytes": 4836184,
+      "sha256": "82819ee1ba8842e70bbd8d48a643609fc35701cbf90cec9a4a4e41126c9b17ee",
+      "seconds": 3.09,
+      "extensions": [
+        "KHR_materials_emissive_strength"
+      ]
+    }
+  }
+}

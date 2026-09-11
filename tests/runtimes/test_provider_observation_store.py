@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import os
 import shutil
@@ -9,14 +10,14 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.runtimes.provider_observation_store as store_module
+import daedalus.runtimes.provider.observation_store as store_module
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthorityBindingError,
     ProviderObservationAuthorityStateError,
     issue_provider_observation_authority,
 )
-from daedalus.runtimes.provider_observation_store import (
+from daedalus.runtimes.provider.observation_store import (
     SCHEMA_SHA256,
     PreprovisionedProviderObservationBindingLedger,
     ProviderObservationStoreError,
@@ -213,13 +214,14 @@ def test_stale_revision_target_is_refused_by_persisted_metadata(tmp_path: Path) 
 def test_malformed_metadata_and_schema_are_refused(tmp_path: Path) -> None:
     target = _target(tmp_path)
     path = Path(target.path)
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         connection.execute(
             "CREATE TABLE provider_observation_bindings "
             "(execution_id TEXT PRIMARY KEY, record_json TEXT, "
             "record_sha256 TEXT, record_hmac_sha256 TEXT)"
         )
         connection.execute("PRAGMA user_version=1")
+        connection.commit()
 
     with pytest.raises(ProviderObservationStoreError):
         inspect_provider_observation_binding_store(target)

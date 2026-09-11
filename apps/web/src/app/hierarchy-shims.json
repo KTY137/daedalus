@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "registry_id": "G1-UI-03-hierarchy-shims",
+  "entries": [
+    {
+      "id": "root-api-contract-facades",
+      "kind": "import_only_reexport",
+      "owner": "apps/web/src/shared",
+      "paths": [
+        "apps/web/src/api.ts",
+        "apps/web/src/types.ts"
+      ],
+      "targets": [
+        "apps/web/src/shared/api/index.ts",
+        "apps/web/src/shared/contracts/index.ts"
+      ],
+      "reason": "Tracked Work Packets, feature inventories, experiments and extension guidance address the established root modules directly.",
+      "removal_criteria": "A tracked-source, runtime-string and downstream package audit finds no import or locator for either root module, and one release cycle has consumed only the shared owners."
+    },
+    {
+      "id": "cockpit-source-facades",
+      "kind": "import_only_reexport",
+      "owner": "apps/web/src/app and apps/web/src/features",
+      "paths": [
+        "apps/web/src/cockpit/Cockpit.tsx",
+        "apps/web/src/cockpit/Conversation.tsx",
+        "apps/web/src/cockpit/Decision.tsx",
+        "apps/web/src/cockpit/IdeWorkspace.tsx",
+        "apps/web/src/cockpit/ProjectDialog.tsx"
+      ],
+      "targets": [
+        "apps/web/src/app/Cockpit.tsx",
+        "apps/web/src/features/conversation/Conversation.tsx",
+        "apps/web/src/features/mission/Decision.tsx",
+        "apps/web/src/features/ide/IdeWorkspace.tsx",
+        "apps/web/src/features/projects/ProjectDialog.tsx"
+      ],
+      "reason": "The classic query registry, active Work Packets and IDE attachment fixtures retain these exact source locators.",
+      "removal_criteria": "The query shim is retired and tracked-source, attachment, runtime-string and downstream package audits find no old cockpit path for one release cycle."
+    },
+    {
+      "id": "shared-ui-source-facades",
+      "kind": "import_only_reexport",
+      "owner": "apps/web/src/shared/ui",
+      "paths": [
+        "apps/web/src/components/GlassSurface.tsx",
+        "apps/web/src/components/GlassSurface.css",
+        "apps/web/src/motion/index.ts",
+        "apps/web/src/motion/tokens.ts",
+        "apps/web/src/motion/useMotion.ts",
+        "apps/web/src/theme/ThemeProvider.tsx",
+        "apps/web/src/theme/presets.ts"
+      ],
+      "targets": [
+        "apps/web/src/shared/ui/glass/GlassSurface.tsx",
+        "apps/web/src/shared/ui/glass/GlassSurface.css",
+        "apps/web/src/shared/ui/motion/index.ts",
+        "apps/web/src/shared/ui/motion/tokens.ts",
+        "apps/web/src/shared/ui/motion/useMotion.ts",
+        "apps/web/src/shared/ui/theme/ThemeProvider.tsx",
+        "apps/web/src/shared/ui/theme/presets.ts"
+      ],
+      "reason": "The GUI catalogue, current architecture documentation, component registry convention and focused Playwright suite address these source paths.",
+      "removal_criteria": "Catalogue locators and component/test imports are migrated in their own packet and a tracked-source plus downstream package audit finds no old shared-UI path."
+    },
+    {
+      "id": "motion-test-command-adapter",
+      "kind": "test_command_adapter",
+      "owner": "apps/web/src/shared/ui/motion",
+      "paths": [
+        "apps/web/src/motion/run-spec.mjs"
+      ],
+      "targets": [
+        "apps/web/src/shared/ui/motion/motion.spec.ts"
+      ],
+      "reason": "The unchanged package test:motion command invokes the established runner path.",
+      "removal_criteria": "A dedicated package-command migration may update package.json and all CI callers together after the hierarchy packet lands."
+    }
+  ]
+}

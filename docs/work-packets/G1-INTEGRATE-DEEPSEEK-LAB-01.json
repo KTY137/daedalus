@@ -1,0 +1,58 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-INTEGRATE-DEEPSEEK-LAB-01",
+  "id": "G1-INTEGRATE-DEEPSEEK-LAB-01",
+  "artifact_role": "primary",
+  "title": "Integrate the legacy DeepSeek laboratory line without regressing current main",
+  "status": "integrated-selectively",
+  "date": "2026-09-04",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "integration_kind": "selective-history-integration",
+  "owner": "repository owner",
+  "base_revision": "389b131fab3ea2cde9a4285d22d73f16e1b1b43d",
+  "dependencies": "current-main parent 389b131f and retained source parent a31d004d",
+  "source_branch": "experiment/deepseek-lab",
+  "source_head": "a31d004dc764dd7b64fec88247e48d59f2b5519c",
+  "strategy": "two-parent current-main-wins merge with dependency-safe live ports",
+  "primary_claim": "The selective integration retains the full DeepSeek-lab history as a merge parent while admitting only the listed architecture/shift ports into the live tree and keeping current main for conflicting runtime, trust, Fourfold and UI paths.",
+  "scope": {
+    "live_tree": "exactly the live_ports list and their focused tests",
+    "retained_history": "the complete source_head as the second merge parent",
+    "forbidden_live_replay": "every path family named by not_replayed_into_live_tree",
+    "new_store_or_authority": false,
+    "automatic_promotion": false
+  },
+  "live_ports": [
+    "daedalus/arch_memory.py",
+    "daedalus/arch_hook.py",
+    "daedalus/shift.py",
+    "daedalus/shift_hook.py",
+    "daedalus/shift_ticker.py",
+    "tests/test_arch_memory.py",
+    "tests/test_shift.py"
+  ],
+  "history_retained": true,
+  "not_replayed_into_live_tree": [
+    "historical provider and router replacements",
+    "historical loop, config, Forest, index and parser replacements",
+    "historical agent-environment and MCP configuration",
+    "historical GUI probe and wiki/typegraph stack"
+  ],
+  "reason": "Those files were authored against a tree more than two thousand commits behind current main and overlap newer trust, runtime, provider, Fourfold and UI implementations. Replaying them would be a regression rather than an integration. Their exact code remains reachable through the second merge parent.",
+  "contracts": "The strategy, live_ports, not_replayed_into_live_tree and authority objects are the frozen behavior and authority contract; retained history is not an instruction to replay stale production paths.",
+  "acceptance": [
+    "the source history remains reachable through the exact source_head merge parent",
+    "only live_ports and their focused tests are introduced into the live tree",
+    "provider, router, loop, config, Forest, parser, environment, MCP, GUI and wiki/typegraph replacements remain historical only",
+    "the integration grants no owner approval, gate transition or automatic promotion"
+  ],
+  "evidence": "The exact two merge parents, live_ports allowlist and historical-only denylist are retained in this packet for independent tree-diff verification.",
+  "migration": "No persistent state is migrated; this is a current-main-wins history merge with a bounded live-port allowlist.",
+  "rollback": "Revert the selective live-port integration commit without rewriting or deleting the retained source history.",
+  "authority": {
+    "changes_gate": false,
+    "grants_owner_approval": false,
+    "automatic_promotion": false
+  }
+}

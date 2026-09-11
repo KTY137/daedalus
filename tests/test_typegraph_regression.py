@@ -65,7 +65,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from daedalus.context_plan import _symbol_names, lexical_seed_scores
+from daedalus.orchestration.context_plan import _symbol_names, lexical_seed_scores
 from daedalus.structcore import clones as clones_mod
 from daedalus.structcore.index import build_index, resolution_context
 from daedalus.structcore.languages import spec_for

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-source-anchor-semantics.schema.json",
+  "title": "Daedalus Gate-0 Repository Write Source-Anchor Semantics Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "classification_digest",
+    "materialization_digest",
+    "origin_report_digest",
+    "attestation_digest",
+    "classification_count",
+    "source_anchor_count",
+    "anchored_source_set_sha256",
+    "records",
+    "origin_authenticated",
+    "source_anchor_semantics_verified",
+    "semantic_receipts_verified",
+    "evidence_authenticated",
+    "gate_report_bound",
+    "closed",
+    "scope",
+    "blockers",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-repository-write-source-anchor-semantics/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "classification_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "materialization_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "origin_report_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "attestation_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "classification_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source_anchor_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "anchored_source_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/sourceAnchorRecord"
+      }
+    },
+    "origin_authenticated": {
+      "const": true
+    },
+    "source_anchor_semantics_verified": {
+      "const": true
+    },
+    "semantic_receipts_verified": {
+      "const": false
+    },
+    "evidence_authenticated": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "repository-write-source-anchor-semantics"
+    },
+    "blockers": {
+      "const": [
+        "effect-lease-semantic-verification-missing",
+        "gate-report-binding-missing",
+        "guard-contract-semantic-verification-missing",
+        "primary-checkout-disjointness-semantic-verification-missing",
+        "retirement-semantic-verification-missing",
+        "runtime-conformance-semantic-verification-missing"
+      ]
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)[^\\\\\\r\\n]+$"
+    },
+    "sourceAnchorRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface_sha256",
+        "locator",
+        "path",
+        "line",
+        "column",
+        "source_sha256"
+      ],
+      "properties": {
+        "surface_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "locator": {
+          "type": "string",
+          "pattern": "^cas:sha256:[0-9a-f]{64}$"
+        },
+        "path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

@@ -26,6 +26,56 @@ class SecretFloorPrecisionTests(unittest.TestCase):
         ):
             self.assertIsNotNone(secret_floor_rule("x.py", line), line)
 
+    def test_tiktoken_is_not_a_credential_but_every_real_token_still_is(self):
+        """The 2026-09-09 false positive, pinned in BOTH directions.
+
+        ``token`` had no left boundary, so it matched inside ``TIKTOKEN_`` and
+        floored `G1-TOKENIZER-01`'s public encoding constants -- and a comment
+        that merely said ``# tiktoken: "..."``. The exclusion is deliberately
+        the colliding library name and nothing wider: a general
+        ``(?<![A-Za-z0-9])`` boundary would also stop matching ``mytoken``,
+        which is a plausible name for a real secret, and this table must prefer
+        over-firing to under-firing.
+        """
+        for line in (
+            'TIKTOKEN_ENCODING = "cl100k_base"',
+            'TIKTOKEN_NAME = "tiktoken/cl100k_base"',
+            '    return None  # tiktoken: "disable caching" -> every load fetches',
+        ):
+            self.assertIsNone(secret_floor_rule("x.py", line), line)
+
+        # the other direction, which is the one that must never weaken
+        for line in (
+            'GITHUB_TOKEN = "ghp_realvalue123456"',
+            'token = "abcd1234efgh"',
+            'auth_token: "abcd1234efgh"',
+            'my_token = "sk-verysecretvalue-abcdef"',
+            'refresh_token = "rtok-abcdef1234567890"',
+            'access_key = "AKIAIOSFODNN7EXAMPLE"',
+            'apiKey = "at-live-abcdef1234567890"',
+        ):
+            self.assertIsNotNone(secret_floor_rule("x.py", line), line)
+
+    def test_secret_floor_patterns_stay_under_the_compile_cap(self):
+        """A pattern over the cap is REFUSED, loudly, by _compile_labeled.
+
+        Pinned because the first attempt at the tiktoken fix pushed both
+        patterns to 203 characters and the table refused to build. Keeping a
+        measured headroom number here means the next person to edit the
+        keyword set learns the constraint from a test instead of a traceback.
+        """
+        from daedalus import sensitivity
+
+        for pattern in sensitivity.SECRET_FLOOR_CONTENT:
+            self.assertLessEqual(
+                len(pattern), sensitivity._MAX_PATTERN_LEN, pattern[:60]
+            )
+        # and the table actually built, i.e. no rule is silently absent
+        self.assertEqual(
+            len(sensitivity.SECRET_FLOOR_CONTENT),
+            len(sensitivity.SECRET_FLOOR_CONTENT_LABELS),
+        )
+
     # --- the FOUR bypass classes Cerberus re-review found open in d714128 ---
     # The committed tests only used bare-keyword forms (`password = "..."`) and
     # stayed green while every one of these leaked on the trusted lane.
@@ -136,7 +186,8 @@ class SecretFloorPrecisionTests(unittest.TestCase):
 
     def test_engine_token_files_are_not_floored_by_path(self):
         # The bootstrap depends on these staying distillable.
-        for p in ("daedalus/token_policy.py", "daedalus/structcore/tokens.py"):
+        for p in ("daedalus/runtimes/providers/token_policy.py",
+                  "daedalus/structcore/tokens.py"):
             self.assertIsNone(secret_floor_rule(p, "x = 1\n"), p)
 
 
@@ -249,7 +300,9 @@ class SelfDistillabilityTests(unittest.TestCase):
         self._assert_source_not_floored("sensitivity.py")
 
     def test_token_machinery_source_not_floored(self):
-        for rel in ("token_policy.py", "token_monitor.py", "structcore/tokens.py"):
+        for rel in ("runtimes/providers/token_policy.py",
+                    "interfaces/cli/token_monitor.py",
+                    "structcore/tokens.py"):
             self._assert_source_not_floored(rel)
 
     def test_clones_source_not_floored(self):

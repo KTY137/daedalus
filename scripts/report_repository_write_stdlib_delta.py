@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from daedalus.gates.repository_write_stdlib_delta import (
+from daedalus.gates.repository.write_stdlib_delta import (
     RepositoryWriteStdlibDeltaError,
     scan_repository_write_stdlib_delta,
 )

@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-surface-inventory-linear
     paths:
-      - "daedalus/gates/repository_write_stdlib_delta.py"
+      - "daedalus/gates/repository/write_stdlib_delta.py"
       - "scripts/report_repository_write_stdlib_delta.py"
       - "scripts/run_repository_write_stdlib_delta_mutations.py"
       - "tests/gates/test_repository_write_stdlib_delta*.py"
@@ -101,7 +101,7 @@ jobs:
           import tempfile
           from pathlib import Path
 
-          from daedalus.gates.repository_write_stdlib_delta import (
+          from daedalus.gates.repository.write_stdlib_delta import (
               scan_repository_write_stdlib_delta,
           )
 

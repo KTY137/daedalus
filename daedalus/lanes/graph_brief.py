@@ -65,7 +65,7 @@ DEEP_EDGE_MARK = "*"
 #: Path prefixes that are ARTEFACTS, not the project, and must never appear in a
 #: brief. Both entries are measured, not defensive:
 #:
-#: * ``runs/`` -- the first brief built for ``daedalus/shift.py`` listed
+#: * ``runs/`` -- the first brief built for ``daedalus/interfaces/cli/shift.py`` listed
 #:   ``runs/eval/deepseek_lab/wrecked/shift.py`` as a graph neighbour and printed
 #:   its symbols. That file is the DESTROYED artefact kept as evidence: a test
 #:   module that overwrote the real one. Showing it to a model asked to edit

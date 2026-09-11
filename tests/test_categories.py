@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from daedalus import categories as cats
+from daedalus.orchestration import categories as cats
 from daedalus import core
 
 

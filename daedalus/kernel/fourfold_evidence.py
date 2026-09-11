@@ -19,19 +19,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Sequence
+from typing import Final, Literal, Sequence
 
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     ContractProvenance,
-    EvidenceItem,
-    EvidencePacket,
-    NominationReceipt,
-    ResourceUsage,
     _artifact_locator,
     _locator_sha256,
     _revision,
     _sha256,
 )
+from daedalus.kernel.contracts.evidence import EvidenceItem, EvidencePacket
+from daedalus.kernel.contracts.promotion import NominationReceipt
+from daedalus.kernel.contracts.resources import ResourceUsage
 from daedalus.storage import (
     ArtifactStore,
     ArtifactStoreError,
@@ -64,7 +63,7 @@ class FourfoldEvidenceMismatch(ValueError):
 
 
 class FourfoldEvidenceUnstorable(RuntimeError):
-    """Raised when the snapshot bytes cannot be stored, so no packet is minted.
+    """Raised when retained bytes cannot be stored/read, so no packet is minted.
 
     Deliberately NOT a fall-back to a synthesised locator. An evidence locator
     is a promise that the bytes are re-readable; minting one for bytes that
@@ -294,8 +293,14 @@ def assemble_fourfold_evidence_packet(
     trace_id: str | None = None,
     extra_items: tuple[EvidenceItem, ...] = (),
     store: ArtifactStore | None = None,
+    status_mode: Literal["passed_only", "from_items"] = "passed_only",
 ) -> EvidencePacket:
-    """Create a passed packet for one complete candidate Fourfold snapshot.
+    """Bind retained observations to one complete candidate Fourfold snapshot.
+
+    The default accepts only passed evidence. Explicit ``from_items`` derives
+    failed or inconclusive status from the unchanged observations and reads
+    back every output. It grants no nomination authority: the public verifier
+    and both nomination paths still accept only passed packets.
 
     ``store`` is where the snapshot bytes are written so that the evidence
     locator this packet carries can be read back. A caller with its own store
@@ -307,6 +312,11 @@ def assemble_fourfold_evidence_packet(
     does not fall back to a locator pointing at nothing.
     """
 
+    if not isinstance(status_mode, str) or status_mode not in (
+        "passed_only", "from_items"
+    ):
+        raise ValueError("status_mode must be passed_only or from_items")
+    extra_items = tuple(extra_items)
     snapshot = _canonical_snapshot(snapshot)
     store = _resolve_store(store)
     expectation = FourfoldEvidenceExpectation(
@@ -366,6 +376,16 @@ def assemble_fourfold_evidence_packet(
         ),
         details=details,
     )
+    items = (item, *extra_items)
+    evaluation_status = "passed"
+    if status_mode == "from_items":
+        if any(
+            value.assurance == "unverified" or value.verdict == "cancelled"
+            for value in items
+        ):
+            evaluation_status = "inconclusive"
+        elif any(value.verdict in {"failed", "error"} for value in items):
+            evaluation_status = "failed"
     packet = EvidencePacket(
         packet_id=packet_id,
         mission_id=mission_id,
@@ -373,8 +393,8 @@ def assemble_fourfold_evidence_packet(
         source_revision=snapshot.source_revision,
         attempt_contract_sha256=attempt_sha,
         subject_sha256=expectation.candidate_artifact_sha256,
-        evaluation_status="passed",
-        items=(item, *tuple(extra_items)),
+        evaluation_status=evaluation_status,
+        items=items,
         policy_decision_sha256=policy_sha,
         usage=usage or ResourceUsage(),
         provenance=ContractProvenance(
@@ -398,12 +418,56 @@ def assemble_fourfold_evidence_packet(
         candidate_artifact_sha256=expectation.candidate_artifact_sha256,
         candidate_artifact_locator=expectation.candidate_artifact_locator,
     )
-    verify_fourfold_evidence_packet(
-        packet,
-        snapshot=snapshot,
-        expectation=expectation,
-        store=store,
-    )
+    if status_mode == "from_items":
+        # Keep identity checks shared. Read all outputs below rather than
+        # using the public verifier's snapshot-only storage projection, which
+        # deliberately reports storage failures as binding mismatches. Here
+        # the caller must distinguish unavailable bytes from a negative check
+        # and retain the previous latest receipt on persistence failure.
+        mismatches = _fourfold_evidence_binding_mismatches(
+            packet,
+            snapshot=snapshot,
+            expectation=expectation,
+        )
+        if mismatches:
+            raise FourfoldEvidenceMismatch(
+                "Fourfold evidence binding mismatch: "
+                + ", ".join(sorted(set(mismatches)))
+            )
+        for retained in packet.items:
+            try:
+                locator = store.load_locator(
+                    _locator_sha256(retained.evidence_locator)
+                )
+                verified = store.verify(locator)
+                snapshot_bytes = (
+                    store.get_bytes(verified.artifact_sha256)
+                    if retained.evaluator == FOURFOLD_EVALUATOR else None
+                )
+            except (ArtifactStoreError, StorageUnavailable, OSError) as exc:
+                raise FourfoldEvidenceUnstorable(
+                    f"retained evidence output {retained.evidence_id} cannot "
+                    f"be read back ({type(exc).__name__}: {exc})"
+                ) from exc
+            if verified.artifact_sha256 != retained.output_sha256:
+                raise FourfoldEvidenceMismatch(
+                    "Fourfold evidence output digest mismatch: "
+                    + retained.evidence_id
+                )
+            if (
+                snapshot_bytes is not None
+                and snapshot_bytes != _snapshot_bytes(snapshot)
+            ):
+                raise FourfoldEvidenceMismatch(
+                    "Fourfold evidence binding mismatch: snapshot_locator_bytes"
+                )
+    else:
+        verify_fourfold_evidence_packet(
+            packet,
+            snapshot=snapshot,
+            expectation=expectation,
+            store=store,
+        )
     return packet
 
 
@@ -484,6 +548,33 @@ def verify_fourfold_evidence_packet(
     survived.
     """
 
+    mismatches = _fourfold_evidence_binding_mismatches(
+        packet,
+        snapshot=snapshot,
+        expectation=expectation,
+        store=store,
+    )
+    if packet.evaluation_status != "passed":
+        mismatches.append("evaluation_status")
+    if mismatches:
+        raise FourfoldEvidenceMismatch(
+            "Fourfold evidence binding mismatch: " + ", ".join(sorted(set(mismatches)))
+        )
+
+
+def _fourfold_evidence_binding_mismatches(
+    packet: EvidencePacket,
+    *,
+    snapshot: FourfoldSnapshot,
+    expectation: FourfoldEvidenceExpectation,
+    store: ArtifactStore | None = None,
+) -> list[str]:
+    """Rebuild canonical evidence and check its complete candidate binding.
+
+    Status acceptance belongs to the public passed verifier. Negative assembly
+    shares these identity checks and separately requires every stored output.
+    """
+
     packet = _canonical_packet(packet)
     snapshot = _canonical_snapshot(snapshot)
     _require_snapshot_candidate_binding(
@@ -509,9 +600,6 @@ def verify_fourfold_evidence_packet(
         mismatches.append("candidate_digest")
     if packet.candidate_artifact_locator != expectation.candidate_artifact_locator:
         mismatches.append("candidate_locator")
-    if packet.evaluation_status != "passed":
-        mismatches.append("evaluation_status")
-
     items = [item for item in packet.items if item.evaluator == FOURFOLD_EVALUATOR]
     if len(items) != 1:
         mismatches.append("fourfold_evidence_count")
@@ -567,10 +655,7 @@ def verify_fourfold_evidence_packet(
     if packet.policy_decision_sha256 not in packet_inputs:
         mismatches.append("packet_policy_provenance")
 
-    if mismatches:
-        raise FourfoldEvidenceMismatch(
-            "Fourfold evidence binding mismatch: " + ", ".join(sorted(set(mismatches)))
-        )
+    return mismatches
 
 
 def verify_fourfold_nomination_receipt(

@@ -13,8 +13,8 @@ import json
 import unittest
 from unittest import mock
 
-from daedalus import loop as loopmod
-from daedalus.loop import LoopBounds, LoopMisconfigured
+from daedalus.orchestration import loop as loopmod
+from daedalus.orchestration.loop import LoopBounds, LoopMisconfigured
 
 
 class TestLoopBoundSafety(unittest.TestCase):
@@ -55,7 +55,7 @@ class TestLoopBoundSafety(unittest.TestCase):
             ("--max-wall-clock-s", "inf"),
         ):
             with self.subTest(flag=flag, value=value), \
-                 mock.patch("daedalus.dotenv.load"), \
+                 mock.patch("daedalus.foundation.dotenv.load"), \
                  mock.patch("daedalus.budget.install_process_guard"), \
                  mock.patch(
                      "daedalus.budget.process_guard_boundary_decision",

@@ -26,3 +26,6 @@ Your instrument, and the discipline it demands:
   what survives review and what a human could actually act on.
 * **Report cost.** Every proposal states the calls it spends and what it
   displaces. The budget fails closed and is a shared resource.
+
+## Orchestration engine: LangGraph (owner order 2026-09-06)
+Any multi-step execution you design, implement, or review — attempts, retries, verifier cascades, repair loops, wave plans, WorkItem graphs — is modeled as a LangGraph `StateGraph` (nodes, edges, checkpointer). In Daedalus that means nodes inside the existing adapter `daedalus/orchestration/langgraph_adapter.py` (`create_run(..., engine="langgraph")`), never a second hand-rolled runner or a parallel control plane. The graph composes; it does not write — effects stay behind the canonical kernel (policy, EffectLease, evidence). Before such work confirm the interpreter has it: `python -c "import importlib.metadata as m; print(m.version('langgraph'))"` (`langgraph.__file__` is `None` by design — namespace package, not absence). If it is missing, install it rather than work around it: `uv pip install --python .venv/Scripts/python.exe "langgraph>=1.2,<2"`. The global rule is `~/.claude/CLAUDE.md`; the project rule in `CLAUDE.md` is stricter and wins.

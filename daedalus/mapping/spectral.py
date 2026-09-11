@@ -239,10 +239,16 @@ def fiedler_report(graph: "nx.Graph", partition: Mapping[str, Sequence[str]]
     order = sorted(scope.nodes)
     values = {node: float(vector[i]) for i, node in enumerate(order)}
     # The sign of an eigenvector is arbitrary. Pin it so two runs over an
-    # unchanged tree produce the same dict -- provenance requires it.
-    if sum(values.values()) < 0 or (
-            math.isclose(sum(values.values()), 0.0, abs_tol=1e-12)
-            and values[order[0]] < 0):
+    # unchanged tree produce the same dict -- provenance requires it.  Use a
+    # largest-magnitude component because the vector sum and its first entry
+    # can both be numerically zero.  Symmetric graphs can have several maxima;
+    # treat solver-scale differences as ties and take the first sorted node.
+    peak = max(abs(value) for value in values.values())
+    anchor = next(
+        node for node in order
+        if math.isclose(abs(values[node]), peak, rel_tol=1e-12, abs_tol=1e-15)
+    )
+    if values[anchor] < 0:
         values = {node: -v for node, v in values.items()}
 
     positive = {node for node, v in values.items() if v >= 0}

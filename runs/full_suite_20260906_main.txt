@@ -1,0 +1,1119 @@
+HEAD=585b7ea4e141332928ad6c9578b9c9997e55f247 dirty=190 start=2026-09-06T07:06:34Z host=KayasSpectre py=Python 3.13.14 mode=xdist-n6-loadfile
+bringing up nodes...
+bringing up nodes...
+
+.............s...s..s..s..s...s.....s........s...s.s....s..s............ [  0%]
+..s..s...s.....s...s..s..s........ss....s...s....s.s......s..s..s....s.. [  1%]
+s.....s...s....s...s......s..s....s...s..s...s....s......s.s....s..s...s [  1%]
+..s...s..s...s...s....uuu.s........................uuu.s..........s..... [  2%]
+s.s.........s.....s.....s......s....s...s...s......s...s....s.....s...s. [  2%]
+..s......s..s.....s.s......s.......s..s......s..s...s..s....s..s...s.s.. [  3%]
+s..s..s..................s...s...s....s..s....s...s....s..s..s..s.s.s..s [  4%]
+.......s...s..........s.....s.s.s...s..s.s.....s........................ [  4%]
+..................u...uu..........uuuu.....uuuuu.......uu.uuu........... [  5%]
+......uuuuuu.....................uuu...........................uuuu.uuuu [  5%]
+...uuuuuuuuuuuu.u.uuuu....uuuuuuuu..uuuuuuuu....uuu.uuuuuuuuuuuuuuuuuu.. [  5%]
+..uuu....uuuuu.............................s............................ [  6%]
+........................................................................ [  7%]
+........................................................................ [  7%]
+........................................................................ [  8%]
+........................................................................ [  8%]
+........................................................................ [  9%]
+.....uuuuuuuu...uuuu..uu.uu.......uu.......uuuuuu.......uuuu.uu.uu...... [  9%]
+...................................................................uuuuu [ 10%]
+uuuuuuuuuuuuuuuuu.uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu.uuuuuuuu [ 10%]
+uuuuuuuuuuu....uu..uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu........ [ 10%]
+.....uuuu......uu...uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu [ 10%]
+uuuuuuuuuuuuuuuu..........uu...uu..uuu.uuuuuu...uuuuuu.uuuuuuuuuuuuuuuuu [ 10%]
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu.uuuuuuuuuu [ 10%]
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu.uuuuuuuuuuuuu [ 10%]
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu..uuuuuuuuuuuuuuu [ 10%]
+u..uuuuuu...uuu.........uuuuuuuuuuuuuuuu................................ [ 11%]
+............s..........................uuuu........................uuuuu [ 11%]
+uu.......uuuuu...uu.......uu............................................ [ 12%]
+........................................................................ [ 12%]
+........................................................................ [ 13%]
+........................................................................ [ 14%]
+........................................................................ [ 14%]
+........................................................................ [ 15%]
+..............................................uuuu..uuuuuuu..uuuuuuuuuuu [ 15%]
+uuuuu..uuuuuuuuuuuuuuuu.uuuuuuuuuuuu.uuu.u.............................. [ 16%]
+............................uuuuu.uuu.uuuuuuuu................uuuu..uuuu [ 16%]
+....uuuu.......uuuu.uu...uuu.........u.u.uuuuuuuuuuuuuuuu.uuuuuuuuuuuuuu [ 16%]
+uu.uuuuuuuuuuuuuuuu..................................................... [ 17%]
+........................................................................ [ 17%]
+.............................uuuu.uuuuuuuuuuuuuuuu...uuuu............... [ 18%]
+............uuuu..............u..uuuuuuuuuuuuuuu........................ [ 18%]
+..................................uuuuuuuuuuuuuuuuuuuuuuuuuuu..uuuuuu..u [ 18%]
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu [ 18%]
+uuuuu..uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu [ 18%]
+uuuuuuuuuuuuu..uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu [ 18%]
+uuuuuuuuuuu..uuuuuuuuuuuuuuuuuu.uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu [ 18%]
+uuuuuuuuuu.............................................................. [ 19%]
+........................................................................ [ 20%]
+.......................................................................u [ 20%]
+u..u..uuuuuuu............uuuuuuuuuu.uuuu..uuuuuu..........uuu........... [ 21%]
+...............uuuuu...............................uuuuu.uuuuuuuuuuuuuuu [ 21%]
+uu...................................................................... [ 22%]
+...............................................................ssssssss. [ 22%]
+ssssssssssssssssssssssssssssssssssssssssssss............................ [ 23%]
+........................................................................ [ 23%]
+.......................................uuu........uuuuuu.uuuuuu.uu...uuu [ 24%]
+uuuuuu.uuuuuuuuuuuuuu..........................uuuuuuuuuuuuuuuuuuuuuuuuu [ 24%]
+uuuuuuuuuuuuuuuuuuuuuuuuuu..uuuuuuuuuuuuuuuuuuuu.uuuuuuuuuuuuuuuuuuuuuuu [ 24%]
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu.uuuuuuuuuuuuuuuuuuuuuuuuuuu..uuuuuuu [ 24%]
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu..u..uuuuuu [ 24%]
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu.......... [ 24%]
+........uuuuuu.......................................................... [ 25%]
+.......................................................................u [ 25%]
+uuuuuuuuuuuuuuuuu....................................................... [ 26%]
+..............................uuuuuu.................................... [ 26%]
+........................................................................ [ 27%]
+........................................................................ [ 28%]
+........F......F.F.F..F..........F.........F.....F....F.FFF..........F.. [ 28%]
+........................................................................ [ 29%]
+s....................................................................... [ 29%]
+........................................................................ [ 30%]
+........................................................................ [ 31%]
+........................................................................ [ 31%]
+....uuuuuuuuu.uuuuuu.........uuuuuu...uuuuu.........uuu..uuu............ [ 32%]
+......uu.......................ss..................uuu.uu.......uu...... [ 32%]
+........................................................................ [ 33%]
+........................................................................ [ 33%]
+........................................................................ [ 34%]
+...................................................................u.u.. [ 35%]
+........................................................................ [ 35%]
+........................................................................ [ 36%]
+........................................................................ [ 36%]
+........................................................................ [ 37%]
+........................s............................................... [ 38%]
+................................................uuu.................uuuu [ 38%]
+........................................................................ [ 39%]
+..........................uuuuu......................................... [ 39%]
+........................................................................ [ 40%]
+........................................................................ [ 40%]
+........................................................................ [ 41%]
+........................................................................ [ 42%]
+...............................uu....................................... [ 42%]
+........................................................................ [ 43%]
+................s..............................................ssssssss. [ 44%]
+........................................................................ [ 44%]
+.........................................uuuuu.uuuu........uuuuuuuuuuuuu [ 45%]
+uuuuuuuuuuuuuuuuuuuuuuu................................................. [ 45%]
+........................................................................ [ 46%]
+......................uuuuuuuuuuuuuuu....uuuuuuuuuuuu..uuuuuu.....uuuuuu [ 46%]
+uuuuuu.................................................................. [ 46%]
+.............................uuuu.uuuuuuu.....u.uuuuuu........uuuuuuu... [ 47%]
+......uuu.u.................u.u.uu...................................... [ 47%]
+.xxxx.xxxxxxxxxx........................................................ [ 48%]
+........................................................................ [ 49%]
+...................................................uuu.................. [ 49%]
+..........uuuu.......................................................... [ 50%]
+...............................................s........................ [ 50%]
+........................................................................ [ 51%]
+........................................................................ [ 52%]
+....uuuu................................................................ [ 52%]
+........................................................................ [ 53%]
+...........................................ss........................... [ 53%]
+........................................................................ [ 54%]
+.................uuuuuuuuuuuu.uuu..uuuu..uuu.uuuuuuuuuuu.uuuu....uuu..uu [ 54%]
+uuu..uuuu...uuuu....uuuu................................................ [ 55%]
+....................................................................ss.. [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 56%]
+........................................................................ [ 57%]
+........................................................................ [ 58%]
+........................................................................ [ 58%]
+........................................................................ [ 59%]
+........................................................................ [ 60%]
+........................................................................ [ 60%]
+....uuu...................uuuuuuuu......uuu..uu.....uuuuu.xuuuuuuuuuuuuu [ 60%]
+uuu.....uuuuuuuuuuuuuuuu..uuuuuuuuuuuuuuuuuuuuuuu.uuuuuuuuuuuuu..uuuuuuu [ 61%]
+uuuuuuuuu..........................uuuuuuuuuuu.................uuuu.uu.u [ 61%]
+uuu..................................................................... [ 62%]
+..............uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu..uuuuuuuuuuuuuuu..uuuuuuu [ 62%]
+uuuuuuuu...........uu................uuu................................ [ 62%]
+........................................................................ [ 63%]
+........................................................................ [ 63%]
+........................................................................ [ 64%]
+........................................................................ [ 65%]
+........................................................................ [ 65%]
+........................................................................ [ 66%]
+........................................................................ [ 66%]
+........................................................................ [ 67%]
+........................................................................ [ 68%]
+................................................................uuuuu... [ 68%]
+........uuu.............................uuuuu......sssssssssssssss...... [ 69%]
+............u..u.u.u..u................................................. [ 69%]
+........................................................................ [ 70%]
+........................................................................ [ 71%]
+.....ss.............................ssss................................ [ 71%]
+...........sssssss...................................................... [ 72%]
+........................................................................ [ 72%]
+..................uuuuuuuuu........................uuu.................. [ 73%]
+................................s....................................... [ 73%]
+........................................................................ [ 74%]
+....................................ssssssssssss........................ [ 75%]
+........................................................................ [ 75%]
+........................................................................ [ 76%]
+........................................................................ [ 77%]
+..........xxxx.x......x................................................. [ 77%]
+........................................................................ [ 78%]
+..............................................................uuuuu..... [ 78%]
+........................................................................ [ 79%]
+........................................................................ [ 80%]
+........................................................................ [ 80%]
+........................................................................ [ 81%]
+.....................FF...................uuuu....F..................... [ 81%]
+..................................s............uuuu..uu.uuu.uuu......... [ 82%]
+..................uuuu.................................................. [ 82%]
+...........................................................x............ [ 83%]
+........................................................................ [ 84%]
+........................................................................ [ 84%]
+.............uuuuuuuuuuuuuuu.uuuuuuuuuuuuuuu.uu.uuuuuuuuuuuuuuu.uuu.uuuu [ 84%]
+uuuuuuuuuuu.uuuu.uuuuuuuuu.............................................. [ 85%]
+........................................................................ [ 85%]
+........................................................................ [ 86%]
+........................................................................ [ 87%]
+..................................................uu.................... [ 87%]
+......................................uuuu...uuuuuu.....uu.............. [ 88%]
+..............................................uuuuu..................... [ 88%]
+........................................................................ [ 89%]
+......................................................................ss [ 89%]
+sssss.........................................................sssssss... [ 90%]
+....s...................uuuuuu.......................................... [ 91%]
+..............uuuuu..................................................... [ 91%]
+........................................................................ [ 92%]
+.....................ssssss......................................ssssss. [ 92%]
+........................................................................ [ 93%]
+.........................................ssssss.................uuuuuuuu [ 94%]
+.............uuuuu..s...........................uuuu.u.................. [ 94%]
+........................................................................ [ 95%]
+...............s........................................................ [ 95%]
+........................................................................ [ 96%]
+........................................................................ [ 97%]
+.................................ssss................................... [ 97%]
+...............uuuu..uuuuuuuu..uuuuuu.....................ssss.......... [ 98%]
+........F............................................................... [ 98%]
+........................................F............................... [ 99%]
+..............................ss...............................x........ [ 99%]
+..........                                                               [100%]
+================================== FAILURES ===================================
+___________ test_typed_probe_error_uses_fresh_codex_councils[0-429] ___________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+status = 429, returncode = 0
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr0')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr0/repo')
+
+    @pytest.mark.parametrize("status", [429, 503, 529])
+    @pytest.mark.parametrize("returncode", [0, 1])
+    def test_typed_probe_error_uses_fresh_codex_councils(
+        status: int, returncode: int, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(
+            tmp_path, campaign_id=f"fallback-{status}-rc{returncode}", max_agents=3
+        )
+        calls = []
+    
+        def runner(argv, **_kwargs):
+            provider = "claude" if "claude" in Path(argv[0]).name.lower() else "codex"
+            calls.append(provider)
+            if provider == "claude":
+                return RunResult(
+                    returncode=returncode,
+                    stdout=json.dumps(
+                        {"is_error": True, "api_error_status": status, "result": "limited"}
+                    ),
+                )
+            return RunResult(
+                returncode=0,
+                stdout="CLAIM: codex reviewed evidence\nCHECK: python -m pytest -q",
+            )
+    
+        def factory(provider, cfg, repo_root):
+            if provider == "claude":
+                return core.StructuredClaudeAdapter(
+                    model="opus", repo_root=repo_root, runner=runner
+                )
+            return CodexAdapter(model=cfg.codex_model, repo_root=repo_root, runner=runner)
+    
+        state = _run(config, tmp_path, adapter_factory=factory)
+    
+        assert state["provider_decision"] == "codex"
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:273: AssertionError
+___________ test_typed_probe_error_uses_fresh_codex_councils[0-503] ___________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+status = 503, returncode = 0
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr1')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr1/repo')
+
+    @pytest.mark.parametrize("status", [429, 503, 529])
+    @pytest.mark.parametrize("returncode", [0, 1])
+    def test_typed_probe_error_uses_fresh_codex_councils(
+        status: int, returncode: int, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(
+            tmp_path, campaign_id=f"fallback-{status}-rc{returncode}", max_agents=3
+        )
+        calls = []
+    
+        def runner(argv, **_kwargs):
+            provider = "claude" if "claude" in Path(argv[0]).name.lower() else "codex"
+            calls.append(provider)
+            if provider == "claude":
+                return RunResult(
+                    returncode=returncode,
+                    stdout=json.dumps(
+                        {"is_error": True, "api_error_status": status, "result": "limited"}
+                    ),
+                )
+            return RunResult(
+                returncode=0,
+                stdout="CLAIM: codex reviewed evidence\nCHECK: python -m pytest -q",
+            )
+    
+        def factory(provider, cfg, repo_root):
+            if provider == "claude":
+                return core.StructuredClaudeAdapter(
+                    model="opus", repo_root=repo_root, runner=runner
+                )
+            return CodexAdapter(model=cfg.codex_model, repo_root=repo_root, runner=runner)
+    
+        state = _run(config, tmp_path, adapter_factory=factory)
+    
+        assert state["provider_decision"] == "codex"
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:273: AssertionError
+___________ test_typed_probe_error_uses_fresh_codex_councils[0-529] ___________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+status = 529, returncode = 0
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr2')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr2/repo')
+
+    @pytest.mark.parametrize("status", [429, 503, 529])
+    @pytest.mark.parametrize("returncode", [0, 1])
+    def test_typed_probe_error_uses_fresh_codex_councils(
+        status: int, returncode: int, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(
+            tmp_path, campaign_id=f"fallback-{status}-rc{returncode}", max_agents=3
+        )
+        calls = []
+    
+        def runner(argv, **_kwargs):
+            provider = "claude" if "claude" in Path(argv[0]).name.lower() else "codex"
+            calls.append(provider)
+            if provider == "claude":
+                return RunResult(
+                    returncode=returncode,
+                    stdout=json.dumps(
+                        {"is_error": True, "api_error_status": status, "result": "limited"}
+                    ),
+                )
+            return RunResult(
+                returncode=0,
+                stdout="CLAIM: codex reviewed evidence\nCHECK: python -m pytest -q",
+            )
+    
+        def factory(provider, cfg, repo_root):
+            if provider == "claude":
+                return core.StructuredClaudeAdapter(
+                    model="opus", repo_root=repo_root, runner=runner
+                )
+            return CodexAdapter(model=cfg.codex_model, repo_root=repo_root, runner=runner)
+    
+        state = _run(config, tmp_path, adapter_factory=factory)
+    
+        assert state["provider_decision"] == "codex"
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:273: AssertionError
+___________ test_typed_probe_error_uses_fresh_codex_councils[1-429] ___________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+status = 429, returncode = 1
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr3')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr3/repo')
+
+    @pytest.mark.parametrize("status", [429, 503, 529])
+    @pytest.mark.parametrize("returncode", [0, 1])
+    def test_typed_probe_error_uses_fresh_codex_councils(
+        status: int, returncode: int, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(
+            tmp_path, campaign_id=f"fallback-{status}-rc{returncode}", max_agents=3
+        )
+        calls = []
+    
+        def runner(argv, **_kwargs):
+            provider = "claude" if "claude" in Path(argv[0]).name.lower() else "codex"
+            calls.append(provider)
+            if provider == "claude":
+                return RunResult(
+                    returncode=returncode,
+                    stdout=json.dumps(
+                        {"is_error": True, "api_error_status": status, "result": "limited"}
+                    ),
+                )
+            return RunResult(
+                returncode=0,
+                stdout="CLAIM: codex reviewed evidence\nCHECK: python -m pytest -q",
+            )
+    
+        def factory(provider, cfg, repo_root):
+            if provider == "claude":
+                return core.StructuredClaudeAdapter(
+                    model="opus", repo_root=repo_root, runner=runner
+                )
+            return CodexAdapter(model=cfg.codex_model, repo_root=repo_root, runner=runner)
+    
+        state = _run(config, tmp_path, adapter_factory=factory)
+    
+        assert state["provider_decision"] == "codex"
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:273: AssertionError
+___________ test_typed_probe_error_uses_fresh_codex_councils[1-503] ___________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+status = 503, returncode = 1
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr4')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr4/repo')
+
+    @pytest.mark.parametrize("status", [429, 503, 529])
+    @pytest.mark.parametrize("returncode", [0, 1])
+    def test_typed_probe_error_uses_fresh_codex_councils(
+        status: int, returncode: int, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(
+            tmp_path, campaign_id=f"fallback-{status}-rc{returncode}", max_agents=3
+        )
+        calls = []
+    
+        def runner(argv, **_kwargs):
+            provider = "claude" if "claude" in Path(argv[0]).name.lower() else "codex"
+            calls.append(provider)
+            if provider == "claude":
+                return RunResult(
+                    returncode=returncode,
+                    stdout=json.dumps(
+                        {"is_error": True, "api_error_status": status, "result": "limited"}
+                    ),
+                )
+            return RunResult(
+                returncode=0,
+                stdout="CLAIM: codex reviewed evidence\nCHECK: python -m pytest -q",
+            )
+    
+        def factory(provider, cfg, repo_root):
+            if provider == "claude":
+                return core.StructuredClaudeAdapter(
+                    model="opus", repo_root=repo_root, runner=runner
+                )
+            return CodexAdapter(model=cfg.codex_model, repo_root=repo_root, runner=runner)
+    
+        state = _run(config, tmp_path, adapter_factory=factory)
+    
+        assert state["provider_decision"] == "codex"
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:273: AssertionError
+___________ test_typed_probe_error_uses_fresh_codex_councils[1-529] ___________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+status = 529, returncode = 1
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr5')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_typed_probe_error_uses_fr5/repo')
+
+    @pytest.mark.parametrize("status", [429, 503, 529])
+    @pytest.mark.parametrize("returncode", [0, 1])
+    def test_typed_probe_error_uses_fresh_codex_councils(
+        status: int, returncode: int, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(
+            tmp_path, campaign_id=f"fallback-{status}-rc{returncode}", max_agents=3
+        )
+        calls = []
+    
+        def runner(argv, **_kwargs):
+            provider = "claude" if "claude" in Path(argv[0]).name.lower() else "codex"
+            calls.append(provider)
+            if provider == "claude":
+                return RunResult(
+                    returncode=returncode,
+                    stdout=json.dumps(
+                        {"is_error": True, "api_error_status": status, "result": "limited"}
+                    ),
+                )
+            return RunResult(
+                returncode=0,
+                stdout="CLAIM: codex reviewed evidence\nCHECK: python -m pytest -q",
+            )
+    
+        def factory(provider, cfg, repo_root):
+            if provider == "claude":
+                return core.StructuredClaudeAdapter(
+                    model="opus", repo_root=repo_root, runner=runner
+                )
+            return CodexAdapter(model=cfg.codex_model, repo_root=repo_root, runner=runner)
+    
+        state = _run(config, tmp_path, adapter_factory=factory)
+    
+        assert state["provider_decision"] == "codex"
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:273: AssertionError
+____________ test_probe_is_synchronous_then_parallelism_is_bounded ____________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_probe_is_synchronous_then0')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_probe_is_synchronous_then0/repo')
+
+    def test_probe_is_synchronous_then_parallelism_is_bounded(
+        tmp_path: Path, registered_project: Path
+    ):
+        config = _config(tmp_path, campaign_id="parallel", max_agents=6, max_parallel=2)
+        events = []
+        guard = threading.Lock()
+        active = 0
+        maximum = 0
+    
+        def hook(_provider, phase):
+            nonlocal active, maximum
+            with guard:
+                if phase == "start":
+                    active += 1
+                    maximum = max(maximum, active)
+                else:
+                    active -= 1
+            if phase == "start":
+                time.sleep(0.04)
+    
+        state = _run(
+            config,
+            tmp_path,
+            adapter_factory=_success_factory(events, runner_hook=hook),
+        )
+    
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:357: AssertionError
+__________ test_twenty_slot_fallback_never_exceeds_twenty_one_calls ___________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_twenty_slot_fallback_neve0')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_twenty_slot_fallback_neve0/repo')
+
+    def test_twenty_slot_fallback_never_exceeds_twenty_one_calls(
+        tmp_path: Path, registered_project: Path
+    ):
+        config = _config(
+            tmp_path,
+            campaign_id="twenty",
+            max_agents=20,
+            max_parallel=4,
+        )
+        calls = []
+    
+        def runner(argv, **_kwargs):
+            provider = "claude" if "claude" in Path(argv[0]).name.lower() else "codex"
+            calls.append(provider)
+            if provider == "claude":
+                return RunResult(
+                    returncode=0,
+                    stdout='{"is_error":true,"api_error_status":429,"result":"limited"}',
+                )
+            return RunResult(returncode=0, stdout="CLAIM: x\nCHECK: python -m pytest -q")
+    
+        def factory(provider, cfg, repo_root):
+            if provider == "claude":
+                return core.StructuredClaudeAdapter(model="opus", repo_root=repo_root, runner=runner)
+            return CodexAdapter(model=cfg.codex_model, repo_root=repo_root, runner=runner)
+    
+        state = _run(config, tmp_path, adapter_factory=factory)
+    
+>       assert state["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:457: AssertionError
+_____________________ test_terminal_campaign_is_one_shot ______________________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_terminal_campaign_is_one_0')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_terminal_campaign_is_one_0/repo')
+
+    def test_terminal_campaign_is_one_shot(
+        tmp_path: Path, registered_project: Path
+    ):
+        config = _config(tmp_path, campaign_id="once", max_agents=2)
+        events = []
+        factory = _success_factory(events)
+    
+        first = _run(config, tmp_path, adapter_factory=factory)
+        count = len(events)
+        second = _run(config, tmp_path, adapter_factory=factory)
+    
+>       assert first["status"] == second["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:576: AssertionError
+____________ test_active_session_waits_durably_then_idle_tick_runs ____________
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_active_session_waits_dura0')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_active_session_waits_dura0/repo')
+
+    def test_active_session_waits_durably_then_idle_tick_runs(
+        tmp_path: Path, registered_project: Path
+    ):
+        config = _config(tmp_path, campaign_id="wait-active", max_agents=2)
+        events = []
+        factory = _success_factory(events)
+    
+        waiting = _run(
+            config,
+            tmp_path,
+            adapter_factory=factory,
+            session_probe=lambda: {
+                "ok": True,
+                "active_sessions": 2,
+                "sources": ["claude-agents", "codex-process"],
+                "reason": "",
+            },
+        )
+        assert waiting["status"] == "waiting"
+        assert waiting["calls_claimed"] == 0
+        assert events == []
+        assert waiting["session_checks"][-1]["active_sessions"] == 2
+        assert waiting["evidence_frozen_at"] == ""
+        assert all(slot["evidence_digest"] == "" for slot in waiting["slots"])
+    
+        (registered_project / "selected.txt").write_text(
+            "CONTEXT-AFTER-ACTIVE-SESSION", encoding="utf-8"
+        )
+    
+        complete = _run(config, tmp_path, adapter_factory=factory)
+>       assert complete["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:610: AssertionError
+_ test_second_session_gate_waits_with_provider_decision_and_pending_slots[second0] _
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+second = {'ok': True, 'active_sessions': 1, 'sources': ['codex-process'], 'reason': ''}
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_second_session_gate_waits0')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_second_session_gate_waits0/repo')
+
+    @pytest.mark.parametrize(
+        "second",
+        [
+            {"ok": True, "active_sessions": 1, "sources": ["codex-process"], "reason": ""},
+            {"ok": False, "active_sessions": 0, "sources": [], "reason": "probe_error"},
+        ],
+    )
+    def test_second_session_gate_waits_with_provider_decision_and_pending_slots(
+        second, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(tmp_path, campaign_id=f"fanout-wait-{second['ok']}", max_agents=3)
+        observations = iter([idle_sessions(), second])
+        events = []
+        factory = _success_factory(events)
+    
+        waiting = _run(
+            config,
+            tmp_path,
+            adapter_factory=factory,
+            session_probe=lambda: next(observations),
+        )
+    
+        assert waiting["status"] == "waiting"
+        assert waiting["provider_decision"] == "claude"
+        assert waiting["calls_claimed"] == 1
+        assert waiting["slots"][0]["status"] == "completed"
+        assert all(slot["status"] == "pending" for slot in waiting["slots"][1:])
+        assert sum(1 for event in events if event[0] == "start") == 1
+    
+        complete = _run(config, tmp_path, adapter_factory=factory)
+>       assert complete["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:647: AssertionError
+_ test_second_session_gate_waits_with_provider_decision_and_pending_slots[second1] _
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+second = {'ok': False, 'active_sessions': 0, 'sources': [], 'reason': 'probe_error'}
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_second_session_gate_waits1')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_second_session_gate_waits1/repo')
+
+    @pytest.mark.parametrize(
+        "second",
+        [
+            {"ok": True, "active_sessions": 1, "sources": ["codex-process"], "reason": ""},
+            {"ok": False, "active_sessions": 0, "sources": [], "reason": "probe_error"},
+        ],
+    )
+    def test_second_session_gate_waits_with_provider_decision_and_pending_slots(
+        second, tmp_path: Path, registered_project: Path
+    ):
+        config = _config(tmp_path, campaign_id=f"fanout-wait-{second['ok']}", max_agents=3)
+        observations = iter([idle_sessions(), second])
+        events = []
+        factory = _success_factory(events)
+    
+        waiting = _run(
+            config,
+            tmp_path,
+            adapter_factory=factory,
+            session_probe=lambda: next(observations),
+        )
+    
+        assert waiting["status"] == "waiting"
+        assert waiting["provider_decision"] == "claude"
+        assert waiting["calls_claimed"] == 1
+        assert waiting["slots"][0]["status"] == "completed"
+        assert all(slot["status"] == "pending" for slot in waiting["slots"][1:])
+        assert sum(1 for event in events if event[0] == "start") == 1
+    
+        complete = _run(config, tmp_path, adapter_factory=factory)
+>       assert complete["status"] == "complete"
+E       AssertionError: assert 'degraded' == 'complete'
+E         
+E         - complete
+E         + degraded
+
+tests\test_opus_fleet_watchdog.py:647: AssertionError
+_____ test_budget_reservation_shares_the_vendor_thread_with_process_guard _____
+[gw4] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_budget_reservation_shares0')
+registered_project = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_budget_reservation_shares0/repo')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027E5EEFD2B0>
+
+    def test_budget_reservation_shares_the_vendor_thread_with_process_guard(
+        tmp_path: Path,
+        registered_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """The explicit campaign charge suppresses the process guard in-seat.
+    
+        Council starts ``adapter.ask`` on its own thread.  If the explicit guard
+        sits outside ``convene``, its thread-local marker is absent at the vendor
+        spawn and the shared process guard charges a second ledger.
+        """
+    
+        config = _config(
+            tmp_path,
+            campaign_id="one-budget-charge",
+            max_agents=1,
+            max_parallel=1,
+        )
+        shared_ledger = tmp_path / "shared-budget.json"
+        monkeypatch.setenv(budget.ENV_LEDGER, str(shared_ledger))
+        monkeypatch.setenv(budget.ENV_CEILING, "100")
+        monkeypatch.setenv(budget.ENV_MAX_CALLS, "10")
+        monkeypatch.setenv(budget.ENV_PERIOD, "total")
+        budget.reset_default_ledger()
+        budget.uninstall_process_guard()
+        starts = []
+    
+        def fake_spawn(argv, **_kwargs):
+            starts.append(tuple(argv))
+            return object()
+    
+        monkeypatch.setattr(subprocess, "run", fake_spawn)
+        uninstall = budget.install_process_guard()
+    
+        def runner(_argv, **_kwargs):
+            # This is the syscall-like boundary the process guard classifies.
+            subprocess.run(["claude", "-p"])
+            return RunResult(
+                returncode=0,
+                stdout=json.dumps(
+                    {"is_error": False, "result": "CLAIM: x\nCHECK: pytest -q"}
+                ),
+            )
+    
+        def factory(_provider, cfg, repo_root):
+            return core.StructuredClaudeAdapter(
+                model="opus", repo_root=repo_root, runner=runner
+            )
+    
+        try:
+            state = core.run_campaign(
+                config,
+                planner=_planner,
+                runs_root=tmp_path / "runs",
+                kill_switch=PassSwitch(),
+                session_probe=idle_sessions,
+                adapter_factory=factory,
+            )
+        finally:
+            uninstall()
+            budget.reset_default_ledger()
+    
+        campaign_ledger = budget.Ledger(
+            tmp_path / "runs" / "mission-one-budget-charge" / "budget.json",
+            ceiling_usd=100,
+            max_calls=2,
+            period="total",
+        ).state()
+        assert state["status"] == "complete"
+        assert len(starts) == 1
+        assert campaign_ledger.calls == 1
+>       assert not shared_ledger.exists(), "process guard double-charged the shared ledger"
+E       AssertionError: process guard double-charged the shared ledger
+E       assert not True
+E        +  where True = exists()
+E        +    where exists = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-7353/popen-gw4/test_budget_reservation_shares0/shared-budget.json').exists
+
+tests\test_opus_fleet_watchdog.py:866: AssertionError
+________________ test_current_pages_name_only_files_that_exist ________________
+[gw5] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+checker = <module 'docs_reference_check' from 'C:\\Users\\nukei\\Desktop\\PROJECTS\\daedalus\\tools\\docs_reference_check.py'>
+
+    def test_current_pages_name_only_files_that_exist(checker):
+        result = checker.scan()
+        assert result["scanned"] > 0, "empty census -- see the could-not-measure test"
+        current = [f for f in result["findings"] if not f["history"]]
+>       assert current == [], (
+            "a current page names a path that does not exist. Repair the page, or -- "
+            "if the mention is deliberate -- add it to ALLOWED with the reason:\n"
+            + "\n".join(f"  {f['file']}: {f['target']}" for f in current)
+        )
+E       AssertionError: a current page names a path that does not exist. Repair the page, or -- if the mention is deliberate -- add it to ALLOWED with the reason:
+E           docs/wiki/architecture/hooks.md: .claude/proposals/hook_precompact_vault.py
+E           docs/wiki/architecture/observation-layer.md: eval/ceiling.py
+E           docs/wiki/architecture/observe.md: tests/observe/
+E           docs/wiki/experiments/forest-v2-s01-resolution.md: experiments/forest_v2/s01_resolution/README.md
+E           docs/wiki/experiments/forest-v2-s07-bm25.md: tools/iron_plan_guard.py
+E           docs/wiki/experiments/forest-v2-s07-bm25.md: daedalus/verifier.py
+E           docs/wiki/tooling/claude-proposals.md: .claude/proposals/hook_precompact_vault.py
+E           docs/wiki/tooling/scripts.md: daedalus/kernel/contracts.py
+E       assert [{'file': 'do...se, ...}, ...] == []
+E         
+E         Left contains 8 more items, first extra item: {'file': 'docs/wiki/architecture/hooks.md', 'kind': 'mention', 'target': '.claude/proposals/hook_precompact_vault.py', 'history': False, ...}
+E         Use -v to get more diff
+
+tests\test_docs_reference_check.py:46: AssertionError
+_________________ test_history_is_reported_but_never_blocking _________________
+[gw5] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+checker = <module 'docs_reference_check' from 'C:\\Users\\nukei\\Desktop\\PROJECTS\\daedalus\\tools\\docs_reference_check.py'>
+
+    def test_history_is_reported_but_never_blocking(checker):
+        result = checker.scan()
+        history = [f for f in result["findings"] if f["history"]]
+        assert history, (
+            "no dead references found in any history page. That is not plausible for "
+            "a tree with 158 archived documents -- the classifier has probably stopped "
+            "matching, which would also mean it is silently blocking on evidence."
+        )
+>       assert checker.main(["--json"]) == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = <function main at 0x000001D62F532700>(['--json'])
+E        +    where <function main at 0x000001D62F532700> = <module 'docs_reference_check' from 'C:\\Users\\nukei\\Desktop\\PROJECTS\\daedalus\\tools\\docs_reference_check.py'>.main
+
+tests\test_docs_reference_check.py:61: AssertionError
+---------------------------- Captured stdout call -----------------------------
+{
+ "status": "measured",
+ "scanned": 1009,
+ "listed": 1009,
+ "current": [
+  {
+   "file": "docs/wiki/architecture/hooks.md",
+   "kind": "mention",
+   "target": ".claude/proposals/hook_precompact_vault.py",
+   "history": false,
+   "authority": false
+  },
+  {
+   "file": "docs/wiki/architecture/observation-layer.md",
+   "kind": "mention",
+   "target": "eval/ceiling.py",
+   "history": false,
+   "authority": false
+  },
+  {
+   "file": "docs/wiki/architecture/observe.md",
+   "kind": "mention",
+   "target": "tests/observe/",
+   "history": false,
+   "authority": false
+  },
+  {
+   "file": "docs/wiki/experiments/forest-v2-s01-resolution.md",
+   "kind": "mention",
+   "target": "experiments/forest_v2/s01_resolution/README.md",
+   "history": false,
+   "authority": false
+  },
+  {
+   "file": "docs/wiki/experiments/forest-v2-s07-bm25.md",
+   "kind": "mention",
+   "target": "tools/iron_plan_guard.py",
+   "history": false,
+   "authority": false
+  },
+  {
+   "file": "docs/wiki/experiments/forest-v2-s07-bm25.md",
+   "kind": "mention",
+   "target": "daedalus/verifier.py",
+   "history": false,
+   "authority": false
+  },
+  {
+   "file": "docs/wiki/tooling/claude-proposals.md",
+   "kind": "mention",
+   "target": ".claude/proposals/hook_precompact_vault.py",
+   "history": false,
+   "authority": false
+  },
+  {
+   "file": "docs/wiki/tooling/scripts.md",
+   "kind": "mention",
+   "target": "daedalus/kernel/contracts.py",
+   "history": false,
+   "authority": false
+  }
+ ],
+ "authority": [],
+ "history_count": 442,
+ "history": null
+}
+____________ test_authority_findings_do_not_block_and_are_reported ____________
+[gw5] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+checker = <module 'docs_reference_check' from 'C:\\Users\\nukei\\Desktop\\PROJECTS\\daedalus\\tools\\docs_reference_check.py'>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001D648CF4130>
+capsys = <_pytest.capture.CaptureFixture object at 0x000001D62E09D250>
+
+    def test_authority_findings_do_not_block_and_are_reported(checker, monkeypatch, capsys):
+        """Synthesise one authority finding and prove the exit code stays 0 while
+        the finding is still printed. An exemption nobody can see is a deletion."""
+        real = checker.scan
+    
+        def fake():
+            out = real()
+            out["findings"] = out["findings"] + [{
+                "file": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+                "kind": "mention", "target": "tools/gone.py",
+                "history": True, "authority": True,
+            }]
+            return out
+    
+        monkeypatch.setattr(checker, "scan", fake)
+>       assert checker.main([]) == 0, "an authority finding must not block"
+E       AssertionError: an authority finding must not block
+E       assert 1 == 0
+E        +  where 1 = <function main at 0x000001D62F532700>([])
+E        +    where <function main at 0x000001D62F532700> = <module 'docs_reference_check' from 'C:\\Users\\nukei\\Desktop\\PROJECTS\\daedalus\\tools\\docs_reference_check.py'>.main
+
+tests\test_docs_reference_check.py:237: AssertionError
+---------------------------- Captured stdout call -----------------------------
+scanned 1009 of 1009 tracked markdown files
+
+AUTHORITY pages name 1 path(s) that do not exist. Reported, never blocking: only an owner amendment may edit these.
+  docs/IKARUS_ARIADNE_MASTER_PLAN.md: tools/gone.py
+
+docs/wiki/architecture/hooks.md
+  mention  .claude/proposals/hook_precompact_vault.py  -> no file of that name anywhere
+
+docs/wiki/architecture/observation-layer.md
+  mention  eval/ceiling.py  -> now at daedalus/eval/ceiling.py
+
+docs/wiki/architecture/observe.md
+  mention  tests/observe/  -> no file of that name anywhere
+
+docs/wiki/experiments/forest-v2-s01-resolution.md
+  mention  experiments/forest_v2/s01_resolution/README.md  -> candidates: .claude/proposals/README.md, .quarantine/G1-IKARUS-16/README.md, README.md
+
+docs/wiki/experiments/forest-v2-s07-bm25.md
+  mention  daedalus/verifier.py  -> now at daedalus/orchestration/verifier.py
+  mention  tools/iron_plan_guard.py  -> no file of that name anywhere
+
+docs/wiki/tooling/claude-proposals.md
+  mention  .claude/proposals/hook_precompact_vault.py  -> no file of that name anywhere
+
+docs/wiki/tooling/scripts.md
+  mention  daedalus/kernel/contracts.py  -> candidates: daedalus/chip_design/contracts.py, daedalus/runtimes/providers/contracts.py, daedalus/twin/contracts.py
+
+8 dead reference(s) in current pages, 442 in history (not blocking).
+_ GatePromotionMutationSpecTests.test_inventory_is_exact_and_unmigrated_runners_are_byte_identical (runner="'run_promotion_receipt_authority_mutations.py'") _
+[gw5] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+self = <test_gate_promotion_mutation_specs.GatePromotionMutationSpecTests testMethod=test_inventory_is_exact_and_unmigrated_runners_are_byte_identical>
+
+    def test_inventory_is_exact_and_unmigrated_runners_are_byte_identical(self):
+        self.assertEqual(len(FAMILY), 9)
+        self.assertEqual(
+            FAMILY,
+            set(UNMIGRATED) | {"run_gate_report_v3_mutations.py"},
+        )
+        for name in FAMILY:
+            self.assertTrue((ROOT / "scripts" / name).is_file(), name)
+        for name, (reason, expected_digest) in UNMIGRATED.items():
+            with self.subTest(runner=name):
+                self.assertTrue(reason)
+>               self.assertEqual(
+                    _sha256(ROOT / "scripts" / name),
+                    expected_digest,
+                )
+E               AssertionError: 'e20bfe1b199979ffb3b0c57ca6a9ce568b9f06cd48b49fe06890a92bada925ed' != 'de0d4ba66f49bb1963343db483f396bb71d959f5b843a73008d506644bccfa64'
+E               - e20bfe1b199979ffb3b0c57ca6a9ce568b9f06cd48b49fe06890a92bada925ed
+E               + de0d4ba66f49bb1963343db483f396bb71d959f5b843a73008d506644bccfa64
+
+tests\contracts\test_gate_promotion_mutation_specs.py:137: AssertionError
+_________ test_observation_contract_breaks_the_next_cross_domain_scc __________
+[gw1] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+    def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
+        graph = _tracked_module_graph()
+        components = nontrivial_components(graph)
+        component_sets = tuple(frozenset(component) for component in components)
+    
+>       assert len(graph) == CENSUS_MODULES
+E       AssertionError: assert 474 == 473
+E        +  where 474 = len({'daedalus.gates.repository.write_evidence_origin': {'daedalus.gates.repository.write_evidence_materialization', 'daed...tion', 'daedalus.spine.effect_boundary', 'daedalus.spine.receipts'}, 'daedalus.council': {'daedalus.council.bus'}, ...})
+
+tests\contracts\test_import_scc_hierarchy.py:529: AssertionError
+__________ test_scene_archive_is_deterministic_and_excludes_raw_logs __________
+[gw1] win32 -- Python 3.13.14 C:\Users\nukei\Desktop\PROJECTS\daedalus\.venv\Scripts\python.exe
+
+    def test_scene_archive_is_deterministic_and_excludes_raw_logs() -> None:
+        result = _run("docs/design/blender-scenes/scripts/package.py", "--check")
+>       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: scene archive differs from deterministic rebuild
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['C:\\Users\\nukei\\Desktop\\PROJECTS\\daedalus\\.venv\\Scripts\\python.exe', 'docs/design/blend.../scripts/package.py', '--check'], returncode=1, stdout='', stderr='scene archive differs from deterministic rebuild\n').returncode
+
+tests\test_blender_scene_assets.py:43: AssertionError
+============================== warnings summary ===============================
+tests/test_ignition_gate1.py: 6 warnings
+tests/test_ignition_bundle.py: 7 warnings
+tests/test_canonical_execution_limit_policy.py: 1 warning
+  C:\Users\nukei\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\shutil.py:1267: DeprecationWarning: Python 3.14 will, by default, filter extracted tar archives and reject files or modify their metadata. Use the filter argument to control this behavior.
+    tarobj.extractall(extract_dir, filter=filter)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================ slowest 50 durations =============================
+294.38s call     tests/gates/test_write_surface_lease_dominance.py::test_the_real_gate_door_consumes_no_lease
+270.87s call     tests/gates/test_write_surface_lease_dominance.py::test_the_offload_door_lease_dominates_its_bench_write
+258.88s call     tests/gates/test_chip_repository_write_inventory.py::test_chip_capture_writes_are_directly_lease_dominated
+240.33s call     tests/test_agent_env.py::DaedalusTests::test_checkpoint_status_has_stable_trigger_key
+228.69s call     tests/gates/test_gate_report_v3.py::test_builder_binds_live_canonical_repository_write_inventory
+227.94s call     tests/test_ignition_bundle.py::test_a_replay_needs_two_complete_runs
+227.39s call     tests/test_ignition_bundle.py::test_a_predecessor_without_a_bundle_is_refused_and_told_apart
+218.85s call     tests/test_mapping_drift.py::test_this_repository_counts_every_unreached_module
+217.39s call     tests/test_gate_report_classified_write_surfaces.py::test_the_chain_that_classified_is_declared_in_the_report
+217.21s call     tests/gates/test_gate_cli_conformance_receipts.py::test_v3_cli_flag_binds_bundle
+210.35s call     tests/gates/test_gate_report_matrix_binding.py::test_report_v3_carries_the_same_bound_rows
+204.59s setup    tests/test_ignition_bundle.py::test_the_receipt_carries_the_bundle_that_judged
+199.15s setup    tests/test_ignition_gate1.py::test_replay_is_deterministic_in_identity
+188.50s call     tests/gates/test_gate_report_v3_cli.py::test_cli_emits_machine_v3_report_and_blocked_exit
+143.80s call     tests/test_mapping_reach.py::test_analyse_runs_on_this_repository
+129.08s call     tests/test_mapping_reach_weak_reasons.py::test_the_kernel_facade_rows_do_not_claim_a_guard_that_is_not_there
+125.29s call     tests/test_ignition_bundle.py::test_two_receipts_without_a_bundle_do_not_read_as_the_same_bundle
+115.58s setup    tests/test_ignition_gate1.py::test_slice_yields_one_validating_mission_contract
+114.23s call     tests/gates/test_gate_cli_conformance_receipts.py::test_v3_cli_without_flag_keeps_unbound_blocker
+110.51s call     tests/test_canonical_execution_limit_policy.py::test_gate1_descends_the_mission_policy_and_removes_every_gate_timeout
+102.46s call     tests/test_lanes_fanout.py::TheGraphBriefIsInjected::test_a_task_with_paths_gets_a_brief
+100.48s call     tests/test_codex_provider.py::CodexRoutingTests::test_offload_dry_run_dispatches_codex_lane
+96.20s call     tests/test_ignition_gate1.py::test_a_single_run_receipt_does_not_claim_replay
+93.75s call     tests/gates/test_gate_cli_conformance_receipts.py::test_v3_cli_missing_directory_fails_closed_with_named_error
+93.51s call     tests/gates/test_runtime_conformance_binding.py::test_a_persisted_bundle_clears_the_gate_report_blocker
+89.05s call     tests/test_graph_brief.py::RealRepoRegressionTests::test_shift_py_brief_has_no_artefact_neighbours
+80.45s call     tests/gates/test_gate_report.py::test_gate_report_accepts_bound_fault_results
+79.64s call     tests/test_write_surface_coverage.py::test_a_registered_door_does_not_clear_the_write_surfaces_behind_it
+79.08s setup    tests/test_typegraph_determinism.py::ByteIdentityAcrossHashSeeds::test_at_least_five_distinct_hash_seeds_were_actually_run
+77.16s call     tests/gates/test_gate_report_matrix_binding.py::test_the_report_stays_deterministic_with_the_binding_wired
+76.40s call     tests/test_effect_boundary.py::test_cli_is_conformant_but_still_refuses_to_call_gate0_closed
+75.78s call     tests/test_ignition_gate1.py::test_a_refused_lease_is_a_blocker_not_a_silent_unleased_run
+73.80s call     tests/gates/test_gate_report.py::test_gate_report_is_deterministic_and_fail_closed
+72.66s call     tests/test_deepseek_substitution_guard.py::InventedImports::test_no_false_positives_across_the_real_tree
+72.65s call     tests/gates/test_gate_report_v3.py::test_builder_fails_closed_when_repository_write_inventory_refuses
+69.30s call     tests/test_worktree_properties.py::TestWorktreeJunctionProperty::runTest
+67.00s call     tests/test_gate0_faults_atalanta.py::test_read_only_inspection_still_answers_while_effects_are_refused
+59.93s call     tests/test_effect_boundary.py::test_inventory_covers_package_and_tools_and_the_scan_reach_stays_pinned
+55.80s call     tests/gates/test_gate_report.py::test_gate_report_binds_exact_writer_inventory_digest
+54.08s call     tests/test_registry_retired_rows.py::test_conformance_reports_no_target_missing_blocker_for_a_retired_file
+46.29s call     tests/test_markdown_nodes.py::HonestDocumentSkeleton::test_a_skeleton_is_never_larger_than_its_own_document
+45.74s call     tests/test_eval_correctness.py::EndToEndTests::test_a_no_op_patch_is_not_fixed_and_the_primary_checkout_is_untouched
+45.53s call     tests/test_ignition_gate1.py::test_a_half_finished_rename_is_refused_and_still_writes_a_receipt
+45.50s call     tests/test_ikarus_autonomy_review.py::test_real_browser_navigation_observes_cancellation_and_cannot_repeat
+45.17s setup    tests/test_health_surface.py::LiveSurface::test_every_report_carries_a_recognised_state
+44.95s call     tests/gates/test_gate_cli_conformance_receipts.py::test_module_cli_without_flag_keeps_unbound_blocker
+42.57s call     tests/test_eval_correctness.py::EndToEndTests::test_a_patch_that_does_not_apply_is_could_not_run_not_not_fixed
+41.78s call     tests/test_typegraph_index.py::ItSaysWhatItRefusedToDo::test_a_non_python_language_is_reported_not_counted
+41.11s call     tests/gates/test_chip_repository_write_inventory.py::test_chip_completion_writers_are_private_and_finalizer_only
+40.92s call     tests/test_web_api_health.py::test_the_endpoint_answers_with_the_five_state_vocabulary
+=========================== short test summary info ===========================
+FAILED tests/test_opus_fleet_watchdog.py::test_typed_probe_error_uses_fresh_codex_councils[0-429]
+FAILED tests/test_opus_fleet_watchdog.py::test_typed_probe_error_uses_fresh_codex_councils[0-503]
+FAILED tests/test_opus_fleet_watchdog.py::test_typed_probe_error_uses_fresh_codex_councils[0-529]
+FAILED tests/test_opus_fleet_watchdog.py::test_typed_probe_error_uses_fresh_codex_councils[1-429]
+FAILED tests/test_opus_fleet_watchdog.py::test_typed_probe_error_uses_fresh_codex_councils[1-503]
+FAILED tests/test_opus_fleet_watchdog.py::test_typed_probe_error_uses_fresh_codex_councils[1-529]
+FAILED tests/test_opus_fleet_watchdog.py::test_probe_is_synchronous_then_parallelism_is_bounded
+FAILED tests/test_opus_fleet_watchdog.py::test_twenty_slot_fallback_never_exceeds_twenty_one_calls
+FAILED tests/test_opus_fleet_watchdog.py::test_terminal_campaign_is_one_shot
+FAILED tests/test_opus_fleet_watchdog.py::test_active_session_waits_durably_then_idle_tick_runs
+FAILED tests/test_opus_fleet_watchdog.py::test_second_session_gate_waits_with_provider_decision_and_pending_slots[second0]
+FAILED tests/test_opus_fleet_watchdog.py::test_second_session_gate_waits_with_provider_decision_and_pending_slots[second1]
+FAILED tests/test_opus_fleet_watchdog.py::test_budget_reservation_shares_the_vendor_thread_with_process_guard
+FAILED tests/test_docs_reference_check.py::test_current_pages_name_only_files_that_exist
+FAILED tests/test_docs_reference_check.py::test_history_is_reported_but_never_blocking
+FAILED tests/test_docs_reference_check.py::test_authority_findings_do_not_block_and_are_reported
+SUBFAILED(runner="'run_promotion_receipt_authority_mutations.py'") tests/contracts/test_gate_promotion_mutation_specs.py::GatePromotionMutationSpecTests::test_inventory_is_exact_and_unmigrated_runners_are_byte_identical
+FAILED tests/contracts/test_import_scc_hierarchy.py::test_observation_contract_breaks_the_next_cross_domain_scc
+FAILED tests/test_blender_scene_assets.py::test_scene_archive_is_deterministic_and_excludes_raw_logs
+19 failed, 11526 passed, 270 skipped, 23 xfailed, 14 warnings, 2212 subtests passed in 2362.07s (0:39:22)
+EXIT=1 end=2026-09-06T07:45:59Z

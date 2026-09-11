@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-evidence-origin-linear
     paths:
-      - "daedalus/gates/repository_write_source_anchor_semantics.py"
+      - "daedalus/gates/repository/write_source_anchor_semantics.py"
       - "tests/gates/test_repository_write_source_anchor_semantics*.py"
       - "scripts/run_repository_write_source_anchor_semantics_mutations.py"
       - "configs/schemas/repository-write-source-anchor-semantics.schema.json"
@@ -98,7 +98,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-source-anchor-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_source_anchor_semantics import (
+          from daedalus.gates.repository.write_source_anchor_semantics import (
               RepositoryWriteSourceAnchorBindingError,
               RepositoryWriteSourceAnchorSemanticsError,
               RepositoryWriteSourceAnchorSemanticsReport,

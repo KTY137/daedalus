@@ -58,7 +58,7 @@ that was" -- never a memoised verdict.
 THE DISK-CHANGE REFUSAL HAS TEETH, not just a docstring. offload.py already
 learned this lesson once (report["files_changed"] is the model's own claim,
 and offload's verify() explicitly refuses to trust it -- see
-daedalus/verifier.py). :func:`record_disk_change` requires ``basis`` to be one
+daedalus/orchestration/verifier.py). :func:`record_disk_change` requires ``basis`` to be one
 of :data:`DISK_EVIDENCE_BASES` -- a mechanical diff, never a self-report -- and
 :class:`ProgressEvent` enforces it in ``__post_init__``, so a caller cannot
 construct a DISK_CHANGED/NO_CHANGE event any other way, not just "shouldn't".
@@ -143,7 +143,7 @@ EVENT_KINDS = (QUEUED, CLAIMED, HEARTBEAT, GENERATING, TOOL_RAN, GATE_VERDICT,
 #: What counts as REAL evidence for "bytes changed on disk". Deliberately
 #: does NOT include anything named "self_report" or "model_claim" -- see
 #: daedalus/offload.py's _content_hash/_repo_snapshot and
-#: daedalus/verifier.py's refusal of report["files_changed"]. A caller with
+#: daedalus/orchestration/verifier.py's refusal of report["files_changed"]. A caller with
 #: only a model's own claim has no way to satisfy record_disk_change(); that
 #: is the point.
 DISK_EVIDENCE_BASES = ("content_hash_diff", "git_diff_capture")
@@ -236,7 +236,7 @@ class ProgressEvent:
                     f"{DISK_EVIDENCE_BASES}, got {basis!r}. A model's own "
                     f"claim about what it changed is explicitly not accepted "
                     f"here -- see daedalus.offload._repo_snapshot and "
-                    f"daedalus.verifier.verify()'s refusal of "
+                    f"daedalus.orchestration.verifier.verify()'s refusal of "
                     f"report['files_changed']")
 
     def to_dict(self) -> dict:
@@ -279,10 +279,21 @@ class ProgressLog:
         self._lock = threading.Lock()
 
     def append(self, event: ProgressEvent) -> ProgressEvent:
+        # ``self._lock`` is a threading lock: it orders this process's own
+        # writers against each other and against ``read_all`` below, and it
+        # does NOTHING across processes. That distinction was not academic --
+        # MEASURED 2026-09-02, six processes appending 20 events each kept 115,
+        # 118 and 119 of 120 in three runs, silently, with the lock held the
+        # whole time. A lock that looks like protection and is not one is worse
+        # than none, because nobody looks twice.
+        #
+        # The cross-process half lives in ``daedalus.journal_io.append_lines``:
+        # one payload, one os.write, under daedalus.atomic.ExclusiveFileLock.
+        # Both locks are kept; they answer different questions.
+        from .journal_io import append_lines
+
         with self._lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+            append_lines(self.path, [json.dumps(event.to_dict(), ensure_ascii=False)])
         return event
 
     def read_all(self) -> list[ProgressEvent]:

@@ -254,7 +254,7 @@ def run(
         # shared, charged once, before anybody ranks
         started = time.perf_counter()
         for cand in universe:
-            cache.counts(cand.blob, cand.text)
+            cache.counts(cand.cache_key, cand.text)
         index_seconds += time.perf_counter() - started
 
         for variant in variants:

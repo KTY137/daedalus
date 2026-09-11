@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-guard-structure-linear
     paths:
-      - "daedalus/gates/repository_write_runtime_conformance.py"
+      - "daedalus/gates/repository/write_runtime_conformance.py"
       - "tests/gates/test_repository_write_runtime_conformance*.py"
       - "scripts/run_repository_write_runtime_conformance_mutations.py"
       - "configs/schemas/repository-write-runtime-conformance.schema.json"
@@ -110,7 +110,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-runtime-replay-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_runtime_conformance import (
+          from daedalus.gates.repository.write_runtime_conformance import (
               RepositoryWriteRuntimeConformanceBindingError,
               RepositoryWriteRuntimeConformanceError,
               RepositoryWriteRuntimeConformancePayloadError,

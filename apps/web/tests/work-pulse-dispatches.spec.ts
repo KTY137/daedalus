@@ -1,3 +1,4 @@
+import { stubLiveProject } from './_live-fixtures';
 import { expect, test } from '@playwright/test';
 import { NOT_BUILT } from './_app';
 
@@ -7,7 +8,8 @@ import { NOT_BUILT } from './_app';
  * conversation spine's `open_dispatches`; the live file-bus stream only tells
  * the card when that read should be refreshed.
  */
-test('work pulse prefers bound dispatch identity, shows bound execution evidence, keeps legacy fallback, and clears after a report', async ({ page }) => {
+test('work rail prefers bound dispatch identity, shows bound execution evidence, keeps legacy fallback, and clears after a report', async ({ page }) => {
+  await stubLiveProject(page, 'jarvis-project');
   let reported = false;
 
   await page.addInitScript(() => {
@@ -172,6 +174,7 @@ test('work pulse prefers bound dispatch identity, shows bound execution evidence
       conversation: {
         conversation_id: 'conv_jarvis_abc12345',
         exists: true,
+        project_binding: { state: 'bound', project: 'jarvis-project', row_count: 2 },
         turn_count: 2,
         narrative: '',
         turns_returned: 2,
@@ -334,18 +337,22 @@ test('work pulse prefers bound dispatch identity, shows bound execution evidence
   expect(await res!.text(), 'the built web app is missing').not.toMatch(NOT_BUILT);
 
   await expect(page.locator('.cockpit'), 'the cockpit never mounted').toBeVisible({ timeout: 20_000 });
-  const pulse = page.getByRole('region', { name: 'Live-Arbeit' });
-  await expect(pulse).toContainText('2 offene Aufträge', { timeout: 20_000 });
-  await expect(pulse).toContainText('Auftrag: Parser härten');
+  await page.getByRole('button', { name: /^Arbeit/ }).click();
+  const pulse = page.locator('.work');
+  await expect(pulse.locator('.work-section.live .work-count')).toHaveText('2', { timeout: 20_000 });
+  await expect(pulse).toContainText('Parser härten');
   await expect(pulse).toContainText('Lane local_only');
-  await expect(pulse).toContainText('auf Bericht wartend');
+  await expect(pulse).toContainText('noch kein Bericht');
+  await expect(pulse).toContainText('gebundene Evidenz');
+  await expect(pulse).toContainText('aus Chatverlauf rekonstruiert');
+  await expect(pulse).toContainText('1 projektgebundene Dispatch-Evidenzen sind nicht sicher interpretierbar');
   await expect(pulse).toContainText('Agent qa-critic');
   await expect(pulse).toContainText('Tool read-file');
   await expect(pulse).toContainText('Runtime claude-code');
   await expect(pulse).toContainText('Phase executing');
   await expect(pulse).toContainText('WorkItem work-parser-42');
   await expect(pulse).toContainText('Attempt attempt-parser-7');
-  await expect(pulse).toContainText('Auftrag: Legacy-Auftrag');
+  await expect(pulse).toContainText('Legacy-Auftrag');
   await expect(pulse).toContainText('Lane legacy_lane');
   await expect(pulse).not.toContainText('legacy-agent-must-not-render');
   await expect(pulse).not.toContainText('legacy-runtime-must-not-render');
@@ -369,6 +376,6 @@ test('work pulse prefers bound dispatch identity, shows bound execution evidence
   });
 
   await expect(pulse).toContainText('Keine offenen Aufträge im aktuellen Verlauf', { timeout: 20_000 });
-  await expect(pulse).toContainText('Zuletzt berichtet: parser.report.json · working · local_only');
+  await expect(pulse.locator('.work-section.past')).toContainText('parser.report.json');
   await expect(pulse).toContainText('Parser gehärtet');
 });

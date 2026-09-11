@@ -12,8 +12,11 @@ assets that will ship.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -22,6 +25,87 @@ ROOT = Path(__file__).resolve().parents[1]
 TAURI_DIR = ROOT / "apps" / "web" / "src-tauri"
 BACKEND_DIR = TAURI_DIR / "backend"
 BUILD_DIR = ROOT / "build" / "desktop-sidecar"
+BUNDLE_ID_NAME = "BUNDLE_ID"
+BUNDLE_FILES_NAME = "BUNDLE_FILES"
+# Research accelerators are installed only through the explicit ``gpu`` extra.
+# A desktop build must stay small and portable even when the build interpreter
+# happens to come from a GPU-enabled maintainer environment.
+DESKTOP_PYINSTALLER_EXCLUDES = (
+    "cuda",
+    "cupy",
+    # PyInstaller sees CuPy's implementation packages independently from the
+    # public ``cupy`` package.  Excluding only the public name can therefore
+    # pull its extension modules (and, through their DLL search path, more
+    # than a gigabyte of CUDA/Torch libraries) into a desktop built from a
+    # maintainer environment that also has the opt-in ``gpu`` extra.
+    "cupy_backends",
+    "cupyx",
+    "newton",
+    "nvidia",
+    "torch",
+    "triton",
+    "warp",
+)
+DESKTOP_FORBIDDEN_ACCELERATOR_FILE_PREFIXES = (
+    "c10_cuda",
+    "caffe2_nvrtc",
+    "cublas",
+    "cuda",
+    "cudart",
+    "cudnn",
+    "cufft",
+    "cufile",
+    "cupti",
+    "curand",
+    "cusolver",
+    "cusparse",
+    "cutensor",
+    "nccl",
+    "npp",
+    "nvblas",
+    "nvjpeg",
+    "nvjitlink",
+    "nvperf",
+    "nvshmem",
+    "nvcuda",
+    "nvrtc",
+    "nvtoolsext",
+    "nvtx",
+    "torch",
+    "warp",
+    "cupy",
+)
+BUNDLED_MUTABLE_STATE_PATHS = (
+    "_internal/config",
+    "_internal/inbox",
+    "_internal/memory",
+    "_internal/outbox",
+    "_internal/projects",
+    "_internal/runs",
+    "_internal/.env",
+)
+
+
+def _bundle_path_component_equal(left: str, right: str) -> bool:
+    """Match path components with the semantics of the build host."""
+
+    return os.path.normcase(left) == os.path.normcase(right)
+
+
+def _bundle_path_is_or_is_under(relative: str, parent: str) -> bool:
+    relative_parts = relative.split("/")
+    parent_parts = parent.split("/")
+    return len(relative_parts) >= len(parent_parts) and all(
+        _bundle_path_component_equal(left, right)
+        for left, right in zip(relative_parts, parent_parts)
+    )
+
+
+def _is_bundle_metadata_path(relative: str) -> bool:
+    return "/" not in relative and any(
+        _bundle_path_component_equal(relative, name)
+        for name in (BUNDLE_ID_NAME, BUNDLE_FILES_NAME)
+    )
 
 # Static, non-secret project material needed by the self-project and UI. Runtime
 # state (runs/inbox/outbox/memory/projects/.env) is deliberately NOT bundled.
@@ -40,6 +124,124 @@ DATA_PATHS = (
     ("README.md", "."),
     ("pyproject.toml", "."),
 )
+
+
+def bundle_files(root: Path) -> list[tuple[str, Path]]:
+    """Return the validated immutable files in a backend tree.
+
+    Bundle metadata is excluded. Links and mutable state are refused because a
+    packaged backend must be a closed artifact, not a reference to builder-host
+    or runtime state.
+    """
+
+    root_metadata = root.lstat()
+    root_attributes = getattr(root_metadata, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
+    if (
+        stat.S_ISLNK(root_metadata.st_mode)
+        or root_attributes & reparse_flag
+        or not stat.S_ISDIR(root_metadata.st_mode)
+    ):
+        raise ValueError(f"desktop backend bundle root is not a plain directory: {root}")
+
+    files: list[tuple[str, Path]] = []
+
+    def collect(directory: Path) -> None:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                path = Path(entry.path)
+                relative = path.relative_to(root).as_posix()
+                if "\r" in relative or "\n" in relative:
+                    raise ValueError(
+                        f"desktop backend bundle path cannot be represented in its manifest: {path}"
+                    )
+                if any(
+                    _bundle_path_is_or_is_under(relative, state)
+                    for state in BUNDLED_MUTABLE_STATE_PATHS
+                ):
+                    raise ValueError(
+                        f"desktop backend bundle contains mutable state: {relative}"
+                    )
+                metadata = entry.stat(follow_symlinks=False)
+                attributes = getattr(metadata, "st_file_attributes", 0)
+                if entry.is_symlink() or attributes & reparse_flag:
+                    raise ValueError(f"desktop backend bundle contains a link: {path}")
+                if stat.S_ISDIR(metadata.st_mode):
+                    collect(path)
+                elif stat.S_ISREG(metadata.st_mode):
+                    if not _is_bundle_metadata_path(relative):
+                        files.append((relative, path))
+                else:
+                    raise ValueError(
+                        f"desktop backend bundle contains a special entry: {path}"
+                    )
+
+    collect(root)
+    files.sort(key=lambda item: item[0])
+    return files
+
+
+def bundle_identity(root: Path) -> str:
+    """Return a deterministic identity for one complete backend tree.
+
+    Paths and bytes are both framed into the digest, so renaming a file cannot
+    collide with changing another file's contents. Bundle metadata is excluded,
+    which makes writing and then re-checking it stable.
+    """
+
+    digest = hashlib.sha256(b"daedalus-backend-bundle-v1\0")
+    for relative, path in bundle_files(root):
+        encoded_path = relative.encode("utf-8")
+        size = path.stat().st_size
+        digest.update(len(encoded_path).to_bytes(8, "big"))
+        digest.update(encoded_path)
+        digest.update(size.to_bytes(8, "big"))
+        with path.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def assert_no_accelerator_runtime_payload(root: Path) -> None:
+    """Refuse CUDA/PyTorch/Newton runtime payloads in a frozen desktop tree."""
+
+    forbidden: list[str] = []
+    excluded = tuple(name.casefold() for name in DESKTOP_PYINSTALLER_EXCLUDES)
+
+    def matches_module_component(component: str) -> bool:
+        normalized = component.casefold()
+        return any(
+            normalized == name
+            or normalized.startswith(name + ".")
+            or normalized.startswith(name + "-")
+            or normalized.startswith(name + "_")
+            for name in excluded
+        )
+
+    for relative, _path in bundle_files(root):
+        parts = relative.replace("\\", "/").split("/")
+        filename = parts[-1].casefold()
+        # PyInstaller normally places a package directly below ``_internal``,
+        # but hooks and collected data may introduce another container first or
+        # even place an extension beside the executable. Inspect every path
+        # component so neither ``vendor/torch`` nor a root ``torch_cuda.dll``
+        # can evade the guard.
+        module_payload = any(matches_module_component(part) for part in parts)
+        # ELF and Mach-O libraries conventionally add ``lib`` to the Windows
+        # basename (libcudart, libcublas, libtorch_cuda).  Normalize that one
+        # optional prefix before applying the same closed accelerator list.
+        native_filename = filename[3:] if filename.startswith("lib") else filename
+        native_payload = any(
+            native_filename.startswith(prefix)
+            for prefix in DESKTOP_FORBIDDEN_ACCELERATOR_FILE_PREFIXES
+        )
+        if module_payload or native_payload:
+            forbidden.append(relative)
+    if forbidden:
+        sample = ", ".join(forbidden[:10])
+        raise SystemExit(
+            "desktop backend contains opt-in accelerator runtime payloads: " + sample
+        )
 
 
 def build(target: str) -> Path:
@@ -85,6 +287,8 @@ def build(target: str) -> Path:
         "--collect-submodules",
         "daedalus",
     ]
+    for module in DESKTOP_PYINSTALLER_EXCLUDES:
+        cmd.extend(["--exclude-module", module])
     for source, destination in DATA_PATHS:
         cmd.extend(["--add-data", f"{ROOT / source}:{destination}"])
     cmd.append(str(ROOT / "scripts" / "daedalus_desktop_sidecar.py"))
@@ -99,12 +303,26 @@ def build(target: str) -> Path:
     if not executable.is_file() or not internal.is_dir():
         raise SystemExit(f"unexpected PyInstaller onedir layout under {frozen}")
 
+    assert_no_accelerator_runtime_payload(frozen)
+
     shutil.copytree(frozen, BACKEND_DIR, dirs_exist_ok=True)
     (BACKEND_DIR / "BUILD_TARGET").write_text(target + "\n", encoding="utf-8")
+    manifest = "".join(f"{relative}\n" for relative, _ in bundle_files(BACKEND_DIR))
+    (BACKEND_DIR / BUNDLE_FILES_NAME).write_bytes(manifest.encode("utf-8"))
+    identity = bundle_identity(BACKEND_DIR)
+    (BACKEND_DIR / BUNDLE_ID_NAME).write_bytes((identity + "\n").encode("ascii"))
     return BACKEND_DIR
 
 
 def main(argv: list[str] | None = None) -> None:
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.desktop_sidecar_build",
+        REGISTRY_BY_ID["tools.desktop_sidecar_build"].effects,
+        (process_guard_boundary_decision(),),
+    )
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--target",

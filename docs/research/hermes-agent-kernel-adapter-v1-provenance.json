@@ -1,6 +1,6 @@
 {
   "schema": "daedalus-hermes-kernel-adapter-provenance/1",
-  "recorded_at": "2026-08-30T00:00:00Z",
+  "recorded_at": "2026-08-31T00:00:00Z",
   "upstream": {
     "repository": "NousResearch/hermes-agent",
     "release": "v0.20.5",
@@ -89,8 +89,8 @@
     "daedalus/providers/hermes_agent.py"
   ],
   "admission": {
-    "fixture_backed_adapter_verified": true,
-    "sealed_07d4_registration_verified": true,
+    "fixture_backed_adapter_verified": false,
+    "sealed_07d4_registration_verified": false,
     "live_model_invocation_verified": false,
     "production_containment_verified": false,
     "unknown_outcome_matrix_verified": false,

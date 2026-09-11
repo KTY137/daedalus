@@ -8,6 +8,7 @@ test-side Linux host executor, not a production effect entrypoint or trust root.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import os
 import sqlite3
@@ -260,7 +261,7 @@ def _is_lock_contention(exc: sqlite3.OperationalError) -> bool:
 
 
 def _execution_count(path: Path, execution_id: str) -> int:
-    with sqlite3.connect(str(path)) as connection:
+    with contextlib.closing(sqlite3.connect(str(path))) as connection:
         return int(
             connection.execute(
                 "SELECT COUNT(*) FROM effect_executions WHERE execution_id=?",

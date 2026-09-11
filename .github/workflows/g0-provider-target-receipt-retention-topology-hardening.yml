@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-target-receipt-retention-contract-linear
     paths:
-      - "daedalus/runtimes/provider_target_receipt_ledger.py"
+      - "daedalus/runtimes/provider/target_receipt_ledger.py"
       - "scripts/run_provider_target_receipt_retention_mutations.py"
       - "tests/runtimes/test_provider_target_receipt_ledger*.py"
       - "docs/work-packets/G0-RTC-07G_PROVIDER_TARGET_RECEIPT_RETENTION_TOPOLOGY_HARDENING.*"
@@ -107,7 +107,7 @@ jobs:
       - run: python -m pip install --force-reinstall dist/*.whl
       - working-directory: /tmp
         run: >-
-          python -c "from daedalus.runtimes.provider_target_receipt_ledger import ProviderTargetReceiptLedger; assert ProviderTargetReceiptLedger is not None"
+          python -c "from daedalus.runtimes.provider.target_receipt_ledger import ProviderTargetReceiptLedger; assert ProviderTargetReceiptLedger is not None"
 
   isolated-wheel:
     runs-on: ubuntu-latest
@@ -125,7 +125,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-retention-topology-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_target_receipt_ledger import (
+          from daedalus.runtimes.provider.target_receipt_ledger import (
               ProviderTargetReceiptLedger,
               ProviderTargetReceiptRetentionBindingError,
           )

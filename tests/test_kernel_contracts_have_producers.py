@@ -1,7 +1,7 @@
 """A census: which canonical contracts are actually produced in production.
 
 This is the test that would have caught the gap in the first place. Every
-Gate-0 contract in ``daedalus/schemas.py`` was well-specified, strictly
+Gate-0 contract in ``daedalus/kernel/contracts/canonical.py`` was well-specified, strictly
 validated, thoroughly unit-tested -- and seven of eight had no caller outside
 ``tests/``. Unit tests cannot see that, because a unit test IS the caller. So
 this file walks the production tree with ``ast`` and asks a different question:
@@ -14,6 +14,7 @@ is a claim that has to be re-justified when it stops being true.
 """
 import ast
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -21,32 +22,65 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from daedalus.kernel.contracts.registry import KERNEL_CONTRACT_TYPES  # noqa: E402
+
 PRODUCTION = ROOT / "daedalus"
+
+EXPECTED_CONTRACT_REGISTRY = {
+    "daedalus.attempt": "AttemptContract",
+    "daedalus.attempt-receipt": "AttemptReceipt",
+    "daedalus.build-intent-proposal": "BuildIntentProposal",
+    "daedalus.campaign": "CampaignContract",
+    "daedalus.campaign-receipt": "CampaignReceipt",
+    "daedalus.deployment-plan": "DeploymentPlan",
+    "daedalus.deployment-receipt": "DeploymentReceipt",
+    "daedalus.design-contract": "DesignContract",
+    "daedalus.evidence": "EvidencePacket",
+    "daedalus.experiment-spec": "ExperimentSpec",
+    "daedalus.genesis-autonomy-policy": "GenesisAutonomyPolicy",
+    "daedalus.genesis-run-record": "GenesisRunRecord",
+    "daedalus.graph-proposal": "GraphProposal",
+    "daedalus.materialization-plan": "MaterializationPlan",
+    "daedalus.mission": "MissionContract",
+    "daedalus.nomination": "NominationReceipt",
+    "daedalus.policy-decision": "PolicyDecision",
+    "daedalus.product-spec": "ProductSpec",
+    "daedalus.promotion": "PromotionReceipt",
+    "daedalus.round-trip-report": "RoundTripReport",
+    "daedalus.runtime-conformance": "RuntimeConformanceReceipt",
+    "daedalus.runtime-manifest": "RuntimeManifest",
+    "daedalus.target-fourfold-spec": "TargetFourfoldSpec",
+    "daedalus.toolchain-manifest": "ToolchainManifest",
+}
 
 #: Adapter classmethods count as producers: they return a constructed contract.
 ADAPTER_METHODS = frozenset(
     {"from_task_spec", "from_attempt_result", "from_runtime_spec"}
 )
 
-CONTRACTS = (
-    "MissionContract",
-    "AttemptContract",
-    "EvidencePacket",
-    "CampaignContract",
-    "PolicyDecision",
-    "RuntimeManifest",
-    "AttemptReceipt",
-    "NominationReceipt",
+# Derive the census subject from the closed parser registry.  A hand-maintained
+# tuple here missed all twelve Genesis contracts even though they were already
+# parseable canonical types, allowing two producer-less release contracts to
+# remain invisible.  Class names are the constructor spellings the AST census
+# below measures; the separate exactness probe retains the wire-type mapping.
+CONTRACTS = tuple(
+    sorted({contract.__name__ for contract in KERNEL_CONTRACT_TYPES.values()})
 )
 
 #: Contracts with no live producer, each with the reason it is still honest.
 #: Remove an entry here only together with the wiring that made it wrong.
 PRODUCERLESS = {
-    # Ariadne campaigns do not run yet. There is no live code that freezes an
-    # ExperimentSpec, so a CampaignContract would have nothing to describe.
-    # This is the honest kind of producer-less: the thing it would record does
-    # not happen, so inventing a producer would invent the campaign too.
-    "CampaignContract": "no evolution campaign runs on the live path yet",
+    "DeploymentPlan": (
+        "Gate-1 Genesis v1 has no public-publishing authority; a later release "
+        "adapter may construct a plan only after exact one-use OwnerApproval"
+    ),
+    "DeploymentReceipt": (
+        "Gate-1 Genesis v1 does not execute DeploymentPlan and therefore cannot "
+        "honestly emit a deployment outcome"
+    ),
+    "PromotionReceipt": (
+        "promotion remains sealed and has no automatic production producer"
+    ),
 }
 
 #: Producer functions that exist but are not yet CALLED on a live path. This is
@@ -68,12 +102,13 @@ def _production_modules():
     for path in sorted(PRODUCTION.rglob("*.py")):
         if "__pycache__" in path.parts:
             continue
-        # The schema module defines the contracts; defining is not producing.
-        if path.name == "schemas.py":
+        # The canonical module defines the contracts; defining is not producing.
+        if path.relative_to(ROOT).as_posix() == "daedalus/kernel/contracts/canonical.py":
             continue
         yield path
 
 
+@lru_cache(maxsize=1)
 def _producers():
     found = {name: set() for name in CONTRACTS}
     for path in _production_modules():
@@ -96,6 +131,57 @@ def _producers():
             ):
                 found[func.value.id].add(where)
     return found
+
+
+def test_census_subject_is_exactly_the_closed_contract_registry():
+    registered = {
+        wire_type: contract.__name__
+        for wire_type, contract in KERNEL_CONTRACT_TYPES.items()
+    }
+    assert registered == EXPECTED_CONTRACT_REGISTRY
+    assert len(set(registered.values())) == len(registered), (
+        "two wire types unexpectedly share one constructor spelling"
+    )
+    assert set(CONTRACTS) == set(registered.values())
+    assert {
+        "GenesisAutonomyPolicy",
+        "BuildIntentProposal",
+        "ProductSpec",
+        "DesignContract",
+        "TargetFourfoldSpec",
+        "GraphProposal",
+        "MaterializationPlan",
+        "ToolchainManifest",
+        "RoundTripReport",
+        "DeploymentPlan",
+        "DeploymentReceipt",
+        "GenesisRunRecord",
+    } <= set(CONTRACTS), "the complete Genesis contract domain must be censused"
+
+
+def test_genesis_contract_producer_modules_are_exact():
+    admission = {"daedalus/orchestration/genesis/admission.py"}
+    service = {"daedalus/orchestration/genesis/service.py"}
+    expected = {
+        "GenesisAutonomyPolicy": admission,
+        "BuildIntentProposal": admission,
+        "ProductSpec": admission,
+        "DesignContract": admission,
+        "TargetFourfoldSpec": admission,
+        "GraphProposal": admission,
+        "MaterializationPlan": admission,
+        "ToolchainManifest": admission,
+        "RoundTripReport": service,
+        "GenesisRunRecord": service,
+        "DeploymentPlan": set(),
+        "DeploymentReceipt": set(),
+    }
+    producers = _producers()
+    actual = {
+        contract: {site.rsplit(":", 1)[0] for site in producers[contract]}
+        for contract in expected
+    }
+    assert actual == expected
 
 
 def test_every_canonical_contract_has_a_production_producer_or_a_stated_reason():
@@ -159,12 +245,14 @@ def test_the_attempt_spine_contracts_are_produced_by_the_spine(contract):
 def test_the_producer_is_actually_wired_into_the_attempt():
     """A producer nothing calls is the gap in a new costume.
 
-    ``spine/attempt.py``'s own ``_admin_dir`` comment states the lesson this
+    ``kernel/attempt_execution.py``'s own ``_admin_dir`` comment states the lesson this
     guards: a guard that is built and not connected is indistinguishable from a
     guard, right up until it is measured through the product. So assert the
     connection, not just the existence.
     """
-    source = (PRODUCTION / "spine" / "attempt.py").read_text(encoding="utf-8")
+    source = (PRODUCTION / "kernel" / "attempt_execution.py").read_text(
+        encoding="utf-8"
+    )
     assert "from daedalus.spine.receipts import" in source
     assert "canonicalise_attempt(" in source
     assert "self._canonicalise(" in source
@@ -186,7 +274,7 @@ def test_the_legacy_attempt_dict_survives_only_where_it_is_paired_with_contracts
     web_api.py and the picker's review packet all read it -- but it must not
     exist anywhere the canonical contracts do not accompany it.
 
-    Two sites are expected and both live in the attempt spine:
+    Two sites are expected and both live in the kernel-owned Attempt lifecycle:
     ``AttemptResult.to_dict`` (the JSON-safe view) and ``_resolve_and_finish``'s
     ledger payload, which now carries ``contracts`` alongside. A third site
     appearing anywhere is a second, contract-free attempt record.
@@ -211,10 +299,14 @@ def test_the_legacy_attempt_dict_survives_only_where_it_is_paired_with_contracts
                     f"{path.relative_to(ROOT).as_posix()}:{node.lineno}")
 
     assert len(offenders) == 2, f"unexpected attempt-shaped dicts: {offenders}"
-    assert all(o.startswith("daedalus/spine/attempt.py") for o in offenders)
+    assert all(
+        o.startswith("daedalus/kernel/attempt_execution.py") for o in offenders
+    )
 
 
 def test_the_ledger_payload_carries_the_contracts_key():
-    source = (PRODUCTION / "spine" / "attempt.py").read_text(encoding="utf-8")
+    source = (PRODUCTION / "kernel" / "attempt_execution.py").read_text(
+        encoding="utf-8"
+    )
     assert '"contracts": contract_body' in source, (
         "the spine ledger row no longer carries the canonical projection")

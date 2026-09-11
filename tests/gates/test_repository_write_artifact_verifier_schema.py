@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 
-from daedalus.gates.repository_write_artifact_verifier import (
+from daedalus.gates.repository.write_artifact_verifier import (
     RepositoryWriteArtifactVerificationReceipt,
     _VERIFICATION_CHECKS,
 )

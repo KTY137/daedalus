@@ -9,26 +9,26 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_abi import issue_provider_invocation_abi_contract
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider.invocation_abi import issue_provider_invocation_abi_contract
+from daedalus.runtimes.provider.invocation_authority import (
     issue_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_payload import build_provider_invocation_payload
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.invocation_payload import build_provider_invocation_payload
+from daedalus.runtimes.provider.observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )
-from daedalus.runtimes.provider_runtime_executable_binding import (
+from daedalus.runtimes.provider.runtime_executable_binding import (
     ProviderRuntimeExecutableBindingReceipt,
 )
-from daedalus.runtimes.provider_runtime_invocation_binding import (
+from daedalus.runtimes.provider.runtime_invocation_binding import (
     ProviderRuntimeInvocationBindingMismatch,
     ProviderRuntimeInvocationBindingShapeError,
     bind_provider_runtime_invocation,
@@ -74,10 +74,12 @@ def _write_adapter(root: Path):
         "def helper():\n"
         "    return 'ok'\n"
         "\n"
-        "def invoke():\n"
-        "    return helper()\n"
+        "def invoke(payload):\n"
+        "    return {'result': helper(), 'objective': payload['objective']}\n"
         "\n"
-        "def output_digests(value):\n"
+        "def output_digests(value, payload):\n"
+        "    if payload.get('fail_output'):\n"
+        "        raise RuntimeError('fixed evidence failure')\n"
         "    return ('a' * 64,)\n"
     )
     path = root / Path(*module_name.split(".")).with_suffix(".py")
@@ -420,15 +422,75 @@ def test_exact_ledger_instance_shadow_cannot_bypass_forged_abi_refusal(
     assert ledger.load(execution.execution_id) is None
 
 
+@pytest.mark.parametrize(
+    ("keyword", "label"),
+    [
+        ("authorization", "authorization"),
+        ("execution", "execution"),
+        ("invocation_authority", "invocation_authority"),
+        ("invocation_payload", "invocation_payload"),
+        ("invocation_abi", "invocation_abi"),
+        ("observation_binding_ledger", "observation_binding_ledger"),
+        ("executable_registry", "executable_registry"),
+        ("pre_admission", "pre_admission"),
+    ],
+)
+def test_substituted_boundary_input_refuses_before_ledger_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    keyword: str,
+    label: str,
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+
+    def forbidden_verification(*args, **kwargs):
+        raise AssertionError("ledger verification reached a substituted trust input")
+
+    monkeypatch.setattr(
+        ProviderObservationBindingLedger,
+        "verify_invocation_abi_contract",
+        forbidden_verification,
+    )
+    kwargs = {
+        "authorization": authorization,
+        "execution": execution,
+        "invocation_authority": authority,
+        "invocation_payload": payload,
+        "invocation_abi": abi,
+        "observation_binding_ledger": ledger,
+        "executable_registry": registry,
+        "pre_admission": pre_admission,
+        "at": fixture.NOW,
+    }
+    kwargs[keyword] = object()
+
+    with pytest.raises(
+        ProviderRuntimeInvocationBindingShapeError,
+        match=rf"{label} must be exact ",
+    ):
+        bind_provider_runtime_invocation(
+            authorization.request.entrypoint_id,
+            **kwargs,
+        )
+
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert ledger.load(execution.execution_id) is None
+
+
 def test_substituted_entrypoint_refuses_before_ledger_verification(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bundle = _bundle(tmp_path, monkeypatch)
-    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = bundle[:8]
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
 
     def forbidden_verification(*args, **kwargs):
-        raise AssertionError("ledger verification must not run for a substituted entrypoint")
+        raise AssertionError("ledger verification reached a substituted entrypoint")
 
     monkeypatch.setattr(
         ProviderObservationBindingLedger,
@@ -458,3 +520,199 @@ def test_substituted_entrypoint_refuses_before_ledger_verification(
 
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
     assert ledger.load(execution.execution_id) is None
+
+
+def test_repository_source_mutation_after_admission_refuses_before_effect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution = bundle[:2]
+    path = bundle[9]
+    path.write_text(
+        path.read_text(encoding="utf-8") + "\nMUTATED = True\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(
+        ProviderRuntimeInvocationBindingMismatch,
+        match="executable subject did not authenticate pre-effect",
+    ):
+        _bind(bundle)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+
+
+def test_d4_broker_executes_only_registered_payload_operation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import run_runtime_provider
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.runtime_effects._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.effects._utc_now", lambda: fixture.NOW)
+
+    result = run_runtime_provider(
+        authorization.request.entrypoint_id,
+        authorization=authorization,
+        execution=execution,
+        invocation_authority=authority,
+        invocation_payload=payload,
+        invocation_abi=abi,
+        observation_binding_ledger=ledger,
+        executable_registry=registry,
+        pre_admission=pre_admission,
+    )
+
+    assert result.executed is True
+    assert result.value == {
+        "result": "ok",
+        "objective": "prove exact provider binding",
+    }
+    assert result.terminal_receipt is not None
+    assert result.terminal_receipt.output_digests == ("a" * 64,)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "COMPLETED"
+    assert ledger.load(execution.execution_id) is not None
+
+
+def test_d4_exact_replay_does_not_reverify_or_execute_registered_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import run_runtime_provider
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    source_path = bundle[9]
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.runtime_effects._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.effects._utc_now", lambda: fixture.NOW)
+    kwargs = dict(
+        authorization=authorization,
+        execution=execution,
+        invocation_authority=authority,
+        invocation_payload=payload,
+        invocation_abi=abi,
+        observation_binding_ledger=ledger,
+        executable_registry=registry,
+        pre_admission=pre_admission,
+    )
+    first = run_runtime_provider(authorization.request.entrypoint_id, **kwargs)
+    assert first.executed is True
+
+    source_path.write_text(
+        source_path.read_text(encoding="utf-8") + "\nMUTATED_AFTER_COMPLETION = True\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    replay = run_runtime_provider(authorization.request.entrypoint_id, **kwargs)
+
+    assert replay.executed is False
+    assert replay.start_receipt == first.start_receipt
+    assert replay.terminal_receipt is None
+
+
+def test_d4_production_signature_contains_no_loose_callback() -> None:
+    import inspect
+
+    from daedalus.runtimes.broker import run_runtime_provider
+
+    parameters = inspect.signature(run_runtime_provider).parameters
+    assert "invoke" not in parameters
+    assert "output_digests" not in parameters
+    assert {
+        "invocation_authority",
+        "invocation_payload",
+        "invocation_abi",
+        "executable_registry",
+        "pre_admission",
+    } <= set(parameters)
+
+
+def test_d4_payload_substitution_refuses_before_effect_start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import RuntimeProviderBindingMismatch, run_runtime_provider
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, _payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    substituted = build_provider_invocation_payload(
+        authority.invocation_subject,
+        payload_schema_id=PAYLOAD_SCHEMA_ID,
+        body={"objective": "substituted after ABI issuance"},
+    )
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    with pytest.raises(RuntimeProviderBindingMismatch):
+        run_runtime_provider(
+            authorization.request.entrypoint_id,
+            authorization=authorization,
+            execution=execution,
+            invocation_authority=authority,
+            invocation_payload=substituted,
+            invocation_abi=abi,
+            observation_binding_ledger=ledger,
+            executable_registry=registry,
+            pre_admission=pre_admission,
+        )
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+
+
+def test_d4_fixed_output_evidence_failure_stays_started_for_reconciliation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import (
+        RuntimeProviderReconciliationRequired,
+        run_runtime_provider,
+    )
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, _abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    body = payload.to_dict()["body"]
+    body["fail_output"] = True
+    failing_payload = build_provider_invocation_payload(
+        authority.invocation_subject,
+        payload_schema_id=PAYLOAD_SCHEMA_ID,
+        body=body,
+    )
+    failing_abi = issue_provider_invocation_abi_contract(
+        authority,
+        failing_payload,
+        pre_admission,
+        dependency_manifest_sha256=(
+            registry.verify_registered(pre_admission).dependency_manifest_sha256
+        ),
+        authority_id=AUTHORITY_ID,
+        authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
+        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
+        execution=execution,
+        at=fixture.NOW,
+    )
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.runtime_effects._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.effects._utc_now", lambda: fixture.NOW)
+    with pytest.raises(RuntimeProviderReconciliationRequired):
+        run_runtime_provider(
+            authorization.request.entrypoint_id,
+            authorization=authorization,
+            execution=execution,
+            invocation_authority=authority,
+            invocation_payload=failing_payload,
+            invocation_abi=failing_abi,
+            observation_binding_ledger=ledger,
+            executable_registry=registry,
+            pre_admission=pre_admission,
+        )
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"

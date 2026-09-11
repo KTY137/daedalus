@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from daedalus.gates.repository_write_artifact_cas import (
+from daedalus.gates.repository.write_artifact_cas import (
     RepositoryWriteArtifactCASError,
     RepositoryWriteArtifactResolutionReceipt,
     _MAX_ARTIFACT_BYTES,

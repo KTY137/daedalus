@@ -11,12 +11,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from daedalus.kernel.contracts.base import _sha256
+from daedalus.kernel.contracts.runtime import RuntimeConformanceReceipt, RuntimeManifest
 from daedalus.kernel.runtime_conformance import RuntimeConformanceError
-from daedalus.schemas import (
-    RuntimeConformanceReceipt,
-    RuntimeManifest,
-    _sha256,
-)
 
 from .profiles import (
     RuntimeConformanceEnvelope,

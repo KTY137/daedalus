@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus/gates/repository_write_evidence.py"
+TARGET = ROOT / "daedalus/gates/repository/write_evidence.py"
 TESTS = (
     "tests/gates/test_repository_write_evidence.py",
     "tests/gates/test_repository_write_evidence_provenance.py",

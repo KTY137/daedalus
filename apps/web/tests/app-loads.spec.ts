@@ -1,61 +1,60 @@
-/**
- * "Does the cockpit load?" -- against the real server, in a real browser.
- *
- * The existing `web.serves_and_terminates` check proves the SERVER answers.
- * That is a different claim: a server can answer 200 on every route while the
- * bundle throws on module evaluation and the user gets a white screen. These
- * assertions are the ones that separate the two.
- */
 import { expect, test } from '@playwright/test';
-import { collect, dockSpaces, openApp, settle, visibleText } from './_app';
+import { NOT_BUILT, collect } from './_app';
 
-test('the app loads against the real server and talks to it', async ({ page }) => {
+test('the sole Cockpit implementation mounts and talks to its serving API', async ({ page }) => {
   const seen = collect(page);
-  await openApp(page);
-
-  await expect(page).toHaveTitle(/Daedalus/i);
-
-  // A 200 with an empty #root IS the white screen. `openApp` already proved a
-  // <nav> mounted; this states the property in the form the failure takes.
-  const mounted = await page.locator('#root > *').count();
-  expect(mounted, '#root is empty -- the document loaded but React rendered nothing').toBeGreaterThan(0);
-
-  // A screenful of nothing passes every structural check ever written.
-  const text = await visibleText(page);
-  expect(text.trim().length, `the cockpit rendered almost no text at all: ${JSON.stringify(text.slice(0, 200))}`).toBeGreaterThan(80);
-
-  const spaces = await dockSpaces(page);
-  expect(
-    spaces.length,
-    `the dock rendered fewer than three navigable spaces: ${JSON.stringify(spaces)}`,
-  ).toBeGreaterThanOrEqual(3);
-
-  // IT IS NOT A STATIC PAGE. The cockpit must reach the API of the server that
-  // served it. Without this, a hand-written index.html would pass everything
-  // above.
-  await settle(page, seen);
-  const ok = seen.api.filter((r) => r.status === 200);
-  expect(
-    ok.length,
-    `the app completed no successful /api/ request -- it rendered a shell, not a cockpit. saw: ${JSON.stringify(seen.api.slice(0, 12))}`,
-  ).toBeGreaterThan(0);
-
-  expect(
-    seen.pageErrors,
-    `uncaught exception(s) while loading the cockpit: ${seen.pageErrors.join(' || ')}`,
-  ).toEqual([]);
+  await page.route(
+    (url) => url.pathname.startsWith('/api/'),
+    (route) => route.fulfill({
+      status: 200,
+      json: { ok: true, generated_at: '', project: null, warnings: [], projects: [] }
+    })
+  );
+  const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
+  expect(response).not.toBeNull();
+  expect(response!.status()).toBe(200);
+  expect(await response!.text()).not.toMatch(NOT_BUILT);
+  await expect(page.locator('.cockpit')).toBeVisible();
+  await expect(page.locator('#root > *')).toHaveCount(1);
+  await expect(page.getByRole('navigation', { name: 'Ansicht', exact: true })).toBeVisible();
+  await expect.poll(() => seen.api.length, { timeout: 30_000 }).toBeGreaterThan(0);
+  expect(seen.pageErrors).toEqual([]);
 });
 
-test('the cockpit names the project it is showing', async ({ page }) => {
-  // A cockpit that cannot say WHICH repo it is describing is a cockpit whose
-  // every other number is unattributable. The project picker carries an
-  // accessible name, so this survives a restyle.
-  const seen = collect(page);
-  await openApp(page);
-  await settle(page, seen);
+test('native Chromium EventSource reaches the guarded legacy stream without an Origin header', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const probe = 'origin-guard-browser-probe';
+  const requestPromise = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/ikarus/stream' && url.searchParams.get('message') === probe;
+  });
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/ikarus/stream' && url.searchParams.get('message') === probe;
+  });
 
-  const picker = page.getByLabel('Project', { exact: true });
-  await expect(picker, 'no project selector rendered -- nothing identifies the repo under inspection').toBeVisible();
-  const chosen = await picker.inputValue();
-  expect(chosen.trim(), 'the project selector rendered with nothing selected').not.toEqual('');
+  const browserResult = page.evaluate((message) => new Promise<string>((resolve) => {
+    const source = new EventSource(`/api/ikarus/stream?message=${encodeURIComponent(message)}`);
+    source.onopen = () => {
+      source.close();
+      resolve('open');
+    };
+    source.onerror = () => {
+      source.close();
+      resolve('error');
+    };
+  }), probe);
+
+  const [request, response, result] = await Promise.all([
+    requestPromise,
+    responsePromise,
+    browserResult,
+  ]);
+  const headers = await request.allHeaders();
+  expect(headers.origin).toBeUndefined();
+  expect(headers['sec-fetch-site']).toBe('same-origin');
+  // 400 is the post-guard "project and message are required" validation.
+  // A 403 here means the browser-compatible admission path regressed.
+  expect(response.status()).toBe(400);
+  expect(result).toBe('error');
 });

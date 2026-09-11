@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.ikarus_claude_attempt_handoff as handoff
+import daedalus.orchestration.ikarus.claude_attempt_handoff as handoff
 from daedalus.kernel.attempts import (
     AttemptBeginResult,
     AttemptLedger,

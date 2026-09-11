@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.repository_write_artifact_cas import (
+from daedalus.gates.repository.write_artifact_cas import (
     RepositoryWriteArtifactCASError,
     RepositoryWriteArtifactCASRoot,
     RepositoryWriteArtifactResolutionReceipt,
@@ -14,7 +14,7 @@ from daedalus.gates.repository_write_artifact_cas import (
     artifact_relative_path,
     resolve_repository_write_artifact,
 )
-from daedalus.gates.repository_write_evidence import (
+from daedalus.gates.repository.write_evidence import (
     RepositoryWriteArtifactEvidence,
 )
 from daedalus.schemas import ContractProvenance
@@ -293,7 +293,7 @@ def test_path_replacement_during_read_refuses(
         return block
 
     monkeypatch.setattr(
-        "daedalus.gates.repository_write_artifact_cas.os.read",
+        "daedalus.gates.repository.write_artifact_cas.os.read",
         replacing_read,
     )
 

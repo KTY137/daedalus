@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from daedalus.gates.repository_write_evidence import (
+from daedalus.gates.repository.write_evidence import (
     RepositoryWriteArtifactEvidence,
     RepositoryWriteArtifactEvidenceError,
 )

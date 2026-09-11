@@ -1,12 +1,12 @@
 """GET /api/catalogue -- the GUI parts index, served read-only.
 
-``daedalus/gui_catalogue.py`` was reachable from nothing but its own test. This
-pins the one route that reads it, and pins the property that made the route
-safe to add in the first place: it is a PURE READ.
+``daedalus/orchestration/gui_catalogue.py`` was reachable from nothing but its
+own test. This pins the one route that reads it, and pins the property that
+made the route safe to add in the first place: it is a PURE READ.
 
 Why the purity assertion is not decoration: ``do_POST`` and ``do_PUT`` call
 ``effect_boundary.begin_effect`` with a registry row. ``do_GET`` has no row --
-there is no ``daedalus.web_api:DaedalusHandler.do_GET`` entry in
+there is no ``daedalus.interfaces.http.web_api:DaedalusHandler.do_GET`` entry in
 ``daedalus/spine/effect_boundary.py``. So every GET route must stay inside "no
 declared effect", and a route that opened the latent vector store, wrote a
 cache, or reached the network would be an UNDECLARED effect on an undeclared
@@ -27,7 +27,7 @@ def _get(path: str) -> dict:
     unmatched path falls through to ``_send_static``, so "static not called"
     is the proof that the route literal actually matched.
     """
-    from daedalus.web_api import DaedalusHandler
+    from daedalus.interfaces.http.web_api import DaedalusHandler
 
     handler = object.__new__(DaedalusHandler)
     handler.path = path
@@ -85,10 +85,20 @@ class CatalogueRouteTest(unittest.TestCase):
         self.assertEqual(search["objective"], "animated glass card")
         self.assertLessEqual(len(search["hits"]), 3)
         self.assertTrue(search["hits"], "BM25 returned nothing for a seeded term")
-        # Ranking is real, not insertion order: a glass query puts a glass
-        # entry on top, and every hit name resolves against the entries the
+        # Ranking is real, not insertion order: the animation library wins an
+        # "animated" query rather than whichever entry the response happens to
+        # carry first, and every hit name resolves against the entries the
         # same response carried.
-        self.assertTrue(search["hits"][0]["name"].startswith("glass/"))
+        #
+        # This asserted `startswith("glass/")` until G1-UI-04. Commit e133e09b
+        # deleted the sources of all twelve `glass/*` components with the
+        # Classic app, so those entries were removed and no first-party
+        # COMPONENT is left to win a component query. The property under test
+        # here is ranking, not whose component wins; the loss itself is
+        # recorded in tests/test_gui_catalogue.py.
+        ordered = [e["name"] for e in captured["payload"]["catalogue"]["entries"]]
+        self.assertNotEqual(search["hits"][0]["name"], ordered[0])
+        self.assertEqual(search["hits"][0]["name"], "ext/magic-ui")
         names = {e["name"] for e in captured["payload"]["catalogue"]["entries"]}
         for hit in search["hits"]:
             self.assertIn(hit["name"], names)
@@ -233,9 +243,9 @@ class CatalogueRouteStaysOffTheLatentPathTest(unittest.TestCase):
         a real effect. do_GET declares none, so this route must pass
         use_latent=False explicitly. A future edit that flips it, or that
         drops the keyword and inherits a changed default, fails here."""
-        from daedalus import web_api
+        from daedalus.interfaces.http import read
 
-        tree = ast.parse(inspect.getsource(web_api))
+        tree = ast.parse(inspect.getsource(read))
         calls = [
             node for node in ast.walk(tree)
             if isinstance(node, ast.Call)

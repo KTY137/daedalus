@@ -1,0 +1,137 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-41",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "e861b6ffb17407cd12aabc824fe8f038d037dafd",
+    "dependencies": "G1-EXP-TENSOR-GPU-40 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "implementation",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "implementation"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "focused_tests"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-41",
+  "title": "Prune unselected relation evidence materialization in the canonical compiler",
+  "classification": "implementation",
+  "domain": "tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "e861b6ffb17407cd12aabc824fe8f038d037dafd",
+  "owner": {
+    "path": "daedalus/twin/relation_compiler.py",
+    "symbol": "compile_relation_blocks",
+    "parallel_compiler_added": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_public_api": false
+  },
+  "implementation": {
+    "commit": "14af0a5ed6d117d7ad1e62ae30852998371ceabe",
+    "production_blob": "ddf50707a0d7e5b2b41a871918051bc538511698",
+    "summary": "Explicit requested RelationSignature records are validated once before Forest evidence materialization. Every supplied Forest edge still has its endpoints checked against the Fourfold partition, but _forest_edge_atoms and fact bundles are produced only for requested forward or reverse signatures. Verified-binding facts outside the explicit requested set are not materialized. When signatures is None, discover-all behavior remains unchanged.",
+    "preserved_contracts": [
+      "Forest/snapshot digest and revision binding remain global.",
+      "Every supplied Forest edge endpoint is validated before signature pruning.",
+      "FourfoldSnapshot remains the authority that validates every verified binding endpoint and revision.",
+      "forest_edge_count remains len(forest.edges).",
+      "verified_binding_count remains the source binding count when verified bindings are included.",
+      "Explicit requested empty blocks remain supported.",
+      "Discover-all behavior remains unchanged when signatures is None."
+    ]
+  },
+  "focused_tests": {
+    "initial_test_commit": "20b20fc3f0c511eda2dd41765118cd453b2e9fbc",
+    "final_test_commit": "3d5010352d148267294537e472189a59439d74ad",
+    "path": "tests/twin/test_relation_compiler_selected_pruning.py",
+    "blob": "1c83a99dd076772c710dd77013c24c1b3be3af35",
+    "coverage": [
+      "An explicit code:declares:type request does not hash/materialize unrelated imports Forest evidence.",
+      "An explicit code:imports:code request does not materialize an unselected verified cross-plane binding fact.",
+      "Malformed explicit signatures fail before Forest evidence materialization.",
+      "The signatures-is-None discover-all path still materializes all observed Forest relation families.",
+      "Source receipt counts are preserved under selected-signature pruning."
+    ]
+  },
+  "verification": {
+    "verified_head": "3d5010352d148267294537e472189a59439d74ad",
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "workflow_run_id": 34023695913,
+    "workflow_conclusion": "success",
+    "base_main": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "pr_merge_preview": "ddfc96fc6bd4d5a866e38e8eb83558cbd6b96166",
+    "contract_matrix": "success for Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "representative_contract_arm": "CPython 3.12.14 / PYTHONHASHSEED=0: 378 passed, 2 skipped",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "evidence_scope": "PR merge-preview integration evidence; not a raw-head checkout or complete-suite execution claim"
+  },
+  "diagnostic_evidence": {
+    "cpu_bitset_and_typed_block_profiles_executed": true,
+    "authority": "diagnostic-only",
+    "claim": "none",
+    "performance_claim": false
+  },
+  "claim_boundaries": {
+    "correctness": "Focused selected-signature pruning contract and existing integrated contract surface verified in hosted PR integration.",
+    "performance": "none; GPU-41 does not establish latency or memory improvement despite pruning unnecessary work by construction",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "gpu40_negative_probe_retained_in_history": true
+  }
+}

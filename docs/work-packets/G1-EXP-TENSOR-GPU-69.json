@@ -1,0 +1,174 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-69",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "441e53a2e69e6f17993f0ec2b3459c3ad05e5e8d",
+    "dependencies": "G1-EXP-TENSOR-GPU-68; exact base_head and retained inputs in this artifact",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "finding"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope",
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "finding",
+          "frozen_collapse_sequence"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "bounded_next_step"
+        ],
+        "projection_note": "Metadata projection only. Explicitly revert the retained implementation commit(s) to restore prior compiler behavior; keep this evidence and its negative results. No schema/store migration or gate transition is authorized."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "evidence",
+          "claim_boundaries"
+        ]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-69",
+  "title": "Freeze the safe Boolean compatibility collapse onto the canonical relation compiler",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-07",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "441e53a2e69e6f17993f0ec2b3459c3ad05e5e8d",
+  "scope": "Inspect the remaining duplication between the public Boolean compatibility adapter and compile_relation_blocks after GPU-68, and freeze the smallest safe collapse sequence without introducing a third projector or silently changing Fourfold authority semantics.",
+  "finding": {
+    "summary": "The two projection paths now share exact Forest/Fourfold node-partition admission, source-revision admission, complete-plane semantics, retained same-plane authority, verified-binding-only cross-plane facts, indexed block construction, and fail-closed undirected/hyperedge policy. relation_projection.py therefore duplicates a large amount of canonical compiler responsibility and should become a thin compatibility shim, but direct delegation is not yet behaviorally equivalent in every bounded case.",
+    "canonical_owner": "daedalus.twin.relation_compiler.compile_relation_blocks",
+    "compatibility_surface": "daedalus.twin.relation_projection.boolean_relation_block_from_fourfold",
+    "no_new_authority_required": true
+  },
+  "residual_drift": [
+    {
+      "id": "same-plane-selected-cross-plane-hyperedge",
+      "severity": "semantic-admission",
+      "detail": "For an explicitly selected same-plane signature, compile_relation_blocks currently treats any same-relation hyperedge containing that plane as conflicting because source_plane equals target_plane. The compatibility adapter only refuses a same-plane hyperedge when its exact digest is retained by that plane; a same-relation cross-plane hyperedge is therefore unrelated to the selected same-plane relation unless Fourfold retained it there. Direct delegation today could become strictly more refusing in this edge case.",
+      "safe_fix": "Refine the existing inline compiler conflict predicate: a selected same-plane signature conflicts only when member_planes is exactly that one plane; a selected cross-plane signature continues to conflict when both endpoint planes are present. Discover-all behavior remains unchanged. Do not add a helper or hyperedge registry."
+    },
+    {
+      "id": "explicit-completeness-order",
+      "severity": "fail-closed-ordering",
+      "detail": "The compatibility adapter checks endpoint completeness before scanning relation payloads. The compiler validates explicit selected endpoint completeness only after hyperedge/edge admission. Both fail closed, but direct delegation can change which refusal is observed when an incomplete selected plane also contains unsupported relation structure.",
+      "safe_fix": "For explicit signatures only, run the existing _require_complete_endpoint_planes check immediately after signature validation and before Forest relation scans. Discover-all still waits until signatures are discovered."
+    },
+    {
+      "id": "plane-map-materialization",
+      "severity": "gardening-performance-contract",
+      "detail": "The compatibility adapter reuses the canonical FOURFOLD_PLANES tuple directly and an existing regression forbids materializing snapshot.plane_map. The compiler still materializes plane_map for completeness lookup and axis construction. This is not a semantic authority difference but would break an existing bounded no-rematerialization contract if the adapter delegated directly.",
+      "safe_fix": "Reuse one local view of snapshot.planes in canonical FOURFOLD_PLANES order inside the compiler and stop calling the allocating plane_map property on the selected compile path. No cache or persistent index is needed."
+    },
+    {
+      "id": "compatibility-error-wording",
+      "severity": "surface-only",
+      "detail": "Several tests pin adapter-specific ValueError text for Forest digest mismatch, undirected edges, missing verified bindings, and cross-plane hyperedges. The canonical compiler already refuses the same trust-boundary conditions with different wording.",
+      "safe_fix": "When the shim collapses, either normalize these tests onto canonical compiler messages or translate only the small compatibility messages in the shim. Do not duplicate admission scans solely to preserve wording."
+    },
+    {
+      "id": "empty-retention-test-hook",
+      "severity": "test-owner",
+      "detail": "The empty-retention regression monkeypatches relation_projection.canonical_sha because hashing used to live there. After collapse the canonical hashing owner is relation_compiler.canonical_sha.",
+      "safe_fix": "Retarget the existing regression to the compiler owner rather than keeping an unused compatibility import."
+    }
+  ],
+  "equivalence_already_established": [
+    "retained same-plane Boolean rows produce the same TypedRelationBlock digest",
+    "unretained same-plane rows produce the same exact empty block and are pruned before hashing in the compiler",
+    "raw directed cross-plane ForestEdge facts require an exact verified Fourfold binding in both paths",
+    "cross-plane ForestHyperedge flattening is refused in both paths",
+    "undirected binary ForestEdge flattening is refused in both paths",
+    "Forest provenance revision drift is refused in both paths",
+    "exact Forest/Fourfold node-partition admission is shared through _forest_node_partition",
+    "both paths construct blocks through TypedRelationBlock._from_indexed rather than coordinate readmission"
+  ],
+  "frozen_collapse_sequence": [
+    "GPU-70: align only the three compiler-side prerequisites: exact selected-hyperedge conflict shape, early completeness for explicit signatures, and canonical-plane reuse without snapshot.plane_map materialization; add focused regressions in existing test owners.",
+    "GPU-71: replace the duplicated Boolean projector implementation with a thin call to compile_relation_blocks(forest, snapshot, BooleanSemiring(), signatures=(signature,)) and return the single canonical block; retarget compatibility tests and preserve only genuinely required error translation.",
+    "After GPU-71, measure the deletion delta and remove imports/helpers that exist solely for the old duplicate projector. Do not create another common projector abstraction."
+  ],
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "gpu68_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-68.json@2f1dc412a81a1add8c0e6ccddc6477f6c465d9e0",
+    "relation_compiler_blob": "daedalus/twin/relation_compiler.py@e6c8b24f2e6202d8b1090d6f0019ac9222cd88d6",
+    "relation_projection_blob": "daedalus/twin/relation_projection.py@adcfdb83b7c1316a62c0c812b8cc057c3592ba37",
+    "relation_retention_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@fec3e0b3cf685446f9e013259b8b612294ed8d61",
+    "projection_test_blob": "tests/twin/test_fourfold_relation_projection.py@cd38e9b6789b96eecbbc3e9ad93e0ee478e2dcb0",
+    "selected_pruning_test_blob": "tests/twin/test_relation_compiler_selected_pruning.py@8d17f29937779d6890e6edbcaf3e32c99204bb19"
+  },
+  "gardener_result": {
+    "production_code_changed": false,
+    "new_public_api": false,
+    "new_graph_authority": false,
+    "new_projector": false,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false,
+    "duplicate_projection_identified_for_deletion": true,
+    "unsafe_direct_collapse_rejected": true
+  },
+  "verification": {
+    "mode": "static bounded code-path comparison against the exact GPU-68 branch head",
+    "new_test_claim": false,
+    "full_suite_green": false,
+    "reason": "This packet changes documentation only. No new production/test behavior is claimed until the frozen compiler prerequisites are implemented and CI evidence exists."
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "Implement GPU-70 only: refine the existing compiler's selected-hyperedge conflict shape, move explicit endpoint-completeness admission before Forest relation scans, and reuse canonical snapshot plane order without plane_map materialization. Keep discover-all, Fourfold authority, retention, verified-binding and fail-closed semantics unchanged; no new abstraction."
+}

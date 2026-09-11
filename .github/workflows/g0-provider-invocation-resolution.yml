@@ -88,7 +88,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-invocation-resolution-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_invocation_resolution import (
+          from daedalus.runtimes.provider.invocation_resolution import (
               ProviderInvocationResolutionReceipt,
               resolve_provider_invocation_authority,
               verify_provider_invocation_resolution_receipt,

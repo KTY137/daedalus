@@ -6,7 +6,7 @@ from pathlib import Path
 
 TARGET = (
     Path(__file__).resolve().parents[2]
-    / "daedalus/gates/repository_write_evidence_origin.py"
+    / "daedalus/gates/repository/write_evidence_origin.py"
 )
 SOURCE = TARGET.read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)

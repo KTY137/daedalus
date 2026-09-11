@@ -49,6 +49,17 @@
         "matcher": "startup|resume|clear|compact|fork"
       }
     ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" session_end",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [

@@ -3,8 +3,8 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_target_verification as verifier
-import daedalus.runtimes.provider_target_verification_contracts as contracts
+import daedalus.runtimes.provider.target_verification as verifier
+import daedalus.runtimes.provider.target_verification_contracts as contracts
 
 
 def _tree(module) -> ast.Module:

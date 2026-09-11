@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Daedalus Agent OS</title>
+    <script>
+      // Set the theme before first paint (no flash). Persisted choice wins;
+      // otherwise use the cockpit's dark instrument surface. The light theme
+      // remains one click away; using the OS default made a fresh automation
+      // profile silently open the washed-out presentation theme.
+      (function () {
+        try {
+          var saved = localStorage.getItem('daedalus-theme');
+          document.documentElement.dataset.theme = saved || 'dark';
+          document.documentElement.dataset.performance = localStorage.getItem('daedalus-performance') === 'quality' ? 'quality' : 'fast';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+          document.documentElement.dataset.performance = 'fast';
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-BkBUvMW3.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Ca9hLt__.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

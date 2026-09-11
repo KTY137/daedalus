@@ -31,7 +31,7 @@ from daedalus.council.vendors import (
     CouncilAdapter,
     RunResult,
 )
-from daedalus.projects import list_projects, resolve_repo_root
+from daedalus.foundation.projects import list_projects, resolve_repo_root
 from daedalus.spine.cancel import DEFAULT_GRACE_S
 from daedalus.spine.killswitch import KillSwitch, LoopHalted
 
@@ -348,7 +348,7 @@ def _required(mapping: Mapping[str, Any], key: str) -> Any:
 def load_config(path: str | Path) -> FleetConfig:
     """Load and validate one explicit JSON configuration.
 
-    Project roots come only from :mod:`daedalus.projects`; the JSON cannot
+    Project roots come only from :mod:`daedalus.foundation.projects`; the JSON cannot
     smuggle an arbitrary checkout into the experiment.
     """
 
@@ -523,7 +523,7 @@ def fallback_provider(observation: ClaudeJsonWrapper | None) -> str | None:
 def _default_planner(
     projects: list[dict[str, str]], roles: list[str], *, capacity: int
 ) -> Mapping[str, Any]:
-    from daedalus.langgraph_adapter import plan_advisory_fleet
+    from daedalus.orchestration.langgraph_adapter import plan_advisory_fleet
 
     return plan_advisory_fleet(projects, roles, capacity=capacity)
 
@@ -724,7 +724,23 @@ def _bind_budgeted_ask(
             outcome.halted = True
             raise
 
-    if callable(original_runner):
+    bind_budget_ledger = getattr(adapter, "bind_budget_ledger", None)
+    adapter_owns_reservation = callable(original_runner) and callable(
+        bind_budget_ledger
+    )
+    if adapter_owns_reservation:
+        # CLI Council seats own reported-cost settlement.  Bind that one
+        # canonical reservation to the campaign ledger instead of stacking a
+        # second guard around the runner (which double-books every seat).
+        bind_budget_ledger(ledger, label=label)
+
+        def guarded_runner(*args: Any, **kwargs: Any):
+            checkpoint()
+            outcome.started = True
+            return original_runner(*args, **kwargs)
+
+        adapter._runner = guarded_runner  # type: ignore[attr-defined]
+    elif callable(original_runner):
         def guarded_runner(*args: Any, **kwargs: Any):
             checkpoint()
             try:
@@ -747,6 +763,9 @@ def _bind_budgeted_ask(
         kwargs["timeout_s"] = effect_timeout_s
         if callable(original_runner):
             reply = original_ask(*args, **kwargs)
+            adapter_budget_error = getattr(adapter, "last_budget_error", None)
+            if isinstance(adapter_budget_error, BudgetError):
+                outcome.error = adapter_budget_error
             outcome.completed = True
             return reply
         try:

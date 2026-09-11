@@ -11,12 +11,13 @@ WORKFLOW = Path(".github/workflows/g1-ikarus-unified-runtime-admission.yml")
 # A PR that edits any one of these must not be able to skip the canonical Gate 1
 # workflow just because the path filter forgot that layer.
 STOP_SEAM_PATHS = (
-    "apps/web/src/api.ts",
-    "apps/web/src/cockpit/Conversation.tsx",
+    "apps/web/src/shared/api/index.ts",
+    "apps/web/src/features/conversation/Conversation.tsx",
     "apps/web/tests/cockpit-stream.spec.ts",
-    "daedalus/web_api.py",
-    "daedalus/ikarus_cancellation.py",
-    "daedalus/ikarus_os.py",
+    "daedalus/interfaces/http/effects.py",
+    "daedalus/orchestration/conversation_requests.py",
+    "daedalus/orchestration/ikarus/shell.py",
+    "daedalus/orchestration/ikarus/cancellation.py",
     "daedalus/providers/_openai_compat.py",
     "daedalus/providers/_ollama_native.py",
     "tests/test_ikarus_cancellation.py",
@@ -61,8 +62,9 @@ def test_backend_stream_surface_is_compiled_in_focused_jobs() -> None:
     compile_end = text.index("- run: python -m json.tool", compile_start)
     compile_block = text[compile_start:compile_end]
     for path in (
-        "daedalus/web_api.py",
-        "daedalus/ikarus_cancellation.py",
+        "daedalus/interfaces/http/effects.py",
+        "daedalus/orchestration/conversation_requests.py",
+        "daedalus/orchestration/ikarus/cancellation.py",
         "tests/test_ikarus_cancellation.py",
         "tests/test_ikarus_http_cancellation.py",
         "tests/test_ikarus_stop_gate_paths.py",

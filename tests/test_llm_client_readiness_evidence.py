@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from daedalus.llm_client import IkarusLLMClient
+from daedalus.orchestration.llm_client import IkarusLLMClient
 
 
 def test_auto_skips_stale_positive_runtime_observation():
@@ -69,7 +69,7 @@ def test_auto_rejects_runtime_observation_for_wrong_identity():
 
 
 def test_voice_requests_its_own_freshness_ttl_from_runtime_registry(monkeypatch):
-    from daedalus import runtime_registry
+    from daedalus.orchestration import runtime_registry
 
     seen: list[tuple[str, float | None]] = []
 

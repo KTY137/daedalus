@@ -1,0 +1,172 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-82",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "f132a01d6ad79ad8cbdafec072391f5650273b2d",
+    "dependencies": "G1-EXP-TENSOR-GPU-81 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["audit", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "This packet changes no executable code. The canonical indexed owner retains sorted(entries); rollback removes only this research/evidence record."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-82",
+  "work_packet": "G1-EXP-TENSOR-GPU-82",
+  "title": "Retain indexed-key sorting after caller-wide ordering audit",
+  "classification": "closed-research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "f132a01d6ad79ad8cbdafec072391f5650273b2d",
+  "scope": "Audit every canonical production caller of TypedRelationBlock._from_indexed after GPU-81. Determine whether caller-wide deterministic row-major insertion is already guaranteed strongly enough to delete sorted(entries) inside the existing indexed CSR owner. Do not add an ordered-map flag, helper, backend, cache, second constructor or alternate graph authority merely to avoid sorting.",
+  "audit": {
+    "canonical_owner": {
+      "path": "daedalus/twin/relation_blocks.py",
+      "blob": "98cd0ebd8517496c0938666360c3d8e5e85378be",
+      "current_behavior": "_from_indexed validates every indexed row/column key before materializing ordered = sorted(entries), then fills canonical row-major CSR from the validated sorted keys while reading values from the original bounded mapping."
+    },
+    "production_callers": [
+      {
+        "caller": "TypedRelationBlock.from_coordinates",
+        "path": "daedalus/twin/relation_blocks.py",
+        "blob": "98cd0ebd8517496c0938666360c3d8e5e85378be",
+        "ordering_contract": "none",
+        "finding": "coordinates is an externally supplied bounded Sequence and is consumed in caller-provided order. The entries dict therefore inherits first-seen coordinate insertion order, including arbitrary valid permutations and duplicate-coordinate update order. Axis labels are canonical, but coordinate input order is not. Removing sorted(entries) would make the emitted CSR depend on input sequence order."
+      },
+      {
+        "caller": "compile_relation_blocks",
+        "path": "daedalus/twin/relation_compiler.py",
+        "blob": "61ba3e1c95cc70707272be255357cb3903ae33fe",
+        "ordering_contract": "not row-major caller-wide",
+        "finding": "The compiler inserts selected semantic coordinates into per-signature dict buckets. Same-plane Forest edges originate from KnowledgeForest edge order, but verified cross-plane bindings originate from FourfoldSnapshot.bindings. FourfoldSnapshot canonicalizes bindings by binding digest, not by (source_index, target_index), so cross-plane coordinate insertion is deterministic yet not row-major. Evidence-dag value conversion mutates values in place and does not reorder keys."
+      }
+    ],
+    "eliminated_former_caller": {
+      "path": "daedalus/twin/relation_projection.py",
+      "blob": "3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+      "finding": "The historical Boolean projection module no longer calls _from_indexed directly; it delegates to compile_relation_blocks and therefore creates no independent ordering guarantee."
+    },
+    "authority_inputs": {
+      "forest": {
+        "path": "daedalus/structcore/forest.py",
+        "blob": "ebd0c964bd955a386b392ee58aaa1c6f1786a936",
+        "finding": "build_knowledge_forest sorts edges by (relation, source, target, directed, weight). That is deterministic source evidence ordering, but it cannot establish a caller-wide _from_indexed contract because from_coordinates is arbitrary-order and cross-plane bindings use a different canonical order."
+      },
+      "fourfold_bindings": {
+        "path": "daedalus/twin/contracts.py",
+        "blob": "5523dfe53834874942a7c37120ee2f464ed15fda",
+        "finding": "FourfoldSnapshot validates binding semantics and then sorts unique bindings by binding digest. Digest ordering is intentionally canonical evidence ordering, not sparse row-major coordinate ordering."
+      }
+    },
+    "conclusion": "No existing caller-wide row-major insertion guarantee exists. sorted(entries) is therefore the minimal shared deterministic canonicalization boundary in TypedRelationBlock._from_indexed and must remain. Encoding an ordering promise in a flag or second constructor would move complexity outward and create parallel admission semantics without eliminating a proven requirement."
+  },
+  "semantic_invariants": {
+    "canonical_order": "Every accepted indexed mapping remains canonicalized to deterministic lexicographic (row, column) order in the single TypedRelationBlock._from_indexed owner.",
+    "from_coordinates": "Equivalent coordinate multisets remain independent of caller sequence order after semiring aggregation.",
+    "compiler": "Forest/Fourfold evidence order remains an authority/evidence concern and is not silently redefined as CSR storage order.",
+    "error_precedence": "GPU-81 key validation before sorting remains unchanged.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; TypedRelationBlock remains a regenerable computational view.",
+    "public_api": "No public API or compatibility facade changes in this packet."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "sorted_entries_retained": true,
+    "caller_wide_row_major_guarantee": false,
+    "new_helper_added": false,
+    "new_ordering_flag_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_constructor_added": false,
+    "summary": "The remaining sorted(entries) key transient is required by current semantics. from_coordinates accepts arbitrary coordinate sequence order, and compile_relation_blocks receives verified cross-plane bindings in digest order rather than row-major coordinate order. Deleting sorting now would trade one bounded transient for order-dependent CSR output or require a new parallel ordering contract, so the Gardener result is to retain the single canonical sort and stop this deletion path."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "f132a01d6ad79ad8cbdafec072391f5650273b2d",
+    "relation_blocks": "daedalus/twin/relation_blocks.py@98cd0ebd8517496c0938666360c3d8e5e85378be",
+    "relation_compiler": "daedalus/twin/relation_compiler.py@61ba3e1c95cc70707272be255357cb3903ae33fe",
+    "relation_projection": "daedalus/twin/relation_projection.py@3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+    "fourfold_contracts": "daedalus/twin/contracts.py@5523dfe53834874942a7c37120ee2f464ed15fda",
+    "forest": "daedalus/structcore/forest.py@ebd0c964bd955a386b392ee58aaa1c6f1786a936",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "kind": "read-only caller/contract audit plus exact branch evidence record",
+    "production_callers_audited": [
+      "TypedRelationBlock.from_coordinates",
+      "compile_relation_blocks"
+    ],
+    "former_direct_projection_caller_checked": true,
+    "forest_canonical_order_checked": true,
+    "fourfold_binding_canonical_order_checked": true,
+    "executable_tree_changed": false,
+    "focused_tests_required": false,
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "notes": "This packet makes no executable change and therefore does not claim a new test or benchmark result. Its acceptance evidence is the explicit source/contract audit showing that at least two accepted construction paths do not share a row-major insertion guarantee."
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "deletion_attempt_stopped_before_semantic_regression": true,
+    "minimal_deterministic_sort_retained": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_projector": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-83 only: audit CompiledRelationBlocks.__post_init__ canonicalization for redundant sequence materialization/copying on the canonical compile_relation_blocks path. Prefer a small in-owner fast path only if it preserves direct-construction validation, duplicate-name refusal, block-subject/semiring/signature checks and deterministic block-name ordering; otherwise retain the current boundary. Do not add a receipt registry, alternate collection type or second compiler."
+}

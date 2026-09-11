@@ -103,4 +103,4 @@ def test_fixed_source_path_cannot_be_redirected_by_caller() -> None:
     signature = inspect.signature(inventory.scan_provider_observation_persistence)
     assert tuple(signature.parameters) == ("repository_root", "source_revision")
     assert signature.parameters["source_revision"].kind is inspect.Parameter.KEYWORD_ONLY
-    assert inventory._SOURCE_PATH == "daedalus/runtimes/provider_observation.py"
+    assert inventory._SOURCE_PATH == "daedalus/runtimes/provider/observation.py"

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { watcherGuidance } from '../src/cockpit/WorkPulse';
+import { watcherGuidance } from '../src/features/mission/live';
 
 test.describe('watcher action guidance', () => {
   test('only turns an explicitly stopped watcher into a start command', () => {

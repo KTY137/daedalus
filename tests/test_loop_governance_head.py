@@ -33,7 +33,7 @@ from unittest import mock
 
 import pytest
 
-from daedalus.loop import LoopBounds, LoopDriver, _same_revision
+from daedalus.orchestration.loop import LoopBounds, LoopDriver, _same_revision
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PENDING_PATCH = REPO_ROOT / "docs" / "decisions-pending" / "gated_writes_lease_handdown.patch"

@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-evidence-materialization.schema.json",
+  "title": "Daedalus Gate 0 Repository Write Evidence Materialization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "classification_digest",
+    "binding_count",
+    "materialized_count",
+    "records",
+    "missing_locators",
+    "materialization_complete",
+    "content_addressed",
+    "canonical_bytes_verified",
+    "binding_verified",
+    "origin_authenticated",
+    "semantic_receipts_verified",
+    "evidence_authenticated",
+    "gate_report_bound",
+    "closed",
+    "scope",
+    "blockers",
+    "digest"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "locator": {
+      "type": "string",
+      "pattern": "^cas:sha256:[0-9a-f]{64}$"
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_revision",
+        "surface_sha256",
+        "guard_contract",
+        "locator",
+        "blob_sha256",
+        "payload_sha256",
+        "subject_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "source_anchor",
+            "guard_contract",
+            "effect_lease_receipt",
+            "runtime_conformance_receipt",
+            "primary_checkout_disjointness_receipt",
+            "retirement_receipt"
+          ]
+        },
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "surface_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "guard_contract": {
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "blob_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "subject_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "guard_contract"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "guard_contract": {
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "guard_contract": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-repository-write-evidence-materialization/1"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "classification_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "binding_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "materialized_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "records": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    },
+    "missing_locators": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/locator"
+      }
+    },
+    "materialization_complete": {
+      "type": "boolean"
+    },
+    "content_addressed": {
+      "const": true
+    },
+    "canonical_bytes_verified": {
+      "type": "boolean"
+    },
+    "binding_verified": {
+      "type": "boolean"
+    },
+    "origin_authenticated": {
+      "const": false
+    },
+    "semantic_receipts_verified": {
+      "const": false
+    },
+    "evidence_authenticated": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "repository-write-evidence-materialization"
+    },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 3,
+      "items": {
+        "enum": [
+          "evidence-bindings-empty",
+          "evidence-blobs-missing",
+          "external-evidence-origin-authentication-missing",
+          "external-evidence-semantic-verification-missing",
+          "gate-report-binding-missing"
+        ]
+      },
+      "allOf": [
+        {
+          "contains": {
+            "const": "external-evidence-origin-authentication-missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "external-evidence-semantic-verification-missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "gate-report-binding-missing"
+          }
+        }
+      ]
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "materialization_complete": {
+            "const": true
+          }
+        },
+        "required": [
+          "materialization_complete"
+        ]
+      },
+      "then": {
+        "properties": {
+          "canonical_bytes_verified": {
+            "const": true
+          },
+          "binding_verified": {
+            "const": true
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "canonical_bytes_verified": {
+            "const": false
+          },
+          "binding_verified": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
+}

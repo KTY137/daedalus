@@ -4,8 +4,11 @@ The one-page pointer table. It says where to look, never what the numbers are:
 a status page that carries numbers is a status page that goes stale between
 commits. Every claim below names the command that produced it.
 
-**MEASURED 2026-08-25 at `2de997ef` on branch `main`.** `main` moves several
-times an hour while lanes land; re-read the row, not the sha.
+**AUTHORITY HEADER REFRESHED 2026-08-31 at frozen base `151b8d18`.** The sole
+semantic authority is Master Plan Revision 11, version 2.2.0; the active
+delivery gate is **Gate 1 - Renovation and owner-directed Genesis**. The dated
+measurements and Gate-0 narrative below remain historical evidence from
+2026-08-25 at `2de997ef`; they were not remeasured or rewritten by G1-HIER-01.
 
 ## The fork is closed, and there is one checkout
 
@@ -81,7 +84,7 @@ name `daedalus.spine.promotion_approval` no longer exists.
 `docs/architecture-state.json` has moved onto `main` since the last revision of
 this page — it is now stamped `repo_state.branch = "main"`, `head = 94eb3515`,
 `dirty = true`, a handful of commits behind HEAD. Being behind is the least
-interesting thing wrong with it. `python -m daedalus.cli map --check` exits
+interesting thing wrong with it. `python -m daedalus.interfaces.cli.entry map --check` exits
 non-zero and names three separate defects [MEASURED 2026-08-25 at `2de997ef`]:
 
 1. **It is self-inconsistent.** `counts.modules` says 520 while its own

@@ -9,9 +9,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from daedalus import verifier
+from daedalus.orchestration import verifier
 from daedalus.spine import docref_gate, docrefs
-from daedalus.verifier import VerifyResult, verify
+from daedalus.orchestration.verifier import VerifyResult, verify
 
 
 def _report(files_changed=()):

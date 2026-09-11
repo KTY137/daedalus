@@ -2,26 +2,16 @@
 
 :mod:`daedalus.ignition.gate1` is the Gate-1 slice as plan §10 states it -- one
 MissionContract, two WorkItems, two isolated attempts, three checks, one
-EvidencePacket, no promotion. :mod:`daedalus.ignition.runner` is the earlier
-in-process rehearsal it grew out of; it is retained because it is still the
-cheapest way to exercise the Fourfold delta and behaviour measurements, and
-``gate1`` reuses those three functions rather than copying them.
+EvidencePacket, no promotion. It is what ``python -m daedalus.ignition`` runs,
+and since ``G1-RENOVATION-02A`` (2026-09-06) it is the ONLY implementation of
+that clause: :mod:`daedalus.ignition.runner` used to hold a second, in-process
+rehearsal of the same slice and now holds only the three measurements ``gate1``
+reuses (tree digest, Fourfold graph delta, candidate behaviour).
 """
 
-from .runner import (
-    IgnitionError,
-    IgnitionGraphDelta,
-    IgnitionResult,
-    IgnitionWorkItem,
-    materialize_voltage_rename,
-    run_voltage_ignition,
-)
+from .runner import IgnitionError, IgnitionGraphDelta
 
 __all__ = [
     "IgnitionError",
     "IgnitionGraphDelta",
-    "IgnitionResult",
-    "IgnitionWorkItem",
-    "materialize_voltage_rename",
-    "run_voltage_ignition",
 ]

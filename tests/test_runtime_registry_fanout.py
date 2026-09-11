@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from unittest import mock
 
-from daedalus import runtime_registry
+from daedalus.orchestration import runtime_registry
 
 
 def _spec(runtime_id: str) -> runtime_registry.RuntimeSpec:

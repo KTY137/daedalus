@@ -1,0 +1,1868 @@
+{
+  "schema": "daedalus-integration-acceptance/1",
+  "first_full_run": {
+    "start_head": "b605586b2778659a119b25fa7d05938a986356e3",
+    "production_edits_during_run": false,
+    "test_only_followup_edits_during_run": true,
+    "command": "repository venv -m pytest -q -n 8 --dist loadfile --junitxml=runs/integration-20260908/integrated-full.xml",
+    "passed": 13395,
+    "failed": 9,
+    "skipped": 419,
+    "xfailed": 23,
+    "passing_subtests": 2237,
+    "seconds": 530.4
+  },
+  "status": "local_acceptance_passed_final_github_checks_pending",
+  "failures": [
+    "Two queue projection fixtures omit the actual required lane",
+    "Old Codex wire test assumes no whole-answer stream delta",
+    "HTTP literal census predates six additive bound dispatch identity literals",
+    "Packaged web copy predates current Vite build",
+    "Research kernel corpus pin predates integrated source",
+    "Two explicit evaluator closure attribute declarations missing",
+    "Module census predates two new modules; exact SCC memberships unchanged"
+  ],
+  "ci_findings": [
+    "Data-only LLM test unexpectedly probes installed vendor runtime",
+    "Linux controlled Claude fixture lacks executable bit",
+    "Ignition wheel imports retired rehearsal function",
+    "Whole GUI suite contains Windows live Genesis proof; Linux OCI covered separately"
+  ],
+  "gui_runtime_finding": "Fresh committed Genesis attempt can reside only in WAL; immutable SQLite read ignores WAL and source download returns404. Reader correction has its own frozen packet.",
+  "artifacts": [
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-bridge-wires-ci-20260908/baseline.log",
+      "sha256": "7730121eacc684eede8499c177e62288563de2d7cf661f24fedfaeb733001719",
+      "archive": "bridge-wires-baseline.log.gz",
+      "archive_sha256": "0684d5b6170abc222d41cd91643fdc21c5323546574b9028abf4e61f4bca1b1c"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-bridge-wires-ci-20260908/baseline.xml",
+      "sha256": "dec6b59c1c54b95a494fda635900ab142255e6689b556d70751cc6cedb92cfbe",
+      "archive": "bridge-wires-baseline.xml.gz",
+      "archive_sha256": "fd74c3c5c3f85544d7b2d366a1e7e1b0659b3aa97a3cc2ed1498007c56e389fe"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-bridge-wires-ci-20260908/final.log",
+      "sha256": "59e775ee8ed03ac67264d1424dbe682a47acb9d3ba53b66e8a771712474c7c18",
+      "archive": "bridge-wires-final.log.gz",
+      "archive_sha256": "46d4dc5004423f018e2399b56248bd39a2cb989512d85a193d9fe1c54e15b9e5"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-bridge-wires-ci-20260908/final.xml",
+      "sha256": "9c8db65234e68c5aa746a9557cc628ee9a844d792af2c193d78a1cc24e785841",
+      "archive": "bridge-wires-final.xml.gz",
+      "archive_sha256": "34f4c84a01d43e16beab14800160232252c08f3c03167ee5381d2c0e6fa47563"
+    },
+    {
+      "source": "ci-fixtures-corrected.xml",
+      "sha256": "e85e5644fc149700f82cdb90aa2278d457bf38657d3af6250fc2fa7073a5878a",
+      "archive": "ci-fixtures-corrected.xml.gz",
+      "archive_sha256": "e398b0932dac05006538f11161fe584b2e5df1756cc27ab1d98f4755d0aebaef"
+    },
+    {
+      "source": "runs\\integration-20260908\\ci-gui-artifact-101961796749\\cockpit-evidence.json",
+      "sha256": "36c261a4d40829656f7a961c5276baeb525b3f4290c4432498474e0c12856d8c",
+      "archive": "ci-gui-artifact-101961796749-cockpit-evidence.json.gz",
+      "archive_sha256": "4265585da56699d242e9faec78fd115533bef782f41f6360a28ebe4761dddb98"
+    },
+    {
+      "source": "runs\\integration-20260908\\ci-gui-job-101961796749.log",
+      "sha256": "c30e09f5991536d7eadab66fcda593b75e997a28648ecac108a1b03d3598ad6d",
+      "archive": "ci-gui-job-101961796749.log.gz",
+      "archive_sha256": "ddcf9ec90ceb7e76e0c140c7b2c31ec0f674500145b7c6f675e6c0f0a94b2614"
+    },
+    {
+      "source": "runs\\integration-20260908\\ci-gui-workflow-review.json",
+      "sha256": "16a63f468a7a2a1a4ccf9ea4892e4a22b3e2687bfe50b61dc21f1b77df187f52",
+      "archive": "ci-gui-workflow-review.json.gz",
+      "archive_sha256": "f733e442c16c95562d4ff1ac653c7b18f4a94fe69321c28eb26cddba1d42e015"
+    },
+    {
+      "source": "ci-job-101961796460.log",
+      "sha256": "6ab7fb97cb149ae5eebdd55a1ce179f11b0982c0c4b1b57e1afc0a1a2b8f8a0c",
+      "archive": "ci-job-101961796460.log.gz",
+      "archive_sha256": "46c184ab2f63d873b5361364f25ca158e40a9f0c5b6646cc8312f02176acbdf5"
+    },
+    {
+      "source": "ci-job-101961796481.log",
+      "sha256": "452c417df1bd1c8d5d4e503633de9bb952308bc82026c5c3f3b03ee815edb7e3",
+      "archive": "ci-job-101961796481.log.gz",
+      "archive_sha256": "b2a3a50980ce34c34eca9306c818b88c9f192bb3c276b592b9a3c250166093bf"
+    },
+    {
+      "source": "ci-job-101961796600.log",
+      "sha256": "3f7ffc34ee0df0e52ab520b0ebb0b3663981170547d80e3785ca655c5ecb1865",
+      "archive": "ci-job-101961796600.log.gz",
+      "archive_sha256": "f96a8f25a389b2f097ccb45eb3e70b07ea38d93a23020af72caecc0af94acbe7"
+    },
+    {
+      "source": "ci-job-101961796993.log",
+      "sha256": "af963bfe9112518c15b4e2b1b0990773c53b25f98dce220881d94d716e324e37",
+      "archive": "ci-job-101961796993.log.gz",
+      "archive_sha256": "ae9dba913d4c6e05ed1a1bfae35ce8d6756a447fee6f76169562c01a2ada1689"
+    },
+    {
+      "source": "ci-job-101961797002.log",
+      "sha256": "00cd78ca6c21842b923c489db453acbc1429de9a15933450a1b3a2cc8c9e63b3",
+      "archive": "ci-job-101961797002.log.gz",
+      "archive_sha256": "594265fcde0a4b38039f169250f6aaebe66ec669e24843f42279ff1dea980e36"
+    },
+    {
+      "source": "runs/integration-20260908/ci-job-101970024465.log",
+      "sha256": "ef0278759c3a26397b052bf5ff29e1fa9f46155525e7f73fe385410e1e9480c2",
+      "archive": "ci-job-101970024465.log.gz",
+      "archive_sha256": "e60c97a98f1c59735a184d86029b8788d54fb1b8d4bde99c2f0d33d40a381d8f"
+    },
+    {
+      "source": "runs/integration-20260908/ci-job-101972593501.log",
+      "sha256": "74c216834cabbef35745cff566cdfef22f2ea378589b0a988b608890fa835c82",
+      "archive": "ci-job-101972593501.log.gz",
+      "archive_sha256": "7c3a3136282f91bb9f71567e079820a43645935a89e27192504e66314a66d57e"
+    },
+    {
+      "source": "runs/integration-20260908/ci-linux-canvas-readonly-diagnosis.json",
+      "sha256": "7f2d7d64dd8b140e485d58e70eae256b9d383ccaab8ddcb57d755ccf22c8d9e7",
+      "archive": "ci-linux-canvas-readonly-diagnosis.json.gz",
+      "archive_sha256": "7bbfb522b25615623e6895fba2d881eb4e8a4a68c46d05d8f590eb2ad762398e"
+    },
+    {
+      "source": "runs/integration-20260908/ci-seccomp-runner-permissions-diagnosis.json",
+      "sha256": "dfdc65a116ea18b0ddbb8299a17e6f6956ae06936564e7e8e1a337f7ac7634f4",
+      "archive": "ci-seccomp-runner-permissions-diagnosis.json.gz",
+      "archive_sha256": "4643e257c870d6508abec92d49bb54ff42bcaf192a953a71e75a4f4ea7430528"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/environment.json",
+      "sha256": "28abb070fd0df40f77252d7e49f1f42e2ab009ba95d46bfcc1c312713373c7e9",
+      "archive": "claude-broker-environment.json.gz",
+      "archive_sha256": "645cec11797647579218515a9ec8a8c93cab491244e7c4bbf1e53a606557d2fd"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/linux-baseline.log",
+      "sha256": "801577783f52b6665fbd8b42c2d5c76ae590bb308b6107e916a6249d92f94ecc",
+      "archive": "claude-broker-linux-baseline.log.gz",
+      "archive_sha256": "43a7e469b7b266a5623ac28a8b2a290cdc0e0efc3712d12cbeeea273bce058f6"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/linux-baseline.xml",
+      "sha256": "76c07f7a5bc165b7a5ed96328819be72722609e73d139973153090ce3021e807",
+      "archive": "claude-broker-linux-baseline.xml.gz",
+      "archive_sha256": "8cf7d2f0bcd70f0f3ce37498192965f232d97c11e59f1ae4c9b663b8dfd2cd92"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/linux-final.log",
+      "sha256": "dd09c33ed26dccfba60a906389b79410c1186b24c5d002b39c70e7944a2d5f08",
+      "archive": "claude-broker-linux-final.log.gz",
+      "archive_sha256": "145ebec5d73c0511a7370dac2bb0ea20985167b5d1550aee05b87eaa6f39b782"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/linux-final.xml",
+      "sha256": "3849be6179a5f4dc90b8bcdc4984d372e4b5d6436b5d853571e643961daeb961",
+      "archive": "claude-broker-linux-final.xml.gz",
+      "archive_sha256": "c8e6a6390163e74dd82692e0e806adeae89a9e78d6ac067b751a6273f3fc2ac4"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/windows-final.log",
+      "sha256": "72d78244a9c8abaf75db0744c41fedf923cf1560ecad9b78a4b7701f2b11e5da",
+      "archive": "claude-broker-windows-final.log.gz",
+      "archive_sha256": "65f7e2a85b5e92ecdafe7fb96ed5fe86b91a0958b65012ebdacab858e20ec460"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-claude-broker-ci-20260908/windows-final.xml",
+      "sha256": "b0b227c8b4b3d8ccc7d45e9580a7d870b32b5f75181226d35759b1f9f8613ce5",
+      "archive": "claude-broker-windows-final.xml.gz",
+      "archive_sha256": "7fd6b3dc70d935aa2ee8a1ce3fcf121742c8fc79b0e7e465cd515ca0bf73961c"
+    },
+    {
+      "source": "runs/integration-20260908/envelope-without-local-helper.xml",
+      "sha256": "3c984fd9543983c6ef47af89305174eb3022ec1b0b3a9b834e6f64e852428d70",
+      "archive": "envelope-without-local-helper.xml.gz",
+      "archive_sha256": "37c1cbaacc5a832b64666889ccba08a1831e441ec220b9693b2baa698eb6ae97"
+    },
+    {
+      "source": "evaluator-closure-bytes.xml",
+      "sha256": "e4fbe882ae161ff399066942004714d1a754d6523858cf43e34e63a4391bcf57",
+      "archive": "evaluator-closure-bytes.xml.gz",
+      "archive_sha256": "b9a8e54a2441b5a882f0ef3bf8c466322228db79bb22f8aaf73cf761dc014531"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-archive.log",
+      "sha256": "4665f7b437fb8a53854580b0ad29c85d9d26fa04ef9e78b98763411912a91a46",
+      "archive": "frontend-real-gui-final-archive.log.gz",
+      "archive_sha256": "618dc7f4cca6bfa7c2223b5d12c1c906f0cb87e3c6709e93f82ea47471459c4e"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-archive.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-final-archive.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-cleanup.json",
+      "sha256": "ebd3d278c8e64985336b42c553da219d1446665355e95d44f79ae855a7979db4",
+      "archive": "frontend-real-gui-final-cleanup.json.gz",
+      "archive_sha256": "cf2ec2a9e10d6a4d16231ac90e867a5842e88e504c9de44789ae94f6df1dc041"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final-source.json",
+      "sha256": "d46fdb56ad8aa0f1146260d2ca0b91bfc981f8f7bea4e7be9c2cb97a5af6de4a",
+      "archive": "frontend-real-gui-final-source.json.gz",
+      "archive_sha256": "5f3fc0b2881e360f98fe781c11418bda9624d5b81d8802c1d35b9859c5dc9c52"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final.json",
+      "sha256": "407d4f64717f68d0ec96093f1701db521ccde1ff7da583167284bb9e6fca025c",
+      "archive": "frontend-real-gui-final.json.gz",
+      "archive_sha256": "cf53e0f90444284c65cedcfab865a2db5bbdb8e14daca2a18c45e9a5b5fb8f8d"
+    },
+    {
+      "source": "runs/integration-20260908/frontend-real-gui-final.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-final.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "frontend-real-gui-integrated-first-archive.log",
+      "sha256": "a879b446326e7bae1dabf4e1bdc0a8e2d29d442084d68f033a636714802f9ce8",
+      "archive": "frontend-real-gui-integrated-first-archive.log.gz",
+      "archive_sha256": "655e93528d210049ca06efa5f6e7563bd8b42044df717110628e09519381f093"
+    },
+    {
+      "source": "frontend-real-gui-integrated-first-archive.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-integrated-first-archive.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "frontend-real-gui-integrated-first-source.json",
+      "sha256": "e96ae5a83cf62fead318bea78221c925744b0052e82441f26347213afcfeb6ff",
+      "archive": "frontend-real-gui-integrated-first-source.json.gz",
+      "archive_sha256": "6a3870ea75c31a62fdc6894a13875ff9a3e5209429fe7a8fd0d8831d25263f93"
+    },
+    {
+      "source": "frontend-real-gui-integrated-first.json",
+      "sha256": "569e6ea5787331eca2a8c654794bbbc0df5c3e69b8253c472f570fd9d7450c1d",
+      "archive": "frontend-real-gui-integrated-first.json.gz",
+      "archive_sha256": "7829fd949efbed175551070e6cc750b9aa24742d8e9eeeee53da04f973429959"
+    },
+    {
+      "source": "frontend-real-gui-integrated-first.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "frontend-real-gui-integrated-first.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-boundary-first.log",
+      "sha256": "432bd0b980f40d38b676649d20b31c618474f1eb4f71ca17f392bf9c2916ccd3",
+      "archive": "genesis-wal-boundary-first.log.gz",
+      "archive_sha256": "0ed57af9815a52493246621266f5236cf625bcddd5df7597b73c806e7c7b4364"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-boundary-first.xml",
+      "sha256": "13a5e824ef8c8410880755e13fa19fa05aca857c18f94bb384ce911665d72132",
+      "archive": "genesis-wal-boundary-first.xml.gz",
+      "archive_sha256": "47139421d6b95f901a4c0f2099044bcf87dcc1e64fbd22b5cb56a246ace8f7e4"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-event-time-mutations.json",
+      "sha256": "6c0c910f444a572d6171c8893f11b4117a532eccde607f818f8b6a2dbbcf4aed",
+      "archive": "genesis-wal-event-time-mutations.json.gz",
+      "archive_sha256": "2bac185bcf49ef48f571aed2f2ba2573fd1942749288a7feb6ebe2825346b52f"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-event-time-mutations.log",
+      "sha256": "f7389425e00312ee434e0160c9fe5d8a1eaf6378ca08c5d61612d1ced56df3f4",
+      "archive": "genesis-wal-event-time-mutations.log.gz",
+      "archive_sha256": "2739f429f441df94022b88d9a058f507407c4e4ed87757d7e85faa42978ba4fc"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-first-green.log",
+      "sha256": "5b826bef54adfc4e7219215d3a080f6997065142656f8a7f2976963128bf613b",
+      "archive": "genesis-wal-first-green.log.gz",
+      "archive_sha256": "d87566ff21421b3da964406b44fa63e9d61d6f9ae6a85141b3245e1983f4aa60"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-first-green.xml",
+      "sha256": "bcebb602e32a7f7e5dff26af403fc6af98741cb0cb4bc9d1230851c781392c47",
+      "archive": "genesis-wal-first-green.xml.gz",
+      "archive_sha256": "e62fa9b099c4675fdebc09d56dcaf3677e907c30abf01ddf5eac710ce57c2a1e"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-focused-frozen.log",
+      "sha256": "8c13964f401f15b386a0e88e75232b21c38b0fb79f35f102a55de18e2a536891",
+      "archive": "genesis-wal-focused-frozen.log.gz",
+      "archive_sha256": "6ccee540a6cbb20093a592cb3ca44c27ec79be9a831ccda4999a3272b516a939"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-focused-frozen.xml",
+      "sha256": "9e2dbc1832158ba3ef948a0fccf4d78ff018060dfcfba042392d04535fc832fa",
+      "archive": "genesis-wal-focused-frozen.xml.gz",
+      "archive_sha256": "c78d56c2f218e7087ac2a2d89a50ba72fda12c16480ca3a8cc4cbe4465f2392f"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-focused-source.json",
+      "sha256": "56c2c878bc7c3c377afce8db8ded24489d92c7ac67058f48f0df1c615d62c276",
+      "archive": "genesis-wal-focused-source.json.gz",
+      "archive_sha256": "712e9ca18f92ece40bb38afe22f7442b3c6c31dea9590a09f0820c4f1cedc193"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-focused.log",
+      "sha256": "1bee9a4dbbd060d497ab10b0f38941509a9663556476a6ff8367bb20058396d6",
+      "archive": "genesis-wal-focused.log.gz",
+      "archive_sha256": "575750b4029f9b11e6039c4df777b1b51f734c0dce2d46725640e1d949a997ed"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-focused.xml",
+      "sha256": "3d59a70aa3a37a317bfe67dcbc24713a3ff4ff1f29534587fbacbf85c22f02de",
+      "archive": "genesis-wal-focused.xml.gz",
+      "archive_sha256": "7e3820c1d6050af94b89f1232f0792c191c9edaab11683ddeadf6f1e42994dcc"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-red-canonical.log",
+      "sha256": "c8d1b5d647e11b906452988b3103636dbdab5b15ffc36fe3955d7660a135c8e2",
+      "archive": "genesis-wal-red-canonical.log.gz",
+      "archive_sha256": "5e40a5522e96622dbca85b639b9c149581995879df7509157423c6d54187a4bd"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-red-canonical.xml",
+      "sha256": "0d249e0435b3df4cead989dce1ffc630c6a8615130ba2c272efaac79d94debe2",
+      "archive": "genesis-wal-red-canonical.xml.gz",
+      "archive_sha256": "02c0ecd685af7db13d563381be21ebec1e1fcf0aef01e9b3b10f8fbd44efdc3b"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-red.log",
+      "sha256": "4c4648b13e2e4871b0485a103e215ed3a2cc5697b87e824831f12f2dd965f9de",
+      "archive": "genesis-wal-red.log.gz",
+      "archive_sha256": "05f01010fab5695a8f90adaebaf7877090458a5265d28391b762ed71f6f50378"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-red.xml",
+      "sha256": "bed5a7c1f87b045e3ad7667c3ec2d70cb7a94e167918e94ba065ae4cf900029a",
+      "archive": "genesis-wal-red.xml.gz",
+      "archive_sha256": "9314af9a5a21919fd915329f13de750454a0f48570a93cfdd08a9579ca0be1b4"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-retained-gui-read.json",
+      "sha256": "de473e1c4f643e16766d6c672a1b8e3ede1e755632d070ea7449189518dc5e4f",
+      "archive": "genesis-wal-retained-gui-read.json.gz",
+      "archive_sha256": "f772832e480bb90f78bbd15b84d28296fdffd05c88ba3e7b880c84013598886d"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-reviewed-source.json",
+      "sha256": "bad91af8ca9d2581c4014156282f9412146f18b9693e87df5d4c7230227f0109",
+      "archive": "genesis-wal-reviewed-source.json.gz",
+      "archive_sha256": "00355950da8b3ef97831c5dc6ee21f61631e368e6d40b4d198667add9966cd5a"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-reviewed.log",
+      "sha256": "e2447756679be1e8ac4956e95affb40ac5819892abdfd5667bb92f8ec1437843",
+      "archive": "genesis-wal-reviewed.log.gz",
+      "archive_sha256": "ebe2b6e9dd90eced8ad98fd5ff092479da5ef68e8121112c45c33ac640df933e"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-reviewed.xml",
+      "sha256": "90077c3f32a7375fbe7de2c2273e2d450cf4269bff926e6a6295ca93509a6724",
+      "archive": "genesis-wal-reviewed.xml.gz",
+      "archive_sha256": "057a0dfe32c7084bbe8791cc9101d55eb4ec8b73bcb0357ce0295b9d0977787b"
+    },
+    {
+      "source": "runs\\integration-20260908\\genesis-wal-sqlite-malformed-probe.log",
+      "sha256": "e7aa001b7c9d44bca56ffbb64b9daded91db58ad4e72ca38710719adecb1d549",
+      "archive": "genesis-wal-sqlite-malformed-probe.log.gz",
+      "archive_sha256": "d80c7091d23b10b6a3706badb455a9f34cdfa76f3c1903dc33eaee726d4f21a2"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-transport-corrected.log",
+      "sha256": "34393a16b6936100755f82714e6838ffdd54e8c471b74cd213ccb31ae3e6fe3e",
+      "archive": "genesis-wal-transport-corrected.log.gz",
+      "archive_sha256": "04cb5669d225117f9c1f4870bf7f5065485bb63884830ead1db11f3bb5519c15"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-transport-corrected.xml",
+      "sha256": "20c74fbfb3b7b452cf8d32bad30a0e9d0b5f514426d9c43909b4d5b06eb95340",
+      "archive": "genesis-wal-transport-corrected.xml.gz",
+      "archive_sha256": "4b14be0bfb0fb66249d9fac9342e049acb3c6800eb9247ef11e16c1af48f34dd"
+    },
+    {
+      "source": "runs/integration-20260908/genesis-wal-transport-correction.json",
+      "sha256": "6dedad7473973fd607be4e58eaf3bede8a3c3ab855331a0318c564bacfe9ab17",
+      "archive": "genesis-wal-transport-correction.json.gz",
+      "archive_sha256": "1a5947e5be93b410fc2676e2ce4d68ad7fb40665937b929d1cf6b014592eb56a"
+    },
+    {
+      "source": "http-wire-literal-delta.json",
+      "sha256": "053a14939c0ed53c9c3a615319f0db123a4271846a9e5d4cd1d5b2fb07bb1431",
+      "archive": "http-wire-literal-delta.json.gz",
+      "archive_sha256": "0be83ed893a06c52a2474ab8dac6dca36b2cf74836d55d3515e6f0691c9a4432"
+    },
+    {
+      "source": "import-scc-and-web-distribution.log",
+      "sha256": "df22138b3687dc2dab950e51545a889b0dceab36357e3f1ab45e407b029d6946",
+      "archive": "import-scc-and-web-distribution.log.gz",
+      "archive_sha256": "fedae68ddba0355b424261c56100ce72a56fc5775fd84c6481f0fe133a92cf45"
+    },
+    {
+      "source": "import-scc-remeasurement.json",
+      "sha256": "c42bd91acf9333d0f66477c4b37a58bfd170a4e23d55bbfe3568235b90fea35a",
+      "archive": "import-scc-remeasurement.json.gz",
+      "archive_sha256": "d155c422f4d781cb91ab6a6c0c852274684934d379960a6564ba0c7d6c973814"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-genesis-wal-review-20260908/review-final.log",
+      "sha256": "5645e008bc3e4d830519f98613a47b5c9bef461aa42acd78a511c02a26b34178",
+      "archive": "independent-wal-review-final.log.gz",
+      "archive_sha256": "f5994bd97c0a577895b65c87d5e70d2c19238be79ae39c1a1d3854980e2219f6"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-genesis-wal-review-20260908/review-final.xml",
+      "sha256": "5bf2dd28f373e6ef7ba7f4a325a6866c783fd627202b1a0c51809ea1c7778c02",
+      "archive": "independent-wal-review-final.xml.gz",
+      "archive_sha256": "21c7966cd90c7a818d51728d9a310e951eb8768df5a734b8d3983d5683dc17d5"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-genesis-wal-review-20260908/stable-pair-no-keeper.log",
+      "sha256": "29cff6a3c6bf1e83837bff13887cb68a8fb933c9f3ff3afb223254add943f2d2",
+      "archive": "independent-wal-stable-pair-no-keeper.log.gz",
+      "archive_sha256": "f30ccf82d2ddf233a86e79669f1307de30903ab5e99b4239a16d8d58c5775225"
+    },
+    {
+      "source": "C:/Users/Administrator/AppData/Local/Temp/daedalus-genesis-wal-review-20260908/stable-pair-no-keeper.py",
+      "sha256": "75563119fdea68d53fe19dc3f56f8e95fa7ad318ff1abdae1426b8b5d357efb6",
+      "archive": "independent-wal-stable-pair-no-keeper.py.gz",
+      "archive_sha256": "83d4baca558ca6bf3d057336a61496029e96ad5e561ef5e34d503d5add32ae2d"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-final-result.json",
+      "sha256": "b60ea6a60cb1d992392f520908ad7b78e0c442cc1612619bae267b32d8ff7f5b",
+      "archive": "integrated-final-result.json.gz",
+      "archive_sha256": "c03036ce90aa4ca5eb8aea5ab1c79c2b6e7e7494ae042eca3a958f9bc5958a82"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-final-source.json",
+      "sha256": "e9b1a818a28fe5cebe1591e0ea3630d6ab825c776932e235f59fefc678d45735",
+      "archive": "integrated-final-source.json.gz",
+      "archive_sha256": "53355d5676af726cb1aba8042997fca7d22510d32e12816d43acab1268a57b0e"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-final.log",
+      "sha256": "5cdedcbd43134b560f40895de39dbfc8d6b0bfd99e6e7e68fc9bbcfddc651a70",
+      "archive": "integrated-final.log.gz",
+      "archive_sha256": "845ba0f1bf34959732821997bf4109088dbc4fa0e03e449ea503a956b6235876"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-final.xml",
+      "sha256": "7c686e80adddf8c971b3a16b9466a7640faf8cb510b28a8a7dc96e53dcbcc2e5",
+      "archive": "integrated-final.xml.gz",
+      "archive_sha256": "1ccdaadb52ea57501eb74b733094c87f13fccd3f626e7003d8e69f3f7d11cde0"
+    },
+    {
+      "source": "integrated-full.log",
+      "sha256": "1ac34b65da8948c0a1a8602ef3cbcd68febcc2061b7d61360234f0a674a0f12d",
+      "archive": "integrated-full.log.gz",
+      "archive_sha256": "7babfdb45dd7c1c98f7aefc542626db38116f1407947ce24ffb6d3ad4a6f436c"
+    },
+    {
+      "source": "integrated-full.xml",
+      "sha256": "80dacfd8cc0b55fc961f6a1e99f4fbe9a39bcf51a9290780751f275f0cbb7538",
+      "archive": "integrated-full.xml.gz",
+      "archive_sha256": "f57ee3e9a69fd0dc4599ae8729498ecafcc3305153257ce5d6dd74b5308c6457"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-verified-result.json",
+      "sha256": "3274d4c0caf2fac7d951777281e6c6e42291dc71ba6268f0c3c035b01e2bd880",
+      "archive": "integrated-verified-result.json.gz",
+      "archive_sha256": "8087e67b539667f044bda026fb03df418c4cb8ac6f5838fd336b12efb9827400"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-verified-source.json",
+      "sha256": "bfcc2964c29139319e2450e61b5c2f937a31482432fb7100719dede671cdc421",
+      "archive": "integrated-verified-source.json.gz",
+      "archive_sha256": "718cd8fa91e48ed6434e2f49cf2aa07494641194a712ee3d864bda2274f2276d"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-verified.log",
+      "sha256": "7a396ebac693f0f397f8c2321552d8dde7ad24416164d483cbe3e2972ec36e03",
+      "archive": "integrated-verified.log.gz",
+      "archive_sha256": "6e575b531361d254fae5dd9b692c1cdbe9adfa82e67279bc169cc791e3e704fb"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-verified.xml",
+      "sha256": "dd5c6673ecfd232783a45e3bc0a3e94421612378d7bbf7ce2df9e28108406e09",
+      "archive": "integrated-verified.xml.gz",
+      "archive_sha256": "801a80c7a56ed6c2c889c17b8091e3a08c3f4099f9ab9b1e86257741442a38ee"
+    },
+    {
+      "source": "runs\\integration-20260908\\integration-census-ci-fixtures-final.xml",
+      "sha256": "3735337f17c7a09b4cd27b5ab85176c1c832399151f8ced4ad16d277cb9b17bd",
+      "archive": "integration-census-ci-fixtures-final.xml.gz",
+      "archive_sha256": "d2f710ca9d3236fd4e048426ff21a2817ec81415faf278f50c5357fc0778dcd0"
+    },
+    {
+      "source": "runs\\integration-20260908\\integration-census-ci-fixtures.xml",
+      "sha256": "5d0e35ff4ef79fc57682918b6cd98258bf4905843c557caa3021cd9229f31536",
+      "archive": "integration-census-ci-fixtures.xml.gz",
+      "archive_sha256": "549aa214c8c13cd410c1b61e1e2e7ccc0451ddca9c7ce5168624d59603c5fe4d"
+    },
+    {
+      "source": "runs\\integration-20260908\\s02-final-corpora-a.json",
+      "sha256": "177a39ed0148f961b70b02921da2157d3ca6d27a3b9e8c11094b68cf4800508c",
+      "archive": "s02-final-corpora-a.json.gz",
+      "archive_sha256": "e22344765392abe5fc9bfc32be8b880736bc8c07fed98ea90a9e3b5481e7f5ee"
+    },
+    {
+      "source": "runs\\integration-20260908\\s02-final-corpora-b.json",
+      "sha256": "d60b96e789adefd8d92505566119c77a24d8dffd9f5637e2272da3435a348569",
+      "archive": "s02-final-corpora-b.json.gz",
+      "archive_sha256": "49dde1c31b113b455e77f86fa712a4be73884bafa639d0f54e9c4026c681f0d0"
+    },
+    {
+      "source": "runs\\integration-20260908\\s02-final.xml",
+      "sha256": "0f74a4749d6eeb5c68a9428dd77ca6814c201f1c0a199a78bb839cc5eae5a812",
+      "archive": "s02-final.xml.gz",
+      "archive_sha256": "7f6b18724fce64dd2e10f90e50bcfe766237967c24ce476179c86445d6879521"
+    },
+    {
+      "source": "runs/integration-20260908/workflow-references-final.xml",
+      "sha256": "5e8d92f9f7500354a534e448ce3c282dda2e104dc4b9c7517f3ae2d46ce0d923",
+      "archive": "workflow-references-final.xml.gz",
+      "archive_sha256": "143bf3c80299f4ef8e758cc9e23ca8cec75a94fb0f78a1205c31098732e9b9cc"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-7d23-linux310-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/linux-oci.xml",
+      "sha256": "acd0ba0547bd893ec28ef2445ac6356f80c67e8945db1ec8b45ac5eb1d7795fa",
+      "archive": "final-ci-7d23-linux310-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "fdf5bc2da457d03c9d12dab35d3b99e447af69d36b1b9b194377a91441402f11"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-7d23-linux310-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/podman-info.json",
+      "sha256": "ef0a4b322e14494a9a6d7c773adba27bf5634db9b763d0bcdf853909014211a9",
+      "archive": "final-ci-7d23-linux310-artifacts-podman-info.json.gz",
+      "archive_sha256": "82b2ed186030c438408ce2ca26b8a9f9eefd656bfb71884b61bc9ff952ce36f9"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux310-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "final-ci-7d23-linux310-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-7d23-linux312-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/linux-oci.xml",
+      "sha256": "5a16f4f54f52ebc1bb11bc90c6e0b45f30fc207c8e8debac3c31e1db974bc293",
+      "archive": "final-ci-7d23-linux312-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "5e28c35395c5675b0f0d56e74bc35933b17133fc27f4654b5fe92b7572e34fb5"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-7d23-linux312-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/podman-info.json",
+      "sha256": "6de724bd838b683f2abbf91e3cd8544e334dc914c33da53fb56f0578f6ec70b1",
+      "archive": "final-ci-7d23-linux312-artifacts-podman-info.json.gz",
+      "archive_sha256": "c2e661d4c5804935b92aa77c4df7eaf7b03c417eefde246b71b224ed2fbaa66b"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-linux312-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "final-ci-7d23-linux312-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/candidate-container-inspect.json",
+      "sha256": "cc1a991dcfe82ec6d253a26ff3a7d385d4869b5c8d099efeb8464a3ce00266ae",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "90162e5ba966c9ba3bd3f5a976aab8634688f5fe28041e806cf238d53a783329"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/linux-oci.xml",
+      "sha256": "cb9903b336c8f0d77d449efc51c2e5595a7774ac949d73d64adc1180d18293f6",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "68cc6d75ade5b6d6f7c636d6715a157e7d85b9cbb2d48df70029aba06db93db5"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/podman-info.json",
+      "sha256": "9af3b3d1fbc8d998c89c8c72c25c9bcd8a44d9ee4a7ddbd8c7d3c2c5319e1698",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-podman-info.json.gz",
+      "archive_sha256": "a8c3ec92167e375e92ea9743374d702d40ae791f7f6637f74fefbd7a0d0a77d9"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux310-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "diagnostic-ci-eb7834-linux310-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/candidate-container-inspect.json",
+      "sha256": "17befd5c197f5723e927a4ca4728c15ac37ca67c832d03583b607b8bada9c759",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "4576b9c2ab8159fb8fc82c913939b13c34275f705fdfda098a7372fe388c1ed0"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/linux-oci.xml",
+      "sha256": "c7b605754ce5fd2564b04a0d0c793af64dc1b6435cf57a701837931ae0e1b5b6",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "5f4278cd53711f5a9c3dbae8f667e5cb457807207a8832bcb608621145025776"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/podman-info.json",
+      "sha256": "e69d8bdc24b7cf44ebe67dfa539b114acf04d63fd64a1480ef8465862d61be6e",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-podman-info.json.gz",
+      "archive_sha256": "f2c222193b4488cecad2f074c4a66e3afe14cf2adb8eff97cd982e5bc26476c3"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-stat-after.txt",
+      "sha256": "a4e643f5e368f684187c027711066872507314c814e926d692682c978ffb554d",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "b7e71b3da3282df7a7ff09010eb890e2d27e6f2642ecbc6ffef2c9d9a89b135a"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-linux312-artifacts/seccomp-stat-before.txt",
+      "sha256": "1a9a78f015cb961e1ca8015f9d541ff1059bf339341f9f95793bf17fee34ae46",
+      "archive": "diagnostic-ci-eb7834-linux312-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "1c00547ac5574316d38d5aa551bcc32b7c07a898ab05ac5cf94c801c9955c001"
+    },
+    {
+      "source": "runs/integration-20260908/final-ci-7d23-summary.json",
+      "sha256": "2c809525ef388df87572301b7a852c3fdebc9782ada95832b3e38c69b6a24ecc",
+      "archive": "final-ci-7d23-summary.json.gz",
+      "archive_sha256": "cb4adcf00f13f68e4d0f63b036e28266e2fc701c08c8b86dced9001784478f13"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-caps-observations.json",
+      "sha256": "9c1b700ca085bd5275ae0ff78de51e1a4ab7c41f4f663579dfd9ded444394b00",
+      "archive": "diagnostic-ci-eb7834-caps-observations.json.gz",
+      "archive_sha256": "4ef72e80e7effd027a90ec4bca4f241e8cfb5d05ff7aad1c7c9f17cd028074b9"
+    },
+    {
+      "source": "runs/integration-20260908/podman-closure-metadata.log",
+      "sha256": "f0eb9c23350c62a9cab9e2cd3074b6ffbbcd91b455b64def6f15e8e01c5b6f2a",
+      "archive": "podman-closure-metadata.log.gz",
+      "archive_sha256": "4d6f24059fb1294d0215cc8b4b054d743392e75fd8b166b93a1059bf4883edde"
+    },
+    {
+      "source": "runs/integration-20260908/podman-closure-metadata.xml",
+      "sha256": "64f69df754ed65f945ae279609f35f9a6194ba9aa4e8886d432bf8777c4386cb",
+      "archive": "podman-closure-metadata.xml.gz",
+      "archive_sha256": "0d613aa624481bd5f5c387d1a308fc6f2b822c29ca3192c1c1f146495ee9dfd0"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-actual-replay.json",
+      "sha256": "3c78ab649d3d161302457033d54f1658327b19f7e42e6fca875a6656e43b6a8d",
+      "archive": "podman-inspect-actual-replay.json.gz",
+      "archive_sha256": "b60c2f6c3948bd8080a4f3d073fd4b2903232acac9d879b3051c0138272a07a5"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-green.log",
+      "sha256": "445d18774923245143ffac57ac246163537169f870a4214beaecd1fc11af668c",
+      "archive": "podman-inspect-codec-green.log.gz",
+      "archive_sha256": "59abd577aae87b4864d7a286bf5330b3958c48ecc8ee1b1371c4380c233957ad"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-green.xml",
+      "sha256": "74e0b0fb7f7286896eaa6e593182a94a347e95c800905ef6d41368ad588d7466",
+      "archive": "podman-inspect-codec-green.xml.gz",
+      "archive_sha256": "7bfeb6cdf2db739e54501622cd608a3637c3870df3004f5b68dcadff76a72e1a"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-red.log",
+      "sha256": "ab8d9a5a47c33a35d1dc3a9282090465d491933a89425bb9c6424d9cdb8d84a5",
+      "archive": "podman-inspect-codec-red.log.gz",
+      "archive_sha256": "04f338096fa8bbf761ffba6a47b3c851b6f9e93456567dbee3fc78a952482a5b"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-red.xml",
+      "sha256": "c36c2b58ba37c2a30844a84a6c701c1129f32b7e83930fc9d99cea56793146e7",
+      "archive": "podman-inspect-codec-red.xml.gz",
+      "archive_sha256": "b1fc8b4df3a2475fac2f12539e791216bb0e32464f088f727510f4ad27ccd527"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-reviewed.log",
+      "sha256": "1d12ce444b91330b878a2a45fe03a48cec8ab75917161ce70710ed4cb7ca8fca",
+      "archive": "podman-inspect-codec-reviewed.log.gz",
+      "archive_sha256": "14b90426b259366ed6bf9062b28e2ab421a1590674f221da7031018d7488d421"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-reviewed.xml",
+      "sha256": "fe35d320686e0d78ecf417e86db865ce383d0c5448a08a828f0e27d98e70e1f5",
+      "archive": "podman-inspect-codec-reviewed.xml.gz",
+      "archive_sha256": "0ef8e5003b6c0076f0bad7430d6313dfebd7d1d633ece8427860874b587b112f"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-codec-source.json",
+      "sha256": "1dd5a38e1b575b1133b4bc93ad9185a3153242baff5ea96dce60332489459bcc",
+      "archive": "podman-inspect-codec-source.json.gz",
+      "archive_sha256": "264567a1fca4e0f56e2631276ca09ab9224cd13acb318be63cfd7d93caabf4b1"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-independent-review.json",
+      "sha256": "7b446f791cd43b4d98b893eac33c5fa73e2d736434816dc11acb0417d4853050",
+      "archive": "podman-inspect-independent-review.json.gz",
+      "archive_sha256": "4e4ae7843054047e29f236f53ac187c160366e177785f62e8beffcb916134fe7"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-independent-review.log",
+      "sha256": "198f8059abe064212abb1baa2ec61ed5f279e56bd4a2dba2eabfe305eb111b0c",
+      "archive": "podman-inspect-independent-review.log.gz",
+      "archive_sha256": "f5b0a93f9e7c6b1dfe7618ca44ef545f7d93c651c50e57bb844c43a85a4b74e8"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-independent-review.xml",
+      "sha256": "a5fecc15f6b651705a18edc64012595f4b4300ea33aff53b29bcfaafa4d83435",
+      "archive": "podman-inspect-independent-review.xml.gz",
+      "archive_sha256": "d9367c2a997974354588dc2cb755a59261ba3c4f084a7ce7b26e6114e9860d61"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-integration-focused.log",
+      "sha256": "43bb1a6bf1ab79acaae7b274769f7fc8a175fa8257045eebd8509905852494df",
+      "archive": "podman-inspect-integration-focused.log.gz",
+      "archive_sha256": "6e3cff93205d448fc046b86355970f99235b80f4e4b00664efb8a7dee07ef3d8"
+    },
+    {
+      "source": "runs/integration-20260908/podman-inspect-integration-focused.xml",
+      "sha256": "a1d656bcb80d0a6f5e3e67c72054f358ba8c9d5ac2340881cab2e8c4809b5003",
+      "archive": "podman-inspect-integration-focused.xml.gz",
+      "archive_sha256": "dec3a7e973e7c9a9b26e910711ac41ca43e2444fb855b2d5a83bc224bed5b961"
+    },
+    {
+      "source": "runs/integration-20260908/podman-registry-final.log",
+      "sha256": "c9cea2dabbb295f2b3187c3eadfd3ef5becfa44895af912fb2604cbdd65a093f",
+      "archive": "podman-registry-final.log.gz",
+      "archive_sha256": "90b861205e15e78377a6b9d6ff5bfeb27a21748427c375182ff8aa79e068bda5"
+    },
+    {
+      "source": "runs/integration-20260908/podman-registry-final.xml",
+      "sha256": "9f0d1b849f0ec3bfe5447f826742a2751b262ab6a3a5c8693b8ecb1b73c58c91",
+      "archive": "podman-registry-final.xml.gz",
+      "archive_sha256": "1f594d94fed70ba315b0875db2ce04a53d59c1fc3f757980159e68f981cb32e6"
+    },
+    {
+      "source": "runs/integration-20260908/s02-podman-corpora-a.json",
+      "sha256": "1d730a78751374a5083032d648e67d492ad539835fdca23aa91abe996c66ce12",
+      "archive": "s02-podman-corpora-a.json.gz",
+      "archive_sha256": "132c60431d5d8b14c87f378e1518c73db41585d02562e1d695c0eac019cab3db"
+    },
+    {
+      "source": "runs/integration-20260908/s02-podman-corpora-b.json",
+      "sha256": "c063ca5cb0cc0c3d5a75101ef6e2434d8a82e95753b98c19cbeb0075962476cc",
+      "archive": "s02-podman-corpora-b.json.gz",
+      "archive_sha256": "fecc209477b2bfe703e78ea1c01e3e115e86a76396edd89964812d1330060b34"
+    },
+    {
+      "source": "runs/integration-20260908/G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.draft.md",
+      "sha256": "3d051729ef61e2d9ace98f3f10e95fb656cb9b2e84469fdd3f796ce8674c91cc",
+      "archive": "G1-RUNTIME-04_PODMAN_EMPTY_CAPABILITY_REPRESENTATION.draft.md.gz",
+      "archive_sha256": "1d89bc7d82403961fec7d56d1ace5af321f475c88a0a4a09ffe7dd258fe30d65"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-summary.json",
+      "sha256": "a1bb057dc2bf0413231aa0e5579e35845d9ede34d71b5783bb34bccc34be9354",
+      "archive": "diagnostic-ci-eb7834-summary.json.gz",
+      "archive_sha256": "7e08f4324aa3474ce4547397b72a2cf5b692aa436024aec9932e9f628375453d"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-cockpit.log",
+      "sha256": "95a77e7972b7fc9d68f67fe63e3b1a42f760d12b5adc8974a7619cd513f378c5",
+      "archive": "diagnostic-ci-eb7834-cockpit.log.gz",
+      "archive_sha256": "fb23348e6fe1165d45622bba5194503bd28aabe9d9ff46eda1196db6bc94e6bb"
+    },
+    {
+      "source": "runs/integration-20260908/diagnostic-ci-eb7834-cockpit-artifacts/cockpit-evidence.json",
+      "sha256": "a431973bae8aa72797782682b4ddbfa03880cab22d538b5435f9403f1c65297c",
+      "archive": "diagnostic-ci-eb7834-cockpit-artifacts-cockpit-evidence.json.gz",
+      "archive_sha256": "14794580ae4572ddbc2e05f3a47d567213d881dac0d34911568874f8bd3e08a8"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final.log",
+      "sha256": "bd425d67c637e34f86975e9f883d3e2b362b4719a88f93dbac77ba1dff5b37ca",
+      "archive": "integrated-podman-final.log.gz",
+      "archive_sha256": "d388a7f6218890217118e0d5ae67b99c1a0d6263219a98688ef68768d7674d58"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final.xml",
+      "sha256": "96fbd430436bc89b5b98a591e19db5828b91582fd4273b9b7fe20dd17d890145",
+      "archive": "integrated-podman-final.xml.gz",
+      "archive_sha256": "7b266975ded20d183aff03c84ab89a1a9423f99fbcaa1eb936fee6bd9830ec76"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final-source.json",
+      "sha256": "17673223eb1a624698b65c3200160352c71d1bb8097f95eb1040b198d07a5868",
+      "archive": "integrated-podman-final-source.json.gz",
+      "archive_sha256": "c63378ca832a38b4c946658624fc724a934f2b4bcdc851c6930addd8c7227ecc"
+    },
+    {
+      "source": "runs/integration-20260908/integrated-podman-final-result.json",
+      "sha256": "44b0f24c4070d8bc970f672da10b3db86b6614254783d3cce397a283bf5492dd",
+      "archive": "integrated-podman-final-result.json.gz",
+      "archive_sha256": "fd1eff71e9969cb1e2cc4162106a09dacb619552914d28610d7de15b062c0cc7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux-evidence-before-count-clarification.json",
+      "sha256": "292619fb15961583220d607c72a7fbf61acbc3ca65820645e6387327fb692087",
+      "archive": "final-ci-9867-linux-evidence-before-count-clarification.json.gz",
+      "archive_sha256": "622e90c3369fe62166ce0b78f6e5e4a64fead501178cf3361f836813d45a037e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux-evidence.json",
+      "sha256": "7d3d2401f1871e2559ea4a6f1c7ec2b5fb34dd62a8e38f28b47b5c514bf4cbd9",
+      "archive": "final-ci-9867-linux-evidence.json.gz",
+      "archive_sha256": "5ed21ceba2b5455c5ec7535465ab1199bb89b2c79079cfbc53983e40fd858539"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux-status.json",
+      "sha256": "62422168ac727f8f2c9f05f9c7fc0b0b8de83ff59fb75782d44a7f90ad4cdf04",
+      "archive": "final-ci-9867-linux-status.json.gz",
+      "archive_sha256": "ca4bc789d9f2555006ef9d05b16d47709e7eb8a0cdf615c4b7341c1cefbd5d66"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/candidate-container-inspect.json",
+      "sha256": "dc5393a3dc903bc05662543ebf70dc99717aeeb4aea55d512431371cb412e49c",
+      "archive": "final-ci-9867-linux310-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "a80f9615ec2e1d55415c464eb07807f03a64e7399a8b51fa2966e9496c6ac7b3"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-9867-linux310-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/focused.xml",
+      "sha256": "916f6136a69cde05488518c59eba6d209c4f5a36097c696146098542723c08e2",
+      "archive": "final-ci-9867-linux310-artifacts-focused.xml.gz",
+      "archive_sha256": "617fb114a76da1f903a1da57df4fa25372d8942190282dfa6a0fa79bf5dec562"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/linux-oci.xml",
+      "sha256": "47059aaba77c708692fc0e6efcbe70c1b47bf0858be054b391395c354cc49dab",
+      "archive": "final-ci-9867-linux310-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "0f16068871ef3a22e1295df3cf28663e4a25c3a874a5d0a7f07ff81014c1eff1"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-9867-linux310-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/podman-info.json",
+      "sha256": "22fa06d46f660c0e24591317c50cf25d117f36df1e17f45c1cb5c6009e84426a",
+      "archive": "final-ci-9867-linux310-artifacts-podman-info.json.gz",
+      "archive_sha256": "4ce4e9f9460a1fc5a519c4d119def410adf387759e0d386802e91d37027eb212"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-stat-after.txt",
+      "sha256": "6077c85a15ff6f19791812f6f68c47a5449259e7f99cdb8f583605d302eeaf83",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "6bea2e1c1ce45a23cfbf8eaf1ad45d08a3ce242117d7aad91de80067942bed05"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310-artifacts/seccomp-stat-before.txt",
+      "sha256": "173c0f93521461379436d981e2b9bad96d3ec85e41b920bd2305101076b4087f",
+      "archive": "final-ci-9867-linux310-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "71d57126a69a1e91eede62886bfe9b9b306c60b09abd8325e72ab69ba7720c9f"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux310.log",
+      "sha256": "f739c4901fe66f545b97895358330ad4f7c275c4af4069b5fcf92b3864e9beec",
+      "archive": "final-ci-9867-linux310.log.gz",
+      "archive_sha256": "8117626db26ff326abbb28160839dd69b1c6e09c30400a208f7c1601acc8a50d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/candidate-container-inspect.json",
+      "sha256": "1b31404d9a5753f293b70c966803d3d80c4bf0969712f3969db51922ff1f92a0",
+      "archive": "final-ci-9867-linux312-artifacts-candidate-container-inspect.json.gz",
+      "archive_sha256": "fbb99bbde1b33c7a471cbded2baa91e97fdd5a50c02ae74d8b3a491c0dcbec69"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/dpkg-statoverrides.txt",
+      "sha256": "b4877b6f62b29484b52d373a5b3ae25465c8ba0423f4b441ec6849554400453b",
+      "archive": "final-ci-9867-linux312-artifacts-dpkg-statoverrides.txt.gz",
+      "archive_sha256": "68dee91aaf166a785c427e888571c8526c72c42cc71a76b0c3a2e1540e034fdb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/focused.xml",
+      "sha256": "6c17fa9b439cf81508c850d96d2940218da664c682c92004b271021d0ade52a5",
+      "archive": "final-ci-9867-linux312-artifacts-focused.xml.gz",
+      "archive_sha256": "73c7f7055bcc8df6bca3ecb62d5f40c746ad5ecd50d6af3672a38e72d80d6fd8"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/linux-oci.xml",
+      "sha256": "287efb644fb31faf744bc3804f68115a603248ceac718a3f0261dc5847be18bc",
+      "archive": "final-ci-9867-linux312-artifacts-linux-oci.xml.gz",
+      "archive_sha256": "19930af40fd915a52e7d93977255e90753b7f10646c9d69467240ce02ee69a93"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/podman-image.json",
+      "sha256": "e0b91dac7f0a0f399f1761170a68b0987ba8477d5c8a9b4b3291f17885ddf684",
+      "archive": "final-ci-9867-linux312-artifacts-podman-image.json.gz",
+      "archive_sha256": "7187302e200cdc9901bd59d2cf364e58245cf1ed00844f6a43ee1c1203d0ab13"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/podman-info.json",
+      "sha256": "5d7c21bb2d57f69d91b22d2cc2af9fd9f9b0f37d24c46c5960d32ac6667ab491",
+      "archive": "final-ci-9867-linux312-artifacts-podman-info.json.gz",
+      "archive_sha256": "9583a49d8672f350e6786d175c5dd990e34eac6365a7e0aed2f5165a841dd8f9"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-before.sha256",
+      "sha256": "29cba240d607fd41586623bfc86f368c5827a409ebf7c4ed50275013026815f8",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-before.sha256.gz",
+      "archive_sha256": "dfa6666c925301a75e23f8ece1ad3d3b83870bb159dd8163b83eb40d204439a7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-package-owner.txt",
+      "sha256": "7344c15cd27928edf6be492ce7e655a9e2eccaab8e128d91727d5046f43a6e31",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-package-owner.txt.gz",
+      "archive_sha256": "4e2f183a30b899bb8703b8de2026b475a4e8cd47c60a40991f576faff76b3374"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-package-version.txt",
+      "sha256": "7a594492125c840315ea52a4557f459c51336517b5389e1f4745cd1b8048adee",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-package-version.txt.gz",
+      "archive_sha256": "dd5f443e660a3fda62c1a932daed3d350688d67ee7f4b7c6a874166722f41f54"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-resolved-path.txt",
+      "sha256": "e634cc2b2af399acb6f8dfc03fd4671062de2a3901511ac5c85c3e3a230dadea",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-resolved-path.txt.gz",
+      "archive_sha256": "e467e4d54c56b378e6a976e7a2d638bdc4ff85c7b20112d6ef9571de846f76c6"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-stat-after.txt",
+      "sha256": "a4e643f5e368f684187c027711066872507314c814e926d692682c978ffb554d",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-stat-after.txt.gz",
+      "archive_sha256": "b7e71b3da3282df7a7ff09010eb890e2d27e6f2642ecbc6ffef2c9d9a89b135a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312-artifacts/seccomp-stat-before.txt",
+      "sha256": "1a9a78f015cb961e1ca8015f9d541ff1059bf339341f9f95793bf17fee34ae46",
+      "archive": "final-ci-9867-linux312-artifacts-seccomp-stat-before.txt.gz",
+      "archive_sha256": "1c00547ac5574316d38d5aa551bcc32b7c07a898ab05ac5cf94c801c9955c001"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-linux312.log",
+      "sha256": "fd3ccd4a56c0490a631d79e9bd1a1fefc93d2a36b7da34b69dd422956827cecf",
+      "archive": "final-ci-9867-linux312.log.gz",
+      "archive_sha256": "b876fdde5db8e3c80f06ce58954b9bd00ca8d52064fbe846c3d0bdf09bae3060"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-checks-current.json",
+      "sha256": "d8e1d72447a79cb8ca4c5197a3dc39e280f21a4c961fb9a94508e9bd96bf1107",
+      "archive": "final-ci-9867-other-checks-current.json.gz",
+      "archive_sha256": "db17145390a0fd187d8b652a06bd78949f4b632042e21842abc2484947e25318"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-checks-history.jsonl",
+      "sha256": "4f3c78943348a5ccd012218971bba9d033a1a2ac9325bdbeb77e504caef8dcf1",
+      "archive": "final-ci-9867-other-checks-history.jsonl.gz",
+      "archive_sha256": "781520493782ab496f2eaea5db1dae6263edd3040c0e6c458224d188883a4c1c"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-gui-artifact-manifest.json",
+      "sha256": "1f7ac57fef11737a2de689e6bcf61c9febba266130fca166db1bd71a303e1795",
+      "archive": "final-ci-9867-other-gui-artifact-manifest.json.gz",
+      "archive_sha256": "93f45100c6b33389d2b27e27ef9f3b8d0ab0d4e8753b5f4ded95764f4471c489"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-gui-artifacts/cockpit-evidence.json",
+      "sha256": "6a528b6c06acd88237c7492f45cd81430a54407a7338c73b910e3e7e727f06df",
+      "archive": "final-ci-9867-other-gui-artifacts-cockpit-evidence.json.gz",
+      "archive_sha256": "58310e8e523af83cad4705c3d22ec4a46bfeda3daca7c9e74c5a837d3095f37e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-gui-job-101987630819.log",
+      "sha256": "36d7bf68330732498808accd876344942af28a3171d5e483c311c7979751a9ac",
+      "archive": "final-ci-9867-other-gui-job-101987630819.log.gz",
+      "archive_sha256": "ab4ee8d4227f4f9678e1efeddb3caef152c1a307b3d48e21cc4a287b96d910e4"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-job-101987630219-current.json",
+      "sha256": "793c01fd8d251dc83cbfa59fde51f92a0010322dcac1a711c0879d8fdb402609",
+      "archive": "final-ci-9867-other-job-101987630219-current.json.gz",
+      "archive_sha256": "fd407dfb81d1376998fdc1c4cc82d62a728a910c3b78762db7e6a5a257cbd0af"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-job-101987630819-current.json",
+      "sha256": "bcf4114ed8bed3d4dbf81c1a595bb718bfeb1e5c0873f135becb6a112fa70bb4",
+      "archive": "final-ci-9867-other-job-101987630819-current.json.gz",
+      "archive_sha256": "4b0524bbe3882b8b81c63ad534e3f7a78b988975d85f537750bd5b9a82c20b2a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535097-artifacts.json",
+      "sha256": "48f3f8e2db6024648ae57ea6301f1ede11b5ee11792f9391b971426f9a2f5c0d",
+      "archive": "final-ci-9867-other-run-34203535097-artifacts.json.gz",
+      "archive_sha256": "6de13694cfe6f9f5071caf05d047539ba2941499a95d45fab8b0aef3a0ee367b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535097-jobs.json",
+      "sha256": "3c20fc5f0eab18ea3a9252db548046b4588f6437f6df7b039ca080d2abb2ecb7",
+      "archive": "final-ci-9867-other-run-34203535097-jobs.json.gz",
+      "archive_sha256": "e85dee5cf7bc4a2d02886323308825935bdde5c522106c449cc492a76e3bad6d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535097-run.json",
+      "sha256": "dfcdc5edd5855f0d4b3964234cb0c9c3421665bb4c642b9240426fc5934e8ac9",
+      "archive": "final-ci-9867-other-run-34203535097-run.json.gz",
+      "archive_sha256": "b7fd233827509ebc4a6c325a44c07a7dcc1168e33e6e14ee62a84787f42acd9e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535121-artifacts.json",
+      "sha256": "34f7d58ef0446a60eabe45ee73def73fd5ab2b19e02fa35c034178d51de19d6c",
+      "archive": "final-ci-9867-other-run-34203535121-artifacts.json.gz",
+      "archive_sha256": "2074050beb55b283e575825ccdfd2828ee45b83bc7cac4827d756fda1c0a67fb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535121-jobs.json",
+      "sha256": "fd35d63e469c95de4ecfa5e6098b8196180da60a1aecd0fb9fbac0d803ecf09d",
+      "archive": "final-ci-9867-other-run-34203535121-jobs.json.gz",
+      "archive_sha256": "6e0ae90fc769dbcbb5eab551725a7bd24495a66a612f40aea8f1ba85c1cce8e4"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535121-run.json",
+      "sha256": "f51082539e92c046f47e9da7da4936384279a6017286a02bc356eb6bb7710e2f",
+      "archive": "final-ci-9867-other-run-34203535121-run.json.gz",
+      "archive_sha256": "f2f6ef87bff7be33bdd9ec52d0b147dae26fbf83472dad3f3d3fb2e9466bcdcd"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535145-artifacts.json",
+      "sha256": "48f3f8e2db6024648ae57ea6301f1ede11b5ee11792f9391b971426f9a2f5c0d",
+      "archive": "final-ci-9867-other-run-34203535145-artifacts.json.gz",
+      "archive_sha256": "6de13694cfe6f9f5071caf05d047539ba2941499a95d45fab8b0aef3a0ee367b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535145-jobs.json",
+      "sha256": "1c652aa08342e7d0b79d0548a9fd2a690c772412e57b90e91763ab9c7d9ee705",
+      "archive": "final-ci-9867-other-run-34203535145-jobs.json.gz",
+      "archive_sha256": "bcd9abedb009b12a9212e1c1331c592dd09d1cecb327aefc1edb730997603016"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535145-run.json",
+      "sha256": "1e70360bbeef27e3ee26c651aa74304bef4da7fef0cc5579b7d143081ff2cc1d",
+      "archive": "final-ci-9867-other-run-34203535145-run.json.gz",
+      "archive_sha256": "5d6330c28e648f4c2111376208f677eabc3ae4930e2954c1a51307b48ca94723"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535167-artifacts.json",
+      "sha256": "996dcbf1267ed45c8303f56bcd67e32a271a0bd009e10bb6e385f8fd7530beb7",
+      "archive": "final-ci-9867-other-run-34203535167-artifacts.json.gz",
+      "archive_sha256": "f0f40a5ba4a0bb154f741dfcb49e701997ecf9cd4136dab35740fdc95f4fee31"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535167-jobs.json",
+      "sha256": "3262d453b6b88da83d3c1e8d00c23896d30445b79b98a53b6721cd25013a5026",
+      "archive": "final-ci-9867-other-run-34203535167-jobs.json.gz",
+      "archive_sha256": "7ee719796ddb7c24431039ec9e885a329b8e84b1a70314afdbfcc5417b7d177a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535167-run.json",
+      "sha256": "414f330ede114aadc24dd4d44df2fcd91d9fa5d2e5d561c97cadffccbf02c06c",
+      "archive": "final-ci-9867-other-run-34203535167-run.json.gz",
+      "archive_sha256": "6af3dc1f1d62f3766cc45646ff59f38bd3dc11c9470c1aeac360dfbf321c6f87"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535272-artifacts.json",
+      "sha256": "a984b1a72539ad9423e78837db3353d9b044c4c832addaa84cfe122f7ce8d6d8",
+      "archive": "final-ci-9867-other-run-34203535272-artifacts.json.gz",
+      "archive_sha256": "3e61f724d67e0e73bbed227849414c3bceadd0765e3fe7b0136bee7d62b3a202"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535272-jobs.json",
+      "sha256": "78f4c14aa996144a5f16bc957664d9a3e3eebef838e9ae1ebc0a1e3c1ab44138",
+      "archive": "final-ci-9867-other-run-34203535272-jobs.json.gz",
+      "archive_sha256": "71e359faaf148ea240d27881fe05ba3f0a0982fd9eb5912ec23b5763fb6cba8d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-run-34203535272-run.json",
+      "sha256": "4e1ee57f958052043d8359858b6be66c908efab91eb404cb0be75c1a06992ded",
+      "archive": "final-ci-9867-other-run-34203535272-run.json.gz",
+      "archive_sha256": "ff244ecb026cc1f69784088390da945087f4627e14e7357c83d11c0f6e024306"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-runtime-artifacts-current.json",
+      "sha256": "a984b1a72539ad9423e78837db3353d9b044c4c832addaa84cfe122f7ce8d6d8",
+      "archive": "final-ci-9867-other-runtime-artifacts-current.json.gz",
+      "archive_sha256": "3e61f724d67e0e73bbed227849414c3bceadd0765e3fe7b0136bee7d62b3a202"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-summary.json",
+      "sha256": "8f6284ba032af95a504ba906fbdbc923de2b6f68eebf5eb9bf5e45823c7b9d30",
+      "archive": "final-ci-9867-other-summary.json.gz",
+      "archive_sha256": "1f135807c2463b3b8755bc9e72eed5289aaad54627f165cf90ac9bb23ecd8a0b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-tauri-job-101987630219.log",
+      "sha256": "e83d7037ee3923d0f126d908b205fd29c46b835db7c93a53d64e88d64cc74811",
+      "archive": "final-ci-9867-other-tauri-job-101987630219.log.gz",
+      "archive_sha256": "71d72e066df549d583cf945f132ae50aeecde463d07e6a92ae506e277c8e101d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows310-artifact-manifest.json",
+      "sha256": "627cbe4be8d6920f493f35c069c168cf5b31abf58ebf0f04592ac9873acda932",
+      "archive": "final-ci-9867-other-windows310-artifact-manifest.json.gz",
+      "archive_sha256": "41355b50425c10ae778954299a999f98c0d966a442362966b99e6f004f90bc91"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows310-artifacts/focused.xml",
+      "sha256": "5fc2d8c47f19504fd84de6328ae6256ee61752ac25fd6878f23c9d97524f64bf",
+      "archive": "final-ci-9867-other-windows310-artifacts-focused.xml.gz",
+      "archive_sha256": "f205aab120279d9b28da36e8b4c07723db66c8001181388b30cc65149fa5aabb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows312-artifact-manifest.json",
+      "sha256": "b48f27f036335b114aeeb3d607702d4fb205f8d904462a10d51eae672b2f8a89",
+      "archive": "final-ci-9867-other-windows312-artifact-manifest.json.gz",
+      "archive_sha256": "87809020e02df9e72819133a9f8019d059a6e4dbc14f2748ecd81753e91accae"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/final-ci-9867-other-windows312-artifacts/focused.xml",
+      "sha256": "c625370f048930a17b11e502ea8091bbf3226c09840414b4269fdf6a2933503d",
+      "archive": "final-ci-9867-other-windows312-artifacts-focused.xml.gz",
+      "archive_sha256": "a513031126b31cb51186e764a1a25ef7858d376fa0621515ff0bfd83de67a974"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/main-merge-admission.json",
+      "sha256": "998b8d4ea740bf1962e9ea77b919ad4fa4f49de6894c1355a1dcb764055c95b0",
+      "archive": "main-merge-admission.json.gz",
+      "archive_sha256": "bb1292ebdbb98ceef23b98fee5e4a3c0ffe28fc3ffa2fc890f1fbeee22e161c7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/main-merge-result.json",
+      "sha256": "dc2c2e6c0b094a0826f15385aed1bf6f150104bc63578e202e0f47c7e32013d9",
+      "archive": "main-merge-result.json.gz",
+      "archive_sha256": "d3e690ded0bcdf89322c2a36c4b79675079d1d738415630763e974dd9569ee2a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-integrate-20260908/runs/integration-20260908/main-fast-forward-result.json",
+      "sha256": "a56a675c487c09ed88b958441132510039774d64614cdc19570f70e24778b06c",
+      "archive": "main-fast-forward-result.json.gz",
+      "archive_sha256": "e622dc9b90a93ba1081441aaaf3dbb083715d92e7cb975ebc9f0afd3028d6366"
+    }
+  ],
+  "gate_transition": false,
+  "ci_first_head_checks": {
+    "head": "b605586b2778659a119b25fa7d05938a986356e3",
+    "success": 10,
+    "failure": 12,
+    "skipped": 4,
+    "pending": 0,
+    "note": "First source revision remains failed. Fourfold contracts, wheel imports, collection, Hermes Windows/upstream provenance and Linux Tauri PR validation passed."
+  },
+  "corrected_focused_checks": {
+    "claude_broker_linux_red": {
+      "failed": 19,
+      "passed": 24
+    },
+    "claude_broker_linux_final": {
+      "passed": 109
+    },
+    "claude_broker_windows_final": {
+      "passed": 109
+    },
+    "bridge_wires_red": {
+      "failed": 3
+    },
+    "bridge_wires_final_with_stop_dispatch": {
+      "passed": 99
+    },
+    "registry_llm_http_literals_final": {
+      "passed": 47
+    },
+    "envelope_without_local_helper": {
+      "passed": 8,
+      "helper_sha256": "4e581bebd24dc2ae6452ef19836240213042c5141cb46234c7d579580ba3c768",
+      "helper_preserved_at": "C:/Users/Administrator/AppData/Local/Temp/daedalus-integration-20260908-helpers/measure-import-scc.py"
+    }
+  },
+  "genesis_wal_review": {
+    "red_http": {
+      "failed": 2
+    },
+    "broad_frozen": {
+      "passed": 275,
+      "skipped": 4
+    },
+    "independent_final": {
+      "passed": 19,
+      "deselected": 52
+    },
+    "result": "No remaining blocking finding under clarified transient SHM read coordination contract",
+    "limits": [
+      "Concurrent writer append may temporarily refuse header admission",
+      "Last-writer cleanup race may create sidecars; no lifetime lease or unconditional no-creation guarantee",
+      "Bounded headers and extents do not prove every frame or index entry"
+    ],
+    "plan_change": false,
+    "builder_final_targeted": {
+      "passed": 90,
+      "seconds": 38.53
+    }
+  },
+  "s02_remeasurement": {
+    "corpus_sha256": "924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df",
+    "files": 485,
+    "functions": 6765,
+    "complete_runs": 2,
+    "non_timing_fields_identical": true,
+    "tests_passed": 8,
+    "prior_retractions_retained": true,
+    "gate_claim": false
+  },
+  "ci_second_head_findings": {
+    "head": "0e8b2325311876298ac73a6be2123c2880720d5b",
+    "linux_http_genesis": "Both Linux matrices reach four real-build cases without configured canonical rootless OCI runtime/image, so containment refuses before delivery; WAL reader tests pass. Per Python3.12 job:596passed,4failed,4skipped,6passing subtests.",
+    "correction": "Provision canonical rootless Podman with the already pinned Debian image; require one real unskipped confinement test before HTTP Genesis builds. Host Python and guest image interpreter are distinct.",
+    "linux_canvas": "Relevant scene source, assets, dependency lock and test bytes are identical to frozen main. No cause established without DOM/trace; failure remains retained and is not labelled flaky or fixed."
+  },
+  "second_full_run": {
+    "start_head": "0e8b2325311876298ac73a6be2123c2880720d5b",
+    "passed": 13420,
+    "failed": 3,
+    "skipped": 419,
+    "xfailed": 23,
+    "passing_subtests": 2237,
+    "seconds": 575.67,
+    "changed_source_files": [],
+    "remaining_failures": [
+      "An untracked local SCC measurement helper is detected as a record producer; preserved outside the repository and coverage rechecked without weakening the inventory",
+      "Attempt reader has mixed checkout line endings after patching",
+      "Mutation transport target pin still names the pre-WAL reader blob; mutation semantics and budgets stay frozen"
+    ]
+  },
+  "final_windows_gui": {
+    "source_head": "0e8b2325311876298ac73a6be2123c2880720d5b",
+    "ending_head": "f12c1bd9f1eb66fb16edf374a0bb6dffe3624287",
+    "passed": 257,
+    "failed": 0,
+    "skipped": 0,
+    "server_entry": "daedalus web",
+    "source_subtrees_identical": true,
+    "cleanup_pass": true,
+    "archive_reports": 2,
+    "local_artifact_files": 247,
+    "linux_canvas_result": "separate earlier unresolved negative"
+  },
+  "verified_full_run": {
+    "head": "a0e5dd701bd625ff8daabfa8d1d410953ef43007",
+    "passed": 13423,
+    "failed": 0,
+    "skipped": 419,
+    "xfailed": 23,
+    "passing_subtests": 2237,
+    "seconds": 489.36,
+    "changed_source_files": [],
+    "command": "repository venv -m pytest -q -n 8 --dist loadfile --junitxml=runs/integration-20260908/integrated-verified.xml",
+    "classification": "complete local Python suite; skips and expected failures are not passes"
+  },
+  "event_time_mutations": {
+    "baseline_green": true,
+    "caught": 3,
+    "survived": 0,
+    "inconclusive": 0,
+    "not_applicable": 0,
+    "timeouts": 0,
+    "mutation_semantic_sha256": "9f45fb294da71fd707f08de8b559a9c64f75908e08b584d6cddef4cfa2d93211",
+    "target_git_blob": "0c9949bcc2ea849d0cd4cb3c03d035066c57d76c",
+    "source_preserved": true,
+    "transport_focused_passed": 23
+  },
+  "ci_seccomp_correction": {
+    "failed_head": "f12c1bd9f1eb66fb16edf374a0bb6dffe3624287",
+    "failure": "Preinstalled packaged seccomp profile fails canonical ownership/mode/link admission before candidate launch; failed CI did not print which stat field.",
+    "runner_image_source": "https://github.com/actions/runner-images/blob/c9a325cf656f41546b8da92a0ccbd03e260cd42a/images/ubuntu/scripts/build/configure-system.sh#L12-L15",
+    "source_mechanism": "Exact runner image applies recursive chmod777 to /usr/share after package installation.",
+    "remediation": "Authenticated Apt reinstalls the exact installed owning package, before/after policy hashes must match, stat/package/override evidence retained, kernel refusal unchanged.",
+    "scope": "runtime matrix and existing Tauri release OCI setup; Tauri setup and pinned image now precede real Genesis tests",
+    "release_limitation": "Tauri Linux whole GUI still includes a Windows-only live case. Existing strict skip refusal remains; no release acceptance or publication claimed."
+  },
+  "ci_podman_representation_negative": {
+    "diagnostic_head": "eb7834d52949ad10b2bb8c51fccd2a81c48aab20",
+    "linux_lanes": [
+      "Python 3.10",
+      "Python 3.12"
+    ],
+    "runtime": "rootless Podman 4.9.3",
+    "capability_fields": {
+      "EffectiveCaps": "present JSON null",
+      "BoundingCaps": "present JSON null"
+    },
+    "network_settings": "Networks contains exactly one none marker with NetworkID none and empty addresses, gateways and MAC; HostConfig.NetworkMode is none",
+    "observed_refusal": "Original capability admission refuses before start in both lanes; one live test, one failure, no skips per lane",
+    "container_started": false,
+    "seccomp_restore_measured": "Authenticated exact-version package reinstall restores mode0644 from mode0777 with unchanged profile bytes",
+    "correction_packet": "G1-RUNTIME-04",
+    "correction_acceptance": "pending real live container result",
+    "preceding_head_result": "7d23:18 successful jobs,2 Linux capability failures,2 cancelled jobs,4 conditional skips; cancellations are not passes"
+  },
+  "podman_representation_correction": {
+    "packet": "G1-RUNTIME-04",
+    "base": "eb7834d52949ad10b2bb8c51fccd2a81c48aab20",
+    "production_sha256": "7f52a56da9d01731e4de141a2f51fcdfc9ba80e524cd41c1f972a2e3b1371871",
+    "test_sha256": "a14cb86327a5223deeefec6c9fccc227dd8ed978978f29c4f86ce67b09dd9eac",
+    "red": {
+      "failed": 10,
+      "passed": 58,
+      "deselected": 45
+    },
+    "reviewed_containment": {
+      "passed": 112,
+      "skipped": 1
+    },
+    "independent": {
+      "passed": 68,
+      "deselected": 45,
+      "blocking_findings": 0
+    },
+    "broad_windows": {
+      "passed": 244
+    },
+    "closure_corpus_metadata": {
+      "passed": 82,
+      "failed": 1,
+      "failure": "new primary packet omitted from explicit moving ID census; corrected without changing metadata completeness rules"
+    },
+    "corrected_registry": {
+      "passed": 24
+    },
+    "actual_inspect_replay": "Both Linux raw captures pass every inspector field; two workspace paths rebound and local hooks owner checked; parser-only, no candidate start",
+    "live_linux": "pending actual procfs masks, no-new-privileges, filesystem/network effects and HTTP Genesis acceptance",
+    "new_network_refusals": "Missing/null/nonmapping Networks metadata now refuses rather than treating unknown as empty"
+  },
+  "s02_podman_remeasurement": {
+    "corpus_sha256": "b88367227824e604fb252435f759c64abc391b5f2c8a114b2bd45607c749fdbe",
+    "complete_runs": 2,
+    "non_timing_fields_identical": true,
+    "counts_and_rates_unchanged": true,
+    "prior_retractions_retained": true,
+    "gate_claim": false
+  },
+  "diagnostic_head_ci_final": {
+    "head": "eb7834d52949ad10b2bb8c51fccd2a81c48aab20",
+    "successful_jobs": 20,
+    "failed_jobs": 2,
+    "cancelled_jobs": 0,
+    "conditional_skipped_jobs": 4,
+    "known_failures": "both Linux actual container inspection capability representation refusals before start",
+    "windows_gui": {
+      "passed": 257,
+      "failed": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests_passed": 549,
+      "build": "passed"
+    },
+    "tauri_linux_pr": "passed with Debian and AppImage artifacts",
+    "windows_runtime_each": {
+      "passed": 602,
+      "failed": 0,
+      "skipped": 8
+    },
+    "limit": "Diagnostic head does not contain the subsequent Podman representation correction; current-source actual Linux acceptance remains pending"
+  },
+  "podman_full_run": {
+    "head": "5d6c82ad09b7362e57541c112038465d8158b49b",
+    "passed": 13491,
+    "failed": 0,
+    "skipped": 419,
+    "xfailed": 23,
+    "passing_subtests": 2237,
+    "warnings": 21,
+    "seconds": 496.1,
+    "changed_source_files": [],
+    "command": "repository venv -m pytest -q -n 8 --dist loadfile --junitxml=runs/integration-20260908/integrated-podman-final.xml",
+    "classification": "complete local Python suite; actual Linux containment remains a separate CI requirement"
+  },
+  "final_outcome": {
+    "recorded_at": "2026-09-08T08:46:33.992637+00:00",
+    "classification": "ALIGNED evidence-only final integration handoff; no Gate transition or release acceptance",
+    "status": "final_github_acceptance_passed_and_main_integration_complete",
+    "historical_fields": "All preceding fields, including pending statuses and negative findings, retain their original historical values. This final outcome records the later accepted head and main merge without rewriting those observations.",
+    "accepted_head": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+    "github_acceptance": {
+      "successful_jobs": 22,
+      "failed_jobs": 0,
+      "cancelled_jobs": 0,
+      "conditional_skipped_jobs": 4,
+      "pending_jobs": 0,
+      "expected_skips": [
+        {
+          "name": "matrix.label",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535167/job/101987632034"
+        },
+        {
+          "name": "Release acceptance (full product and Linux OCI)",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535167/job/101987631602"
+        },
+        {
+          "name": "Complete suite (manual only)",
+          "workflow": "Fourfold, Tensor and integration contracts",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535121/job/101987631419"
+        },
+        {
+          "name": "Publish trusted-main prerelease",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535167/job/101987632298"
+        }
+      ],
+      "runs": [
+        {
+          "id": 34203535097,
+          "name": "Gate 1 Ignition Slice",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535097",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535121,
+          "name": "Fourfold, Tensor and integration contracts",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535121",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535145,
+          "name": "G1 Ikarus Hermes Runtime Admission",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535145",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535167,
+          "name": "Tauri Desktop",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535167",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        },
+        {
+          "id": 34203535272,
+          "name": "Gate 1 Ikarus Unified Runtime Admission",
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34203535272",
+          "head_sha": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+          "run_attempt": 1,
+          "conclusion": "success"
+        }
+      ],
+      "windows_gui": {
+        "job_id": 101987630819,
+        "completed_at": "2026-09-08T08:37:19Z",
+        "passed": 257,
+        "failed": 0,
+        "skipped": 0,
+        "artifact_id": 10047554827,
+        "server_entry": "daedalus web (the documented entry point)",
+        "receipt_archive": "final-ci-9867-other-gui-artifacts-cockpit-evidence.json.gz",
+        "receipt_sha256": "6a528b6c06acd88237c7492f45cd81430a54407a7338c73b910e3e7e727f06df",
+        "limit": "This CI artifact retains the aggregate receipt, not individual Playwright reports or screenshots; the full GUI job log is archived separately."
+      },
+      "windows_runtime_each": {
+        "python_versions": [
+          "3.10",
+          "3.12"
+        ],
+        "passed": 602,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 8,
+        "junit_tests": 610
+      },
+      "linux_runtime": {
+        "run_id": 34203535272,
+        "source_commit": "5d6c82ad09b7362e57541c112038465d8158b49b",
+        "lanes": [
+          {
+            "python": "3.10",
+            "job_id": 101987630907,
+            "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535272/job/101987630907",
+            "completed_at": "2026-09-08T08:17:44Z",
+            "passed": 600,
+            "failed": 0,
+            "errors": 0,
+            "skipped": 4,
+            "passing_subtests": 6,
+            "focused_actual_testcase_elements": 604,
+            "focused_junit_suite_attributes": {
+              "tests": 610,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 4
+            },
+            "http_genesis": {
+              "tests": 54,
+              "passed": 54,
+              "failed": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            "live_oci": {
+              "test": "test_live_linux_container_writes_workspace_but_not_root_and_has_no_network",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0,
+              "proc_self_status": {
+                "CapEff": "0000000000000000",
+                "CapBnd": "0000000000000000",
+                "NoNewPrivs": "1"
+              }
+            },
+            "podman_version": "4.9.3",
+            "rootless": true,
+            "artifact_id": 10046848225
+          },
+          {
+            "python": "3.12",
+            "job_id": 101987630916,
+            "job_url": "https://github.com/KTY137/daedalus/actions/runs/34203535272/job/101987630916",
+            "completed_at": "2026-09-08T08:18:01Z",
+            "passed": 600,
+            "failed": 0,
+            "errors": 0,
+            "skipped": 4,
+            "passing_subtests": 6,
+            "focused_actual_testcase_elements": 604,
+            "focused_junit_suite_attributes": {
+              "tests": 610,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 4
+            },
+            "http_genesis": {
+              "tests": 54,
+              "passed": 54,
+              "failed": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            "live_oci": {
+              "test": "test_live_linux_container_writes_workspace_but_not_root_and_has_no_network",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0,
+              "proc_self_status": {
+                "CapEff": "0000000000000000",
+                "CapBnd": "0000000000000000",
+                "NoNewPrivs": "1"
+              }
+            },
+            "podman_version": "4.9.3",
+            "rootless": true,
+            "artifact_id": 10046857464
+          }
+        ],
+        "count_clarification": "The pytest logs report 600 passed, 4 skipped and 6 passing subtests per lane. JUnit tests=610 includes those subtests; its 604 actual testcase elements do not represent 606 ordinary passes. The earlier before-count-clarification record remains archived as superseded count interpretation.",
+        "live_evidence_scope": "One unskipped real OCI confinement test per lane measures zero CapEff/CapBnd, NoNewPrivs=1, allowed workspace writes, refused root writes and unavailable networking. All 54 HTTP Genesis cases pass in each lane. The created-container inspect artifact is pre-start configuration evidence; live procfs and effects are checked by the passing live test and its retained output."
+      },
+      "tauri_linux_pr": {
+        "job_id": 101987630219,
+        "conclusion": "success",
+        "completed_at": "2026-09-08T08:24:57Z",
+        "artifacts": [
+          {
+            "id": 10047106157,
+            "name": "daedalus-desktop-pr-linux-amd64-appimage",
+            "digest": "sha256:ea6eba2d88a39498eb84eb1e2728d9277c95f0c1b17753ad9685405382688d71",
+            "size_in_bytes": 195410596
+          },
+          {
+            "id": 10047104260,
+            "name": "daedalus-desktop-pr-linux-amd64-deb",
+            "digest": "sha256:0bb2fa84eac07e662fc391e58bc4fb7896021558294a2ec5f7d7d9fb99703408",
+            "size_in_bytes": 127664362
+          }
+        ],
+        "local_retention": "Artifact IDs, archive digests and full PR job log are retained. The Debian and AppImage binaries were not downloaded into this evidence directory."
+      },
+      "release_limit": "The manual full-suite and release/publication jobs were conditionally skipped for this pull request. They are not reported as passes or as release acceptance."
+    },
+    "main_integration": {
+      "pull_request": "https://github.com/KTY137/daedalus/pull/318",
+      "base": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+      "merge_commit": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+      "merged_at": "2026-09-08T08:39:34Z",
+      "state": "MERGED",
+      "accepted_source_tree": "175e88e261acec5dca558a315da776141c33b308",
+      "merge_tree": "175e88e261acec5dca558a315da776141c33b308",
+      "merge_tree_identical_to_accepted_source": true,
+      "authorization": "repository owner requested integrating reviewed GitHub branch work into main in this session",
+      "fast_forward_and_wip_proof": {
+        "merge": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+        "source_head": "9867c7020e7cabbcc1c6c9f83b2051b153720d62",
+        "merge_tree_identical_to_accepted_source": true,
+        "main_user_status_preserved": "M vault/Sessions/2026-09-06.md",
+        "user_file_sha256": "8c39bf52aa056e507a0d0b16e7e2f12993d717d5fd48744d748fed1ff9236668",
+        "future_branch": "packet/g1-ignition-03-early-root-admission-20260908",
+        "future_base": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+        "untracked_packet_sha256_preserved": "c88a9f29ddedae058928aed4f749c28aadcb944fb82ad634cdf50af7405c2eb1"
+      },
+      "proof_archives": [
+        "main-merge-admission.json.gz",
+        "main-merge-result.json.gz",
+        "main-fast-forward-result.json.gz"
+      ]
+    },
+    "retention_verification": {
+      "existing_archives_verified": 154,
+      "new_archives": 61,
+      "total_archives": 215,
+      "original_and_archive_sha256_verified": true,
+      "new_gzip_mtime": 0,
+      "new_gzip_compresslevel": 9,
+      "new_gzip_repeat_bytes_identical": true,
+      "new_archive_files": [
+        "final-ci-9867-linux-evidence-before-count-clarification.json.gz",
+        "final-ci-9867-linux-evidence.json.gz",
+        "final-ci-9867-linux-status.json.gz",
+        "final-ci-9867-linux310-artifacts-candidate-container-inspect.json.gz",
+        "final-ci-9867-linux310-artifacts-dpkg-statoverrides.txt.gz",
+        "final-ci-9867-linux310-artifacts-focused.xml.gz",
+        "final-ci-9867-linux310-artifacts-linux-oci.xml.gz",
+        "final-ci-9867-linux310-artifacts-podman-image.json.gz",
+        "final-ci-9867-linux310-artifacts-podman-info.json.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-before.sha256.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-package-owner.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-package-version.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-resolved-path.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-stat-after.txt.gz",
+        "final-ci-9867-linux310-artifacts-seccomp-stat-before.txt.gz",
+        "final-ci-9867-linux310.log.gz",
+        "final-ci-9867-linux312-artifacts-candidate-container-inspect.json.gz",
+        "final-ci-9867-linux312-artifacts-dpkg-statoverrides.txt.gz",
+        "final-ci-9867-linux312-artifacts-focused.xml.gz",
+        "final-ci-9867-linux312-artifacts-linux-oci.xml.gz",
+        "final-ci-9867-linux312-artifacts-podman-image.json.gz",
+        "final-ci-9867-linux312-artifacts-podman-info.json.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-before.sha256.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-package-owner.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-package-version.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-resolved-path.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-stat-after.txt.gz",
+        "final-ci-9867-linux312-artifacts-seccomp-stat-before.txt.gz",
+        "final-ci-9867-linux312.log.gz",
+        "final-ci-9867-other-checks-current.json.gz",
+        "final-ci-9867-other-checks-history.jsonl.gz",
+        "final-ci-9867-other-gui-artifact-manifest.json.gz",
+        "final-ci-9867-other-gui-artifacts-cockpit-evidence.json.gz",
+        "final-ci-9867-other-gui-job-101987630819.log.gz",
+        "final-ci-9867-other-job-101987630219-current.json.gz",
+        "final-ci-9867-other-job-101987630819-current.json.gz",
+        "final-ci-9867-other-run-34203535097-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535097-jobs.json.gz",
+        "final-ci-9867-other-run-34203535097-run.json.gz",
+        "final-ci-9867-other-run-34203535121-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535121-jobs.json.gz",
+        "final-ci-9867-other-run-34203535121-run.json.gz",
+        "final-ci-9867-other-run-34203535145-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535145-jobs.json.gz",
+        "final-ci-9867-other-run-34203535145-run.json.gz",
+        "final-ci-9867-other-run-34203535167-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535167-jobs.json.gz",
+        "final-ci-9867-other-run-34203535167-run.json.gz",
+        "final-ci-9867-other-run-34203535272-artifacts.json.gz",
+        "final-ci-9867-other-run-34203535272-jobs.json.gz",
+        "final-ci-9867-other-run-34203535272-run.json.gz",
+        "final-ci-9867-other-runtime-artifacts-current.json.gz",
+        "final-ci-9867-other-summary.json.gz",
+        "final-ci-9867-other-tauri-job-101987630219.log.gz",
+        "final-ci-9867-other-windows310-artifact-manifest.json.gz",
+        "final-ci-9867-other-windows310-artifacts-focused.xml.gz",
+        "final-ci-9867-other-windows312-artifact-manifest.json.gz",
+        "final-ci-9867-other-windows312-artifacts-focused.xml.gz",
+        "main-merge-admission.json.gz",
+        "main-merge-result.json.gz",
+        "main-fast-forward-result.json.gz"
+      ],
+      "source_file_list": "The 61 appended artifacts entries bind every new archive to its exact original path and SHA256."
+    },
+    "gate_transition": false
+  }
+}

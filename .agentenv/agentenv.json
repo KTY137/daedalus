@@ -28,7 +28,7 @@
     "_comment_high_risk": "Belt to write_allow's braces, and it does real work even though write_allow already denies these: it forces change_risk -> 'high', which routes the task AWAY from the free local lane before any write is attempted. If somebody widens write_allow later -- and somebody will -- these must still be refused, so that widening has to delete a line that names what it is protecting.",
     "high_risk_paths": [
       "daedalus/sensitivity.py",
-      "daedalus/enforce.py",
+      "daedalus/interfaces/cli/enforce.py",
       "daedalus/budget.py",
       "daedalus/config.py",
       "daedalus/kairos/gated_writes.py",

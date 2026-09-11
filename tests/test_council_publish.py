@@ -24,10 +24,12 @@ from daedalus.council.publish import (
     STATUS_RATE_LIMITED,
     STATUS_READ_OK,
     STATUS_REFUSED_SECRET,
+    STATUS_UNSAFE_ARGUMENT,
     PublishResult,
     RunResult,
     ThreadResult,
     publish_to_pr,
+    gh_reference_refusal,
     read_pr_thread,
     render_markdown,
 )
@@ -293,9 +295,13 @@ def test_clean_transcript_is_published_and_the_body_travels_on_stdin():
     assert res.status == STATUS_PUBLISHED
     assert len(runner.calls) == 1
     argv, stdin_text = runner.calls[0]
-    assert argv[:4] == ["gh", "pr", "comment", "7"]
+    # the PR reference is a POSITIONAL behind `--`, so gh cannot read it as a
+    # flag no matter what the caller passed (packet G1-SEC-01, F-W1-02)
+    assert argv[:3] == ["gh", "pr", "comment"]
     assert "--body-file" in argv and "-" in argv
-    assert argv[-2:] == ["--repo", "KTY137/daedalus"]
+    assert argv[-2:] == ["--", "7"]
+    assert "--repo" in argv and argv[argv.index("--repo") + 1] == "KTY137/daedalus"
+    assert argv.index("--repo") < argv.index("--")
     assert stdin_text is not None and "ADVISORY ONLY" in stdin_text
     assert res.comment_url.startswith("https://github.com/")
 
@@ -370,13 +376,91 @@ def test_status_vocabulary_is_closed():
     assert PUBLISH_STATUSES == {
         STATUS_PUBLISHED, STATUS_DRY_RUN, STATUS_REFUSED_SECRET,
         STATUS_GH_MISSING, STATUS_GH_UNAUTHENTICATED, STATUS_PR_NOT_FOUND,
-        STATUS_RATE_LIMITED, STATUS_GH_ERROR,
+        STATUS_RATE_LIMITED, STATUS_GH_ERROR, STATUS_UNSAFE_ARGUMENT,
     }
     assert READ_STATUSES == {
         STATUS_READ_OK, STATUS_REFUSED_SECRET, STATUS_GH_MISSING,
         STATUS_GH_UNAUTHENTICATED, STATUS_PR_NOT_FOUND, STATUS_RATE_LIMITED,
-        STATUS_BAD_PAYLOAD, STATUS_GH_ERROR,
+        STATUS_BAD_PAYLOAD, STATUS_GH_ERROR, STATUS_UNSAFE_ARGUMENT,
     }
+
+
+# --------------------------------------------------------------------------- #
+# argv gate -- packet G1-SEC-01, finding F-W1-02                               #
+# --------------------------------------------------------------------------- #
+# A gh `pr`/`repo` value used to reach argv through a bare str(). Two things are
+# proved here: the value is screened (a leading dash or a shell metacharacter is
+# a typed refusal, not a call), and the positional is emitted behind `--` so it
+# is a positional by construction rather than by charset.
+UNSAFE_REFERENCES = [
+    "--repo",                      # a flag, not a PR
+    "-x",                          # leading dash, short form
+    '7" & echo pwned & rem ',      # cmd.exe break-out via a quote
+    "7 & echo pwned",              # command separator
+    "%USERNAME%",                  # cmd.exe environment expansion
+    "7\nrm -rf /",                 # newline: a second command line entirely
+    "7 | tee /tmp/x",              # pipe
+    "7 > /tmp/x",                  # redirect
+    "$(id)",                       # POSIX substitution, if a shell ever appears
+    "`id`",
+    "7;id",
+]
+
+
+@pytest.mark.parametrize("bad", UNSAFE_REFERENCES)
+def test_unsafe_pr_reference_refuses_before_gh_is_invoked(bad):
+    runner = FakeRunner()
+    res = publish_to_pr(_verdict(), _transcript(), pr=bad, runner=runner)
+    assert res.status == STATUS_UNSAFE_ARGUMENT
+    assert runner.calls == []
+    assert bad not in res.detail          # the value is never echoed back whole
+
+    thread = read_pr_thread(pr=bad, runner=runner)
+    assert thread.status == STATUS_UNSAFE_ARGUMENT
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize("bad", UNSAFE_REFERENCES)
+def test_unsafe_repo_slug_refuses_before_gh_is_invoked(bad):
+    runner = FakeRunner()
+    res = publish_to_pr(_verdict(), _transcript(), pr="7", repo=bad, runner=runner)
+    assert res.status == STATUS_UNSAFE_ARGUMENT
+    assert runner.calls == []
+
+
+def test_the_argv_gate_also_fires_in_dry_run():
+    # a dry run is a rehearsal of the live call, so it must refuse what the
+    # live call would refuse -- otherwise a preview shows a comment that could
+    # never be posted.
+    res = publish_to_pr(_verdict(), _transcript(), pr="-x", runner=FakeRunner(),
+                        dry_run=True)
+    assert res.status == STATUS_UNSAFE_ARGUMENT
+    assert res.markdown == ""
+
+
+@pytest.mark.parametrize("good", [
+    "7", "1234", "feature/my-branch", "owner/repo",
+    "ghe.example.com/owner/repo", "https://github.com/owner/repo/pull/7",
+    "release-2.1", "user.name/repo_name",
+])
+def test_legitimate_references_are_not_refused(good):
+    assert gh_reference_refusal("PR reference", good) is None
+
+
+def test_empty_reference_is_not_an_unsafe_argument():
+    # "" means "not given"; the callers map that to pr_not_found, and conflating
+    # the two would report a missing value as a hostile one.
+    assert gh_reference_refusal("PR reference", "") is None
+    assert gh_reference_refusal("PR reference", None) is None
+    res = publish_to_pr(_verdict(), _transcript(), pr="", runner=FakeRunner())
+    assert res.status == STATUS_PR_NOT_FOUND
+
+
+def test_int_pr_numbers_still_work():
+    runner = FakeRunner()
+    res = publish_to_pr(_verdict(), _transcript(), pr=7, runner=runner)
+    assert res.status == STATUS_PUBLISHED
+    assert runner.calls[0][0][-2:] == ["--", "7"]
 
 
 # --------------------------------------------------------------------------- #
@@ -410,7 +494,8 @@ def test_read_pr_thread_parses_gh_json_into_structured_turns():
     assert second.author == "some-agent[bot]"
 
     argv, stdin_text = runner.calls[0]
-    assert argv[:4] == ["gh", "pr", "view", "7"]
+    assert argv[:3] == ["gh", "pr", "view"]
+    assert argv[-2:] == ["--", "7"]
     assert "--json" in argv and "comments" in argv
     assert stdin_text is None
 

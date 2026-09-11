@@ -1,8 +1,9 @@
 """Compile one bounded wiki application into an evidence-bound Fourfold Twin.
 
 The manifest declares a finite source set and semantic claims. Claims are not
-trusted: Python AST, CSV, JSON Schema, and Markdown evidence must reproduce each
-claim before it becomes a verified cross-plane binding.
+trusted: Python AST, bounded declared JavaScript sources, CSV, JSON Schema, and
+Markdown evidence must reproduce each claim before it becomes a verified
+cross-plane binding.
 """
 from __future__ import annotations
 
@@ -11,7 +12,12 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
-from ..schemas import ContractProvenance, _identifier, _revision
+from ..kernel.contracts.base import (
+    ContractProvenance,
+    _identifier,
+    _revision,
+    _sha256,
+)
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import KnowledgeForest
 from ._reference_claims import verify_claims
@@ -39,6 +45,7 @@ class ReferenceCompileResult:
     manifest_sha256: str
     source_bundle_sha256: str
     file_sha256s: tuple[tuple[str, str], ...]
+    source_tree_sha256: str | None = None
 
     @property
     def file_digest_map(self) -> Mapping[str, str]:
@@ -53,10 +60,16 @@ def compile_reference_project(
     manifest_name: str = "fourfold.json",
     trace_id: str | None = None,
     limits: ReferenceLimits = DEFAULT_REFERENCE_LIMITS,
+    source_tree_sha256: str | None = None,
 ) -> ReferenceCompileResult:
     if not isinstance(limits, ReferenceLimits):
         raise ValueError("limits must be a ReferenceLimits record")
     revision = _revision(source_revision, "source_revision")
+    source_tree_digest = (
+        _sha256(source_tree_sha256, "source_tree_sha256")
+        if source_tree_sha256 is not None
+        else None
+    )
     project_root = Path(root).resolve()
     manifest_rel = safe_relpath(manifest_name, "manifest_name")
     manifest_bytes = read_file(
@@ -86,8 +99,8 @@ def compile_reference_project(
         )
     if len(set(classified)) != len(classified):
         raise ReferenceCompileError("a declared file may belong to only one semantic plane")
-    if any(not p.endswith(".py") for p in code_files):
-        raise ReferenceCompileError("code_files must contain only .py files")
+    if any(not p.endswith((".py", ".js")) for p in code_files):
+        raise ReferenceCompileError("code_files must contain only .py or .js files")
     if any(not p.endswith((".csv", ".json")) for p in data_files):
         raise ReferenceCompileError("data_files must contain only .csv or .json files")
     if any(not p.endswith(".md") for p in knowledge_files):
@@ -133,6 +146,26 @@ def compile_reference_project(
         revision=revision,
     )
     inv.edges.extend(claim_edges)
+    # _markdown emits a links_to edge for every .md target it finds, whether or
+    # not that target is a declared knowledge file, and the link check accepts an
+    # undeclared target as long as it exists on disk. Such a link leaves an edge
+    # pointing at a node that was never built, and the node_plane lookup below
+    # then failed with a bare KeyError. That is a fail-closed violation:
+    # ReferenceCompileError is this module's documented failure type, so a caller
+    # guarding compilation with it was silently not protected. Refuse explicitly
+    # instead, naming the link that has to be declared or removed.
+    known_nodes = {node.id for node in inv.nodes}
+    dangling = sorted({
+        (edge.source, edge.target)
+        for edge in inv.edges
+        if edge.source not in known_nodes or edge.target not in known_nodes
+    })
+    if dangling:
+        source, target = dangling[0]
+        raise ReferenceCompileError(
+            f"declared evidence references an undeclared node: {source} -> {target}"
+            + (f" (and {len(dangling) - 1} more)" if len(dangling) > 1 else "")
+        )
     manifest_sha = canonical_sha({
         "schema": REFERENCE_SCHEMA,
         "repository_id": repository_id,
@@ -141,28 +174,49 @@ def compile_reference_project(
         "knowledge_files": list(knowledge_files),
         "claims": sorted(canonical_claims, key=canonical_sha),
     })
+    forest_provenance = {
+        "compiler": "daedalus.twin.reference_compiler",
+        "manifest_sha256": manifest_sha,
+        "source_bundle_sha256": source_bundle_sha,
+        "source_revision": revision,
+    }
+    if source_tree_digest is not None:
+        # The source tree, not this graph, is candidate identity. Keeping the
+        # CAS digest in compiled provenance makes that authority relationship
+        # mechanically checkable without changing legacy snapshot identities
+        # when no source-tree reference is supplied.
+        forest_provenance["source_tree_sha256"] = source_tree_digest
+
+    # The canonical edge digest already has to be computed to break ties in the
+    # Forest ordering. Keep that exact revision-local association only for this
+    # compile call and reuse it when materializing same-plane Fourfold relation
+    # membership instead of hashing the same edge payload a second time.
+    edge_rows = tuple(sorted(
+        ((edge, canonical_sha(edge.to_dict())) for edge in inv.edges),
+        key=lambda item: (
+            item[0].source,
+            item[0].target,
+            item[0].relation,
+            item[1],
+        ),
+    ))
     forest = KnowledgeForest(
         root=".",
         nodes=tuple(sorted(inv.nodes, key=lambda n: n.id)),
-        edges=tuple(sorted(inv.edges, key=lambda e: (e.source, e.target, e.relation, canonical_sha(e.to_dict())))),
+        edges=tuple(edge for edge, _digest in edge_rows),
         hyperedges=(),
-        provenance={
-            "compiler": "daedalus.twin.reference_compiler",
-            "manifest_sha256": manifest_sha,
-            "source_bundle_sha256": source_bundle_sha,
-            "source_revision": revision,
-        },
+        provenance=forest_provenance,
     )
     forest_digest = forest.content_sha256
     node_plane = {node: plane for plane, nodes in inv.plane_nodes.items() for node in nodes}
     relation_digests = {plane: [] for plane in FOURFOLD_PLANES}
-    for edge in forest.edges:
+    for edge, digest in edge_rows:
         source_plane, target_plane = node_plane[edge.source], node_plane[edge.target]
         if source_plane == target_plane:
-            relation_digests[source_plane].append(canonical_sha(edge.to_dict()))
+            relation_digests[source_plane].append(digest)
     plane_files = {
         "code": code_files,
-        "type": code_files,
+        "type": tuple(path for path in code_files if path.endswith(".py")),
         "data": data_files,
         "knowledge": knowledge_files,
     }
@@ -188,6 +242,7 @@ def compile_reference_project(
             *file_sha.values(),
             *(p.digest for p in planes),
             *(b.digest for b in bindings),
+            *((source_tree_digest,) if source_tree_digest is not None else ()),
         }),
         trace_id=trace_id,
     )
@@ -205,6 +260,7 @@ def compile_reference_project(
         manifest_sha256=manifest_sha,
         source_bundle_sha256=source_bundle_sha,
         file_sha256s=tuple(sorted(file_sha.items())),
+        source_tree_sha256=source_tree_digest,
     )
 
 

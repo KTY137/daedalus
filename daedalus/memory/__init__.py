@@ -59,8 +59,19 @@ class MemoryEvent:
 def append_event(event: MemoryEvent) -> dict[str, Any]:
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
     record = event.to_record()
-    with EVENTS_PATH.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    # MEASURED 2026-09-02: the previous buffered ``open("a")`` write lost 4 of
+    # 120 records under six concurrent appenders -- silently, because
+    # overwritten bytes leave no malformed line for any reader to count. This
+    # is the AUTHORITATIVE journal every projection derives from, so it appends
+    # through the locked single-write path in ``journal_io``.
+    #
+    # A lock timeout RAISES rather than degrading to the old write: OSError was
+    # always possible here (full disk, permissions), so raising is inside this
+    # function's existing contract, and losing an authoritative event without
+    # saying so is the worse outcome by a wide margin.
+    from ..journal_io import append_lines
+
+    append_lines(EVENTS_PATH, [json.dumps(record, ensure_ascii=False)])
     refresh_todo_snapshot()
 
     # Opt-in: forward to the vector store for embedding-based search.
@@ -216,10 +227,19 @@ def record_from_bridge_report(report: dict[str, Any]) -> dict[str, Any]:
     todos = inner.get("todos") or []
     if report.get("bridge_status") == "failed" and not todos:
         todos = ["Inspect failed bridge report and retry if needed."]
+    observed = report.get("actual_providers")
+    providers = [
+        str(provider).strip() for provider in observed
+        if str(provider or "").strip()
+    ] if isinstance(observed, list) else []
+    # The requested lane and historical ``agent`` label are routing metadata,
+    # not proof that Claude (or any provider) ran.  Memory provenance must use
+    # the same explicit execution evidence as the task/conversation surfaces.
+    provider_source = "+".join(dict.fromkeys(providers)) or "none"
     return append_event(
         MemoryEvent(
             kind="bridge_report",
-            source=f"claude:{report.get('agent', 'unknown')}",
+            source=f"file_bridge:{provider_source}",
             repo_root=request.get("repo_root"),
             project=request.get("project"),
             trust=inner.get("trust") or request.get("trust"),

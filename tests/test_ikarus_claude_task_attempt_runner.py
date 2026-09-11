@@ -8,22 +8,23 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.ikarus_claude_task_attempt_authority as authority
-import daedalus.ikarus_claude_task_attempt_runner as runner_adapter
-from daedalus.ikarus_claude_attempt_handoff import ClaudeTaskAttemptRunnerHandoff
-from daedalus.ikarus_runtime_role import (
+import daedalus.orchestration.ikarus.claude_composition as composition
+import daedalus.orchestration.ikarus.claude_task_attempt_authority as authority
+import daedalus.orchestration.ikarus.claude_task_attempt_runner as runner_adapter
+from daedalus.orchestration.ikarus.claude_attempt_handoff import ClaudeTaskAttemptRunnerHandoff
+from daedalus.orchestration.ikarus.runtime_role import (
     AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
     RuntimeRoleRegistry,
 )
-from daedalus.ikarus_supervisor import PlannedItem
+from daedalus.orchestration.ikarus.supervisor import PlannedItem
 from daedalus.providers.claude_cli import (
     RUNTIME_ID as CLAUDE_RUNTIME_ID,
     ClaudeWorkspaceGrant,
 )
-from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.runtimes.provider_runtime_executable_binding import (
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.runtime_executable_binding import (
     ProviderRuntimeExecutableBindingReceipt,
 )
 
@@ -237,6 +238,9 @@ def test_handoff_runner_uses_only_sealed_invocation_after_factory(
         lambda self: {"body": dict(body)},
     )
 
+    # PORT NOTE: main's ask_claude takes the nine authority members as separate
+    # keyword arguments (and refuses any partial set), where the originating
+    # lane took one `sealed_bundle`. The double mirrors the real signature.
     def fake_ask_claude(
         objective,
         worktree,
@@ -244,7 +248,7 @@ def test_handoff_runner_uses_only_sealed_invocation_after_factory(
         *,
         model,
         timeout_s,
-        sealed_bundle,
+        **members,
     ):
         observed.update(
             objective=objective,
@@ -252,7 +256,7 @@ def test_handoff_runner_uses_only_sealed_invocation_after_factory(
             paths=list(paths),
             model=model,
             timeout_s=timeout_s,
-            sealed_bundle=sealed_bundle,
+            members=members,
         )
         return _terminal_provider_result(subjects, body)
 
@@ -280,7 +284,10 @@ def test_handoff_runner_uses_only_sealed_invocation_after_factory(
     assert observed["paths"] == body["paths"]
     assert observed["model"] == body["model"]
     assert observed["timeout_s"] == body["timeout_s"]
-    assert observed["sealed_bundle"] is not None
+    # The complete authority member set must reach the provider seam; main's
+    # bridge refuses a partial set, so an empty/short mapping is a real failure.
+    assert set(observed["members"]) == set(composition._SEALED_BUNDLE_MEMBERS)
+    assert all(value is not None for value in observed["members"].values())
     assert result["attempt_id"] == handoff.attempt_id
 
 

@@ -1,0 +1,1632 @@
+{
+  "schema_version": 1,
+  "packet_id": "G1-IGNITION-03",
+  "classification": "ALIGNED",
+  "base_revision": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+  "outcome": "LOCAL_ACCEPTANCE_PASSED_CI_PENDING",
+  "plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639",
+  "source_sha256": {
+    "daedalus/ignition/gate1.py": "373f7dce0199b77bf8d1a3744df0f67dd37c18a32ceaf98537825d6118c73d5b",
+    "daedalus/primary_tree.py": "64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a",
+    "tests/ignition/test_gate1_root_admission.py": "ca80daa2e611d9bba4fb823a3823927f58826174ce36695630fd08784e671e1b",
+    "tests/ignition/test_voltage_ignition_faults.py": "66041fd26cb8045e7c1897df310f0f196905a53c57b3c5a9b7523bd1d5a6f96a",
+    "tests/test_primary_tree_fence.py": "e52fc209012568387f85cfb8fe6d7dfccb8db9ef854d76bbe43e9702988663df",
+    "tests/contracts/test_import_scc_hierarchy.py": "e0a8278b1557a053509f87613bd071b74a15b1daa88cdcea4ee13726bacfa773",
+    "tests/contracts/test_work_packet_index.py": "6b4df98d5f9a7749212165bd478b2f1dafd575777b88b36e2e0bad07cccfc39b",
+    "experiments/forest_v2/s02_types/test_external_corpora.py": "5f064c7f401ccac68e8c2c2baa45da0e78e7ee6f16b31aa08136a5d95cb1e2de"
+  },
+  "acceptance": {
+    "final_windows_affected": {
+      "total": 245,
+      "passed": 235,
+      "failed": 0,
+      "skipped": 10
+    },
+    "packet_index_and_evaluator_bundle": {
+      "total": 62,
+      "passed": 62,
+      "failed": 0,
+      "skipped": 0
+    },
+    "moving_metadata": {
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "linux_alias_matrix": {
+      "total": 158,
+      "passed": 146,
+      "failed": 0,
+      "skipped": 12
+    },
+    "mutations": {
+      "canonical": 3,
+      "ignition": 5,
+      "caught": 8,
+      "survivors": 0,
+      "budget_s_each": 120
+    },
+    "independent_public_door": {
+      "passed": 17,
+      "windows_symlink_privilege_unmeasured": 1
+    },
+    "changed_sources_during_final_run": []
+  },
+  "retained_negative_evidence": [
+    "Unchanged legacy F5 late/dirty baseline and new A/P red baselines.",
+    "First affected run:234passed,1obsolete crash-restart message assertion failed,10skipped; exact targeted row then full affected suite rerun.",
+    "Linux small tmpfs free-space prerequisite failure and preexisting contains-prose mismatch; exact bf69 mismatch reproduced before test-only clarification.",
+    "Two discarded mutation path-proof assertions; retained second proof shows actual sandbox import. ADMINI~1 versus Administrator expected-path normalization corrected; initial import hypothesis superseded.",
+    "Initial metadata command named absent test_ignition_evaluator_bundle.py and collected no tests; actual test_ignition_bundle.py selection passed62. A subsequent unrelated rg missing-workflow-path exit was not a pytest failure."
+  ],
+  "limits": [
+    "Entry-time admission; no handle-anchored or concurrent replacement guarantee.",
+    "Known receipt output hardlink check, not a recursive arbitrary old-store hardlink audit.",
+    "No same-attempt restart, negative-evidence retention, candidate promotion, Gate1 closure or release claim.",
+    "Automatic temporary parent configuration is authoritative; invalid roots refuse without relocation."
+  ],
+  "artifacts": [
+    {
+      "source": "runs/g1-ignition-03-20260908/affected-result.json",
+      "sha256": "576f60a842b4d848ca3e32be8c0e84a9dacafb78099f17d46b6a2c8985495a0c",
+      "archive": "admission--affected-result.json.gz",
+      "archive_sha256": "b59d0062c974000e1a8cde8844c9a3cf5e471a0eb92583533fb2f955d01e9a92"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/affected-source.json",
+      "sha256": "ab182b097a74db102ba1a9cf8f9abd39b2804d9e0db46e39e5a771dd3baf3c7a",
+      "archive": "admission--affected-source.json.gz",
+      "archive_sha256": "fdecf1754dce21c626733438e803bfac8119aeef41cb25fba07debec52ea78c7"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/affected.log",
+      "sha256": "682a6fc6f110b6ecbc17190c2b897d47a3346517a2c4b42216e6106751a53960",
+      "archive": "admission--affected.log.gz",
+      "archive_sha256": "67016d2f7977abed51242156e907e5b8bffb17ba8e42409ee2dd0c9c9327076f"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/affected.xml",
+      "sha256": "e6f0363ab0dad461a6ed4d31a77549f77ffaf8598d9feb2ef66cd80f71e3bc5d",
+      "archive": "admission--affected.xml.gz",
+      "archive_sha256": "218f6f14b8b13ec1bbe6eb91e907cfaeb98a162074b67a81eb403a1d022b01a3"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/baseline-fault-tests.py.txt",
+      "sha256": "e2a85e9543e1090021879c6a61ddb372212572e18e8069b801601f97903eb840",
+      "archive": "admission--baseline-fault-tests.py.txt.gz",
+      "archive_sha256": "6a56a7eb979a06d7cd9614c78cdeeadd21ba161f62ebbbb2d40467615f3645f4"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/baseline-gate1.py.txt",
+      "sha256": "a17e0e12c9cc37d8a5e08882372b72e57af61d9ca6d5a0a3f612f94c1cc4d72b",
+      "archive": "admission--baseline-gate1.py.txt.gz",
+      "archive_sha256": "df4d29a37d2385a98b03ba5d22b47a7e3ac43d9585f03a6a679689ac9dc3b59e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/baseline-primary-tree.py.txt",
+      "sha256": "8bf8a598c4be6c4a456d913b3055d1435df76f2c0e7985a42379f8396491377d",
+      "archive": "admission--baseline-primary-tree.py.txt.gz",
+      "archive_sha256": "bf4c2c1116c9e7755ad3e2ac6955db69d696bd9ab1980aa5dd623726d333ec13"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/crash-restart-green.log",
+      "sha256": "e2f5d220b68ad9b4714a734283c8088b90ceefd11cd901d8d368c5c47acb7676",
+      "archive": "admission--crash-restart-green.log.gz",
+      "archive_sha256": "4fab8521c32691c7b77bd98e9b147b227e756ce40ad549248c3e105d0a6f233f"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/crash-restart-green.xml",
+      "sha256": "72153b06f329cd94d177f91647129eb117b8717a756843bb57f918846d2417c2",
+      "archive": "admission--crash-restart-green.xml.gz",
+      "archive_sha256": "72f415dde43d6ef7b964c515f3de440fde5ac693f95bb0b0f46e3a57aa4c31b8"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/final-affected-result.json",
+      "sha256": "77a565e9a6b43c10909b546daf789e2034ec73463bf2c44c3ef0c44ef17607ff",
+      "archive": "admission--final-affected-result.json.gz",
+      "archive_sha256": "5d13e17b9fcf2960927cc2f120d582b2d950becda36fc3257ad764665205e74b"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/final-affected-source.json",
+      "sha256": "0c990c0c4223e88b9569e976d41d2b47c0d741da8e9c353fa4be5c240b06f69a",
+      "archive": "admission--final-affected-source.json.gz",
+      "archive_sha256": "36ff6f1995986ccbbcde1f3ae7b125cba4814847fd4c911e58cd5b02ff9b19a6"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/final-affected.log",
+      "sha256": "c475fe1c6ad5dc4371d0049470b52c1e5b4ac813707584a16dc3505d3513b047",
+      "archive": "admission--final-affected.log.gz",
+      "archive_sha256": "203511567d3d74bf1262bf130afc91581add948ccdbbec95d031534383471904"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/final-affected.xml",
+      "sha256": "c18282e5a7ed39e6f9576268f7e087bd955a1ad1ddc13678abd45d323dec3887",
+      "archive": "admission--final-affected.xml.gz",
+      "archive_sha256": "ed9a3e013766760a47fa78cd5b5936dc8bbeed5c303045049afdf92bb8651c87"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/independent-allocation-probe.json",
+      "sha256": "a95004b24ed56fb0f4c37ab1b5d772fb61ca75acfd80ede4d6657d1a9698d4d7",
+      "archive": "admission--independent-allocation-probe.json.gz",
+      "archive_sha256": "11872b7d657a9872d594203328ee6889b9fab3643fd61e3d53d4971c679bcd75"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/independent-allocation-probe.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "admission--independent-allocation-probe.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/independent-final-mutation-audit.json",
+      "sha256": "b267ae9a343514764fa6727d4ca19836355da7e299a78ced453620eb6b232004",
+      "archive": "admission--independent-final-mutation-audit.json.gz",
+      "archive_sha256": "60b4986003b1e65ae0bd8c67552b492d9d4fbb273c7c83408620bd87541cb6f1"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/independent-review.md",
+      "sha256": "a53e920d6f73d7e29d17ebfae414a4f1dda91f5239d7242d878d75b9f3f19c16",
+      "archive": "admission--independent-review.md.gz",
+      "archive_sha256": "edbe8a02d061e6440977922d17c72f3b69b9788e763913cfd847fdf9bf102828"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/independent-root-probe-source.json",
+      "sha256": "8213b92368c6bafc75dcb52ce67cf77c2e3ea5d38eac0a4b070b0e472932e078",
+      "archive": "admission--independent-root-probe-source.json.gz",
+      "archive_sha256": "cddd9f15ac613c36b67c2cd06bb90f90dc0b66a196f5be2ad3a2ba5775dde9dd"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/independent-root-probe.json",
+      "sha256": "9474e30ee5886a3e8c6daa164d33a7d3579b2c9d656f9e130ec356533e5103c5",
+      "archive": "admission--independent-root-probe.json.gz",
+      "archive_sha256": "02a0f5e421a4de54a974996d2d2878ce7c604b7b930d9d347d5d85d47283384d"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/independent-root-probe.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "admission--independent-root-probe.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/index-bundle-corrected.log",
+      "sha256": "1083989330c583a89f34aa90cb49b19f04d55b07289edc6684adf97d5c5acb2d",
+      "archive": "admission--index-bundle-corrected.log.gz",
+      "archive_sha256": "50f17b4ac63cda5e8674b66154e97a155cb8d6697e8ee5aaaf47a7af774ca371"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/index-bundle-corrected.xml",
+      "sha256": "61b995c8ccf97375098c4393188416f78378e1ae8ecbb7f482ad0a795b3b7a85",
+      "archive": "admission--index-bundle-corrected.xml.gz",
+      "archive_sha256": "4387cb9e40d443cf030a043f231e0d947314d8f913fcb326afe0a6d411b7e4c5"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/index-bundle.log",
+      "sha256": "f24736ec5fe890009b3c1779504b90fa8a51caadf6607ff2e8a0274c39b4d707",
+      "archive": "admission--index-bundle.log.gz",
+      "archive_sha256": "04d63205f183b8dd1404ea5f17bd1473cb55a7cc28ab8cf6fa1b13739e5a9dc6"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/index-bundle.xml",
+      "sha256": "44ec2ce0cecc906edf2e1cdf1161a0f2ce9e2c0ccb5e9c808b5ffed5816c3c14",
+      "archive": "admission--index-bundle.xml.gz",
+      "archive_sha256": "1fcadd13695410f2e40d81e9cf4c1f94554f3992c5d0cf03fa9d19e0c82f9ea7"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/initial-green.log",
+      "sha256": "4708e4adcfeaf1e083a5166d1266e96661786303eb345d296cbb9ca58002e0c8",
+      "archive": "admission--initial-green.log.gz",
+      "archive_sha256": "58fabca72090ae3d85e7fa61077adc82aecb15b2e256df4c8c4734d2e3a362e7"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/initial-green.xml",
+      "sha256": "03e290f546ac53a6264acdc0ed06612a37247d2d3793a7c0e26a9bd318bf5963",
+      "archive": "admission--initial-green.xml.gz",
+      "archive_sha256": "62855a53f424a83c3ef2614c7c1fa68ce9afe31f7ee1b73416cf0a174f9fbccb"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/legacy-baseline.log",
+      "sha256": "28a5f183cb3afe3b366979d01622a045f1668e07a04a9eecf1cfaecd5a8dd005",
+      "archive": "admission--legacy-baseline.log.gz",
+      "archive_sha256": "22d6e29260c044de7743e00ce577fde4ec4fb7ebd1b0be4a8597bf627d1f3c6b"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/legacy-baseline.xml",
+      "sha256": "4d9886e4ceb2182f971cff9cc26e072d9f5c678a66ad0c3f5ee0060e2c7e8b3b",
+      "archive": "admission--legacy-baseline.xml.gz",
+      "archive_sha256": "e62760d0ed973025129e396af80452698fcb60526378567fe19d05732948237c"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-comparison.json",
+      "sha256": "99b5c1dfb1ef8443516944797b9d5bcd243d790ef58dbfdb46754ec1cb60677a",
+      "archive": "admission--metadata-comparison.json.gz",
+      "archive_sha256": "5ddde1d59d210d0746e52aac89e372b80248b3ae7b29e4fcbafbca79bb78541c"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-focused-result.json",
+      "sha256": "f2f5d3007a89d92de5fdf9f7cb593ebd190e2cd39542a63f6646b494ad618353",
+      "archive": "admission--metadata-focused-result.json.gz",
+      "archive_sha256": "d6eee0af798b82abb8ee0ee2b58b77adae3d46bc702e4fab4e86ba13b4fab7ac"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-focused.log",
+      "sha256": "e974af50951e602fafb187dbb8c4d98d22164498f9155823a87731bbef0c8cd9",
+      "archive": "admission--metadata-focused.log.gz",
+      "archive_sha256": "6bb9e73d97f3bb3c3f5ee5234dd3cdb6de7cda20d539954a03020a0f3dbc13e6"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-focused.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "admission--metadata-focused.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-focused.xml",
+      "sha256": "519728b5e9d7ff2a6fdcbeb65792adffb1cc54d5fd610c01ce2bc5f6197bd7d2",
+      "archive": "admission--metadata-focused.xml.gz",
+      "archive_sha256": "bf9e427d127567c582930b46b35a30117a34a9bf962eb46571dd08bf51469caf"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-import-scc-remeasurement.json",
+      "sha256": "0b5e3cd55b9c804d1120bfbaca6884541c447e55673417e18ec3b29b95386451",
+      "archive": "admission--metadata-import-scc-remeasurement.json.gz",
+      "archive_sha256": "3590e33367c1f69038de71df0e743b46241892223c91eeeb35023441716431af"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-import-scc.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "admission--metadata-import-scc.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-import-scc.stdout.log",
+      "sha256": "f43b7b14510be45e12a35ec39247ece7bc32e32bdcb6aaf1fd17631d680c570e",
+      "archive": "admission--metadata-import-scc.stdout.log.gz",
+      "archive_sha256": "e3f1508732acf25553307b8f79d57e20102b4235a025e5c8283995a70ba6ebf5"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-measurement-source.json",
+      "sha256": "60a05d1885e8c9a24cc057fbcc029188a70aa869594744b8cec68cbc5719eb5d",
+      "archive": "admission--metadata-measurement-source.json.gz",
+      "archive_sha256": "3da33e2600721779f070df49f07eaa3a9ffeb4e87847b2e61c22e0120a87ffb0"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-s02-a.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "admission--metadata-s02-a.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/metadata-s02-b.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "admission--metadata-s02-b.stderr.log.gz",
+      "archive_sha256": "46b50c321b39e89a491b6727a01628c34245605a30beb3e7414c5e01cff90e6e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red-final.log",
+      "sha256": "99f6e6f4f0e31f48e87c711c06237c51316746aa895342cb94faffc9f0c26bd9",
+      "archive": "admission--root-admission-red-final.log.gz",
+      "archive_sha256": "d09c6fdd2dd6e07799ce6c5babd34da6e9f9f4fe3be001bc559cc16d5e3968a7"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red-final.xml",
+      "sha256": "f73fa8e2f62692a7a63696ed6009b5c27cad4a49058de60a64b74852382dbbac",
+      "archive": "admission--root-admission-red-final.xml.gz",
+      "archive_sha256": "ba59917f374c61d389dabe2aaf0bdcca88f452a86650ff9059dbae2bae9e0723"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red-result.json",
+      "sha256": "053b857786af5242f9ecd00953513589d24778389158ae291e4c10ab46b0ac0d",
+      "archive": "admission--root-admission-red-result.json.gz",
+      "archive_sha256": "6a4393a539a6750222bcd29aacc56179c4c4fe369abd4c93b6655a7d5fe64ab6"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red-source.json",
+      "sha256": "4d924ae72175283666b7726c6832d70e7f7102a8c6f917c7be2bc23f4d485087",
+      "archive": "admission--root-admission-red-source.json.gz",
+      "archive_sha256": "68be41829401ed674f9c2fa0783a3cdc06e84f3d36d8f09230b10d0b78d0cef1"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red-v2-result.json",
+      "sha256": "a4c0ca6aac28a9127b6faecf0639855c1630bb9dd6a8dc12bd0ea0900912ae60",
+      "archive": "admission--root-admission-red-v2-result.json.gz",
+      "archive_sha256": "83a52c963065dafd953cc6f2baed62e4122d0c9caca01370a1679bcfe355aa7f"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red-v2.log",
+      "sha256": "9d2a4f0b8d53ad3185e016c7d10aca414e4e6823eff9171e5af37f837a69f9ba",
+      "archive": "admission--root-admission-red-v2.log.gz",
+      "archive_sha256": "4145a70ff7ee4e8e903e5370f750c63e4de14eb4c35cb5ffa27868a350e41d2f"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red-v2.xml",
+      "sha256": "ed1eca9ad37584cc103a03e8e907285bfd86b486ebc39e99eb165c4e154abe76",
+      "archive": "admission--root-admission-red-v2.xml.gz",
+      "archive_sha256": "9980373ae884a6b8dfc110037df0b881c5709937b2eb150b428b937a3ac85be0"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red.log",
+      "sha256": "e93bc652ce5f77ffb55c0fe190930fb81c0c579c18a56765656fa95f4444a071",
+      "archive": "admission--root-admission-red.log.gz",
+      "archive_sha256": "c13b944ff144e817044472f1409cf3806722fc5247627523cae54cda763fc48f"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-admission-red.xml",
+      "sha256": "0fb54e8cf06cfee0c23f8745e44d924acc5ea37749db2cff4fdce8db06fd88a3",
+      "archive": "admission--root-admission-red.xml.gz",
+      "archive_sha256": "7aefea38e92bd646d1f6550665f9e8f44b197e2d10cabe5e2a52f546016e3d95"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutation-bootstrap-negative.json",
+      "sha256": "de32cf51be47138ecc0cb4ca7d5d6da61af89d534992b3469dd7db7f160ab74c",
+      "archive": "admission--root-mutation-bootstrap-negative.json.gz",
+      "archive_sha256": "df16ee78bcd081f27bef64c0253db45501f74c68f51464d99e87b6ca5edffafa"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-bootstrap-negative-2-source.json",
+      "sha256": "e40e6615929451b8aded5eb51b4b84652ee73c9f103ca8b998f301873d71b3c4",
+      "archive": "admission--root-mutations-bootstrap-negative-2-source.json.gz",
+      "archive_sha256": "893367ca9004f6fae6b592895ad77ef198c7987e39c351e3c3b8fbfee581cba0"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-bootstrap-negative-2.log",
+      "sha256": "a560519331ee7d023f4fc32c8cceefa3a6aa7137b5a0444a8ce0ea596b2da8dd",
+      "archive": "admission--root-mutations-bootstrap-negative-2.log.gz",
+      "archive_sha256": "cd9ee7ef89786879e605435b6a473a7f72aa668635d7bc06050a7421dcaa25f9"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-frozen.json",
+      "sha256": "300b1aa182a938a7747e0c21bd479226ffb40f7942a64007e16c061ce76b06f1",
+      "archive": "admission--root-mutations-frozen.json.gz",
+      "archive_sha256": "d4bf285d9f4be7e98f3f9615b1a763f6628f0e34d7f4c00887d5ed1d8a770d1e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-results.json",
+      "sha256": "8722296b940e7e28f6230490be2e31d2e31ff8c831d592febb710501b08acc5f",
+      "archive": "admission--root-mutations-results.json.gz",
+      "archive_sha256": "991fce018b291ad6455f6f3d0c3a10c968d686a83ec81fec1e1c2241917b2b2c"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-0-source.json",
+      "sha256": "6262da7da6c60e69dbb2b84aa2239e2fb0c00927f7f968983cd77ddd0b9f7b9e",
+      "archive": "admission--root-mutations-run-0-source.json.gz",
+      "archive_sha256": "8c1637f39e34037d4d563ce240ee681ebc77f19f73948e9d5897b4375613fb78"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-0.log",
+      "sha256": "5500a35f63580deb6b8efc397465ee082c6f194afff9c0ff3895ef12f5152851",
+      "archive": "admission--root-mutations-run-0.log.gz",
+      "archive_sha256": "13bbfda19f5a3463e7865cb58c81fef9709c61e3d4ec61472c6a6b69fa1abd7b"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-1-source.json",
+      "sha256": "1c62fbf43004dc7177d2bd039f5be228e0cfcdd789d332db010da4ae3a40a4f0",
+      "archive": "admission--root-mutations-run-1-source.json.gz",
+      "archive_sha256": "87289c6ebd157c0364da00c410c124350d89433566a02b55bcd5373c639400f8"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-1.log",
+      "sha256": "a31392e793600e5f449030cb619098b680ded1c1ff9588d9c77b978b07d2f74b",
+      "archive": "admission--root-mutations-run-1.log.gz",
+      "archive_sha256": "fa16616042a57d47984459ad35db19d8ae383fc60c1c56fdb412ebaed519a4c5"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-2-source.json",
+      "sha256": "d5d29ad83cf2ff92818d6224636d2b23d4c12dbb02bb7bc9ed9bd7bd1f1060ae",
+      "archive": "admission--root-mutations-run-2-source.json.gz",
+      "archive_sha256": "4381999e0aabea29cb563103c6a18872c45d23bef2b82dcf858b7995191964a1"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-2.log",
+      "sha256": "1c462a8f190fc79b4a025e9b551665275fc6f536d9173b8747f598ac6a6b80da",
+      "archive": "admission--root-mutations-run-2.log.gz",
+      "archive_sha256": "4de64dfb9d19dcdaa3ed3678617f6d158a2ebb90b7341a32f045f9a3ea64843d"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-3-source.json",
+      "sha256": "67eca8b9924d4b10b16782853fc84802602dc2c46f9783bbaf3c1f15235a1e08",
+      "archive": "admission--root-mutations-run-3-source.json.gz",
+      "archive_sha256": "ae8295840bb8fca625cf7e5d93b2006d59e8cdcd0ef346985d695dc6678a1bcb"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-3.log",
+      "sha256": "f9a96c90f9c85cd94d818e9ff59500e21734b28b85c7705e3abd5d6ee1c8692b",
+      "archive": "admission--root-mutations-run-3.log.gz",
+      "archive_sha256": "eea90ee4dd1b390cecd614580a7a728dda2aa3c082a2359e431c001bc9842602"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-4-source.json",
+      "sha256": "a1d80edd651224e731ba8e120c56020eb59c1a6826dd763f56a7b05af68e47c1",
+      "archive": "admission--root-mutations-run-4-source.json.gz",
+      "archive_sha256": "4bb4e0275797dbe7da374bdfd588fe56a530e5db9019c7d470bb13460f5b7d85"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-4.log",
+      "sha256": "a13331a322d913c776301381cf2dad0fef40371c9fa2840adc46acf801903c4c",
+      "archive": "admission--root-mutations-run-4.log.gz",
+      "archive_sha256": "5efd7bc865b17bb50c1a602f022e0891ba1a86f8db5d39f1a6651037ea58c3b8"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-5-source.json",
+      "sha256": "f151095b366d5d44af8a82a17b94a1921608a67351cf7009a1c215aa45f8e080",
+      "archive": "admission--root-mutations-run-5-source.json.gz",
+      "archive_sha256": "37c2496f28822513755ba08d03d9570f42a29445185e664bca16554ef2287554"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/root-mutations-run-5.log",
+      "sha256": "a83d87ebf2f206d1749c7df7b94e449eca4caad23ff74cd52f8727dba0343833",
+      "archive": "admission--root-mutations-run-5.log.gz",
+      "archive_sha256": "cb8715bdca24759f1d1ce82ce3c58398095c7c575842f62d1ea9fd8eca4c618e"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/s02-ignition-roots-corpora-a.json",
+      "sha256": "9a0cc32f2f57253380821be52e91b260ea75606c4a41084bb95b5987dafcd473",
+      "archive": "admission--s02-ignition-roots-corpora-a.json.gz",
+      "archive_sha256": "bb1a94bb51d732d27cd374eac4da1ad8b26f6f2ae736b48c87ff75554e97ad3f"
+    },
+    {
+      "source": "runs/g1-ignition-03-20260908/s02-ignition-roots-corpora-b.json",
+      "sha256": "a95d54a3e1027df70d4da1dd661e3778be81db60bd399b6918a448477ac583fc",
+      "archive": "admission--s02-ignition-roots-corpora-b.json.gz",
+      "archive_sha256": "51b26cae6f90ca5460d8f6c738319d94140b6b1eef9746f1dde5b16f3fb2761d"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/cleanup.json",
+      "sha256": "501deec186014a7fdbbf10d59f0431505e888c897e68139517a0540925f9e545",
+      "archive": "canonical--linux--bf69-baseline--cleanup.json.gz",
+      "archive_sha256": "8813de6fbc0b6018f47656294de6db8434b520a41adc6b888653ad2d98bb2b81"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/container-inspect.json",
+      "sha256": "56645080334c45452e9533732cd4cb6bac14f30f194bc55a1ce890dbb524a8d4",
+      "archive": "canonical--linux--bf69-baseline--container-inspect.json.gz",
+      "archive_sha256": "826810b74c8330ea15cce547aa5c2fe253bb07659376d9356aea4cd5754ccbc5"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/container-result.json",
+      "sha256": "426ba22e06fe687bf7b401e03bcbdad62a1bb305dc3e215be323b2ee5fe9cd8b",
+      "archive": "canonical--linux--bf69-baseline--container-result.json.gz",
+      "archive_sha256": "813dd51dc8737aa1e89401b963ce47e0295c99d5028e6d28636cc57a6506e193"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/docker-attach.log",
+      "sha256": "6eeefe2239d4df3c691a5d49362a99abc494c95695521d96c5f735a8f2c2df32",
+      "archive": "canonical--linux--bf69-baseline--docker-attach.log.gz",
+      "archive_sha256": "ac83d7f3f14ff5a7bc001a9ab99c8384c2ef2bb67041ba5c7f79844221a38760"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/docker-version.json",
+      "sha256": "3f7dfe5c936b191964f23830fc695db4458ab4076714a9ed42d8dbed372573ba",
+      "archive": "canonical--linux--bf69-baseline--docker-version.json.gz",
+      "archive_sha256": "66ac157580c1709e13dcd4fd174b0fad5e997752c3c9033c83d47aac7fa65da3"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/Dockerfile.txt",
+      "sha256": "8e67bf88f42237471da61805a18e39346a640e1ace1bfd35a88fbf1c1c2f8bbc",
+      "archive": "canonical--linux--bf69-baseline--Dockerfile.txt.gz",
+      "archive_sha256": "4ca0f5e81fab68e1c93201b03b8bad4dc9eb8a2cdbac23966c06b97148640d1f"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/image-build.log",
+      "sha256": "90d5b79acab8ac2b494621f58962fef7162ae5265def0c6600c043104e3c76b6",
+      "archive": "canonical--linux--bf69-baseline--image-build.log.gz",
+      "archive_sha256": "6e7d48add554490af0635cb8789a801f37769c7995c2852c00569d42a0228ddb"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/image-inspect.json",
+      "sha256": "6271c2824cd27106b471c43cd6253dbd7b17c030911abbbceefd67357706b080",
+      "archive": "canonical--linux--bf69-baseline--image-inspect.json.gz",
+      "archive_sha256": "0664958d1737271b9187bc6524b8e8fb41c0cabbccda0ba353afe62f72ba1515"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/invocation.json",
+      "sha256": "917165e58286281af3ee83cded316eb5ffac6058dfc9bd7b6eda609950bb7fb6",
+      "archive": "canonical--linux--bf69-baseline--invocation.json.gz",
+      "archive_sha256": "7c698fb7f606776f3b59bfef51f202721a298000c1bbdeb4e72d59abd3bcd7bc"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/linux-root-admission.log",
+      "sha256": "c444ec8c138697eef85ef66f3420a2809bfa8c0aba6c3ca3a4d45995f90ef4da",
+      "archive": "canonical--linux--bf69-baseline--linux-root-admission.log.gz",
+      "archive_sha256": "b79a951bed9f836e589e8870416412d8449ea9bd6e988c5a4861e6a311efa19a"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/linux-root-admission.xml",
+      "sha256": "7ba97d639e7ca53edc0353bc23e7edc9275f47e84b3ae7a4b07942d22281d8d9",
+      "archive": "canonical--linux--bf69-baseline--linux-root-admission.xml.gz",
+      "archive_sha256": "7a7692585cd80e4f4f87f474ae8aed498c0d7d81fa8c7401e76c0e7fb5bad4aa"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/platform.json",
+      "sha256": "2875e8d90a5ab1fef65992071e21eaf16d8baf17447d229a2d2f43ef44725fee",
+      "archive": "canonical--linux--bf69-baseline--platform.json.gz",
+      "archive_sha256": "321d00ce0f3e5f9610847ac3a36e6e863ad8f66667ecccabbc0d41848244b7fa"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/primary_tree.py.source.txt",
+      "sha256": "8bf8a598c4be6c4a456d913b3055d1435df76f2c0e7985a42379f8396491377d",
+      "archive": "canonical--linux--bf69-baseline--primary_tree.py.source.txt.gz",
+      "archive_sha256": "bf4c2c1116c9e7755ad3e2ac6955db69d696bd9ab1980aa5dd623726d333ec13"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/source-manifest.json",
+      "sha256": "c6b267451636e854b02575e88fa5763d3f9b893bb4a42072ef3253ef616c8ba6",
+      "archive": "canonical--linux--bf69-baseline--source-manifest.json.gz",
+      "archive_sha256": "9011fbb9f9f15931635265e45085b0a3a484eb0a94062dd1e2662fa7549fb5ed"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/summary-before-label-clarification.json",
+      "sha256": "c72822a9a86b82630e889c550faabc2dc1007805605be2b8a5c9318a4217ab8e",
+      "archive": "canonical--linux--bf69-baseline--summary-before-label-clarification.json.gz",
+      "archive_sha256": "54356cfe1a25199103bcf6065994a40e4a6eb34de1bf67dc8905a97a71374d69"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/summary.json",
+      "sha256": "caafcebbee6944dad093215e3238590dee0037ce7a923741c8f40669e8d7908a",
+      "archive": "canonical--linux--bf69-baseline--summary.json.gz",
+      "archive_sha256": "495227a4ef43f850e16ddd0445b1ea33dae5fae32bbfdd57a4d107f35acbc2bb"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/bf69-baseline/test_primary_tree_fence.py.source.txt",
+      "sha256": "b55d12680de023035b0046bc5a25882141e04084326e21cd1c78cf4a1ca12b81",
+      "archive": "canonical--linux--bf69-baseline--test_primary_tree_fence.py.source.txt.gz",
+      "archive_sha256": "f57716699cd74e66a25ee668e58e27fe2846c784b91ce116b6d27afcccb05cb8"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/cleanup.json",
+      "sha256": "82afbe86e7bf78c65c82b45de5cc358f1640e688db2aa8894a58102b2f1cc0b9",
+      "archive": "canonical--linux--cleanup.json.gz",
+      "archive_sha256": "ffc7f50089fe7253b8bd59da5f3959abd9c8c1f1f808cb72b43d4c4f4a661117"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/container-inspect.json",
+      "sha256": "d952438fd0c6e343064ec182c5bf18688fa9ad848cd54eba00c34d3aec3ef6c2",
+      "archive": "canonical--linux--container-inspect.json.gz",
+      "archive_sha256": "6e3118b6d93bb5e9bbdb8d341fb7b1f3f374ab1eeeb191e18a27f61999eb66a9"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/container-result.json",
+      "sha256": "2f37fb80334651eb7bf4a3bf57998882d2869975baba5b3402487680f8f1ef9f",
+      "archive": "canonical--linux--container-result.json.gz",
+      "archive_sha256": "8773fe98d389b1e58c474478618e1b1fd4154391ec4947a1e51b6e6e60f3420e"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/docker-attach.log",
+      "sha256": "03e98832a030fa8e576ced8f4e9af68b03b6a2b671cdb72bc47d46a144d18e00",
+      "archive": "canonical--linux--docker-attach.log.gz",
+      "archive_sha256": "8ee29f657265ffa4cf567f2bddeeec88602a5d89b1f1c33f4c48a8f60722a960"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/docker-version.json",
+      "sha256": "3f7dfe5c936b191964f23830fc695db4458ab4076714a9ed42d8dbed372573ba",
+      "archive": "canonical--linux--docker-version.json.gz",
+      "archive_sha256": "66ac157580c1709e13dcd4fd174b0fad5e997752c3c9033c83d47aac7fa65da3"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/Dockerfile.txt",
+      "sha256": "9e264b07148fe88f6dddc844c274757ff3aae514a2f4d210b74cb701626fc20e",
+      "archive": "canonical--linux--Dockerfile.txt.gz",
+      "archive_sha256": "fb17bbfc426954b359336120b659f287e69f2c3ee10b24b4bd016b7de116ab65"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/cleanup.json",
+      "sha256": "bf65d192d0e528dfd12f42d42222a0fb880193db58f01a121f9e825373e9b66d",
+      "archive": "canonical--linux--final--cleanup.json.gz",
+      "archive_sha256": "2aa329287655e94beaae6b5259d8d3e660c52d1f3c39c98968bda82498a3b9e7"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/container-inspect.json",
+      "sha256": "a5bf5c5c39a3f11f2b36460211bb6f4d3715b988d9410adac1df9298004d6e4d",
+      "archive": "canonical--linux--final--container-inspect.json.gz",
+      "archive_sha256": "92e8690333e73704a0159a9164040b1bdf0e8a422eda400e56b536a30676006c"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/container-result.json",
+      "sha256": "e0ffba16421ba1ea139c3548aa4625c741e64c6c26d507ccad1e590e72a49c42",
+      "archive": "canonical--linux--final--container-result.json.gz",
+      "archive_sha256": "9300b3f99a8a8d9a7576e36abcb8ebc5f6ff9a32b7b1285352e8676a4c9df375"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/docker-attach.log",
+      "sha256": "0f81454d22002e5b023494a6a2dc15cd9d25abd3bb298b9cff431218d57c7961",
+      "archive": "canonical--linux--final--docker-attach.log.gz",
+      "archive_sha256": "dc6d9640eecb7918a7aac90a2f280ea077cecd694fdfb5d9ba313215fd1de705"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/docker-version.json",
+      "sha256": "3f7dfe5c936b191964f23830fc695db4458ab4076714a9ed42d8dbed372573ba",
+      "archive": "canonical--linux--final--docker-version.json.gz",
+      "archive_sha256": "66ac157580c1709e13dcd4fd174b0fad5e997752c3c9033c83d47aac7fa65da3"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/Dockerfile.txt",
+      "sha256": "670640430b2a50de8bba354b37cef2b9ad049279a54352ad2d472d1072a91586",
+      "archive": "canonical--linux--final--Dockerfile.txt.gz",
+      "archive_sha256": "3fd4572a02cb68ecf9766d166375334c3ff814b56e7912f5f96bcf49190f562f"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/image-build.log",
+      "sha256": "15d91f714349c047e6b9b017de217ae5146cd80eb323c7d03b285bfb56d97c43",
+      "archive": "canonical--linux--final--image-build.log.gz",
+      "archive_sha256": "689df538d7085c2060a8952a1ad1911de4abbc2a56ab9c30faa400c00796c1cf"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/image-inspect.json",
+      "sha256": "e689ab69aaabbfeb58ac0a5be9a2141bebb603776b38f3bf1ab9088b814ce790",
+      "archive": "canonical--linux--final--image-inspect.json.gz",
+      "archive_sha256": "55680dea425b1f5e27643ffc37043bba76cb0f919a84e47b57d952aa910f49eb"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/invocation.json",
+      "sha256": "8ec4e19c133952137b7b686c18d5984707bdaac8095fad2eefd98102e72a9cf7",
+      "archive": "canonical--linux--final--invocation.json.gz",
+      "archive_sha256": "4318f576f9edda39f7d1eb81508f2ff6f9b2b5cd4abe263ef87697d118183b59"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/linux-root-admission.log",
+      "sha256": "b878a067a04110cb63e52b9ef2a4dc2d477fb8cd6894c4aedeae94edf0cdb506",
+      "archive": "canonical--linux--final--linux-root-admission.log.gz",
+      "archive_sha256": "7bb820fa2f72d21575c6873c67324ccc260f14e645bacf1bd00e3c7bfa74fcde"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/linux-root-admission.xml",
+      "sha256": "5e65089b8b873c34b55b75574c17262424cc2a3cdba7b9a208fdc101563df701",
+      "archive": "canonical--linux--final--linux-root-admission.xml.gz",
+      "archive_sha256": "e71931be43ab2d7f312d878ca71e31ae34e2bb74f1a732fe6003fd8db0454c59"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/platform.json",
+      "sha256": "6a595710fdfdb1f68b27e99c983d0c34638cc082e22e7a59ce46d28194869a11",
+      "archive": "canonical--linux--final--platform.json.gz",
+      "archive_sha256": "b0b99d989644d9cce6218ef031db1ee0ab4f10802662a2257d7376644516b352"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/source-manifest.json",
+      "sha256": "6c137211748375cefcd2c5f3d9c76f0a8402bffc088e41a8b999fd78411414d5",
+      "archive": "canonical--linux--final--source-manifest.json.gz",
+      "archive_sha256": "f75ef28d777247faf0cd9f8e700cd05abec92d849c078aee9e2fed6a05de20ad"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/final/summary.json",
+      "sha256": "4d030d26a614a0f0a1b9af9adb7feb9b6dfc3bb4279d77d3887f24c96f7dabb2",
+      "archive": "canonical--linux--final--summary.json.gz",
+      "archive_sha256": "026610bc1374b4d669ffe720af699bab07c2bbe6d023967b9f334d39de23ee9f"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/cleanup.json",
+      "sha256": "33ac07aef7e5865a55d2b06bba3a8bd50c27af26564efb5710411b5d03f42e99",
+      "archive": "canonical--linux--first-measured-negative--cleanup.json.gz",
+      "archive_sha256": "e4b3ac45f75253967fe9e1bd729ccbc41f1a40b37c667951253063786b484a0e"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/container-inspect.json",
+      "sha256": "d2083f8d1219b253f0499aa07b37312e053d5a415b69bb991fbbaca7f6d94ee4",
+      "archive": "canonical--linux--first-measured-negative--container-inspect.json.gz",
+      "archive_sha256": "b6968eedbe905389edc94edc26ab85d09bd8f2c5ecb7741ecc0ba22b85185ada"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/container-result.json",
+      "sha256": "aadb926a3f51468dc971329b10dba36a8c89e78dd0fddb57d6078fbba14b59c7",
+      "archive": "canonical--linux--first-measured-negative--container-result.json.gz",
+      "archive_sha256": "f0d08f1dc9d832d9e52739fdda5c3082b6bba859d1708ffc0cefe8ab8005487d"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/docker-attach.log",
+      "sha256": "2d40e6bc46f04205391384571ace0d23924069b6032bb29dacdf19a39a6e746a",
+      "archive": "canonical--linux--first-measured-negative--docker-attach.log.gz",
+      "archive_sha256": "33a1b57305944fa187123e691edda0b35805f61cc141ce9a33308b8e64da40aa"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/invocation.json",
+      "sha256": "d96fb37ff49db766b0b13709a4d15f82e1188ddcd579ba9c1ff371742f372493",
+      "archive": "canonical--linux--first-measured-negative--invocation.json.gz",
+      "archive_sha256": "89c59d75ae741cd08d2fbd7951df1828b7814243ea8b17cb661c1d6f655a3cd1"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/linux-root-admission.log",
+      "sha256": "9ff70a272e7d522a2c61eb4133a5f70b30418c8f6621e2df79717f06802309f7",
+      "archive": "canonical--linux--first-measured-negative--linux-root-admission.log.gz",
+      "archive_sha256": "d9bd8bc3e6e26b5c5f9123a2879852ea42cb6660c03d46a7c65910ec702a9bf1"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/linux-root-admission.xml",
+      "sha256": "b9fe2818f50059e1350bf469fe3b03f1fdc6251e5aaa927cf8779763f7332692",
+      "archive": "canonical--linux--first-measured-negative--linux-root-admission.xml.gz",
+      "archive_sha256": "1e28809a7be65fd8353550e9ad3e345bd3d0623bb4e93e144516505dc3181a52"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/platform.json",
+      "sha256": "9eb55df7677c29218b7b6952b6d2df9adb59499873b559075e470381dd8b7f54",
+      "archive": "canonical--linux--first-measured-negative--platform.json.gz",
+      "archive_sha256": "cac0233cfc61c79a6c06f568ff255a9176d79abc6ff8fea1478d2494a48c9749"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/first-measured-negative/summary.json",
+      "sha256": "3a5a8c4a2391267a5bd2d1d1ec6070519d2615f85be257a05738a97bf68e7089",
+      "archive": "canonical--linux--first-measured-negative--summary.json.gz",
+      "archive_sha256": "fa9bf29fed29aac55cb7bfcb8611b28c9a3da677e208b27e1f13c5e3e66b0ed2"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/harness-syntax-negative/cleanup.json",
+      "sha256": "d5592e60ccc87ece64aa464d1cdb75f429cecc4be8f8c0272befe5eef60f236e",
+      "archive": "canonical--linux--harness-syntax-negative--cleanup.json.gz",
+      "archive_sha256": "ef28d903a07f5c3622096275b5eb3f9d32d1560a0a874b23b5d702b497f85069"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/harness-syntax-negative/container-inspect.json",
+      "sha256": "6af5941c7f8686fab5a98e0e997a0089ea9988bd03512b7ee8b61d4c09b159c3",
+      "archive": "canonical--linux--harness-syntax-negative--container-inspect.json.gz",
+      "archive_sha256": "851c57cdf81cb283599d1ca10e47dd7e08c77dac2c5cc347819f925b1a107073"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/harness-syntax-negative/docker-attach.log",
+      "sha256": "12097acaf42230fe2545b2873433f6507a28ecc959e010a2422ba6f9b8857ed5",
+      "archive": "canonical--linux--harness-syntax-negative--docker-attach.log.gz",
+      "archive_sha256": "4d42a4d5bec2b7c82138fd825c14dbeee3c11f76852bbd3c72ec8ec35c7cecbb"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/harness-syntax-negative/invocation.json",
+      "sha256": "9147c6afa52397b9fa6f9300df71cac06cde42018403b2bf705ab674dc91ffbc",
+      "archive": "canonical--linux--harness-syntax-negative--invocation.json.gz",
+      "archive_sha256": "00de83e153d94588404629bdd70e7a2eefa9edba03b672ba68284235acf1125c"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/harness-syntax-negative/summary.json",
+      "sha256": "3989a020359f201709b63001e57de587d978724d22e31a91faf8384a22bb3ee2",
+      "archive": "canonical--linux--harness-syntax-negative--summary.json.gz",
+      "archive_sha256": "c9ba7c1e749407e86424bb5670ef8d580532bde8c4a75744df9321b64892988d"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/image-build.log",
+      "sha256": "063b5e2135b638271c686ee5296da165ca3d8344d916330a89eee3dc94ec2419",
+      "archive": "canonical--linux--image-build.log.gz",
+      "archive_sha256": "ca940bfa2c8b5878dce8267cf7ce715347e473afc93a48c0bf03c74ddc91fa39"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/image-inspect.json",
+      "sha256": "b61f07af26e6dbef8e6049c800f1cc621aa7fd4373389d21b3c3070125dc77e9",
+      "archive": "canonical--linux--image-inspect.json.gz",
+      "archive_sha256": "c46b014888de19e471f226b8b4783c84e3613f36f27379f1e501e47949aee08d"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/invocation.json",
+      "sha256": "e3210dbc6a16f379ca8d245d72d1eed3825169d508a2be3633ada4f462b7e63e",
+      "archive": "canonical--linux--invocation.json.gz",
+      "archive_sha256": "380c865e22f182a6a957db4d2c11a03b221e2d078d56f46311119100b4d88063"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/linux-root-admission.log",
+      "sha256": "27306ad3cb1a40d59538016f52241de37428eadeef4f662260f48e2ab5c0ec83",
+      "archive": "canonical--linux--linux-root-admission.log.gz",
+      "archive_sha256": "1e67d24d009371efc51a8c272fdff83bd1b46c138d33655b0290c007890e5529"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/linux-root-admission.xml",
+      "sha256": "fd135a562e13b9d8ea309ed6c723924ed7ecea1da442668e30dd54aaca811702",
+      "archive": "canonical--linux--linux-root-admission.xml.gz",
+      "archive_sha256": "f472d666e78aa84999af671b1db2a92849d2081e6c36297cf2dcec847957e1f7"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/platform.json",
+      "sha256": "dae58753046912fa588fb2f43e350536f093bfd9f8e081cbdf82317e32d67427",
+      "archive": "canonical--linux--platform.json.gz",
+      "archive_sha256": "38ba3d0f5a161a6f59646e390ad77889818a281cba31a4c05b8cbfdf47ac77d9"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/requirements.txt",
+      "sha256": "994991a6e4f5a80cd40082077378ee50f40f1e0f27f7021cbb29faccb067ef5a",
+      "archive": "canonical--linux--requirements.txt.gz",
+      "archive_sha256": "b64aa36df7193c668ef4d2075f19467c71dbdf32acbdf011a02971e1c6073c89"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/source-manifest.json",
+      "sha256": "ac203c84db642136d810bd25ca6b3d89c56e6a702a03245c3b953bb742c431cf",
+      "archive": "canonical--linux--source-manifest.json.gz",
+      "archive_sha256": "1f836b1721ac5cc1b4cbc8be44bf8dc6e516493c24e5751c17fb00d52c745509"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/linux/summary.json",
+      "sha256": "8753a7efa997aa9c4b876c8bc4a606fc00560b0bc09335172aacf90f8b16a68d",
+      "archive": "canonical--linux--summary.json.gz",
+      "archive_sha256": "4fcaa94b2abd855e3e71d833bddee278bfb1472168926f9c633876f954f55acb"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-baseline.json",
+      "sha256": "6ab025dec1f8c61177e99a4ce5d576eed5f2b4273c96772b2057daf71b8a7a9c",
+      "archive": "canonical--primary-tree-baseline.json.gz",
+      "archive_sha256": "7e5b089ee9384e924d58de94431aa4687da133777af38ef83ebd2afd22be4eea"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-baseline.log",
+      "sha256": "8b47ec8e758f3fc74ee506891ec184f3f1f671fad4a4d31b2decfeb90f2ac429",
+      "archive": "canonical--primary-tree-baseline.log.gz",
+      "archive_sha256": "aa30be0d3b14be6a529ee421573d5497bad259241fbc2371cba94b99b152d62b"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-baseline.xml",
+      "sha256": "cff8f5fec491192dd4bd5fed8aa97704ace4b5c143b4e596871c11c3b2ce26c0",
+      "archive": "canonical--primary-tree-baseline.xml.gz",
+      "archive_sha256": "302697c07beca679d56387500070ec0fa41b93a7a244541922ff024c6fc2e3fa"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-green.json",
+      "sha256": "a91967b627754187e690b47caf0ddd429f31bfa41f3d351b7b1f5d9b9fda0b3d",
+      "archive": "canonical--primary-tree-green.json.gz",
+      "archive_sha256": "719dfc1ab171812e2c82d9d2af0f323c5a2a809f85990d00f13657874a2c2615"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-green.log",
+      "sha256": "4d1895b78b09e68e7d06db1d20d8dda7bb259e1405dc9b2050cfa197c21b10ae",
+      "archive": "canonical--primary-tree-green.log.gz",
+      "archive_sha256": "aa1dc2f3eb655976b1006257f76f5876d0a526dc861e041a60ffd7b1cd07180e"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-green.xml",
+      "sha256": "bc301f5eb143e5046d76c26a2340d6e741dce92059a0bfdd7d8d8beb4a9f90b4",
+      "archive": "canonical--primary-tree-green.xml.gz",
+      "archive_sha256": "d05e8c00558e1781437ac59207a12c0ff6f7017a480a21d6250c9d70ac9cd1b9"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-frozen.json",
+      "sha256": "7ddcfd4cc54198da3fcee74cbc8851aed38c98f6ac1de571970a4c2195a1b2fe",
+      "archive": "canonical--primary-tree-p9-frozen.json.gz",
+      "archive_sha256": "babdc0d68e31b39b6aafeb817ec97e20420520fdb5e48fb5606af6b7d448eb78"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-results.json",
+      "sha256": "cad0d82293ea104cde88792b07c001e8113bcf34f3f8723d548130677f62b9fe",
+      "archive": "canonical--primary-tree-p9-results.json.gz",
+      "archive_sha256": "0d47794750c4d5eab25beefa5764a1c62aace4ee7ef3650039928ef38e8c3210"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-0.log",
+      "sha256": "fee9200b28544efb9085f6e8e39a192a5ea430fc7c55161da9da1137cce890d7",
+      "archive": "canonical--primary-tree-p9-run-0.log.gz",
+      "archive_sha256": "2f26efc1710b0ea53a757e53acbf16f6ced4c91c382ae9e015605565c080fb78"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-0.source.txt",
+      "sha256": "64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a",
+      "archive": "canonical--primary-tree-p9-run-0.source.txt.gz",
+      "archive_sha256": "43117d6c27848c8484e8f46d488e091d9353e91ef620ced8e41e5dedc42ba621"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-1.log",
+      "sha256": "dd39a3013dd54b5389226d6060aa8b854850fa261224569b49e49497557988ad",
+      "archive": "canonical--primary-tree-p9-run-1.log.gz",
+      "archive_sha256": "17d713b896b9f91dd01587fdff95199e6d82d07ffdd5323b4ffc1bc80985a84e"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-1.source.txt",
+      "sha256": "168c7f785fea7bad689f5cff0eedafb5e0bc539706fb284e84bbcdb1a4439ca9",
+      "archive": "canonical--primary-tree-p9-run-1.source.txt.gz",
+      "archive_sha256": "a3880c156951ca7b31eae79fb8218c77f26360ee5b07b959c6ed66f825cb35f2"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-2.log",
+      "sha256": "3f1531ac9be250f63f0875bb9824a7f704012c606e2d787349b5368a20d6e0db",
+      "archive": "canonical--primary-tree-p9-run-2.log.gz",
+      "archive_sha256": "b8e84f78f142f39aa9c64893cf0278e86f151b88569a639202cfe0119e6be136"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-2.source.txt",
+      "sha256": "e65c30850132bac8fd82551248aa76e6cdfa4b8e8fe054d05fbe65050a7888cc",
+      "archive": "canonical--primary-tree-p9-run-2.source.txt.gz",
+      "archive_sha256": "327078c7f1d3bb396022c699c5cb68f8c31826e587d8c40dd4d275f77ec430c9"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-3.log",
+      "sha256": "e69fa1cb1dc5b61f1cc352f84b06f0702901e462d49257bf93741b33cc643a32",
+      "archive": "canonical--primary-tree-p9-run-3.log.gz",
+      "archive_sha256": "1a56773eb0e780537a53cf552ac99933385544126c2c60bb83ab068268ffacff"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-p9-run-3.source.txt",
+      "sha256": "3d140d30363be51c7e730881d1e7cb5f3acd76c94ab287c58269e1629cad7685",
+      "archive": "canonical--primary-tree-p9-run-3.source.txt.gz",
+      "archive_sha256": "12e15b9e72842c4bf6ccfaae9a20e331fd96907d01fb3d022444e0d47d624c41"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-platform-wording-closure.json",
+      "sha256": "622407f9ac88600d3684fb3100f581e3724252e1ce5d52c078398dba0d365ef4",
+      "archive": "canonical--primary-tree-platform-wording-closure.json.gz",
+      "archive_sha256": "feaa55949a6266530607e2c5b95e3590d8670ab7e3c47c5e65676e2b73f2cfa5"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-platform-wording-green.log",
+      "sha256": "5d69ee5036ce7557b3811da2c14b09313bb8488d8efa10cd267884d9d514f28d",
+      "archive": "canonical--primary-tree-platform-wording-green.log.gz",
+      "archive_sha256": "05d5941f2f090f9eff51b9b7d39b202ae8b9710a9b9170d791c544b31b558af1"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-platform-wording-green.xml",
+      "sha256": "22b59b48c103b60bb00bc70196dba58435b712b02d39f8b0b6e7bbcb4ef98cd2",
+      "archive": "canonical--primary-tree-platform-wording-green.xml.gz",
+      "archive_sha256": "9de3f80449c096e5dd43fc049b2e4ed03ea88db439c0b445e5effa6087906e9e"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-red-final.json",
+      "sha256": "7f59f7e768ce4ddab6822b44d3a024308fd1e9410648bbb9a2be5e4bf313ad22",
+      "archive": "canonical--primary-tree-red-final.json.gz",
+      "archive_sha256": "576917ca3efb65b76e30308a777bebb44827238cd12570dc9ed5175cd3d7a200"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-red-final.log",
+      "sha256": "87f1d48f5058da7bbbda398345f7c8c75819f02e6a73fdbfe814415ad9dbe2da",
+      "archive": "canonical--primary-tree-red-final.log.gz",
+      "archive_sha256": "4b450d6a076ea759b5d5242166738da971dde70f48d1f01657600693cf3cf6c4"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-red-final.xml",
+      "sha256": "c7b7470a6916f5ef95725b27d64dfa6929be7f30bf476db87fffb25a1f97df2f",
+      "archive": "canonical--primary-tree-red-final.xml.gz",
+      "archive_sha256": "62c502429ca883cb46fc8ea3b77e48de4b65c2499d1e5071694e1ab094b9e629"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-red.json",
+      "sha256": "2b841782634d145780ca039f9c6ea139c3b0c6391ad7edad2f24bd8a7c2c5c74",
+      "archive": "canonical--primary-tree-red.json.gz",
+      "archive_sha256": "29fc5e23ef622f8babd53ee182ea371e6918c2f78ba21de060db334533de70e9"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-red.log",
+      "sha256": "e440d5cbad534976d46a41ac69d4aca3a6c4ec79884f1b4c26c5a03e274d152b",
+      "archive": "canonical--primary-tree-red.log.gz",
+      "archive_sha256": "6cbc8990ad3ba59c764fc16a1766bdd8b7df250d04ba7c0e790ad71e7a59c322"
+    },
+    {
+      "source": "runs/ignition-roots-20260908/primary-tree-red.xml",
+      "sha256": "72916c3f25081f4a6db7e65d99f32d4be093a8105b68c056f997b18e221b3022",
+      "archive": "canonical--primary-tree-red.xml.gz",
+      "archive_sha256": "b0dec0432f7261ff62733385a03c608a62b9cfa0e1df920459ef9e3b603257ff"
+    },
+    {
+      "source": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-integration-20260908-helpers\\g1-root-mutations.py",
+      "sha256": "cd05d45f8e4f47040cc38ff46a87f5d59c7626005aee7ccd9b56ccdbdf3e58c9",
+      "archive": "root-mutation-harness.py.gz",
+      "archive_sha256": "74a1ba80c1ab34ef859ad2f474ac960cb68cc2666f60c1db060591efcfe0b974"
+    },
+    {
+      "source": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-integration-20260908-helpers\\archive-g1-root-evidence.py",
+      "sha256": "2b8d9338f47457852ac351cd2aa1953cd4a4787b942814928a13855e6e000633",
+      "archive": "evidence-archive-harness.py.gz",
+      "archive_sha256": "d3889f8897ebf504a727ac65857966bab425a5fe597e15d114ad1cd7df39c76a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-acceptance.json",
+      "sha256": "698d7c717f18fcc0d5fa3491692cdf26dd78ca275661be26de59b22ba156c1f6",
+      "archive": "handoff--ci-2ed5-ignition-acceptance.json.gz",
+      "archive_sha256": "d299cda738da96c3257aa4e91af50cf570e392aa1b5d9ef33962d542504b72eb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "archive": "handoff--ci-2ed5-ignition-artifacts.json.gz",
+      "archive_sha256": "a64394c1413f6f5573961df1e730c73ab6442eef5129c60c367478e4f8ec222b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-checkout-binding.json",
+      "sha256": "11aff55600f3d2338f8a4ee950693707cca4ad6c3aaa7a2f7b2484338662a817",
+      "archive": "handoff--ci-2ed5-ignition-checkout-binding.json.gz",
+      "archive_sha256": "18d691dd96ca44c73f9e3aec301c092f01b7b5049aa28b354f69fa16f33ac372"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-checkout-commit.json",
+      "sha256": "ffd704745a986766fdcd5b6ccf3a3e0c5532adf352434872a70b02262423a992",
+      "archive": "handoff--ci-2ed5-ignition-checkout-commit.json.gz",
+      "archive_sha256": "213dccf4726519a22fcd8ab3941b32a65721162d0c0eb533df5538590f55f9c3"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-isolated-wheel-check.json",
+      "sha256": "5f88e9fdb3fe421985ca76d95ce9e663a3e6c8ba40ca0a5a6aea91826337dd55",
+      "archive": "handoff--ci-2ed5-ignition-isolated-wheel-check.json.gz",
+      "archive_sha256": "01c52512769330a2c52791310d09073d50240274f1b6a739c88a0f3a69283f1d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-isolated-wheel.log",
+      "sha256": "c3d71f5f036a7dc6f088d1d82fed5a43e077121c0057cf81a72a2f9cf7a8f470",
+      "archive": "handoff--ci-2ed5-ignition-isolated-wheel.log.gz",
+      "archive_sha256": "af28bb9c397b600ab889d413acd535b395c42358ddf35bfca1420edf844b121f"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-jobs.json",
+      "sha256": "97fdcde1672d21ead72be08971faa47c296991831e328f0c816e030bec06b465",
+      "archive": "handoff--ci-2ed5-ignition-jobs.json.gz",
+      "archive_sha256": "156f6f37f71489ae4cd896020815c8243f8e0f630cfca513e6c5f8b4800c0a92"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-polls.jsonl",
+      "sha256": "bb1145f64d779c127d56c5ca1e108cdd7fe3568169628510be9e763936829bc8",
+      "archive": "handoff--ci-2ed5-ignition-polls.jsonl.gz",
+      "archive_sha256": "0e58fa058f10d666c1391bfcb1d3e6f4e0cbe7d177467b2292fdae859036c933"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed0-check.json",
+      "sha256": "a603c154dd3e202e1650b1afb00aaa6e6b0c90a597d01351467cccfeba6e1deb",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed0-check.json.gz",
+      "archive_sha256": "90b5c5f1fd353d74e3c943ff0676171c91ccbed7c6b026f88569b5e8b805a106"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed0.log",
+      "sha256": "82f470401e7f810b5aeb317246d7f281847b307eb8501f0a22ddb24534727dd5",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed0.log.gz",
+      "archive_sha256": "a9710356fb81760258a8850a0b12cb8cbb1693fda5e044f06790ff33d455fdd7"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed123456-check.json",
+      "sha256": "05628bb5c93b531a005f2007b4fb83918b13135d57aa72e8804e0376362dfc11",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed123456-check.json.gz",
+      "archive_sha256": "f5714d41aa80be41d6699a05a6dc430b928d6ec38fd4ba4229395b798931234a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py310-seed123456.log",
+      "sha256": "827b7a43a4af2c9278a0664a2a4418f7f4fc6b7278f49c71644424732db87fe3",
+      "archive": "handoff--ci-2ed5-ignition-py310-seed123456.log.gz",
+      "archive_sha256": "27e8cccf80fcc53be03e35b6a7d74b8b20d35443917b1a71a730388cb5832c83"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed0-check.json",
+      "sha256": "ac8290471f5e18591a136f23ff13f10dac2a9da7f464cbbfa0fd243b9526b148",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed0-check.json.gz",
+      "archive_sha256": "448384d393172cc6650696b7ad2245673e39304f877c1e1176ac5034ce34054a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed0.log",
+      "sha256": "10ff0562f3eebe969012c21d4e6cc05c1e2451d9bda57f63ffeeef17f5fff0fb",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed0.log.gz",
+      "archive_sha256": "61e7ef351818de666eaf416fefb1e44c7e072a822623da830575495e66aa2eb2"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed123456-check.json",
+      "sha256": "a79d0b8460329f37f232c37cbcf5b0186de1b740bdff7a45cfe291f238efef83",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed123456-check.json.gz",
+      "archive_sha256": "868a29ba27a406fa27f3c47c03d1380bac4f8e9bfd2ba591688437c3b400cbd0"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-py312-seed123456.log",
+      "sha256": "436ca3815d15b621f3062b733d816c70b24588d1d5af42d432882bc8234f34a5",
+      "archive": "handoff--ci-2ed5-ignition-py312-seed123456.log.gz",
+      "archive_sha256": "253812c9ca9a2af9b5001ba30a228404cae1537487f4b0e484a6efe9eca22fa8"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-run.json",
+      "sha256": "0551e5de819251f72102afb591624a9a5a6c2a5cc68ae4919fe940a056de5b2f",
+      "archive": "handoff--ci-2ed5-ignition-run.json.gz",
+      "archive_sha256": "f5c0b17a8f547bedcef0b3c9e4d0c48b9e5b182c37523de4cd817bc71ae20f2b"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-ignition-source-commit.json",
+      "sha256": "498663fd273a6c29968f86e4d6f0ea097fc597ef058c6d80cad573c8aa59d8de",
+      "archive": "handoff--ci-2ed5-ignition-source-commit.json.gz",
+      "archive_sha256": "669d805c4c11a3aef90efced1afb3e214a18e3358287accfdd0fef2d57bb90e2"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-checks-current.json",
+      "sha256": "525f12a5f525b1eef848475361d533adac5a0c2ec71c5e0e833fecee8025ae23",
+      "archive": "handoff--ci-2ed5-other-checks-current.json.gz",
+      "archive_sha256": "6e863e9f2d8bb91a2de35c5ff1aca719546900a10195e5cbe7c82db2a449668e"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-checks-history.jsonl",
+      "sha256": "d4e68e0f64cfcc926b08fef6b0e5226a733d35a6beba15471e11515bb76618d6",
+      "archive": "handoff--ci-2ed5-other-checks-history.jsonl.gz",
+      "archive_sha256": "716c42e7db5245c8caab237086a4734cf18b337af7cb84128e671c0c164499e1"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-file-manifest.json",
+      "sha256": "68c4b7a9d65e8056322f8d49f3bc1b7a2e807706e5db48100d4b818992f7a79c",
+      "archive": "handoff--ci-2ed5-other-file-manifest.json.gz",
+      "archive_sha256": "21df3791ad74e72c47b6011b6bf21d1593ab964036918791b733052ba21eb3cd"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-initial.json",
+      "sha256": "8ec07d5cf2e507fa327c85900c4fb80cb4a0077a82970dbe0c53b8e0743e1f16",
+      "archive": "handoff--ci-2ed5-other-initial.json.gz",
+      "archive_sha256": "c6eecf40ceb74c59cf32fcc4ebf003732c1f1fe58a20ccd690ba8492d28df4be"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242676-artifacts.json",
+      "sha256": "2efdfb2140d5d5009dfd16d5140a4bd2a371465f6e88ea928c217e5341367b14",
+      "archive": "handoff--ci-2ed5-other-run-34209242676-artifacts.json.gz",
+      "archive_sha256": "4cbbe01a319f744d85acc2f8fe9e46ff4814a56b14d8e384f2ea28900d86608d"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242676-jobs.json",
+      "sha256": "deb6fe1066ac396681a68b1c274b76805d48a606892120098c49a095c6b07414",
+      "archive": "handoff--ci-2ed5-other-run-34209242676-jobs.json.gz",
+      "archive_sha256": "43f7606fa187271276f69f16f67b9b0036804155ca1adcf7f675d29688a03221"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242676-run.json",
+      "sha256": "c3852c234c77ace6344ab6d6725466227b1f747dba0a911205f0056847f47c6e",
+      "archive": "handoff--ci-2ed5-other-run-34209242676-run.json.gz",
+      "archive_sha256": "bd46e0eb6cef79447030268476c84efcf566b9cbc756f869b8cc2cc0dc7992af"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242711-artifacts.json",
+      "sha256": "7f7b27453d31b92d375904f049b9d0bda43e17f3c4af70ec44e2045fe720b4e6",
+      "archive": "handoff--ci-2ed5-other-run-34209242711-artifacts.json.gz",
+      "archive_sha256": "53e15e9501c7594e1c8169b86db3e31318fe6a04bb1d55f65cf18bd4e42942a1"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242711-jobs.json",
+      "sha256": "e0cb8066a0e29b137b5602702f6a0b0015286ae9590e777155c04217af3c696e",
+      "archive": "handoff--ci-2ed5-other-run-34209242711-jobs.json.gz",
+      "archive_sha256": "2b7cabdfe194290a40bb92073cd382bc63377f41f846710386db0a8d6af05f39"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-run-34209242711-run.json",
+      "sha256": "b16969ba3630b829e01464497f048113749d29311df5c0c87db32c8a4f6f621a",
+      "archive": "handoff--ci-2ed5-other-run-34209242711-run.json.gz",
+      "archive_sha256": "d4bef296f7a4715b5c53682dd9e4a441d2b9738180ccd7e5bb1ed83dd5e45e9a"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-runs-final.json",
+      "sha256": "7a3a475ea25a0c11c6166beccad27d31b708e42ca97fd08610be9babf71b1958",
+      "archive": "handoff--ci-2ed5-other-runs-final.json.gz",
+      "archive_sha256": "73bce9004c2568a82a19164560bb2075afa9d028d940e7f881e0a638f317201f"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-summary.json",
+      "sha256": "e0e8432f7b29c88d82e1f6918173a2c4022fec3993fe16d167e5254dd16187c8",
+      "archive": "handoff--ci-2ed5-other-summary.json.gz",
+      "archive_sha256": "8e896503488e67b4b11630360d1513cea60930fa133f2dcc0c5e61521f5b83a0"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-tauri-job-102006027844.log",
+      "sha256": "437ce01565f3ce3ad25c09e4d904b8a1d359f7df9dd290eed095996aae8dcf69",
+      "archive": "handoff--ci-2ed5-other-tauri-job-102006027844.log.gz",
+      "archive_sha256": "e89f945ba916e29c530e020ed31765eb28b11b22b8de62f06c08a7bb264f2572"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/ci-2ed5-other-tauri-job-current.json",
+      "sha256": "342c0be442b0c441552f239aa8e9a488f7499e5a83f3aa05605d35cf7643d73b",
+      "archive": "handoff--ci-2ed5-other-tauri-job-current.json.gz",
+      "archive_sha256": "afb2509bea291b2e933be54393d573aca528933b00ba03348b57200eceed14cb"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/committed-source-normalization.json",
+      "sha256": "0cd655185a970388951a92861d683fc13581a0f4e4fc1c30844d7e5ad3e0e9d7",
+      "archive": "handoff--committed-source-normalization.json.gz",
+      "archive_sha256": "2b46d92ea7d273b14b8be5ce34909d091d1191f54f390487528b2081a96c4420"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/main-fast-forward-result.json",
+      "sha256": "f5c84c8bd61771fcb51a6f3aca4bc448412b32adee1907ebdd3ca985d2f806bd",
+      "archive": "handoff--main-fast-forward-result.json.gz",
+      "archive_sha256": "9bec95e9e536e310fd7f850ad5e5de203ab1c58654e0aebbe42a4736ac4b1901"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/main-merge-admission.json",
+      "sha256": "47c37ab3ffff1d8c9c182fa51ab0ffa78d8aaa46a266d7543990aba06520258f",
+      "archive": "handoff--main-merge-admission.json.gz",
+      "archive_sha256": "9999b0ec5995038285059e2ae078d4d0966469017de4d71fd4943fd6a6c8c063"
+    },
+    {
+      "source": "C:/Users/Administrator/Desktop/projects/daedalus-ignition-roots-20260908/runs/g1-ignition-03-20260908/main-merge-result.json",
+      "sha256": "40da6ced49250d03c6fcc69f5273d4bb972fd1e7bd47d6a028c22bdb2faadde1",
+      "archive": "handoff--main-merge-result.json.gz",
+      "archive_sha256": "b6a6d9390d185cfd981146a9f83990c1e943450f7154c6f5e24f0cc679605c82"
+    }
+  ],
+  "final_outcome": {
+    "recorded_at": "2026-09-08T09:31:38.902951+00:00",
+    "classification": "ALIGNED evidence-only parent handoff for accepted G1-IGNITION-03; no Gate transition or candidate promotion",
+    "outcome": "FINAL_SOURCE_CI_PASSED_AND_REVIEWED_MAIN_MERGE_COMPLETE",
+    "historical_fields": "All preceding values, including LOCAL_ACCEPTANCE_PASSED_CI_PENDING and retained failures, remain the initial 2026-09-08 local-acceptance observations. This appended final record documents the later source CI and reviewed main merge.",
+    "accepted_source": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+    "github_acceptance": {
+      "successful_jobs": 12,
+      "failed_jobs": 0,
+      "cancelled_jobs": 0,
+      "conditional_skipped_jobs": 4,
+      "pending_jobs": 0,
+      "expected_skips": [
+        {
+          "name": "matrix.label",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029487"
+        },
+        {
+          "name": "Release acceptance (full product and Linux OCI)",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006028861"
+        },
+        {
+          "name": "Complete suite (manual only)",
+          "workflow": "Fourfold, Tensor and integration contracts",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006029844"
+        },
+        {
+          "name": "Publish trusted-main prerelease",
+          "workflow": "Tauri Desktop",
+          "job_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029601"
+        }
+      ],
+      "ignition": {
+        "run_id": 34209242699,
+        "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699",
+        "run_attempt": 1,
+        "successful_jobs": 5,
+        "linux_matrix": [
+          {
+            "job_id": 102006027895,
+            "name": "ignition (3.12, 0)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027895",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:20:57Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:20:54.3634929Z 329 passed, 10 skipped, 17 warnings in 145.14s (0:02:25)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py312-seed0.log.gz"
+          },
+          {
+            "job_id": 102006027913,
+            "name": "ignition (3.10, 123456)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027913",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:22:26Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:22:24.1749514Z 329 passed, 10 skipped in 234.97s (0:03:54)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py310-seed123456.log.gz"
+          },
+          {
+            "job_id": 102006027983,
+            "name": "ignition (3.12, 123456)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027983",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:21:07Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:21:04.8521489Z 329 passed, 10 skipped, 17 warnings in 154.68s (0:02:34)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py312-seed123456.log.gz"
+          },
+          {
+            "job_id": 102006028085,
+            "name": "ignition (3.10, 0)",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006028085",
+            "started_at": "2026-09-08T09:18:14Z",
+            "completed_at": "2026-09-08T09:21:50Z",
+            "passed": 329,
+            "failed": 0,
+            "skipped": 10,
+            "pytest_summary": [
+              "2026-09-08T09:21:48.6862064Z 329 passed, 10 skipped in 199.55s (0:03:19)"
+            ],
+            "log_archive": "handoff--ci-2ed5-ignition-py310-seed0.log.gz"
+          }
+        ],
+        "isolated_wheel": {
+          "job_id": 102006027635,
+          "url": "https://github.com/KTY137/daedalus/actions/runs/34209242699/job/102006027635",
+          "conclusion": "success",
+          "log_archive": "handoff--ci-2ed5-ignition-isolated-wheel.log.gz"
+        },
+        "count_evidence": "Four Linux Python3.10/3.12 x hash0/123456 jobs retain the real pytest stdout. This workflow uploads no JUnit artifact; the isolated wheel job is a build/import check, not an additional pytest count."
+      },
+      "other_workflows": {
+        "successful_jobs": 7,
+        "conditional_skipped_jobs": 4,
+        "failed_jobs": 0,
+        "runs": [
+          {
+            "id": 34209242711,
+            "name": "Fourfold, Tensor and integration contracts",
+            "head_sha": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+            "event": "pull_request",
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242711",
+            "jobs": [
+              {
+                "id": 102006027742,
+                "name": "Isolated wheel imports",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:32Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006027742"
+              },
+              {
+                "id": 102006027905,
+                "name": "Contracts (Python 3.10, hash 123456)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:53Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006027905"
+              },
+              {
+                "id": 102006028034,
+                "name": "Contracts (Python 3.10, hash 0)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:46Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028034"
+              },
+              {
+                "id": 102006028072,
+                "name": "Contracts (Python 3.12, hash 123456)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:18:39Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028072"
+              },
+              {
+                "id": 102006028197,
+                "name": "Contracts (Python 3.12, hash 0)",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:15Z",
+                "completed_at": "2026-09-08T09:18:44Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028197"
+              },
+              {
+                "id": 102006028206,
+                "name": "Complete repository collection",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:19:28Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006028206"
+              },
+              {
+                "id": 102006029844,
+                "name": "Complete suite (manual only)",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242711/job/102006029844"
+              }
+            ]
+          },
+          {
+            "id": 34209242676,
+            "name": "Tauri Desktop",
+            "head_sha": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+            "event": "pull_request",
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/KTY137/daedalus/actions/runs/34209242676",
+            "jobs": [
+              {
+                "id": 102006027844,
+                "name": "Linux x86-64 PR validation",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-09-08T09:18:14Z",
+                "completed_at": "2026-09-08T09:25:49Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006027844"
+              },
+              {
+                "id": 102006028861,
+                "name": "Release acceptance (full product and Linux OCI)",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006028861"
+              },
+              {
+                "id": 102006029487,
+                "name": "matrix.label",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029487"
+              },
+              {
+                "id": 102006029601,
+                "name": "Publish trusted-main prerelease",
+                "status": "completed",
+                "conclusion": "skipped",
+                "started_at": "2026-09-08T09:18:12Z",
+                "completed_at": "2026-09-08T09:18:12Z",
+                "html_url": "https://github.com/KTY137/daedalus/actions/runs/34209242676/job/102006029601"
+              }
+            ]
+          }
+        ],
+        "summary_archive": "handoff--ci-2ed5-other-summary.json.gz"
+      },
+      "scope": "Triggered source checks only. Manual/release/publication jobs are expected skips, not passes. No fresh untriggered runtime or GUI result, release acceptance or Gate closure is claimed."
+    },
+    "ci_checkout_binding": {
+      "run_head_sha": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+      "actual_checkout_sha": "6171bde00a977da83dff50b651888731a5c381ae",
+      "source_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "checkout_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "trees_identical": true,
+      "checkout_parents": [
+        "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+        "2ed5a5d0c7cd9a14f886383806b916be92a99e7d"
+      ],
+      "explanation": "GitHub checks bind the PR source head while actions/checkout executes the virtual PR merge. Retained GitHub commit/tree metadata and checkout logs establish identical complete trees; the virtual CI merge is distinct from the later manually reviewed main merge.",
+      "proof_archive": "handoff--ci-2ed5-ignition-checkout-binding.json.gz"
+    },
+    "main_integration": {
+      "pull_request": "https://github.com/KTY137/daedalus/pull/319",
+      "base": "bf69e7195eba4d2c161e61aaead6aaa5695ab5bc",
+      "accepted_source": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+      "merge_commit": "24e229c0f34e5404bc219637b646386529f82035",
+      "merged_at": "2026-09-08T09:27:15Z",
+      "state": "MERGED",
+      "source_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "merge_tree": "2511549b11cc2266f058ec137783461d62250e6c",
+      "trees_identical": true,
+      "authorization": "User goal: integrate reviewed GitHub work into main, then continue through Gate3; source merge after independent review and complete CI, no candidate promotion.",
+      "fast_forward_and_wip_proof": {
+        "merge": "24e229c0f34e5404bc219637b646386529f82035",
+        "accepted_source": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+        "tree": "2511549b11cc2266f058ec137783461d62250e6c",
+        "tree_equal": true,
+        "original_user_file_sha256": "8c39bf52aa056e507a0d0b16e7e2f12993d717d5fd48744d748fed1ff9236668",
+        "original_status_before": "M vault/Sessions/2026-09-06.md",
+        "original_status_after": "M vault/Sessions/2026-09-06.md",
+        "successor_base": "24e229c0f34e5404bc219637b646386529f82035"
+      },
+      "proof_archives": [
+        "handoff--main-merge-admission.json.gz",
+        "handoff--main-merge-result.json.gz",
+        "handoff--main-fast-forward-result.json.gz"
+      ]
+    },
+    "committed_source_normalization": {
+      "initial_negative_control": "Raw equality assertion rejected at SCC metadata test; do not claim all local metadata test bytes equal committed LF bytes.",
+      "source_head": "2ed5a5d0c7cd9a14f886383806b916be92a99e7d",
+      "paths": [
+        {
+          "path": "daedalus/ignition/gate1.py",
+          "measured_worktree_sha256": "373f7dce0199b77bf8d1a3744df0f67dd37c18a32ceaf98537825d6118c73d5b",
+          "committed_git_blob_sha256": "373f7dce0199b77bf8d1a3744df0f67dd37c18a32ceaf98537825d6118c73d5b",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "daedalus/primary_tree.py",
+          "measured_worktree_sha256": "64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a",
+          "committed_git_blob_sha256": "64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/ignition/test_gate1_root_admission.py",
+          "measured_worktree_sha256": "ca80daa2e611d9bba4fb823a3823927f58826174ce36695630fd08784e671e1b",
+          "committed_git_blob_sha256": "ca80daa2e611d9bba4fb823a3823927f58826174ce36695630fd08784e671e1b",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/ignition/test_voltage_ignition_faults.py",
+          "measured_worktree_sha256": "66041fd26cb8045e7c1897df310f0f196905a53c57b3c5a9b7523bd1d5a6f96a",
+          "committed_git_blob_sha256": "66041fd26cb8045e7c1897df310f0f196905a53c57b3c5a9b7523bd1d5a6f96a",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/test_primary_tree_fence.py",
+          "measured_worktree_sha256": "e52fc209012568387f85cfb8fe6d7dfccb8db9ef854d76bbe43e9702988663df",
+          "committed_git_blob_sha256": "e52fc209012568387f85cfb8fe6d7dfccb8db9ef854d76bbe43e9702988663df",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/contracts/test_import_scc_hierarchy.py",
+          "measured_worktree_sha256": "e0a8278b1557a053509f87613bd071b74a15b1daa88cdcea4ee13726bacfa773",
+          "committed_git_blob_sha256": "b01762e4247d30fa9af599233583624b4ba836ab3fb77d676e5853e34954df91",
+          "byte_identical": false,
+          "difference": "only Git CRLF-to-LF normalization in metadata test; AST and all normalized bytes identical",
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "tests/contracts/test_work_packet_index.py",
+          "measured_worktree_sha256": "6b4df98d5f9a7749212165bd478b2f1dafd575777b88b36e2e0bad07cccfc39b",
+          "committed_git_blob_sha256": "6b4df98d5f9a7749212165bd478b2f1dafd575777b88b36e2e0bad07cccfc39b",
+          "byte_identical": true,
+          "difference": null,
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        },
+        {
+          "path": "experiments/forest_v2/s02_types/test_external_corpora.py",
+          "measured_worktree_sha256": "5f064c7f401ccac68e8c2c2baa45da0e78e7ee6f16b31aa08136a5d95cb1e2de",
+          "committed_git_blob_sha256": "29c1ec46489de529532446773d2a560f922add47482d841be6f1ef82ef008877",
+          "byte_identical": false,
+          "difference": "only Git CRLF-to-LF normalization in metadata test; AST and all normalized bytes identical",
+          "all_normalized_bytes_identical": true,
+          "ast_identical": true
+        }
+      ],
+      "production_and_functional_test_paths": [
+        "daedalus/ignition/gate1.py",
+        "daedalus/primary_tree.py",
+        "tests/ignition/test_gate1_root_admission.py",
+        "tests/ignition/test_voltage_ignition_faults.py",
+        "tests/test_primary_tree_fence.py"
+      ],
+      "all_five_production_and_functional_test_raw_bytes_identical": true,
+      "other_byte_identical_metadata_test": "tests/contracts/test_work_packet_index.py",
+      "metadata_tests_with_crlf_to_lf_only": [
+        "tests/contracts/test_import_scc_hierarchy.py",
+        "experiments/forest_v2/s02_types/test_external_corpora.py"
+      ],
+      "all_eight_paths_normalized_bytes_and_ast_verified": true,
+      "raw_equality_claim": "No all-file raw-byte equality is claimed: exactly two measured local metadata tests differ from committed bytes by CRLF-to-LF normalization. Their full normalized bytes and AST were independently compared; the five production/functional paths and packet-index test are raw-byte identical.",
+      "proof_archive": "handoff--committed-source-normalization.json.gz"
+    },
+    "retention_verification": {
+      "existing_archives_verified": 154,
+      "new_archives": 36,
+      "total_archives": 190,
+      "original_and_archive_sha256_verified": true,
+      "new_gzip_mtime": 0,
+      "new_gzip_compresslevel": 9,
+      "new_gzip_repeat_bytes_identical": true,
+      "new_archive_files": [
+        "handoff--ci-2ed5-ignition-acceptance.json.gz",
+        "handoff--ci-2ed5-ignition-artifacts.json.gz",
+        "handoff--ci-2ed5-ignition-checkout-binding.json.gz",
+        "handoff--ci-2ed5-ignition-checkout-commit.json.gz",
+        "handoff--ci-2ed5-ignition-isolated-wheel-check.json.gz",
+        "handoff--ci-2ed5-ignition-isolated-wheel.log.gz",
+        "handoff--ci-2ed5-ignition-jobs.json.gz",
+        "handoff--ci-2ed5-ignition-polls.jsonl.gz",
+        "handoff--ci-2ed5-ignition-py310-seed0-check.json.gz",
+        "handoff--ci-2ed5-ignition-py310-seed0.log.gz",
+        "handoff--ci-2ed5-ignition-py310-seed123456-check.json.gz",
+        "handoff--ci-2ed5-ignition-py310-seed123456.log.gz",
+        "handoff--ci-2ed5-ignition-py312-seed0-check.json.gz",
+        "handoff--ci-2ed5-ignition-py312-seed0.log.gz",
+        "handoff--ci-2ed5-ignition-py312-seed123456-check.json.gz",
+        "handoff--ci-2ed5-ignition-py312-seed123456.log.gz",
+        "handoff--ci-2ed5-ignition-run.json.gz",
+        "handoff--ci-2ed5-ignition-source-commit.json.gz",
+        "handoff--ci-2ed5-other-checks-current.json.gz",
+        "handoff--ci-2ed5-other-checks-history.jsonl.gz",
+        "handoff--ci-2ed5-other-file-manifest.json.gz",
+        "handoff--ci-2ed5-other-initial.json.gz",
+        "handoff--ci-2ed5-other-run-34209242676-artifacts.json.gz",
+        "handoff--ci-2ed5-other-run-34209242676-jobs.json.gz",
+        "handoff--ci-2ed5-other-run-34209242676-run.json.gz",
+        "handoff--ci-2ed5-other-run-34209242711-artifacts.json.gz",
+        "handoff--ci-2ed5-other-run-34209242711-jobs.json.gz",
+        "handoff--ci-2ed5-other-run-34209242711-run.json.gz",
+        "handoff--ci-2ed5-other-runs-final.json.gz",
+        "handoff--ci-2ed5-other-summary.json.gz",
+        "handoff--ci-2ed5-other-tauri-job-102006027844.log.gz",
+        "handoff--ci-2ed5-other-tauri-job-current.json.gz",
+        "handoff--committed-source-normalization.json.gz",
+        "handoff--main-fast-forward-result.json.gz",
+        "handoff--main-merge-admission.json.gz",
+        "handoff--main-merge-result.json.gz"
+      ]
+    },
+    "gate_transition": false
+  }
+}

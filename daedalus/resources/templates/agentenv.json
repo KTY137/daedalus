@@ -1,0 +1,40 @@
+{
+  "_comment": "daedalus policy for THIS repo. Generic secret protections are always merged in; add your own denies. With no 'policy' block, the bench is read/advise-only (fail-closed). Edit, then run `daedalus doctor`.",
+  "policy": {
+    "deny": [
+      "secret",
+      "credential",
+      ".env",
+      "id_rsa",
+      ".pem"
+    ],
+    "allow": [
+      "docs/",
+      "/tests/",
+      "test_",
+      ".md",
+      "readme"
+    ],
+    "allow_exceptions": [
+      "_simulated.py"
+    ],
+    "high_risk_paths": [],
+    "high_risk_terms": [
+      "delete",
+      "drop table",
+      "migration",
+      "auth",
+      "payment",
+      "production",
+      "deploy"
+    ],
+    "deny_content": [],
+
+    "_comment_external_write_lanes": "Which UNTRUSTED external provider lanes may APPLY a change instead of only advising. Empty (the default, and today's behaviour) = every external lane is advisory-only. Add \"deepseek\" to let the DeepSeek lane land a full-file rewrite, and only on LOW change-risk, non-review tasks. This does NOT widen anything else: a lane named here may still only touch paths write_allow permits, may still only receive bytes the egress keys (allow / default_deny) permit, still faces the verify gate, and still rolls back on failure. DeepSeek writes are PAID.",
+    "external_write_lanes": []
+  },
+  "test_command": "python -m pytest -q",
+  "test_cwd": ".",
+  "_comment_write_wave_policy": "Candidate nomination and promotion are separate. 'never' holds every clean gated candidate for explicit owner-controlled promotion. Legacy 'low_risk' and 'always' inputs are denied by the current runtime rather than arming automatic integration-worktree promotion.",
+  "write_wave_policy": "never"
+}

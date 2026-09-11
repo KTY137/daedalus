@@ -6,7 +6,7 @@ from pathlib import Path
 
 TARGET = (
     Path(__file__).resolve().parents[2]
-    / "daedalus/gates/repository_write_runtime_conformance.py"
+    / "daedalus/gates/repository/write_runtime_conformance.py"
 )
 
 

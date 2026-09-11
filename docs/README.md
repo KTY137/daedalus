@@ -74,7 +74,7 @@ exist yet: `work-packets/`, `design/`, `decisions-pending/`, `adrs/`, and
 
 ```powershell
 python tools/docs_reference_check.py
-python -m daedalus.cli map --check
+python -m daedalus.interfaces.cli.entry map --check
 ```
 
 `docs_reference_check.py` checks resolvable references in current pages while

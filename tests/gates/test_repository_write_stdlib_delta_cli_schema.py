@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import daedalus.gates.repository_write_stdlib_delta as delta
+import daedalus.gates.repository.write_stdlib_delta as delta
 
 
 REVISION = "c" * 40

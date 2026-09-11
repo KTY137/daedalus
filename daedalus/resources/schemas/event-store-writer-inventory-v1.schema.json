@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/event-store-writer-inventory-v1.schema.json",
+  "title": "Daedalus Gate-0 Event-Store Writer Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "package_root",
+    "scan_input_sha256",
+    "files_scanned",
+    "callsites",
+    "blocker_count",
+    "closed",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-event-store-writer-inventory/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "package_root": {
+      "const": "daedalus"
+    },
+    "scan_input_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "files_scanned": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "callsites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/callsite"
+      }
+    },
+    "blocker_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "closed": {
+      "type": "boolean"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "callsite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "line",
+        "column",
+        "kind",
+        "callee",
+        "blocking"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!\\.\\.?/)(?!.*\\\\).+$"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "gate0_factory",
+            "read_only",
+            "legacy_direct",
+            "ambiguous_direct",
+            "ambiguous_binding"
+          ]
+        },
+        "callee": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S+$"
+        },
+        "blocking": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

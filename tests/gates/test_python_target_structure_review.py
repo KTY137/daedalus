@@ -8,6 +8,10 @@ TARGET = (
     Path(__file__).resolve().parents[2]
     / "daedalus/gates/python_target_structure.py"
 )
+CONTRACT = (
+    Path(__file__).resolve().parents[2]
+    / "daedalus/runtimes/contracts/python_targets.py"
+)
 
 
 def _tree() -> ast.Module:
@@ -118,7 +122,12 @@ def test_definition_chain_is_unique_and_conservative() -> None:
 
 
 def test_result_cannot_launder_structure_into_behavior() -> None:
-    source = TARGET.read_text(encoding="utf-8")
+    source = "\n".join(
+        (
+            TARGET.read_text(encoding="utf-8"),
+            CONTRACT.read_text(encoding="utf-8"),
+        )
+    )
     assert source.count('"structural_target_verified": True') == 1
     assert source.count('"behavior_verified": False') == 1
     assert source.count('"executed": False') == 1
@@ -136,7 +145,7 @@ def test_result_cannot_launder_structure_into_behavior() -> None:
 
 def test_module_uses_shared_repository_tree_boundary() -> None:
     source = TARGET.read_text(encoding="utf-8")
-    assert "from daedalus.gates.repository_tree import" in source
+    assert "from daedalus.gates.repository.tree import" in source
     assert "read_repository_source" in source
     for forbidden in (
         "os.open",

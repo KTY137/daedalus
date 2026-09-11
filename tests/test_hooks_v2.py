@@ -551,7 +551,7 @@ def test_dispatch_refuses_to_run_without_the_effect_receipt(repo: Path) -> None:
 
 
 def test_render_delta_confines_the_cursor_to_the_repository(repo: Path, tmp_path: Path) -> None:
-    from daedalus import arch_memory
+    from daedalus.interfaces.cli import arch_memory
 
     outside = tmp_path / "elsewhere.shown"
     with pytest.raises(ValueError):

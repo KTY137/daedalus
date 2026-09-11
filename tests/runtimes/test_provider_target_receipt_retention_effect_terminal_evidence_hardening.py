@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidence as terminal_module
+import daedalus.runtimes.provider.target_receipt_retention_effect_terminal_evidence as terminal_module
 from daedalus.kernel.effect_replay import EffectExecutionReplaySnapshot
-from daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_effect_terminal_evidence import (
     ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
 )
 

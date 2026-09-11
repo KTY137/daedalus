@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import ast
 import inspect
-from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -20,18 +19,18 @@ from daedalus.providers.claude_cli import (
     claude_idempotency_key,
     claude_invocation_sha256,
 )
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_invocation_abi import ProviderInvocationABIContract
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_abi import ProviderInvocationABIContract
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.runtimes.provider_observation import ProviderObservationBindingLedger
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.observation import ProviderObservationBindingLedger
 
 
 SEALED_TYPES = {
@@ -69,91 +68,24 @@ def _invocation(tmp_path: Path, **changes: object) -> str:
     return claude_invocation_sha256(**values)  # type: ignore[arg-type]
 
 
-def _sealed_bundle(**changes: object) -> claude_bridge.ClaudeSealedInvocationBundle:
-    values = {
-        name: object.__new__(member_type)
-        for name, member_type in SEALED_TYPES.items()
-    }
-    values.update(changes)
-    return claude_bridge.ClaudeSealedInvocationBundle(**values)  # type: ignore[arg-type]
-
-
-def test_public_claude_bridge_exposes_one_indivisible_sealed_bundle() -> None:
-    parameters = inspect.signature(claude_bridge.ask_claude).parameters
-
-    assert "sealed_bundle" in parameters
-    assert parameters["sealed_bundle"].kind is inspect.Parameter.KEYWORD_ONLY
-    assert SEALED_FIELDS.isdisjoint(parameters)
-    assert {field.name for field in fields(claude_bridge.ClaudeSealedInvocationBundle)} == SEALED_FIELDS
-
-
-def test_public_claude_bridge_rejects_duck_typed_bundle_before_member_access() -> None:
-    class AmbientBundle:
-        @property
-        def runtime_authorization(self):
-            raise AssertionError("duck-typed capability member was evaluated")
-
-    with pytest.raises(
-        ClaudeProviderAuthorizationRequired,
-        match="one exact ClaudeSealedInvocationBundle",
-    ):
-        claude_bridge.ask_claude(
-            "review",
-            "unused",
-            [],
-            sealed_bundle=AmbientBundle(),  # type: ignore[arg-type]
-        )
-
-
-def test_sealed_bundle_rejects_empty_member_at_construction() -> None:
-    with pytest.raises(ValueError, match="pre_admission"):
-        _sealed_bundle(pre_admission=None)
+@pytest.mark.parametrize("missing", sorted(SEALED_FIELDS))
+def test_public_bridge_requires_every_authority_member(missing: str) -> None:
+    values = {name: object() for name in SEALED_FIELDS}
+    values[missing] = None
+    with pytest.raises(ClaudeProviderAuthorizationRequired):
+        claude_bridge.ask_claude("review", "unused", [], **values)
 
 
 @pytest.mark.parametrize("member", sorted(SEALED_FIELDS))
-def test_sealed_bundle_rejects_substituted_member_type_before_access(member: str) -> None:
+def test_provider_rejects_substituted_authority_before_property_access(member: str) -> None:
     class AmbientAuthority:
-        @property
-        def digest(self):
-            raise AssertionError("substituted authority member was evaluated")
-
-    with pytest.raises(TypeError, match=member):
-        _sealed_bundle(**{member: AmbientAuthority()})
-
-
-def test_public_claude_bridge_unwraps_exact_bundle_only_at_provider_boundary(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bundle = _sealed_bundle()
-    agent = {"name": "reviewer", "model_tier": "sonnet"}
-    captured: dict[str, object] = {}
-
-    monkeypatch.setattr(claude_bridge, "route_task", lambda objective, paths: agent)
-
-    def fake_run(self, **kwargs):
-        captured.update(kwargs)
-        return {"report": {"status": "done"}}
-
-    monkeypatch.setattr(ClaudeCLIProvider, "run", fake_run)
-
-    result = claude_bridge.ask_claude(
-        "review exact diff",
-        "/isolated/worktree",
-        ["src/ikarus.py"],
-        model="sonnet",
-        timeout_s=45,
-        sealed_bundle=bundle,
-    )
-
-    assert result == {"report": {"status": "done"}}
-    assert captured["objective"] == "review exact diff"
-    assert captured["repo_root"] == "/isolated/worktree"
-    assert captured["paths"] == ["src/ikarus.py"]
-    assert captured["agent"] is agent
-    assert captured["model"] == "sonnet"
-    assert captured["timeout_s"] == 45
-    for name in SEALED_FIELDS:
-        assert captured[name] is getattr(bundle, name)
+        def __getattribute__(self, name):
+            raise AssertionError("substituted authority member was evaluated: " + name)
+    values = {name: object.__new__(kind) for name, kind in SEALED_TYPES.items()}
+    values[member] = AmbientAuthority()
+    with pytest.raises((TypeError, ClaudeProviderAuthorizationRequired)):
+        ClaudeCLIProvider().run(objective="review", repo_root="unused", paths=[],
+            agent={"model_tier": "sonnet"}, **values)
 
 
 def test_claude_provider_exposes_only_complete_sealed_runtime_contract() -> None:
@@ -176,11 +108,11 @@ def test_claude_provider_has_no_callback_broker_or_private_subprocess_call() -> 
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             calls.append(node.func.id)
 
-    assert "run_runtime_provider" not in imported_names
+    assert "run_runtime_provider" in imported_names
     assert "_invoke_claude_cli" not in imported_names
-    assert "run_runtime_provider" not in calls
+    assert calls.count("run_runtime_provider") == 1
     assert "_invoke_claude_cli" not in calls
-    assert calls.count("run_sealed_runtime_provider") == 1
+    assert "run_sealed_runtime_provider" not in calls
 
 
 def test_missing_sealed_bundle_refuses_before_runtime_objects_are_touched() -> None:
@@ -188,7 +120,7 @@ def test_missing_sealed_bundle_refuses_before_runtime_objects_are_touched() -> N
 
     with pytest.raises(
         ClaudeProviderAuthorizationRequired,
-        match="complete sealed invocation bundle",
+        match="authenticated invocation",
     ):
         provider.run(
             objective="review",
@@ -212,7 +144,7 @@ def test_partial_provider_sealed_bundle_is_fail_closed(missing: str) -> None:
 
     with pytest.raises(
         ClaudeProviderAuthorizationRequired,
-        match="complete sealed invocation bundle",
+        match="authenticated invocation",
     ):
         ClaudeCLIProvider().run(
             objective="review",

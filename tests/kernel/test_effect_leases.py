@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.effect_replay import PersistedEffectLeaseSubject
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
@@ -17,14 +20,17 @@ from daedalus.kernel.effects import (
     EffectLeaseScopeError,
     EffectLeaseSignatureError,
     EffectLeaseStateError,
+    LeasedEffectAuthorization,
     issue_effect_lease,
     verify_effect_lease,
 )
+from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import (
     Effect,
     EntrypointSpec,
     GuardDecision,
+    REGISTRY_BY_ID,
     Surface,
     Wiring,
 )
@@ -33,6 +39,27 @@ REVISION = "a" * 40
 POLICY_SHA = "b" * 64
 SECRET = b"effect-lease-kernel-secret-material-32-bytes-minimum"
 NOW = datetime(2026, 8, 1, 21, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize(
+    "authorization_type",
+    (
+        LeasedEffectAuthorization,
+        NonRuntimeEffectAuthorization,
+        PersistedEffectLeaseSubject,
+        RuntimeBoundEffectAuthorization,
+    ),
+)
+def test_authorization_registry_uses_a_cross_version_safe_factory_default(
+    authorization_type: type,
+) -> None:
+    registry_field = {
+        item.name: item for item in dataclasses.fields(authorization_type)
+    }["registry"]
+
+    assert registry_field.default is dataclasses.MISSING
+    assert registry_field.default_factory is not dataclasses.MISSING
+    assert registry_field.default_factory() is REGISTRY_BY_ID
 
 
 def central_spec(*, runtime_id: str = "") -> EntrypointSpec:
@@ -68,10 +95,19 @@ def scope(*, max_concurrency: int = 1) -> EffectScope:
     )
 
 
-def request(*, effect_scope: EffectScope | None = None, runtime: bool = False) -> EffectLeaseRequest:
+def request(
+    *,
+    effect_scope: EffectScope | None = None,
+    runtime: bool = False,
+    operation_sha256: str | None = None,
+) -> EffectLeaseRequest:
     runtime_manifest = "c" * 64 if runtime else None
     runtime_conformance = "d" * 64 if runtime else None
-    inputs = tuple(x for x in (runtime_manifest, runtime_conformance) if x)
+    inputs = tuple(
+        x
+        for x in (runtime_manifest, runtime_conformance, operation_sha256)
+        if x
+    )
     return EffectLeaseRequest(
         request_id="lease-request-1",
         mission_id="mission-1",
@@ -94,6 +130,7 @@ def request(*, effect_scope: EffectScope | None = None, runtime: bool = False) -
             input_digests=inputs,
             trace_id="mission-1",
         ),
+        operation_sha256=operation_sha256,
     )
 
 
@@ -133,7 +170,13 @@ def lease(*, req: EffectLeaseRequest | None = None, policy: PolicyDecision | Non
     )
 
 
-def execution(*, execution_id: str = "execution-1", idempotency_key: str = "idem-1", path: str = "workspace/out.txt"):
+def execution(
+    *,
+    execution_id: str = "execution-1",
+    idempotency_key: str = "idem-1",
+    path: str = "workspace/out.txt",
+    operation_sha256: str | None = None,
+):
     return EffectExecutionRequest(
         execution_id=execution_id,
         idempotency_key=idempotency_key,
@@ -147,6 +190,7 @@ def execution(*, execution_id: str = "execution-1", idempotency_key: str = "idem
         max_cost_microusd=100,
         kill_switch_ref="mission-kill",
         kill_switch_generation=7,
+        operation_sha256=operation_sha256,
     )
 
 
@@ -361,6 +405,37 @@ def test_scope_escalation_is_refused(tmp_path) -> None:
         begin(ledger, value, req, policy, extra_effect)
 
 
+@pytest.mark.parametrize("execution_operation", (None, "f" * 64))
+def test_operation_bound_lease_refuses_missing_or_different_execution_operation(
+    tmp_path,
+    execution_operation: str | None,
+) -> None:
+    authorized_operation = "e" * 64
+    req = request(operation_sha256=authorized_operation)
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    ledger = EffectLeaseLedger(tmp_path / "leases.sqlite3")
+    grant(ledger, value, req, policy)
+
+    with pytest.raises(EffectLeaseScopeError, match="authorized operation"):
+        begin(
+            ledger,
+            value,
+            req,
+            policy,
+            execution(operation_sha256=execution_operation),
+        )
+
+    accepted = begin(
+        ledger,
+        value,
+        req,
+        policy,
+        execution(operation_sha256=authorized_operation),
+    )
+    assert accepted.execute is True
+
+
 def test_concurrency_ceiling_is_enforced_and_terminal_releases_slot(tmp_path) -> None:
     req = request()
     policy = decision(req)
@@ -469,7 +544,7 @@ def test_grant_authenticates_before_persisting(tmp_path) -> None:
     ledger = EffectLeaseLedger(tmp_path / "leases.sqlite3")
     with pytest.raises(EffectLeaseSignatureError):
         grant(ledger, tampered, req, policy)
-    with sqlite3.connect(tmp_path / "leases.sqlite3") as connection:
+    with contextlib.closing(sqlite3.connect(tmp_path / "leases.sqlite3")) as connection:
         assert connection.execute("SELECT COUNT(*) FROM effect_leases").fetchone()[0] == 0
 
 

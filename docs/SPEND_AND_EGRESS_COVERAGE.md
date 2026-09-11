@@ -108,20 +108,28 @@ each inspected, unchanged by this reconstruction):
 | `daedalus/doctor.py` | `--version` / `login status` probes generate no tokens |
 | `daedalus/health.py` | git, `shutil.which`, local `/api/tags` |
 | `daedalus/claude_bridge.py` | since `448969d` the `__main__` fail-closes via `parser.error` before any effect; the one vendor spawn is private and brokered |
-| `tools/system_check.py` | spawns `daedalus.cli web` / `file_bridge watch`; its `claude` token is a room SPEAKER NAME |
+| `tools/system_check.py` | spawns `daedalus.interfaces.cli.entry web` / `file_bridge watch`; its `claude` token is a room SPEAKER NAME |
 | `tools/gate_discrimination.py` | vendor token inside a fixture string; protected artifact (see above) |
 
 ## 4. Who installs the ceiling
+
+The census excludes the generated frozen-sidecar backend and Cargo target
+directories beneath `apps/web/src-tauri/`. Measured on
+2026-08-30 after a desktop build, scanning those outputs counted the same
+`daedalus/budget.py`, `cli.py`, `loop.py`, and sealed `claude_bridge.py` a
+second time. They are derived packaging artifacts, not independent executable
+source owners; authoritative source remains covered by the repository-wide
+walk.
 
 Independently reproduced 2026-08-22 [MEASURED] by scanning every non-test
 `*.py` for a *call* to `install_process_guard()` — **8 files**, exactly the set
 the test pins, with no drift:
 
-`daedalus/budget.py`, `daedalus/cli.py`, `daedalus/loop.py`,
+`daedalus/budget.py`, `daedalus/interfaces/cli/entry.py`, `daedalus/orchestration/loop.py`,
 `runs/ab/run_arm.py`, `runs/council/room.py`, `runs/council/room_server.py`,
 `runs/council/summarize.py`, `tools/operability_drill.py`.
 
-Two of those matter structurally. `daedalus/loop.py` is the only entry point
+Two of those matter structurally. `daedalus/orchestration/loop.py` is the only entry point
 that spends **repeatedly by design**. `daedalus/budget.py` entered the set on
 2026-08-18 when `process_guard_boundary_decision()` began installing the
 ceiling for roughly forty centrally-wired entrypoints through one function —
@@ -147,7 +155,7 @@ Floored: `daedalus/council/vendors.py`, `daedalus/providers/codex_cli.py`,
   planner selects a `.env`, it ships verbatim. Open because the fix is a design
   decision: dropping a selected file silently would change what the two A/B
   arms are comparing.
-- **`daedalus/ikarus_os.py` — inspected, not egress.** `_claude_stream` reads
+- **`daedalus/orchestration/ikarus/shell.py` — inspected, not egress.** `_claude_stream` reads
   the vendor's *response* file; prompt input is assembled separately. Bytes
   flow vendor -> disk -> caller.
 - **Out-of-repo witness.** `~/.claude/skills/room/room.py` exists here (26 990

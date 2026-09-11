@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.repository_write_artifact_cas import (
+from daedalus.gates.repository.write_artifact_cas import (
     RepositoryWriteArtifactCASError,
     RepositoryWriteArtifactCASRoot,
     artifact_relative_path,
     resolve_repository_write_artifact,
 )
-from daedalus.gates.repository_write_evidence import (
+from daedalus.gates.repository.write_evidence import (
     RepositoryWriteArtifactEvidence,
 )
 from daedalus.schemas import ContractProvenance
@@ -132,7 +132,7 @@ def test_opened_descriptor_substitution_refuses(
         return original_open(path, flags)
 
     monkeypatch.setattr(
-        "daedalus.gates.repository_write_artifact_cas.os.open",
+        "daedalus.gates.repository.write_artifact_cas.os.open",
         substituted_open,
     )
 

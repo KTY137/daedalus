@@ -277,15 +277,19 @@ def test_a_planned_name_that_would_contain_the_checkout_is_refused(tmp_path):
     names the checkout's parent through a component that does not exist;
     Windows resolves it on ``stat`` and the question becomes the existing
     ``overlap_reason`` with its alias prose, POSIX may not resolve it and the
-    planned branch answers lexically. Either way the answer starts with the
-    contains verdict, never None."""
+    planned branch answers lexically. Both existing and prospective contains
+    verdicts refuse; neither a disjoint nor an unknown answer is accepted."""
     repo = tmp_path / "checkout"
     repo.mkdir()
     spelled = tmp_path / "elsewhere" / ".." / "checkout"
     assert planned_overlap_reason(spelled, repo) is not None
     reason = planned_overlap_reason(tmp_path / "elsewhere" / "..", repo)
     assert reason is not None
-    assert reason.startswith("it contains the primary checkout")
+    assert reason in {
+        "it contains the primary checkout",
+        "it would contain the primary checkout",
+        f"it contains the primary checkout, which is reached through {tmp_path}",
+    }
 
 
 def test_attempt_module_uses_the_shared_comparison_not_its_own(trees):
@@ -359,3 +363,276 @@ def test_persist_writes_happily_into_a_worktree(trees):
     assert written.read_bytes() == b"--- a\n+++ b\n"
     assert written.parent.name == hashlib.sha256(b"--- a\n+++ b\n").hexdigest()[:2]
     assert written.name == hashlib.sha256(b"--- a\n+++ b\n").hexdigest()[2:]
+
+
+# G1-IGNITION-03 P1-P8: compare intended destinations without creating them.
+# P9 runs isolated mutations against these same paired discriminators.
+def _assert_planned_relation(left, right, expected, **kwargs):
+    import daedalus.primary_tree as pt
+
+    result = pt.compare_planned_roots(left, right, **kwargs)
+    assert isinstance(result, pt.PlannedRootRelation)
+    assert result.value == expected
+
+
+def _path_snapshot(root):
+    return {
+        str(path.relative_to(root)): (
+            path.stat().st_dev, path.stat().st_ino,
+            None if path.is_dir() else path.read_bytes(),
+        )
+        for path in root.rglob("*")
+    }
+
+
+@pytest.mark.parametrize("left_tail,right_tail", [
+    ("new-work", "new-receipts"),
+    ("missing/new-work", "missing/new-receipts"),
+    ("missing/work", "missing/work-more"),
+])
+def test_prospective_siblings_keep_their_missing_tails(tmp_path, left_tail, right_tail):
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_bytes(b"existing ground must remain unchanged")
+    before = _path_snapshot(tmp_path)
+    left, right = tmp_path / left_tail, tmp_path / right_tail
+    _assert_planned_relation(left, right, "disjoint")
+    _assert_planned_relation(right, left, "disjoint")
+    assert _path_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("spelling", ["new-root", "./new-root", "unused/../new-root"])
+def test_prospective_equal_normalized_destinations(tmp_path, spelling):
+    intended = tmp_path / "new-root"
+    alias = str(tmp_path) + os.sep + spelling
+    _assert_planned_relation(intended, alias, "equal")
+    _assert_planned_relation(alias, intended, "equal")
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="case-insensitive spelling is Windows-only")
+def test_prospective_windows_case_spelling_is_equal(tmp_path):
+    intended = tmp_path / "MiSsInG" / "Root"
+    _assert_planned_relation(intended, str(intended).swapcase(), "equal")
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("existing", ["neither", "outer", "both"])
+def test_prospective_ancestry_preserves_both_directions(tmp_path, existing):
+    outer = tmp_path / "new-root"
+    inner = outer / "child"
+    if existing == "outer":
+        outer.mkdir()
+    elif existing == "both":
+        inner.mkdir(parents=True)
+    before = _path_snapshot(tmp_path)
+    _assert_planned_relation(outer, inner, "contains")
+    _assert_planned_relation(inner, outer, "inside")
+    _assert_planned_relation(outer, outer, "equal")
+    _assert_planned_relation(outer, tmp_path / "other", "disjoint")
+    assert _path_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("existing", ["neither", "left", "right", "both"])
+def test_prospective_existing_and_missing_sibling_roots(tmp_path, existing):
+    left, right = tmp_path / "work", tmp_path / "receipts"
+    if existing in {"left", "both"}:
+        left.mkdir()
+    if existing in {"right", "both"}:
+        right.mkdir()
+    before = _path_snapshot(tmp_path)
+    _assert_planned_relation(left, right, "disjoint")
+    _assert_planned_relation(right, left, "disjoint")
+    if right.exists():
+        assert planned_overlap_reason(left, right) is None
+    else:
+        # Existing protected-root predicates keep their fail-closed contract.
+        assert "could not be examined" in planned_overlap_reason(left, right)
+    assert _path_snapshot(tmp_path) == before
+
+
+def test_prospective_default_receipt_and_cas_layout_needs_no_provisioning(tmp_path):
+    workspace, receipts = tmp_path / "work", tmp_path / "receipts"
+    mission = receipts / "mission"
+    evidence, cas = mission / "store", mission / "source-trees"
+    for left, right in [(workspace, receipts), (workspace, cas), (evidence, cas),
+                        (tmp_path / "external-cas", receipts)]:
+        _assert_planned_relation(left, right, "disjoint")
+        _assert_planned_relation(right, left, "disjoint")
+    for child in [cas, receipts / "custom-cas"]:
+        _assert_planned_relation(child, receipts, "inside")
+        _assert_planned_relation(receipts, child, "contains")
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("alias_name", sorted(_alias_spellings(Path(attempt_mod.ROOT))))
+def test_prospective_real_alias_ground_retains_tail_geometry(tmp_path, alias_name):
+    root = tmp_path / "ground"
+    ground = root / "daedalus"
+    ground.mkdir(parents=True)
+    # The existing spelling helper names daedalus/x.py; compare its directory.
+    alias = Path(_alias_spellings(root)[alias_name]).parent
+    try:
+        same_ground = os.path.samefile(ground, alias)
+    except OSError as exc:
+        pytest.skip(f"real {alias_name} alias is unavailable: {exc}")
+    assert same_ground, "the alias must actually identify the same existing directory"
+    _assert_planned_relation(ground / "new", alias / "new", "equal")
+    _assert_planned_relation(ground / "new", alias / "new" / "child", "contains")
+    _assert_planned_relation(alias / "new" / "child", ground / "new", "inside")
+    _assert_planned_relation(ground / "new", alias / "new-more", "disjoint")
+    assert list(ground.iterdir()) == []
+
+
+@pytest.mark.parametrize("alias_kind", ["symlink", "junction"])
+def test_prospective_real_directory_alias_retains_tail_geometry(tmp_path, alias_kind):
+    ground, alias = tmp_path / "ground", tmp_path / "alias"
+    ground.mkdir()
+    if alias_kind == "junction":
+        if os.name != "nt":
+            pytest.skip("real junction creation is Windows-only")
+        import _winapi
+        try:
+            _winapi.CreateJunction(str(ground), str(alias))
+        except OSError as exc:
+            pytest.skip(f"real junction creation unavailable: {exc}")
+    else:
+        try:
+            alias.symlink_to(ground, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"real symlink creation unavailable: {exc}")
+    assert os.path.samefile(ground, alias)
+    _assert_planned_relation(ground / "new", alias / "new", "equal")
+    _assert_planned_relation(ground / "new", alias / "new" / "child", "contains")
+    _assert_planned_relation(alias / "new" / "child", ground / "new", "inside")
+    _assert_planned_relation(ground / "new", alias / "other", "disjoint")
+    assert list(ground.iterdir()) == []
+
+
+@pytest.mark.parametrize("bad", [None, "", "   ", "bad\x00path"])
+def test_prospective_unresolvable_input_is_unknown(tmp_path, bad):
+    _assert_planned_relation(tmp_path / "safe", bad, "unknown")
+    _assert_planned_relation(bad, tmp_path / "safe", "unknown")
+    _assert_planned_relation(tmp_path / "safe", tmp_path / "other", "disjoint")
+
+
+@pytest.mark.parametrize("failure", ["resolve", "identity", "probe"])
+def test_prospective_failed_ground_is_unknown_not_disjoint(tmp_path, monkeypatch, failure):
+    import daedalus.primary_tree as pt
+
+    ground = tmp_path / "ground"
+    ground.mkdir()
+    sentinel = ground / "sentinel"
+    sentinel.write_bytes(b"keep both identity and contents")
+    left, right = ground / "left", tmp_path / "right"
+    before = _path_snapshot(tmp_path)
+    with monkeypatch.context() as faults:
+        if failure == "resolve":
+            original = pt._resolve
+            faults.setattr(pt, "_resolve", lambda path: None if Path(path) == left else original(path))
+        elif failure == "identity":
+            original = pt._identity
+            faults.setattr(pt, "_identity", lambda path: None if path == ground else original(path))
+        else:
+            def denied(_path):
+                raise PermissionError("controlled inaccessible ground")
+            faults.setattr(pt, "nearest_existing", denied)
+        _assert_planned_relation(left, right, "unknown")
+        _assert_planned_relation(right, left, "unknown")
+        _assert_planned_relation(left, left, "unknown")
+    _assert_planned_relation(left, right, "disjoint")
+    assert _path_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("tail", ["", "child", "missing/child"])
+def test_prospective_regular_file_cannot_be_directory_ground(tmp_path, tail):
+    leaf = tmp_path / "file"
+    leaf.write_bytes(b"do not replace this file")
+    bad = leaf / tail if tail else leaf
+    before = _path_snapshot(tmp_path)
+    _assert_planned_relation(bad, tmp_path / "safe", "unknown")
+    _assert_planned_relation(tmp_path / "safe", bad, "unknown")
+    _assert_planned_relation(tmp_path / "safe", tmp_path / "other", "disjoint")
+    assert _path_snapshot(tmp_path) == before
+
+
+def test_prospective_stat_denial_must_not_look_like_a_missing_parent(tmp_path, monkeypatch):
+    ground = tmp_path / "ground"
+    ground.mkdir()
+    (ground / "sentinel").write_bytes(b"existing but inaccessible")
+    before = _path_snapshot(tmp_path)
+    original_stat, original_exists = os.stat, Path.exists
+
+    def denied_stat(path, *args, **kwargs):
+        if Path(path) == ground:
+            raise PermissionError("controlled stat denial on existing ground")
+        return original_stat(path, *args, **kwargs)
+
+    with monkeypatch.context() as denied:
+        denied.setattr(os, "stat", denied_stat)
+        # Some supported Path.exists implementations hide inspection errors.
+        denied.setattr(Path, "exists", lambda path: False if path == ground else original_exists(path))
+        _assert_planned_relation(ground / "new", tmp_path / "other", "unknown")
+        _assert_planned_relation(tmp_path / "other", ground / "new", "unknown")
+    _assert_planned_relation(ground / "new", tmp_path / "other", "disjoint")
+    assert _path_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("receipt_exists", [False, True])
+def test_prospective_explicit_receipt_file_leaf_preserves_valid_cas(tmp_path, receipt_exists):
+    mission = tmp_path / "mission"
+    receipt, cas = mission / "receipt.json", mission / "source-trees"
+    if receipt_exists:
+        mission.mkdir()
+        receipt.write_bytes(b'{"previous":true}\n')
+        assert receipt.stat().st_nlink == 1
+    before = _path_snapshot(tmp_path)
+    _assert_planned_relation(cas, receipt, "disjoint", right_is_file=True)
+    _assert_planned_relation(mission, receipt, "contains", right_is_file=True)
+    if receipt_exists:
+        _assert_planned_relation(cas, receipt, "unknown")
+    else:
+        _assert_planned_relation(receipt, receipt, "equal", right_is_file=True)
+        _assert_planned_relation(receipt / "nested", receipt, "inside", right_is_file=True)
+    assert _path_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("wrong_kind", ["directory", "file-parent"])
+def test_prospective_file_leaf_mode_still_refuses_wrong_types(tmp_path, wrong_kind):
+    if wrong_kind == "directory":
+        leaf = tmp_path / "receipt.json"
+        leaf.mkdir()
+    else:
+        parent = tmp_path / "file"
+        parent.write_bytes(b"not a directory")
+        leaf = parent / "receipt.json"
+    before = _path_snapshot(tmp_path)
+    _assert_planned_relation(tmp_path / "safe", leaf, "unknown", right_is_file=True)
+    _assert_planned_relation(tmp_path / "safe", tmp_path / "receipt", "disjoint", right_is_file=True)
+    assert _path_snapshot(tmp_path) == before
+
+
+def test_prospective_comparison_has_no_allocation_or_write_effect(tmp_path, monkeypatch):
+    import shutil
+    import tempfile
+
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_bytes(b"stable")
+    before = _path_snapshot(tmp_path)
+
+    def writer(*_args, **_kwargs):
+        pytest.fail("prospective comparison reached a writer or temp-directory probe")
+
+    with monkeypatch.context() as no_writes:
+        no_writes.setattr(Path, "mkdir", writer)
+        no_writes.setattr(Path, "open", writer)
+        no_writes.setattr(os, "mkdir", writer)
+        no_writes.setattr(os, "open", writer)
+        no_writes.setattr(tempfile, "gettempdir", writer)
+        no_writes.setattr(tempfile, "mkdtemp", writer)
+        no_writes.setattr(shutil, "copytree", writer)
+        _assert_planned_relation(tmp_path / "work", tmp_path / "receipts", "disjoint")
+        _assert_planned_relation(tmp_path / "work", tmp_path / "work", "equal")
+        _assert_planned_relation(tmp_path / "work", tmp_path / "work/child", "contains")
+        _assert_planned_relation(tmp_path / "work/child", tmp_path / "work", "inside")
+        _assert_planned_relation(sentinel / "bad", tmp_path / "work", "unknown")
+    assert _path_snapshot(tmp_path) == before

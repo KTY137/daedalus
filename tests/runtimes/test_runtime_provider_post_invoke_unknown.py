@@ -12,9 +12,11 @@ from daedalus.kernel.effect_recovery import issue_external_effect_observation
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
     RuntimeProviderReconciliationRequired,
-    run_runtime_provider,
 )
-from daedalus.runtimes.provider_observation import (
+from runtime_provider_test_double import (
+    run_runtime_provider_test_double as run_runtime_provider,
+)
+from daedalus.runtimes.provider.observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )

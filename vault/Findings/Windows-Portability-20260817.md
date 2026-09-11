@@ -1,7 +1,11 @@
 ---
-tags: [findings, windows, recovery]
+tags:
+- findings
+- windows
+- recovery
 created: 2026-08-17
 source: ../../docs/recovery/WINDOWS_PORTABILITY_FINDINGS_20260817.md
+permalink: main/findings/windows-portability-20260817
 ---
 
 # Windows-Portabilitätsbefunde (2026-08-17)

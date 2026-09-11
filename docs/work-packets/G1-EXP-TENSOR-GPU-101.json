@@ -1,0 +1,219 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-101",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "45dd5003204e14dca208e5c1b0f9c46ff56363e7",
+    "dependencies": "G1-EXP-TENSOR-GPU-100 and the canonical compile_relation_blocks/TypedRelationBlock owners",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "attribution_contract", "measurement"]},
+      "contracts_and_behavior": {"source_fields": ["attribution_contract", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Rollback removes only the added cProfile attribution from the existing GPU-100 diagnostic plus its focused assertions and this research record. No production authority, compiler API, backend, cache, delta contract or persisted runtime state is added."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-101",
+  "work_packet": "G1-EXP-TENSOR-GPU-101",
+  "title": "Attribute the full-rebuild compiler envelope without a second projection path",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "45dd5003204e14dca208e5c1b0f9c46ff56363e7",
+  "probe_head": "69feac15a7c1373bfac99900ed97aea750ad604f",
+  "contract_head": "d3e28e13e1e808a21e3d3f0eaa8e3ef92f037d5b",
+  "measurement_head": "570fa968dcf935a7c0fe7ed2a1da35233b856173",
+  "scope": "Extend the existing GPU-100 relation-delta diagnostic, not production, so the unchanged compile_relation_blocks call is profiled directly. Attribute its real selected TypedRelationBlock._from_indexed reconstruction call and report the remaining compiler cumulative envelope as a bounded non-block residual. Keep the residual explicitly broader than pure edge discovery because it also contains Forest/Fourfold partition checks, edge admission, fact aggregation, signature/axis setup and receipt construction. Do not build or simulate an incremental backend.",
+  "attribution_contract": {
+    "probe": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "schema": "daedalus-tensor-relation-delta-rebuild/2",
+    "ordinary_timing": "GPU-100 base/delta compile medians remain ordinary unprofiled compile_relation_blocks wall timings.",
+    "profiled_subject": "Only the delta full rebuild is profiled after ordinary timing. Every profiled result must retain the exact delta CompiledRelationBlocks digest.",
+    "compiler_total": "cProfile cumulative/self attribution for the existing compile_relation_blocks code object.",
+    "selected_block_reconstruction": "cProfile cumulative/self attribution for the real TypedRelationBlock._from_indexed call made by the compiler; no replacement constructor is invoked.",
+    "additional_observers": [
+      "TypedRelationBlock.__post_init__",
+      "relation_compiler._record_fact",
+      "relation_compiler._forest_node_partition"
+    ],
+    "non_block_residual": "max(0, compile_relation_blocks cumulative - TypedRelationBlock._from_indexed cumulative). This is a bounded compiler-envelope residual, not a pure edge-scan wall-time measurement.",
+    "profile_repeats": "bounded exact-int range 1..5 with default 3; bool aliases are refused.",
+    "claim_boundary": "Profiled timings are diagnostic and distorted by profiling. They are not additive to ordinary wall medians and do not establish an incremental, memory, Tensor-vs-Forest or GPU win."
+  },
+  "measurement": {
+    "authority": "diagnostic only; KnowledgeForest/Fourfold remain semantic authority and compile_relation_blocks remains the only projection owner",
+    "source_head": "570fa968dcf935a7c0fe7ed2a1da35233b856173",
+    "source_workflow": {
+      "id": 34272597522,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "source_artifact": {
+      "artifact_id": 10074429617,
+      "artifact_name": "tensor-relation-delta-rebuild-248fe706ed64ace2ee1cf32bb15731a5ba88e3c2",
+      "report": "relation_delta_rebuild_ci.json",
+      "report_sha256": "6912bdd180e61e52bdfec4fcc8c920050d3346d3336985f469ce913a64738262",
+      "archive_sha256": "811a7535ac78fcb803fb888ee0afa852b919a270e31ffecacae97ad09f1d972e"
+    },
+    "ci_case": {
+      "nodes": 512,
+      "row_width": 16,
+      "base_edges": 8192,
+      "delta_edges": 8193,
+      "base_output_entries": 8192,
+      "delta_output_entries": 8193,
+      "changed_coordinate_count": 1,
+      "added_coordinate": ["src/node_0000.py", "src/node_0017.py", true],
+      "removed_coordinate_count": 0,
+      "deterministic_rebuild_entries_per_changed_coordinate": 8193.0,
+      "deterministic_edge_scan_per_changed_coordinate": 8193.0,
+      "changed_coordinate_fraction_of_delta_output": 0.00012205541315757354,
+      "ordinary_repeats": 7,
+      "warmup": 2,
+      "profile_repeats": 3
+    },
+    "ordinary_wall_timing_ms": {
+      "base_compile": {"samples": 7, "median": 140.720315, "min": 133.5817, "max": 142.574308},
+      "delta_compile": {"samples": 7, "median": 134.964077, "min": 133.95578, "max": 145.320276},
+      "delta_to_base_median_ratio": 0.9590944775812931,
+      "interpretation": "These remain ordinary full-rebuild timings. Their ratio is not an incremental speedup because no incremental implementation exists."
+    },
+    "profiled_attribution_ms": {
+      "profiled_compile_wall": {"samples": 3, "median": 299.434039, "min": 291.159693, "max": 299.585848},
+      "compiler_total": {"calls": 1, "self_median": 24.611117, "cumulative_median": 298.342147},
+      "selected_block_reconstruction": {"calls": 1, "self_median": 6.454986, "cumulative_median": 11.566078000000001},
+      "typed_block_post_init": {"calls": 1, "self_median": 1.564714, "cumulative_median": 1.6986750000000002},
+      "fact_aggregation": {"calls": 8193, "self_median": 13.813235, "cumulative_median": 24.110568},
+      "forest_partition_validation": {"calls": 1, "self_median": 0.286023, "cumulative_median": 0.437809},
+      "non_block_compiler_residual_cumulative_median": 286.776069,
+      "selected_block_fraction_of_compiler_cumulative": 0.03876783121762545,
+      "non_block_residual_fraction_of_compiler_cumulative": 0.9612321687823745,
+      "interpretation": "For this frozen profiled case, the selected TypedRelationBlock._from_indexed reconstruction accounts for about 3.88% of compile_relation_blocks cumulative profile time, while the conservatively defined non-block compiler envelope accounts for about 96.12%. The latter is not pure edge-scan time: it includes partition checks, global edge discovery/admission, relation-digest work, fact aggregation, axis/signature setup and receipt construction. cProfile distorts wall time, so these fractions are attribution evidence only."
+    },
+    "digests": {
+      "base_compiled": "45bc8b12203d7a5084e6be91ec359db81357f32061c8671aa6c72df702cf5467",
+      "delta_compiled": "721830a9417cb6153b3f44cd8cf05381c89a9873cdf1850e21523b4ed15bd3e4"
+    },
+    "fail_closed": "The partial code-plane case is refused with 'relation compilation requires complete endpoint planes; code=partial'.",
+    "finding": "GPU-101 falsifies further constructor-first optimization as the next priority for this frozen delta-rebuild case. The measured selected-block reconstruction is only about 3.88% of profiled compiler cumulative time; about 96.12% remains in the broader non-block compiler envelope. This justifies refining a narrow seam inside the existing compiler front half before any production delta API is proposed. It does not prove an incremental speedup, memory win, Tensor-over-Forest advantage, or that edge scanning alone consumes 96.12%."
+  },
+  "semantic_invariants": {
+    "source_of_truth": "KnowledgeForest/Fourfold remain authoritative; the diagnostic never becomes a graph or fact owner.",
+    "projection_owner": "compile_relation_blocks remains unchanged and is the only projection owner used for base, delta, profiled delta and partial-plane refusal cases.",
+    "closed_world": "Selected relation endpoint planes remain complete; partial code remains refused before sparse zero interpretation.",
+    "fixed_axes": "The GPU-100 fixed-axis one-coordinate delta fixture is retained unchanged.",
+    "canonical_output": "Each profiled compile has the exact digest of the ordinary delta compile.",
+    "bounded_memory": "The profiler is bounded to at most five sequential samples and retains only compact aggregate metrics in the report.",
+    "public_api": "No public API, production wire schema, production authority or promotion contract changes."
+  },
+  "result": {
+    "closed": true,
+    "production_change": false,
+    "test_change": true,
+    "probe_change": true,
+    "workflow_change": false,
+    "work_packet_record_added": true,
+    "incremental_backend_implemented": false,
+    "parallel_projection_implemented": false,
+    "trusted_constructor_added": false,
+    "cache_or_registry_added": false,
+    "constructor_first_next_priority_refuted_for_frozen_case": true,
+    "summary": "GPU-101 closes with exact hosted schema-v2 evidence. In the frozen 512x16 one-coordinate delta case, selected block reconstruction is about 3.88% of profiled compile_relation_blocks cumulative time and the conservatively named non-block compiler envelope is about 96.12%. Production code remains unchanged; the next bounded research target moves into the existing compiler front half instead of adding another constructor optimization or delta backend."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "45dd5003204e14dca208e5c1b0f9c46ff56363e7",
+    "probe_commit": "69feac15a7c1373bfac99900ed97aea750ad604f",
+    "probe_path": "experiments/tensor_gpu/relation_delta_rebuild_probe.py",
+    "probe_blob": "f46f492f0fb4acad1284c86582cea0fc86f2d57c",
+    "test_commit": "d3e28e13e1e808a21e3d3f0eaa8e3ef92f037d5b",
+    "test_path": "tests/twin/test_tensor_relation_delta_rebuild_probe.py",
+    "test_blob": "0dc930903c1e5cdcf5a2cfa9cf3b533fd238d8a5",
+    "measurement_head": "570fa968dcf935a7c0fe7ed2a1da35233b856173",
+    "measurement_fourfold_tensor_run": "34272597522:completed/success on 570fa968dcf935a7c0fe7ed2a1da35233b856173",
+    "measurement_artifact": "10074429617/relation_delta_rebuild_ci.json report-sha256:6912bdd180e61e52bdfec4fcc8c920050d3346d3336985f469ce913a64738262 archive-sha256:811a7535ac78fcb803fb888ee0afa852b919a270e31ffecacae97ad09f1d972e",
+    "production_relation_compiler_blob_unchanged": "daedalus/twin/relation_compiler.py@b4149455dbe02636c5e33a6daa8f4946d8e5a047",
+    "production_relation_block_blob_unchanged": "daedalus/twin/relation_blocks.py@ec651790ff429c2172e80baf7ef2ab5e050e8e03",
+    "campaign_issue": 239,
+    "pull_request": 317,
+    "archive_legacy_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "focused_contract_added": true,
+    "digest_equivalence_asserted_in_probe": true,
+    "profile_metric_call_counts_contract_pinned": true,
+    "partial_endpoint_fail_closed_contract_retained": true,
+    "ordinary_gpu100_amplification_contract_retained": true,
+    "hosted_measurement_head_fourfold_tensor_ci": "Run 34272597522 completed/success on exact measurement head 570fa968dcf935a7c0fe7ed2a1da35233b856173.",
+    "hosted_measurement_artifact": true,
+    "artifact_integrity_sha256_recorded": true,
+    "exact_final_documentation_closure_head_green": false,
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 1,
+    "probe_files_changed": 1,
+    "workflow_files_changed": 0,
+    "documentation_files_changed": 1,
+    "new_production_helper": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_graph_authority": false,
+    "parallel_abstraction_added": false,
+    "reuse": "The existing GPU-100 probe and existing compiler/TypedRelationBlock owners are extended/observed rather than adding another profiler workflow or projection implementation."
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "observed_remote_branch_count": 28,
+    "topology_drift_observed": true,
+    "topology_drift_action": "No remote ref was moved, archived or deleted in this Tensor packet. Evidence-aware classification belongs on the operations/gardener line; branch count alone is not a deletion reason."
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "non_block_residual_is_pure_edge_scan": false
+  },
+  "bounded_next_step": "GPU-102: keep production unchanged and refine only the measured 96.12% non-block compiler envelope inside the existing compile_relation_blocks owner. Attribute retained same-plane edge admission/digest work versus fact aggregation and the remaining compiler envelope under the same frozen one-coordinate delta case. Do not revisit TypedRelationBlock constructor micro-optimization unless new evidence reverses GPU-101. Do not add a delta API/backend, persistent cache, second graph authority or trusted constructor until a narrow revision-bound seam is measured and specified."
+}

@@ -177,12 +177,11 @@ which is Tier 2 and works exactly as designed.
 
 THE IGNORE CONFIGURATION
 ------------------------
-``DAEDALUS_IGNORE`` and ``.daedalusignore`` narrow the structural index. Since
-the gate now reads the tree through :mod:`~daedalus.mapping.reach`, which walks
-the filesystem itself, they cannot narrow what the gate sees -- but the
-configuration is recorded in the snapshot and compared on every run anyway, so
-that a green result taken under a narrowed configuration can never be
-indistinguishable from a green result taken under a clean one.
+``DAEDALUS_IGNORE`` narrows the structural index but cannot withhold census
+rows. ``.daedalusignore`` declares which rows reach still walks but ranking
+withholds. The consumed ``reach_scope`` is retained in the snapshot and an
+injected report whose declaration changed is refused before ranking. The
+current raw ignore configuration is also recorded and compared on every run.
 
 FIRST RUN, AND WHY IT FAILS
 ---------------------------
@@ -608,10 +607,23 @@ def scan(repo_root, *, index=None, reach_report=None,
     root = Path(repo_root).resolve()
     if reach_report is None:
         reach_report = reach_mod.analyse(root, index=index)
+    reach_scope = reach_mod.ranking_scope(root, reach_report)
     if switch_report is None:
         switch_report = switches_mod.analyse(root)
 
-    facts = reach_report.modules
+    # SHELL ROWS ARE WITHHELD FROM EVERY METRIC, which is the contract
+    # ``daedalus.structcore.ignore.ProjectScope`` already states for the zone:
+    # indexed and resolvable, so an edge pointing into a vendored tree stays
+    # true, but never ranked as this project's drift. Before this filter the
+    # gate emitted 1348 rows of which 1241 were run artifacts, gitignored Tauri
+    # build output and the Obsidian vault -- the 87 rows actually about
+    # ``daedalus/`` were unreadable underneath them [MEASURED 2026-09-03].
+    #
+    # Withheld, not hidden: the count is reported below, so a run narrowed by a
+    # scope change can never look like a run that simply found less.
+    all_facts = reach_report.modules
+    facts = [m for m in all_facts if not m.shell]
+    shell_withheld = len(all_facts) - len(facts)
     modules = sorted(m.module for m in facts if m.classification != "test")
     islands = sorted(m.module for m in facts
                      if m.classification in ISLAND_CLASSES)
@@ -628,7 +640,20 @@ def scan(repo_root, *, index=None, reach_report=None,
     # Two engines disagreeing about the import graph. reach REPORTS these and
     # refuses to merge them (see reach.analyse); the gate is where a
     # disagreement that persists across a commit becomes somebody's problem.
-    index_extra_edges = sorted(reach_report.index_extra_edges)
+    # Same withholding, applied to the edge list: an edge is this project's
+    # disagreement only when project code is on one end of it. Every one of the
+    # four rows this gate emitted on 2026-09-03 was a Tauri build copy
+    # disagreeing with itself, which no one can act on.
+    shell_modules = frozenset(m.module for m in all_facts if m.shell)
+
+    def _project_edge(edge: str) -> bool:
+        endpoints = edge.split("->", 1)
+        return not (len(endpoints) == 2 and all(
+            part.strip() in shell_modules for part in endpoints
+        ))
+
+    index_extra_edges = sorted(
+        e for e in reach_report.index_extra_edges if _project_edge(e))
 
     docs = DocIndex.build(root)
     dark: dict[str, str] = {}
@@ -677,8 +702,12 @@ def scan(repo_root, *, index=None, reach_report=None,
             "doc_drift": len(doc_drift),
             "unparsable": len(unparsable),
             "index_extra_edges": len(index_extra_edges),
+            # Periphery rows this run declined to rank. Reported so "the gate
+            # went quiet" and "the gate was narrowed" stay distinguishable.
+            "shell_withheld": shell_withheld,
         },
         "ignore": ignore_config(root),
+        "reach_scope": reach_scope,
         "modules": modules,
         "islands": islands,
         "unknown": unknown_mods,
@@ -964,6 +993,10 @@ def _digest(doc: dict) -> str:
     the snapshot really does describe a different tree.
     """
     body = {k: doc.get(k) for k in _MECHANICAL_KEYS}
+    # Additive provenance: historical schema-3 digests still verify, while
+    # check() exposes their missing scope instead of claiming it was measured.
+    if "reach_scope" in doc:
+        body["reach_scope"] = doc["reach_scope"]
     blob = json.dumps(body, sort_keys=True, ensure_ascii=False,
                       separators=(",", ":"))
     return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
@@ -1001,6 +1034,7 @@ def snapshot_bytes(state: dict, acceptances: Sequence[Acceptance]) -> str:
         "repo_state": dict(sorted((state.get("repo_state") or {}).items())),
         "counts": dict(sorted(state.get("counts", {}).items())),
         "ignore": dict(sorted((state.get("ignore") or {}).items())),
+        "reach_scope": state.get("reach_scope") or {"status": "unknown"},
         "modules": sorted(state.get("modules", [])),
         "islands": sorted(state.get("islands", [])),
         "unknown": sorted(state.get("unknown", [])),
@@ -1436,6 +1470,15 @@ def check(repo_root, snapshot_path=None, *, today: date | None = None,
                    f"cannot be compared with it, and a green result from one "
                    f"must never be indistinguishable from a green result from "
                    f"the other",
+            remedy=_remedy(IGNORE_DRIFT, "")))
+
+    if snapshot.get("reach_scope") != state.get("reach_scope"):
+        items.append(DriftItem(
+            kind=IGNORE_DRIFT, key="ignore:reach-scope",
+            subject="the declared scope used for census ranking changed",
+            detail="the baseline's consumed reach scope differs or was not "
+                   "recorded; the ranked populations cannot be treated as "
+                   "the same scoped analysis",
             remedy=_remedy(IGNORE_DRIFT, "")))
 
     # ---- apply acceptances -------------------------------------------------

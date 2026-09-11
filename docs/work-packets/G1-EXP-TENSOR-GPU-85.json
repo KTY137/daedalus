@@ -1,0 +1,154 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-85",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "f8d3f1fd27c0314cb67949d8930c93485d30ae3b",
+    "dependencies": "G1-EXP-TENSOR-GPU-84 and its retained exact-head evidence",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["result", "title"]},
+      "scope": {"source_fields": ["scope", "audit"]},
+      "contracts_and_behavior": {"source_fields": ["decision", "semantic_invariants"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["result", "branch_hygiene"],
+        "projection_note": "Closed-research packet only. Rollback removes this evidence record; no executable, public API, wire, benchmark, authority or promotion state changes are involved."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundaries", "governance", "branch_hygiene"]
+      }
+    }
+  },
+  "work_packet_id": "G1-EXP-TENSOR-GPU-85",
+  "work_packet": "G1-EXP-TENSOR-GPU-85",
+  "title": "Retain uncached block-map view after bounded consumer audit",
+  "classification": "research",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-research",
+  "date": "2026-09-08",
+  "masterplan": {
+    "plan_id": "daedalus-master-plan",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "f8d3f1fd27c0314cb67949d8930c93485d30ae3b",
+  "scope": "Audit CompiledRelationBlocks.block_map and current canonical Tensor/Fourfold consumers for repeated MappingProxyType(dict(self.blocks)) materialization. Prefer one local binding in bounded consumers. Do not add a cached second mapping, tuple-backed Mapping type, registry, alternate receipt family, backend or second compiler merely to eliminate theoretical repeated property access.",
+  "audit": {
+    "canonical_owner": "daedalus/twin/relation_compiler.py::CompiledRelationBlocks.block_map",
+    "owner_behavior": "Each property access returns MappingProxyType(dict(self.blocks)); therefore a consumer that accesses block_map repeatedly rebuilds the same bounded name-to-block dictionary each time.",
+    "production_compatibility_consumer": {
+      "path": "daedalus/twin/relation_projection.py::boolean_relation_block_from_fourfold",
+      "finding": "The compatibility facade requests exactly one explicit signature and returns compiled.blocks[0][1]; it does not materialize block_map."
+    },
+    "relation_cost_probe": {
+      "path": "tests/twin/test_tensor_forest_cost_probe.py::build_relation_block_arm",
+      "finding": "The measured two-signature CSR constructor binds block_map exactly once and performs both exact-name lookups through that one immutable view."
+    },
+    "heldout_csr_probe": {
+      "path": "tests/twin/test_tensor_heldout_csr_probe.py::_build_csr_subject",
+      "finding": "The measured four-signature CSR constructor binds block_map exactly once and performs all four exact-name lookups through that one immutable view."
+    },
+    "contract_tests": {
+      "finding": "A small number of assertion-only tests access compiled.block_map more than once in one test body. They are not production or measured benchmark consumers and do not justify adding a persistent second representation to every receipt. Cosmetic local bindings would reduce only test allocation while adding churn, so they are intentionally left explicit for now."
+    },
+    "conclusion": "No canonical production or measured diagnostic consumer currently rematerializes block_map in a repeated lookup loop. The existing bounded local-binding pattern already contains the allocation where it matters. Changing the receipt owner would either cache a second name map or introduce another Mapping abstraction, violating the Gardener preference for deletion/consolidation before abstraction without evidence of a real consumer problem."
+  },
+  "decision": {
+    "kind": "retain-existing-owner",
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "public_api_change": false,
+    "wire_schema_change": false,
+    "benchmark_schema_change": false,
+    "cache_added": false,
+    "mapping_type_added": false,
+    "parallel_receipt_added": false,
+    "summary": "Keep CompiledRelationBlocks.block_map as an uncached immutable view and keep binding it once in bounded multi-lookup consumers. Do not persist a duplicate mapping or create a new collection abstraction without a demonstrated repeated-access production consumer."
+  },
+  "semantic_invariants": {
+    "exact_lookup": "Block lookup remains keyed by relation_block_name with exact string identity.",
+    "deterministic_order": "CompiledRelationBlocks.blocks remains the canonical deterministic name-sorted immutable sequence.",
+    "direct_constructor_validation": "Direct CompiledRelationBlocks construction continues to validate bounded sequence shape, duplicate names, TypedRelationBlock values, subject/semiring binding, signature-name agreement and semantic_fact_count.",
+    "source_of_truth": "KnowledgeForest and FourfoldSnapshot remain authoritative; CompiledRelationBlocks and block_map remain regenerable computational views.",
+    "public_api": "No public API, wire schema, benchmark schema, compatibility facade, promotion or authority contract changes."
+  },
+  "result": {
+    "closed": true,
+    "closed_research": true,
+    "production_change": false,
+    "test_change": false,
+    "probe_change": false,
+    "new_helper_added": false,
+    "new_cache_or_index_added": false,
+    "new_backend_or_registry_added": false,
+    "parallel_compiler_added": false,
+    "summary": "The bounded consumer audit found no measured or production multi-lookup path that repeatedly rebuilds block_map. The existing one-local-binding pattern is already used by both CSR probes, while the single-relation compatibility facade uses the canonical ordered blocks tuple directly. No executable change is justified."
+  },
+  "evidence": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "base_head": "f8d3f1fd27c0314cb67949d8930c93485d30ae3b",
+    "block_map_owner": "daedalus/twin/relation_compiler.py@170e3825a7c215a7e13ae56e70932790badde85e",
+    "compatibility_facade": "daedalus/twin/relation_projection.py@3b6be9d223d40dc01eb9ce0fd2e9cb2b054d06c3",
+    "relation_cost_probe": "tests/twin/test_tensor_forest_cost_probe.py@385bad6c6451597a56ffe41b2cf8a2e1d774a268",
+    "heldout_csr_probe": "tests/twin/test_tensor_heldout_csr_probe.py@1b2e1c991b9dc2a7499651a5207e29a32dfc6459",
+    "selected_pruning_tests": "tests/twin/test_relation_compiler_selected_pruning.py@8376d84c84a786894645fd889a66f60cef4ee845",
+    "hyperedge_retention_tests": "tests/twin/test_relation_compiler_hyperedge_retention.py@fd1dbe4c61ea51845767ab93288ffe95adbfa53e",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "verification": {
+    "executable_tree_changed": false,
+    "focused_static_audit": "Verified current owner plus production compatibility facade and both measured CSR consumers on the exact base head. The two measured multi-lookup consumers each bind block_map once.",
+    "ci_requirement": "A documentation-only closure commit still requires exact-head workflow evidence before any green-PR claim; no pre-closure success is inferred.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "probe_files_changed": 0,
+    "documentation_files_changed": 1,
+    "existing_compiler_owner_reused": true,
+    "existing_consumer_pattern_reused": true,
+    "new_helper": false,
+    "new_cache_or_index": false,
+    "new_collection_type": false,
+    "new_backend_or_registry": false,
+    "parallel_abstraction_added": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deletion": false,
+    "unique_evidence_deleted": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "governance": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review_transition": false,
+    "auto_merge": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "claim_boundaries": {
+    "all_pr_checks_green": false,
+    "full_suite_green": false,
+    "performance_superiority": false,
+    "memory_superiority": false,
+    "gpu_tensor_core_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false
+  },
+  "bounded_next_step": "GPU-86 only: audit the canonical compile_relation_blocks -> CompiledRelationBlocks handoff for duplicated semantic_fact_count traversal. Determine whether the compiler-side count and direct-constructor validation can share one already-required bounded pass without weakening direct-constructor validation, changing receipt fields, adding lazy state/cache, or creating a second receipt/compiler path. If not, retain the duplicate validation scan as the minimal receipt boundary."
+}

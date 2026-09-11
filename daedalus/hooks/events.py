@@ -8,11 +8,13 @@ import datetime
 import time
 from pathlib import Path
 
+from . import crosstalk, serena, tools
 from ._common import (
     HookResult,
     _Lock,
     clip_block,
     hooks_dir,
+    load_state,
     trim_lines,
     update_state,
     with_deadline,
@@ -21,6 +23,9 @@ from ._tree import (
     UNREADABLE_KEY,
     fingerprint_diff,
     last_sweep,
+    serena_configured_root,
+    serena_language_servers,
+    serena_root_mismatch,
     source_fingerprint,
     tree_facts,
 )
@@ -55,7 +60,7 @@ LEGEND = (
 def _shift_line(root: Path) -> str:
     def render() -> str:
         try:
-            from daedalus import shift as shift_mod
+            from daedalus.interfaces.cli import shift as shift_mod
 
             s = shift_mod.load(root)
             line = s.render()
@@ -86,11 +91,41 @@ def session_start(payload: dict, root: Path, sid: str) -> HookResult:
     plan = root / "docs" / "IKARUS_ARIADNE_MASTER_PLAN.md"
     if plan.exists():
         lines.append("PLAN: docs/IKARUS_ARIADNE_MASTER_PLAN.md -- design authority; read it before architecture/kernel work")
+    lines.append(
+        serena.session_line(
+            load_state(root, sid),
+            reachable=tools.serena_is_reachable(),
+            configured=facts.serena_configured,
+            mismatch=facts.serena_mismatch or None,
+            language_servers=serena_language_servers(root),
+            index_cached=(root / ".serena" / "cache").is_dir(),
+        )
+    )
     sweep_sha, behind = last_sweep(root)
     if sweep_sha:
         tail = f" ({behind} commits since)" if behind and behind != "0" else ""
         lines.append(f"DOCS: last mnemosyne sweep at {sweep_sha}{tail}")
     lines.append(LEGEND)
+
+    # Crosstalk. The ANNOUNCEMENT is posted once per session; `compact` fires
+    # SessionStart too, and a session that re-announced on every compaction
+    # would bury the thread it is trying to make readable. The READ-BACK
+    # happens on every start, compaction included -- that is precisely when
+    # the context it replaces has just been thrown away.
+    announced = bool(load_state(root, sid).get("crosstalk_announced"))
+    lines += with_deadline(
+        lambda: crosstalk.announce(
+            root,
+            sid,
+            facts.branch,
+            facts.head,
+            crosstalk.now_iso(),
+            crosstalk.Channel(root),
+            do_post=not announced,
+        ),
+        crosstalk.CROSSTALK_BUDGET_S,
+        ["crosstalk: Zeitbudget ueberschritten"],
+    )
 
     base_fp = source_fingerprint(root)
 
@@ -99,6 +134,9 @@ def session_start(payload: dict, root: Path, sid: str) -> HookResult:
         state["targets_shown"] = False
         state.setdefault("agents", {})
         state["started"] = payload.get("source") or payload.get("start_reason") or "startup"
+        state["crosstalk_announced"] = True
+        state.setdefault("crosstalk_head", facts.head)
+        state.setdefault("crosstalk_started", time.time())
 
     update_state(root, sid, mutate)
     text, dropped = trim_lines(lines)
@@ -200,7 +238,7 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
 
     def render_arch() -> str:
         try:
-            from daedalus import arch_memory
+            from daedalus.interfaces.cli import arch_memory
 
             return arch_memory.render_delta(
                 root, shown_path=hooks_dir(root) / f"arch-{sid}.shown", silent_when_unchanged=True
@@ -214,8 +252,21 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
     )
 
     collected: dict = {}
+    serena_up = tools.serena_is_reachable()
+    serena_cfg = serena_configured_root(root)
+    serena_off = serena_root_mismatch(root)
 
     def mutate(state: dict) -> None:
+        # Owner order 2026-09-06: Serena on every prompt. Computed inside the
+        # locked update because it reads the usage the tool hooks recorded.
+        collected["serena"] = serena.turn_line(
+            root,
+            state,
+            payload.get("prompt"),
+            reachable=serena_up,
+            configured=serena_cfg is not None,
+            mismatch=serena_off,
+        )
         crew_lines, live = _crew_lines(state)
         collected["crew"] = crew_lines
         if crew_lines and any(l.startswith("  where work goes") for l in crew_lines):
@@ -235,7 +286,28 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
                 collected["watchdog"] = "WATCHDOG: " + "; ".join(wd_ids) + " (runs/watchdog/HEALTH.md)"
             elif isinstance(previous_wd_ids, list) and bool(previous_wd_ids):
                 collected["watchdog"] = "WATCHDOG: all clear"
-        
+        # Crosstalk, cached: the owner answers in the browser, and without a
+        # re-read those answers would not reach a running session until its
+        # next start. One GitHub call per POLL_TTL_S, not one per turn.
+        if state.get("crosstalk_announced"):
+            # `poll` returns the state fragment instead of writing it: it runs
+            # under a deadline, and an overrunning call is abandoned rather
+            # than cancelled, so it must not touch the dict `update_state` is
+            # about to serialise.
+            fresh, updates = with_deadline(
+                lambda: crosstalk.poll(
+                    tree_facts(root).branch, crosstalk.Channel(root), state, time.time()
+                ),
+                crosstalk.TURN_BUDGET_S,
+                ([], {}),
+            )
+            state.update(updates)
+            mine = f"`{crosstalk.short_sid(sid)}`"
+            shown = state.get("crosstalk_shown") or []
+            unseen = [l for l in fresh if l not in shown and mine not in l]
+            if unseen:
+                state["crosstalk_shown"] = fresh
+                collected["crosstalk"] = ["CROSSTALK neu:"] + unseen[-3:]
 
     update_state(root, sid, mutate)
     # PRIORITY ORDER, and deliberately not narrative order. `trim_lines` drops
@@ -245,17 +317,54 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
     # architecture delta goes last: it is the largest block and the least
     # urgent, and it is clipped to its own budget above so that even when it
     # survives it cannot crowd the alarms out.
+    # SERENA goes SECOND, before even the alarms: the owner asked for it on
+    # every prompt, and second is where the trimmer cannot reach it.
+    if collected.get("serena"):
+        lines.append(collected["serena"])
     if collected.get("watchdog"):
         lines.append(collected["watchdog"])
     if collected.get("changed"):
         lines.append(collected["changed"])
     if collected.get("config"):
         lines.append(collected["config"])
+    lines += collected.get("crosstalk", [])
     lines += collected.get("crew", [])
     if delta:
         lines.append(delta)
     text, dropped = trim_lines(lines)
     return HookResult(text=text, note=f"trimmed:{dropped}" if dropped else "")
+
+
+# --------------------------------------------------------------------------
+# SessionEnd
+# --------------------------------------------------------------------------
+
+
+def session_end(payload: dict, root: Path, sid: str) -> HookResult:
+    """SessionEnd: post the result to the threads this session announced in.
+
+    A session that never announced stays silent. An ERGEBNIS with no
+    ANMELDUNG in front of it reads like a session that appeared out of
+    nowhere, and the thread is meant to be readable by a human.
+    """
+    state = load_state(root, sid)
+    if not state.get("crosstalk_announced"):
+        return HookResult(note="crosstalk:no-announce")
+    facts = tree_facts(root)
+    with_deadline(
+        lambda: crosstalk.report(
+            root,
+            sid,
+            facts.branch,
+            facts.head,
+            crosstalk.now_iso(),
+            state,
+            crosstalk.Channel(root),
+        ),
+        crosstalk.CROSSTALK_BUDGET_S,
+        None,
+    )
+    return HookResult(note="crosstalk:reported:" + str(payload.get("reason") or "?")[:24])
 
 
 # --------------------------------------------------------------------------
@@ -280,6 +389,13 @@ def subagent_start(payload: dict, root: Path, sid: str) -> HookResult:
         lines.append(archived)
     if facts.serena_mismatch:
         lines.append("Use Edit/Write/Bash with absolute paths in this tree; Serena read tools only.")
+    lines.append(
+        serena.subagent_line(
+            reachable=tools.serena_is_reachable(),
+            configured=facts.serena_configured,
+            mismatch=facts.serena_mismatch or None,
+        )
+    )
     text, _ = trim_lines(lines, 600)
     return HookResult(
         payload={

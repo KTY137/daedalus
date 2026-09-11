@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from daedalus.schemas import ContractProvenance
+from daedalus.spine.envelope import canonical_sha
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
 from daedalus.twin import (
     CrossPlaneBinding,
@@ -13,6 +16,10 @@ from daedalus.twin import (
     require_forest_projection,
     verify_forest_projection,
 )
+from daedalus.twin.relation_blocks import RelationSignature
+from daedalus.twin.relation_compiler import compile_relation_blocks
+from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
+from daedalus.twin.semiring import BooleanSemiring
 
 REVISION = "e" * 40
 NOW = "2026-08-01T19:00:00Z"
@@ -42,6 +49,40 @@ def _provenance(
             *(plane.digest for plane in planes),
             *(binding.digest for binding in bindings),
         ),
+    )
+
+
+def _partition_fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/app.py", "source_file", {}),
+            ForestNode("docs/App.md", "document", {}),
+        ),
+        edges=(),
+        hyperedges=(),
+        provenance={"source_revision": REVISION},
+    )
+    snapshot = fourfold_from_knowledge_forest(
+        forest,
+        repository_id="partition-fixture",
+        source_revision=REVISION,
+        created_at=NOW,
+    )
+    return forest, snapshot
+
+
+def _with_planes(
+    snapshot: FourfoldSnapshot,
+    planes: tuple[PlaneSnapshot, ...],
+) -> FourfoldSnapshot:
+    return FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=snapshot.source_forest_sha256,
+        planes=planes,
+        bindings=snapshot.bindings,
+        provenance=_provenance(snapshot, planes, snapshot.bindings),
     )
 
 
@@ -77,6 +118,103 @@ def test_legacy_projection_evidence_wrapper_is_verified() -> None:
         source_revision=REVISION,
         created_at=NOW,
     )
+    assert require_forest_projection(forest, snapshot).valid
+
+
+@pytest.mark.parametrize("directed", (False, True))
+@pytest.mark.parametrize("legacy_evidence", (False, True))
+def test_cross_plane_projection_requires_direction_for_each_evidence_form(
+    directed: bool,
+    legacy_evidence: bool,
+) -> None:
+    edge = ForestEdge(
+        "docs/App.md", "src/app.py", "documents", directed,
+        evidence=("a" * 64,),
+    )
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/app.py", "source_file", {}),
+            ForestNode("docs/App.md", "document", {}),
+        ),
+        edges=(edge,),
+        hyperedges=(),
+        provenance={"source_revision": REVISION},
+    )
+    forest_sha = forest.content_sha256
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane,
+            source_revision=REVISION,
+            status="complete" if nodes else "absent",
+            node_ids=nodes,
+            relation_sha256s=(),
+            evidence_sha256s=(forest_sha,),
+            reason="" if nodes else "no fixture nodes",
+        )
+        for plane, nodes in (
+            ("code", ("src/app.py",)),
+            ("type", ()),
+            ("data", ()),
+            ("knowledge", ("docs/App.md",)),
+        )
+    )
+    binding = CrossPlaneBinding(
+        source_plane="knowledge",
+        source_node_id=edge.source,
+        target_plane="code",
+        target_node_id=edge.target,
+        relation=edge.relation,
+        source_revision=REVISION,
+        evidence_sha256s=(
+            (forest_sha, canonical_sha(edge.to_dict()))
+            if legacy_evidence else edge.evidence
+        ),
+    )
+    snapshot = FourfoldSnapshot(
+        repository_id="directionality-fixture",
+        source_revision=REVISION,
+        source_forest_sha256=forest_sha,
+        planes=planes,
+        bindings=(binding,),
+        provenance=ContractProvenance(
+            origin="test.projection-directionality",
+            source_revision=REVISION,
+            created_at=NOW,
+            input_digests=(forest_sha, *(plane.digest for plane in planes), binding.digest),
+        ),
+    )
+
+    for subject in (snapshot, FourfoldSnapshot.from_dict(snapshot.to_dict())):
+        report = verify_forest_projection(forest, subject)
+        if directed:
+            assert report.valid
+            assert require_forest_projection(forest, subject).valid
+        else:
+            assert not report.valid
+            assert "undirected-cross-plane-edge" in {
+                finding.code for finding in report.findings
+            }
+            with pytest.raises(ValueError, match="undirected-cross-plane-edge"):
+                require_forest_projection(forest, subject)
+
+
+def test_undirected_same_plane_relation_remains_a_lossless_projection() -> None:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(
+            ForestNode("src/a.py", "source_file", {}),
+            ForestNode("src/b.py", "source_file", {}),
+        ),
+        edges=(ForestEdge("src/a.py", "src/b.py", "related", False),),
+        hyperedges=(),
+        provenance={"source_revision": REVISION},
+    )
+    snapshot = fourfold_from_knowledge_forest(
+        forest, repository_id="undirected-same-plane", source_revision=REVISION,
+        created_at=NOW,
+    )
+
     assert require_forest_projection(forest, snapshot).valid
 
 
@@ -150,3 +288,100 @@ def test_omitted_forest_node_is_reported() -> None:
     )
     report = verify_forest_projection(result.forest, snapshot)
     assert "snapshot-missing-nodes" in {finding.code for finding in report.findings}
+
+
+def test_extra_fourfold_node_refuses_verifier_compiler_and_boolean_adapter() -> None:
+    forest, original = _partition_fixture()
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane.plane,
+            source_revision=plane.source_revision,
+            status=plane.status,
+            node_ids=(
+                (*plane.node_ids, "src/ghost.py")
+                if plane.plane == "code"
+                else plane.node_ids
+            ),
+            relation_sha256s=plane.relation_sha256s,
+            evidence_sha256s=plane.evidence_sha256s,
+            reason=plane.reason,
+        )
+        for plane in original.planes
+    )
+    snapshot = _with_planes(original, planes)
+    signature = RelationSignature("code", "references", "code")
+
+    report = verify_forest_projection(forest, snapshot)
+    assert "snapshot-extra-nodes" in {finding.code for finding in report.findings}
+
+    with pytest.raises(ValueError, match="node partition is not exact"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(signature,),
+        )
+    with pytest.raises(ValueError, match="node partition is not exact"):
+        boolean_relation_block_from_fourfold(forest, snapshot, signature)
+
+
+def test_wrong_kind_plane_refuses_verifier_compiler_and_boolean_adapter() -> None:
+    forest, original = _partition_fixture()
+    planes = tuple(
+        PlaneSnapshot(
+            plane=plane.plane,
+            source_revision=plane.source_revision,
+            status=plane.status,
+            node_ids=(
+                tuple(node for node in plane.node_ids if node != "src/app.py")
+                if plane.plane == "code"
+                else (*plane.node_ids, "src/app.py")
+                if plane.plane == "knowledge"
+                else plane.node_ids
+            ),
+            relation_sha256s=plane.relation_sha256s,
+            evidence_sha256s=plane.evidence_sha256s,
+            reason=plane.reason,
+        )
+        for plane in original.planes
+    )
+    snapshot = _with_planes(original, planes)
+    signature = RelationSignature("code", "references", "code")
+
+    report = verify_forest_projection(forest, snapshot)
+    codes = {finding.code for finding in report.findings}
+    assert {"snapshot-missing-nodes", "snapshot-extra-nodes"}.issubset(codes)
+
+    with pytest.raises(
+        ValueError,
+        match="Forest nodes are missing from the Fourfold plane partition",
+    ):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(signature,),
+        )
+    with pytest.raises(
+        ValueError,
+        match="Forest nodes are missing from the Fourfold plane partition",
+    ):
+        boolean_relation_block_from_fourfold(forest, snapshot, signature)
+
+
+def test_legacy_adapter_still_refuses_data_plane_node_kind() -> None:
+    forest = KnowledgeForest(
+        root=".",
+        nodes=(ForestNode("data/users", "data_table", {}),),
+        edges=(),
+        hyperedges=(),
+        provenance={"source_revision": REVISION},
+    )
+
+    with pytest.raises(ValueError, match="unmapped kind 'data_table'"):
+        fourfold_from_knowledge_forest(
+            forest,
+            repository_id="legacy-data-refusal",
+            source_revision=REVISION,
+            created_at=NOW,
+        )

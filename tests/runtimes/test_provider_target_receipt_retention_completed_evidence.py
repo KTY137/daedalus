@@ -8,23 +8,23 @@ from pathlib import Path
 import pytest
 
 from daedalus.kernel.artifacts import ArtifactRef
-from daedalus.runtimes.provider_target_receipt_ledger import (
+from daedalus.runtimes.provider.target_receipt_ledger import (
     ProviderTargetReceiptLedger,
 )
-import daedalus.runtimes.provider_target_receipt_retention_completed_evidence as completed_module
-from daedalus.runtimes.provider_target_receipt_retention_admission import (
+import daedalus.runtimes.provider.target_receipt_retention_completed_evidence as completed_module
+from daedalus.runtimes.provider.target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_completed_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_completed_evidence import (
     ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
     ProviderTargetReceiptRetentionCompletedEvidenceReceipt,
     ProviderTargetReceiptRetentionCompletedEvidenceShapeError,
     verify_provider_target_receipt_retention_completed_evidence,
 )
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_GUARD_CONTRACT,
 )
-from daedalus.runtimes.provider_target_receipt_retention_recovery import (
+from daedalus.runtimes.provider.target_receipt_retention_recovery import (
     decide_provider_target_receipt_retention_recovery,
 )
 from daedalus.spine.envelope import canonical_json

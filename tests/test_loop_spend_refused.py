@@ -61,7 +61,7 @@ from daedalus.kairos.scheduler import (
     spend_refused_result,
 )
 from daedalus.kernel.offload_lease import control_root
-from daedalus.loop import LoopBounds, LoopDriver
+from daedalus.orchestration.loop import LoopBounds, LoopDriver
 from daedalus.spine.killswitch import KillSwitch
 
 REPO_ROOT = str(Path(__file__).resolve().parents[1])

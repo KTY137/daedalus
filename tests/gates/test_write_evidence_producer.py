@@ -20,16 +20,18 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceKind,
     GuardDisposition,
     TargetDisposition,
     surface_classification_verdict,
 )
-from daedalus.gates.repository_write_inventory_v2 import RepositoryWriteSurface
+from daedalus.gates.repository.write_inventory_v2 import RepositoryWriteSurface
 from daedalus.kernel import offload_lease as ol
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REVISION = "0" * 40
@@ -71,6 +73,8 @@ def _lease(switch, attempt_id):
         contained=True,
         containment_evidence=MECHANISM,
         switch=switch,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
 
 
@@ -241,10 +245,10 @@ def test_the_central_row_holds_an_admission_and_no_runtime_receipt(control, tmp_
     assert row.candidate_blockers == ()
     assert surface_classification_verdict(row) == "cleared:central"
     # Every minted object is real CAS: the materialization verifier replays it.
-    from daedalus.gates.repository_write_evidence_materialization import (
+    from daedalus.gates.repository.write_evidence_materialization import (
         materialize_repository_write_evidence,
     )
-    from daedalus.gates.repository_write_classification import (
+    from daedalus.gates.repository.write_classification import (
         RepositoryWriteClassificationReport,
     )
 
@@ -302,7 +306,7 @@ def test_an_admission_signed_with_another_key_is_refused(control, tmp_path):
     doors, _ = GEN.authenticated_doors(
         REPO_ROOT, _evidence(), keyring=ol.issuer_keyring(str(REPO_ROOT))
     )
-    from daedalus.gates.repository_write_classification import (
+    from daedalus.gates.repository.write_classification import (
         NonRuntimeConformityAdmission,
         RepositoryWriteClassificationError,
         issue_non_runtime_conformity_binding,

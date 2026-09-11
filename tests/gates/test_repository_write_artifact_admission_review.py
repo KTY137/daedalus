@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.gates.repository_write_artifact_admission as module
+import daedalus.gates.repository.write_artifact_admission as module
 
 
 FORBIDDEN_IMPORT_ROOTS = {

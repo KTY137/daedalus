@@ -23,6 +23,40 @@ class RecordingLedger:
         return self.result
 
 
+class RecordingTrustLedger:
+    """Conforming ``RuntimeTrustLedgerPort`` stand-in that records lookups.
+
+    This fixture previously injected a bare ``object()``. That was inert: it
+    implemented nothing, and it only survived because the field carried a type
+    annotation and no runtime check. Once ``RuntimeBoundEffectAuthorization``
+    began verifying the injected port, the stale fixture made these two tests
+    fail for a reason unrelated to their subject.
+
+    A recorder is used instead of a silent stub so the terminal-receipt tests
+    can assert positively that ``finish_effect`` never consults runtime trust.
+    That is deliberate behaviour, not an omission: the external effect has
+    already happened by the time a terminal receipt is written, so a trust
+    lookup here could only strand a durable start receipt permanently open.
+    Trust is rechecked where it can still prevent an effect -- verify, grant
+    and both sides of ``begin_effect``.
+    """
+
+    def __init__(self) -> None:
+        self.lookups: list[dict[str, object]] = []
+
+    def require_active(self, **kwargs):
+        self.lookups.append(dict(kwargs))
+        return SimpleNamespace(
+            runtime_id="runtime-1",
+            envelope_sha256="a" * 64,
+            conformance_receipt_sha256="b" * 64,
+            runtime_manifest_sha256="c" * 64,
+            source_revision="0" * 40,
+            expires_at="2026-08-03T12:00:00+00:00",
+            record_sha256="d" * 64,
+        )
+
+
 def authorization(*, lease_sha256: str = "1" * 64):
     request = SimpleNamespace(digest="2" * 64)
     policy = SimpleNamespace(digest="3" * 64)
@@ -32,19 +66,20 @@ def authorization(*, lease_sha256: str = "1" * 64):
         policy_decision_sha256=policy.digest,
     )
     ledger = RecordingLedger()
+    trust = RecordingTrustLedger()
     value = RuntimeBoundEffectAuthorization(
         capability=SimpleNamespace(lease=lease),
         request=request,
         policy_decision=policy,
         effect_ledger=ledger,
-        runtime_trust_ledger=object(),
+        runtime_trust_ledger=trust,
         lease_keyring={},
         runtime_authority_keyring={},
         guard_decisions=(object(),),
         current_kill_switch_generation=0,
         registry={},
     )
-    return value, ledger
+    return value, ledger, trust
 
 
 def receipt(*, lease_sha256: str) -> LeasedEffectStartReceipt:
@@ -60,7 +95,7 @@ def receipt(*, lease_sha256: str) -> LeasedEffectStartReceipt:
 
 
 def test_runtime_authorization_refuses_foreign_terminal_receipt_before_ledger() -> None:
-    auth, ledger = authorization(lease_sha256="1" * 64)
+    auth, ledger, trust = authorization(lease_sha256="1" * 64)
 
     with pytest.raises(EffectLeaseBindingMismatch, match="different runtime effect lease"):
         auth.finish_effect(
@@ -70,10 +105,11 @@ def test_runtime_authorization_refuses_foreign_terminal_receipt_before_ledger() 
         )
 
     assert ledger.calls == []
+    assert trust.lookups == []
 
 
 def test_runtime_authorization_delegates_own_terminal_receipt_exactly_once() -> None:
-    auth, ledger = authorization(lease_sha256="1" * 64)
+    auth, ledger, trust = authorization(lease_sha256="1" * 64)
     start = receipt(lease_sha256="1" * 64)
 
     result = auth.finish_effect(
@@ -94,6 +130,7 @@ def test_runtime_authorization_delegates_own_terminal_receipt_exactly_once() -> 
             },
         )
     ]
+    assert trust.lookups == []
 
 
 def test_counter_review_requires_binding_before_terminal_delegation() -> None:

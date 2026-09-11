@@ -1,0 +1,9 @@
+killswitch: SwitchState(running=True, reason='armed', path='<SCRATCH>\\control\\killswitch', token='RUN')
+policy before: a8623bf4bb60f6c16071fe22cb6ef561c65c52fcf9677550b929341c73f4695c | tools: ['browser.navigate', 'browser.read'] | enabled: True
+configured: {'ok': True, 'changed': True, 'policy_sha256': '6f9242500fba9c00fc8924b39ff3198da788373471cf9d65f29285e81f6b9c66', 'policy': {'schema': 'daedalus-computer-policy/1', 'workspace': '<USERPROFILE>\\.daedalus\\computer-workspaces\\e7cef2dd3d99', 'tools': ['browser.navigate', 'browser.read'], 'origins': ['http://127.0.0.1:57660'], 'applications': {}, 'planner_provider': 'ollama_http', 'planner_model': 'qwen2.5-coder:7b', 'allow_remote_context': False, 'max_steps': 16, 'timeout_s': 900, 'max_file_bytes': 1048576}, 'evidence': {'sha256': 'cff5b30cf9cfca95e8c8c2981f14288b678a80b800f8adff86b249ead365a8fe', 'locator': 'artifact-locator:sha256:cff5b30cf9cfca95e8c8c2981f14288b678a80b800f8adff86b249ead365a8fe'}, 'start_evidence': {'sha256': '7e47e9aaa07551f54d9a901d9959ec3dcd94a99c85c891ae100437c1fd66b743', 'locator': 'artifact-locator:sha256:7e47e9aaa07551f54d9a901d9959ec3dcd94a99c85c891ae100437c1fd66b743'}}
+policy after: 6f9242500fba9c00fc8924b39ff3198da788373471cf9d65f29285e81f6b9c66 | enabled: True | tools: ['browser.navigate', 'browser.read'] | unavailable: {} | planner: ollama_http qwen2.5-coder:7b | remote: False
+state: stalled | ok: False | tool_steps: 1 | planner_calls: 4 | replans: 2 | repair_calls: 0 | elapsed_s: 314.8
+summary: Three consecutive identical advisory plans established no progress.
+planner_summary: None
+ step 1 browser.navigate | ok: True | status: observed | url: http://127.0.0.1:57660/big.html | text: 'Daedalus big notes\nToday\nwater the ficus\nrenew the library card\ncall the dentist at 15:00\n\norchard library ficus measurement dentist ficus tangerine stage loopb'
+proposals retained: 4

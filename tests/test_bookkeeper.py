@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from daedalus import bookkeeper as bk
+from daedalus.interfaces.cli import bookkeeper as bk
 
 
 class RenderTests(unittest.TestCase):

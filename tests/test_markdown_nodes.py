@@ -861,7 +861,7 @@ class ForestAndSelection(unittest.TestCase):
         repo yields 6 intra-repo link edges across 61 documents. The node and
         its headings are what carry the fix; the link layer is a bonus.
         """
-        from daedalus.context_plan import plan_context
+        from daedalus.orchestration.context_plan import plan_context
 
         root = _mkrepo({
             "pkg/a.py": "def alpha():\n    return 1\n",

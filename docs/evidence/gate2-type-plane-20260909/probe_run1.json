@@ -1,0 +1,95 @@
+{
+ "anchor": "d849c2a94d66ffb1bf892de924995645395bf2a6",
+ "commits_spanning_all_four_planes": 7,
+ "commits_that_become_cross_plane": 0,
+ "commits_walked": 1200,
+ "commits_with_type_gold": 51,
+ "examples": [
+  {
+   "commit": "2a25d953f8ad",
+   "frozen_planes": [
+    "code",
+    "data"
+   ],
+   "refined_planes": [
+    "code",
+    "type"
+   ],
+   "type_paths": [
+    "configs/schemas/fault-matrix-contract.schema.json"
+   ]
+  },
+  {
+   "commit": "cd55f7cae08b",
+   "frozen_planes": [
+    "data"
+   ],
+   "refined_planes": [
+    "type"
+   ],
+   "type_paths": [
+    "configs/schemas/fault-matrix-contract.schema.json"
+   ]
+  },
+  {
+   "commit": "9f2b1a4448da",
+   "frozen_planes": [
+    "data"
+   ],
+   "refined_planes": [
+    "type"
+   ],
+   "type_paths": [
+    "configs/schemas/provider-target-receipt-retention-completed-evidence.schema.json"
+   ]
+  },
+  {
+   "commit": "3e1b1c7b35f1",
+   "frozen_planes": [
+    "data"
+   ],
+   "refined_planes": [
+    "type"
+   ],
+   "type_paths": [
+    "configs/schemas/provider-target-receipt-retention-effect-terminal-evidence.schema.json"
+   ]
+  },
+  {
+   "commit": "9644997d438a",
+   "frozen_planes": [
+    "data"
+   ],
+   "refined_planes": [
+    "type"
+   ],
+   "type_paths": [
+    "configs/schemas/provider-target-receipt-retention-completed-evidence.schema.json"
+   ]
+  }
+ ],
+ "frozen_plane_combinations": {
+  "code": 724,
+  "code+data": 8,
+  "code+data+knowledge": 28,
+  "code+knowledge": 4,
+  "data": 271,
+  "data+knowledge": 3,
+  "knowledge": 141
+ },
+ "refined_plane_combinations": {
+  "code": 724,
+  "code+data": 5,
+  "code+data+knowledge": 21,
+  "code+data+knowledge+type": 7,
+  "code+data+type": 1,
+  "code+knowledge": 4,
+  "code+type": 2,
+  "data": 230,
+  "data+knowledge": 3,
+  "knowledge": 141,
+  "type": 41
+ },
+ "type_gold_paths_total": 52,
+ "window": 1200
+}

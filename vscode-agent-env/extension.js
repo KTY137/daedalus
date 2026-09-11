@@ -8,9 +8,12 @@ let projectProvider;
 let queueProvider;
 let dashboardProvider;
 let dashboardPanel;
+let dashboardPanelController;
 let watcherTerminal;
 let statusBar;
 let webServerProcess;
+let extensionActive = false;
+const editorSessions = new Map(); // transient only; never persisted or logged
 const WEB_HOST = "127.0.0.1";
 const WEB_PORT = 8765;
 
@@ -69,9 +72,16 @@ function terminal(context, name, args) {
   return term;
 }
 
-function webUrl(project) {
+const CONTEXT_REF_RE = /^[A-Za-z0-9._:-]{1,200}$/;
+const MAX_EDITOR_SELECTION_CHARS = 12_000;
+
+function webUrl(project, contextRef) {
   const params = new URLSearchParams({ vscode: "1" });
   if (project) params.set("project", project);
+  // Context bytes never travel in a URL or clipboard.  The API owns the
+  // reference and validates its project/revision binding before Ikarus reads
+  // it; the extension only transports this opaque, bounded identifier.
+  if (contextRef && CONTEXT_REF_RE.test(contextRef)) params.set("context_ref", contextRef);
   return `http://${WEB_HOST}:${WEB_PORT}/?${params.toString()}`;
 }
 
@@ -116,7 +126,7 @@ async function ensureWebServer(context) {
   try {
     webServerProcess = cp.spawn(
       python(),
-      ["-m", "daedalus.cli", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
+      ["-m", "daedalus.interfaces.cli.entry", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
       { cwd: root, windowsHide: true, detached: false, stdio: ["ignore", "ignore", "pipe"] }
     );
   } catch (err) {
@@ -168,7 +178,7 @@ async function ensureWebServerForCommand(context) {
 
 // ---------------------------------------------------------------------------
 // Task lifecycle client: GET /api/queue/<id> [/artifacts | /events]. Additive
-// endpoints landed 2026-07-29 in daedalus/web_api.py's "task lifecycle"
+// endpoints landed 2026-07-29 in daedalus/interfaces/http/web_api.py's "task lifecycle"
 // section -- read that section's docstring for the full vocabulary
 // (queued/running/done/failed/quarantined/unknown) and why `applied` is
 // tri-state. Every helper here degrades exactly like probeWebServer() /
@@ -195,6 +205,43 @@ function apiGet(urlPath, timeoutMs = 1500) {
   });
 }
 
+/**
+ * The extension has one fixed API origin: numeric loopback, never a user
+ * setting or workspace supplied URL.  This is an editor-context handoff, not
+ * an execution API; the backend remains responsible for project identity,
+ * revision, retention, policy and any later provider/effect admission.
+ */
+function apiPost(urlPath, body, timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify(body);
+    const req = http.request({
+      hostname: WEB_HOST,
+      port: WEB_PORT,
+      path: urlPath,
+      method: "POST",
+      timeout: timeoutMs,
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload, "utf8")
+      }
+    }, (res) => {
+      res.setEncoding("utf8");
+      let raw = "";
+      res.on("data", (chunk) => { raw += chunk; });
+      res.on("end", () => {
+        let parsed = null;
+        try { parsed = JSON.parse(raw); } catch (_) { /* classified below */ }
+        const error = parsed && typeof parsed.error === "string" ? parsed.error : raw.slice(0, 500);
+        resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, body: parsed, error });
+      });
+    });
+    req.on("timeout", () => { req.destroy(); resolve({ ok: false, status: 0, body: null, error: "timeout" }); });
+    req.on("error", (err) => resolve({ ok: false, status: 0, body: null, error: String(err.message || err) }));
+    req.write(payload);
+    req.end();
+  });
+}
+
 // The file bus names task files `<id>.json` (outbox, runs/processed) or
 // `<id>.report.json` (inbox) -- `id` IS the filename stem, nothing new is
 // minted here (see web_api.py's own "THE HONESTY RULE THIS SECTION IS BUILT
@@ -215,7 +262,7 @@ function shortAge(ageS) {
 }
 
 // THE property that matters more than anything else rendered by this file:
-// `applied` is TRUE / FALSE / null-with-a-reason (daedalus/web_api.py
+// `applied` is TRUE / FALSE / null-with-a-reason (daedalus/interfaces/http/web_api.py
 // `_derive_applied` never guesses true). null must never be rendered as
 // either of the other two, and the reason string travels with it always.
 function appliedWord(snap) {
@@ -269,7 +316,7 @@ function stateThemeIcon(snap) {
 
 // SSE client for GET /api/queue/<id>/events. Node has no built-in
 // EventSource, so this parses the same "event: X\ndata: {...}\n\n" framing
-// daedalus/web_api.py's _handle_task_events emits by hand. ONE-SHOT, exactly
+// daedalus/interfaces/http/web_api.py's _handle_task_events emits by hand. ONE-SHOT, exactly
 // like the server contract: reading stops after 'final', after a non-2xx
 // response (an old server without this endpoint answers 404 JSON, not SSE --
 // checked explicitly below rather than fed into the frame parser), or on a
@@ -306,8 +353,8 @@ function watchTaskEvents(taskId, onEvent, onDone) {
   return { cancel: () => req.destroy() };
 }
 
-function agentOsHtml(project) {
-  const url = webUrl(project);
+function agentOsHtml(project, contextRef) {
+  const url = webUrl(project, contextRef);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -446,33 +493,18 @@ async function envStatus(context) {
   }).filter(Boolean);
   const ollama = await execTool("ollama", ["--version"], root, 5000);
   let doctor = "";
-  try { doctor = await runPython(context, ["-m", "daedalus.cli", "doctor"], { timeout: 15000 }); } catch (err) { doctor = String(err.message || err); }
+  try { doctor = await runPython(context, ["-m", "daedalus.interfaces.cli.entry", "doctor"], { timeout: 15000 }); } catch (err) { doctor = String(err.message || err); }
   return { root, extensions, ollamaCli: { ok: ollama.ok, detail: ollama.stdout || ollama.stderr || ollama.error }, doctor };
 }
 
 async function dashboardState(context, projectName) {
   const picked = projectName || cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name);
-  const args = ["-m", "daedalus.cli", "dashboard", "--json"];
+  const args = ["-m", "daedalus.interfaces.cli.entry", "dashboard", "--json"];
   if (picked) args.push("--project", picked);
   const state = await runJson(context, args, { timeout: 30000 });
   state.env = await envStatus(context);
   state.agents = agents(context);
   return state;
-}
-
-function saveProjectTeam(context, payload) {
-  const project = projects(context).find((p) => p.name === payload.project);
-  if (!project) throw new Error(`Unknown project '${payload.project}'`);
-  const data = project.data || {};
-  data.team = Object.assign({}, data.team || {}, {
-    max_workers: Math.max(1, Math.min(32, Number(payload.maxWorkers) || 1)),
-    default_lane: payload.defaultLane || "local_only",
-    active_agents: Array.isArray(payload.activeAgents) ? payload.activeAgents.map(String).filter(Boolean) : [],
-    model_assignments: (data.team || {}).model_assignments || {},
-    semi_auto: (data.team || {}).semi_auto || {},
-    squads: (data.team || {}).squads || {}
-  });
-  fs.writeFileSync(project.path, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
 async function confirmAction(title, detail) {
@@ -484,17 +516,192 @@ async function enforceProject(context, projectName) {
   if (!projectName) return Promise.reject(new Error("No project selected"));
   const ok = await confirmAction("Enforce Daedalus harness?", `Project: ${projectName}\nThis rewrites AGENTS.md / CLAUDE.md and writes enforcement state.`);
   if (!ok) return null;
-  return runPython(context, ["-m", "daedalus.cli", "enforce", "--project", projectName], { timeout: 30000 });
+  return runPython(context, ["-m", "daedalus.interfaces.cli.entry", "enforce", "--project", projectName], { timeout: 30000 });
 }
 
 async function pickProject(context, item) {
-  if (item && item.project) return item.project.name;
+  if (item && item.project) {
+    void ensureEditorSession(context, item.project.name);
+    return item.project.name;
+  }
   const defaultProject = cfg().get("defaultProject");
   const all = projects(context);
-  if (defaultProject && all.some((p) => p.name === defaultProject)) return defaultProject;
-  if (all.length === 1) return all[0].name;
+  if (defaultProject && all.some((p) => p.name === defaultProject)) {
+    void ensureEditorSession(context, defaultProject);
+    return defaultProject;
+  }
+  if (all.length === 1) {
+    void ensureEditorSession(context, all[0].name);
+    return all[0].name;
+  }
   const picked = await vscode.window.showQuickPick(all.map((p) => ({ label: p.name, description: p.repoRoot })), { placeHolder: "Select an daedalus project" });
+  if (picked && picked.label) void ensureEditorSession(context, picked.label);
   return picked && picked.label;
+}
+
+const GIT_REVISION_RE = /^[0-9a-f]{40}$/i;
+const EDITOR_TOKEN_RE = /^[A-Za-z0-9._~=-]{16,512}$/;
+const EDITOR_EVENT_MAX_CHARS = 64_000;
+
+function editorAdapterKind() {
+  const name = String(vscode.env.appName || "").toLowerCase();
+  return name.includes("openvscode") ? "openvscode" : "vscode";
+}
+
+async function measuredGitRevision(project) {
+  if (!project || !project.repoRoot || !exists(project.repoRoot)) return "";
+  const result = await execTool("git", ["-C", project.repoRoot, "rev-parse", "--verify", "HEAD"], project.repoRoot, 3000);
+  return result.ok && GIT_REVISION_RE.test(result.stdout) ? result.stdout.toLowerCase() : "";
+}
+
+function stopEditorSession(session) {
+  if (!session) return;
+  session.closed = true;
+  if (session.request) session.request.destroy();
+  if (session.retryTimer) clearTimeout(session.retryTimer);
+  session.request = undefined;
+  session.retryTimer = undefined;
+}
+
+function exactEditorRange(value) {
+  if (!value || !value.start || !value.end) return null;
+  const positions = [value.start, value.end];
+  if (!positions.every((p) => Number.isInteger(p.line) && Number.isInteger(p.character) && p.line >= 0 && p.character >= 0 && p.line <= 1_000_000 && p.character <= 1_000_000)) return null;
+  if (value.start.line > value.end.line || (value.start.line === value.end.line && value.start.character > value.end.character)) return null;
+  return new vscode.Range(value.start.line, value.start.character, value.end.line, value.end.character);
+}
+
+function exactProjectFile(session, relativePath) {
+  if (!session || typeof relativePath !== "string" || !relativePath || relativePath.includes("\\") || relativePath.startsWith("/") || relativePath.includes("//")) return null;
+  const segments = relativePath.split("/");
+  if (segments.some((part) => !part || part === "." || part === "..")) return null;
+  try {
+    const root = fs.realpathSync(session.repoRoot);
+    const candidate = fs.realpathSync(path.resolve(root, ...segments));
+    return relativePathWithin(root, candidate) === relativePath && fs.statSync(candidate).isFile() ? candidate : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function editorSessionRevisionMatches(session) {
+  if (!session || !GIT_REVISION_RE.test(session.baseRevision)) return false;
+  const revision = await measuredGitRevision({ repoRoot: session.repoRoot });
+  return Boolean(revision && revision === session.baseRevision);
+}
+
+async function applyEditorNavigation(session, event) {
+  // This is deliberately a two-action allowlist. No event reaches a terminal,
+  // queue, provider, filesystem write, policy, or generic command dispatcher.
+  if (!session || !event || !await editorSessionRevisionMatches(session)) {
+    stopEditorSession(session);
+    if (session) editorSessions.delete(session.project);
+    return;
+  }
+  const payload = event.payload;
+  if (!payload || typeof payload !== "object") return;
+  if (event.command === "reveal_location") {
+    const file = exactProjectFile(session, payload.path);
+    const range = exactEditorRange(payload.range);
+    if (!file || !range) return;
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+    await vscode.window.showTextDocument(document, { preview: true, selection: range });
+    return;
+  }
+  if (event.command === "open_diff") {
+    const file = exactProjectFile(session, payload.path);
+    const range = exactEditorRange(payload.range);
+    if (!file || !range) return;
+    const working = vscode.Uri.file(file);
+    const base = working.with({ scheme: "git", query: JSON.stringify({ path: file, ref: session.baseRevision }) });
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      base,
+      working,
+      `Daedalus: ${payload.path} (base vs working tree)`,
+      { preview: true, selection: range }
+    );
+  }
+}
+
+function scheduleEditorSessionReconnect(session) {
+  if (!session || session.closed || session.retryTimer) return;
+  // Reconnect is observation-only: it reuses the in-memory token and never
+  // renews a session, changes project state, or starts the web server.
+  session.retryTimer = setTimeout(() => {
+    session.retryTimer = undefined;
+    observeEditorSession(session);
+  }, 3000);
+}
+
+async function consumeEditorEvents(session, events) {
+  if (!Array.isArray(events)) return;
+  for (const event of events) {
+    if (!event || !Number.isInteger(event.sequence) || event.sequence <= session.after || typeof event.created_at !== "string" || !event.created_at) continue;
+    // The cursor advances even for malformed/unsupported commands: the server
+    // owns ordering, while this adapter is intentionally only an observer.
+    session.after = event.sequence;
+    try { await applyEditorNavigation(session, event); } catch (_) { /* navigation failure is inert */ }
+    if (session.closed) return;
+  }
+}
+
+function observeEditorSession(session) {
+  if (!session || session.closed || session.request) return;
+  const query = new URLSearchParams({ after: String(session.after), wait_s: "25" });
+  const req = http.get({
+    hostname: WEB_HOST,
+    port: WEB_PORT,
+    path: `/api/editor/sessions/${encodeURIComponent(session.id)}/events?${query.toString()}`,
+    headers: { Accept: "application/json", "X-Daedalus-Editor-Token": session.token }
+  }, (res) => {
+    if (res.statusCode !== 200) {
+      res.resume();
+      session.request = undefined;
+      // A rejected token must not be retried or re-registered automatically.
+      if (res.statusCode >= 500) scheduleEditorSessionReconnect(session);
+      return;
+    }
+    res.setEncoding("utf8");
+    let raw = "";
+    res.on("data", (chunk) => { raw = (raw + chunk).slice(-EDITOR_EVENT_MAX_CHARS); });
+    res.on("end", async () => {
+      session.request = undefined;
+      let body = null;
+      try { body = JSON.parse(raw); } catch (_) { /* malformed response is inert */ }
+      if (!body || body.ok !== true || !Array.isArray(body.events)) return;
+      await consumeEditorEvents(session, body.events);
+      if (!session.closed) scheduleEditorSessionReconnect(session);
+    });
+    res.on("error", () => { session.request = undefined; scheduleEditorSessionReconnect(session); });
+  });
+  session.request = req;
+  req.setTimeout(30_000, () => req.destroy());
+  req.on("error", () => { if (session.request === req) session.request = undefined; scheduleEditorSessionReconnect(session); });
+}
+
+async function ensureEditorSession(context, projectName) {
+  if (!extensionActive) return;
+  const project = projects(context).find((row) => row.name === projectName && row.repoRoot);
+  if (!project) return;
+  const revision = await measuredGitRevision(project);
+  if (!extensionActive) return;
+  const existing = editorSessions.get(project.name);
+  if (existing && existing.baseRevision === revision && !existing.closed) return;
+  stopEditorSession(existing);
+  const body = { project: project.name, adapter: editorAdapterKind(), capabilities: ["reveal_location", "open_diff"] };
+  if (revision) body.base_revision = revision;
+  const response = await apiPost("/api/editor/sessions", body, 3000);
+  if (!extensionActive) return;
+  const created = response.body && response.body.session;
+  const token = created && typeof created.session_token === "string" ? created.session_token : "";
+  const sessionId = created && typeof created.session_id === "string" ? created.session_id : "";
+  const baseRevision = created && typeof created.base_revision === "string" ? created.base_revision.toLowerCase() : "";
+  if (!response.ok || !EDITOR_TOKEN_RE.test(token) || !/^[A-Za-z0-9._-]{1,160}$/.test(sessionId) || !GIT_REVISION_RE.test(baseRevision)) return;
+  if (created.project !== project.name || (revision && baseRevision !== revision)) return;
+  const session = { id: sessionId, project: project.name, repoRoot: project.repoRoot, baseRevision, token, after: 0, closed: false, request: undefined, retryTimer: undefined };
+  editorSessions.set(project.name, session);
+  observeEditorSession(session);
 }
 
 function currentFilePath() {
@@ -538,7 +745,7 @@ async function reviewDiff(context, projectName) {
   if (!project) return null;
   const ok = await confirmAction("Queue local-only diff review?", `Project: ${project}\nLane: local_only`);
   if (!ok) return null;
-  const out = await runPython(context, ["-m", "daedalus.cli", "review-diff", "--project", project, "--lane", "local_only", "--json"]);
+  const out = await runPython(context, ["-m", "daedalus.interfaces.cli.entry", "review-diff", "--project", project, "--lane", "local_only", "--json"]);
   vscode.window.showInformationMessage(`Local-only review queued for ${project}`);
   queueProvider.refresh();
   return out;
@@ -562,7 +769,7 @@ async function spawnIkarus(context, item) {
   if (!mode) return;
   const ok = await confirmAction("Spawn Ikarus?", `Project: ${project}\nMode: ${mode.label}\nObjective: ${objective}`);
   if (!ok) return;
-  const args = ["-m", "daedalus.cli", "spawn", objective, "--project", project];
+  const args = ["-m", "daedalus.interfaces.cli.entry", "spawn", objective, "--project", project];
   if (mode.label === "Live dispatch") args.push("--live");
   terminal(context, `Ikarus: ${project}`, args);
 }
@@ -578,31 +785,65 @@ function openMemory(context) {
   vscode.workspace.openTextDocument(vscode.Uri.file(file)).then((doc) => vscode.window.showTextDocument(doc));
 }
 
-// A VS Code-native on-ramp into the chat-first cockpit: opens the same
-// Ikarus panel other commands use, seeded with an objective about whatever
-// is open. NOT a deep link -- apps/web currently reads only `project` from
-// its URL (no initial-message param), so a pre-filled chat turn is an
-// assumed seam the web app does not implement yet. Rather than pretend it
-// does, this copies the objective to the clipboard and says so plainly; it
-// upgrades for free the day the web app grows that param.
+function relativePathWithin(root, filePath) {
+  if (!root || !filePath) return null;
+  const relative = path.relative(path.resolve(root), path.resolve(filePath));
+  if (!relative || relative === "." || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  return relative.split(path.sep).join("/");
+}
+
+/** Capture only the active selection a person explicitly chose to hand off.
+ * The API, not this adapter, owns context identity, revision binding, policy,
+ * retention and every later provider/effect decision. */
 async function askAboutFile(context) {
   const filePath = currentFilePath();
-  if (!filePath) {
-    vscode.window.showWarningMessage("Open a file first, then ask Ikarus about it.");
+  const editor = vscode.window.activeTextEditor;
+  if (!filePath || !editor) {
+    vscode.window.showWarningMessage("Open a saved file first, then ask Ikarus about it.");
     return;
   }
-  const editor = vscode.window.activeTextEditor;
-  const selection = editor && !editor.selection.isEmpty ? editor.document.getText(editor.selection) : "";
-  const rel = vscode.workspace.asRelativePath(filePath);
-  const objective = selection
-    ? `About ${rel}, regarding this selection:\n\n${selection.slice(0, 2000)}\n\nWhat should I know or do here?`
-    : `What should I know about ${rel}?`;
-  await vscode.env.clipboard.writeText(objective);
-  await openDashboard(context);
-  vscode.window.showInformationMessage(
-    "Objective copied to clipboard — paste it into the Ikarus chat that just opened. " +
-    "(VS Code cannot pre-fill the chat turn yet.)"
-  );
+  const project = projects(context).find((row) => relativePathWithin(row.repoRoot, filePath));
+  if (!project) {
+    vscode.window.showErrorMessage("The active file is not inside a registered Daedalus project; Ikarus context was not sent.");
+    return;
+  }
+  const relativePath = relativePathWithin(project.repoRoot, filePath);
+  if (!relativePath) {
+    vscode.window.showErrorMessage("The active file has no safe project-relative path; Ikarus context was not sent.");
+    return;
+  }
+  const range = editor.selection;
+  const selection = editor.document.getText(range);
+  if (selection.length > MAX_EDITOR_SELECTION_CHARS) {
+    vscode.window.showErrorMessage(`Ikarus editor context was not sent: the explicit selection is ${selection.length} characters, above the ${MAX_EDITOR_SELECTION_CHARS}-character limit. Reduce the selection and try again.`);
+    return;
+  }
+  if (!(await ensureWebServerForCommand(context))) return;
+  const response = await apiPost("/api/editor/contexts", {
+    project: project.name,
+    source: editorAdapterKind(),
+    path: relativePath,
+    range: {
+      start_line: range.start.line + 1,
+      start_column: range.start.character + 1,
+      end_line: range.end.line + 1,
+      end_column: range.end.character + 1
+    },
+    selection
+  });
+  const createdContext = response.body && response.body.context;
+  const contextRef = createdContext && typeof createdContext.context_ref === "string"
+    ? createdContext.context_ref
+    : "";
+  if (!response.ok || !CONTEXT_REF_RE.test(contextRef)) {
+    const detail = response.status === 404
+      ? "This Daedalus backend does not yet provide POST /api/editor/contexts."
+      : response.error || `HTTP ${response.status || "transport failure"}`;
+    vscode.window.showErrorMessage(`Ikarus editor context was refused; the chat was not opened with selection context. ${detail}`);
+    return;
+  }
+  await openDashboard(context, project.name, contextRef);
+  vscode.window.showInformationMessage(`Editor context attached for ${relativePath}.`);
 }
 
 async function openLatestReport(context, state) {
@@ -645,7 +886,7 @@ function renderTaskStatusDoc(id, body) {
     if (snap.objective) lines.push(`Objective: ${snap.objective}`);
     lines.push(`Lane: ${snap.lane || "n/a"}  Project: ${snap.project || "n/a"}`);
     lines.push(`Observed: ${snap.observed_at || "n/a"} (${shortAge(snap.age_s)})`);
-    // conversation_dispatch is daedalus.conversation's OWN read of this
+    // conversation_dispatch is daedalus.orchestration.conversation's OWN read of this
     // dispatch's timeline, and it can lag behind -- e.g. still say
     // "dispatched" after the task is long finished -- because
     // record_dispatch_event is deliberately NOT called from web_api.py (see
@@ -706,7 +947,7 @@ async function showTaskArtifacts(context, item) {
     return;
   }
   if (art.available === false) {
-    // NOT an error -- see daedalus/web_api.py: available:false while a run is
+    // NOT an error -- see daedalus/interfaces/http/web_api.py: available:false while a run is
     // still in flight is the honest, expected answer, not a failure. Shown
     // as information, never as a warning or error.
     vscode.window.showInformationMessage(`Task '${id}': artifacts not available yet -- ${art.reason || "the run has not finished"}.`);
@@ -764,7 +1005,7 @@ function escapeHtml(s) {
 }
 
 // ===========================================================================
-// UNREACHABLE. MEASURED 2026-07-29: `dashboardHtml` has ZERO callers.
+// RETIRED. MEASURED 2026-07-29: the legacy dashboard has ZERO callers.
 //
 // Both webview entry points -- the `daedalus.openDashboard` command and the
 // Activity Bar view provider -- go through `bindDashboardWebview`, which
@@ -781,13 +1022,12 @@ function escapeHtml(s) {
 // web app) and a window onto it. A reader who trusts those docstrings will
 // believe a panel is shipping that no user has ever seen.
 //
-// Left in place rather than deleted: removing 760 lines is a deliberate act
-// that deserves its own review, not a drive-by at the end of a session. It is
-// labelled instead, and tests/test_ui_governance.py holds this comment to the
-// code -- if anyone wires this template back up, that test fails until the
-// claim here is corrected.
+// The live surface remains the canonical React cockpit. The old template is
+// retained below only as inactive source history; it cannot be rendered or
+// receive webview messages from this adapter.
 // ===========================================================================
-function dashboardHtml(n) {
+/*
+function legacyDashboardHtmlSource(n) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -960,7 +1200,7 @@ function dashboardHtml(n) {
   .gate-row.fail .g-result { color: var(--mc-danger); }
   /* An unmeasured gate must be visually distinct from a passing one on more
      than hue, so it survives a greyscale screenshot and a colourblind viewer:
-     amber, a "?" glyph, and the word "unknown" all disagree with "Pass". */
+     amber, a "?" glyph, and the word "unknown" all disagree with "Pass". * /
   .gate-row.warn .glyph { color: var(--mc-warning); }
   .gate-row.warn .g-result { color: var(--mc-warning); font-style: italic; }
 
@@ -1085,7 +1325,7 @@ function dashboardHtml(n) {
     </section>
     <section class="block">
       <h2>New Agent</h2>
-      <div class="desc">Registers a new agent role via <code>daedalus.cli agents add</code>. Agents are local-only by default; enable "external ok" only for roles cleared to reach hosted providers.</div>
+      <div class="desc">Registers a new agent role via <code>daedalus.interfaces.cli.entry agents add</code>. Agents are local-only by default; enable "external ok" only for roles cleared to reach hosted providers.</div>
       <div class="panel">
         <div class="field-row">
           <div class="field"><label for="naName">Name</label><input id="naName" type="text" placeholder="e.g. scribe"></div>
@@ -1638,10 +1878,12 @@ vscode.postMessage({ type: 'ready' });
 </body>
 </html>`;
 }
+*/
 
-async function bindDashboardWebview(context, webview, projectName) {
+async function bindDashboardWebview(context, webview, projectName, contextRef) {
   webview.options = { enableScripts: true };
-  const project = projectName || cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name) || "";
+  let project = projectName || cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name) || "";
+  let activeContextRef = contextRef && CONTEXT_REF_RE.test(contextRef) ? contextRef : "";
   let inFlight = false;
   const attempt = async () => {
     if (inFlight) return;
@@ -1652,7 +1894,7 @@ async function bindDashboardWebview(context, webview, projectName) {
     webview.html = backendStateHtml(nonce(), "checking", {});
     try {
       await ensureWebServer(context);
-      webview.html = agentOsHtml(project);
+      webview.html = agentOsHtml(project, activeContextRef);
     } catch (err) {
       const state = err instanceof BackendUnavailable ? err.state : "unknown";
       const detail = err instanceof BackendUnavailable ? err.detail : "";
@@ -1665,22 +1907,30 @@ async function bindDashboardWebview(context, webview, projectName) {
     if (msg && msg.type === "retryBackend") attempt();
   });
   await attempt();
+  return {
+    async show(nextProject, nextContextRef) {
+      project = nextProject || project;
+      activeContextRef = nextContextRef && CONTEXT_REF_RE.test(nextContextRef) ? nextContextRef : "";
+      await attempt();
+    }
+  };
 }
 
-async function openDashboard(context) {
+async function openDashboard(context, projectName, contextRef) {
   if (dashboardPanel) {
     dashboardPanel.reveal(vscode.ViewColumn.Active);
+    if (dashboardPanelController) await dashboardPanelController.show(projectName, contextRef);
     return;
   }
-  const project = await pickProject(context);
+  const project = projectName || await pickProject(context);
   dashboardPanel = vscode.window.createWebviewPanel(
     "daedalusAgentOs",
     "Daedalus Agent OS",
     vscode.ViewColumn.Active,
     { enableScripts: true, retainContextWhenHidden: true }
   );
-  await bindDashboardWebview(context, dashboardPanel.webview, project);
-  dashboardPanel.onDidDispose(() => { dashboardPanel = undefined; });
+  dashboardPanelController = await bindDashboardWebview(context, dashboardPanel.webview, project, contextRef);
+  dashboardPanel.onDidDispose(() => { dashboardPanel = undefined; dashboardPanelController = undefined; });
 }
 
 class DashboardProvider {
@@ -1779,6 +2029,7 @@ async function updateStatusBar(context) {
 }
 
 function activate(context) {
+  extensionActive = true;
   projectProvider = new ProjectsProvider(context);
   queueProvider = new QueueProvider(context);
   dashboardProvider = new DashboardProvider(context);
@@ -1834,10 +2085,13 @@ function activate(context) {
     vscode.commands.registerCommand("daedalus.showTaskArtifacts", (item) => showTaskArtifacts(context, item)),
     vscode.commands.registerCommand("daedalus.watchTask", (item) => watchTask(context, item))
   );
+  const activationProject = cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name);
+  if (activationProject) void ensureEditorSession(context, activationProject);
   updateStatusBar(context);
 }
 
 function deactivate() {
+  extensionActive = false;
   if (watcherTerminal) watcherTerminal.dispose();
   if (webServerProcess) webServerProcess.kill();
   for (const [, entry] of activeTaskWatches) {
@@ -1845,6 +2099,8 @@ function deactivate() {
     entry.channel.dispose();
   }
   activeTaskWatches.clear();
+  for (const session of editorSessions.values()) stopEditorSession(session);
+  editorSessions.clear();
 }
 
 module.exports = { activate, deactivate };

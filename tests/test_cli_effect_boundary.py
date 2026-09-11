@@ -35,7 +35,7 @@ def _target_repo(tmp_path: Path) -> Path:
 def test_enforce_refuses_fail_closed_without_the_contract(
     tmp_path, monkeypatch, contracts_disabled
 ):
-    from daedalus.enforce import main
+    from daedalus.interfaces.cli.enforce import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr("sys.argv", ["enforce", "--repo-root", str(root)])
@@ -47,7 +47,7 @@ def test_enforce_refuses_fail_closed_without_the_contract(
 
 
 def test_enforce_runs_on_the_valid_chain(tmp_path, monkeypatch, capsys):
-    from daedalus.enforce import main
+    from daedalus.interfaces.cli.enforce import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr("sys.argv", ["enforce", "--repo-root", str(root)])
@@ -73,7 +73,7 @@ def test_gui_lint_refuses_fail_closed_without_the_contract(
 def test_runbook_refuses_fail_closed_without_the_contract(
     tmp_path, monkeypatch, contracts_disabled
 ):
-    from daedalus import runbook
+    from daedalus.orchestration import runbook
 
     monkeypatch.setattr(runbook, "RUN_DIR", tmp_path / "runs")
     monkeypatch.setattr(
@@ -87,7 +87,7 @@ def test_runbook_refuses_fail_closed_without_the_contract(
 def test_selftest_refuses_fail_closed_before_any_live_round_trip(
     monkeypatch, contracts_disabled
 ):
-    from daedalus import selftest
+    from daedalus.interfaces.cli import selftest
 
     def _exploded(*_a, **_kw):  # pragma: no cover - must never run
         raise AssertionError("run() must not start after a refused boundary")
@@ -97,18 +97,99 @@ def test_selftest_refuses_fail_closed_before_any_live_round_trip(
         selftest.main([])
 
 
+def test_ignition_refuses_before_any_run(tmp_path, monkeypatch, contracts_disabled):
+    from daedalus.ignition import __main__ as ignition_main
+
+    def _exploded(**_kwargs):  # pragma: no cover - must never run
+        raise AssertionError("ignition must not run after a refused boundary")
+
+    receipt_root = tmp_path / "receipts"
+    monkeypatch.setattr(ignition_main, "run_gate1_ignition", _exploded)
+    with pytest.raises(EffectStartRefused):
+        ignition_main.main(["--receipts", str(receipt_root)])
+    assert not receipt_root.exists()
+
+
+def test_ariadne_module_refuses_before_argparse_or_run(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    from daedalus.ariadne import __main__ as ariadne_main
+
+    def _exploded(**_kwargs):  # pragma: no cover - must never run
+        raise AssertionError("Ariadne must not run after a refused outer boundary")
+
+    monkeypatch.setattr(ariadne_main, "run_campaign", _exploded)
+    with pytest.raises(EffectStartRefused):
+        # Deliberately omit required arguments: the boundary must refuse before
+        # argparse can turn this into SystemExit or any campaign state can open.
+        ariadne_main.main([])
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_ariadne_module_uses_real_process_guard(monkeypatch, capsys):
+    import daedalus.budget as budget
+    from daedalus.ariadne import __main__ as ariadne_main
+
+    observed = {}
+
+    def _run_campaign(**kwargs):
+        observed.update(kwargs)
+        return {"outcome": "nominated"}
+
+    budget.uninstall_process_guard()
+    monkeypatch.setattr(ariadne_main, "run_campaign", _run_campaign)
+    try:
+        assert ariadne_main.main([
+            "--repo-root", ".",
+            "--source-revision", "a" * 40,
+            "--campaign-id", "outer-boundary",
+            "--target", "sample.txt",
+            "--before", "broken",
+            "--after", "fixed",
+            "--timeout-s", "7",
+        ]) == 0
+        import subprocess
+
+        assert getattr(subprocess.run, "__daedalus_budget__", False)
+        assert observed["campaign_id"] == "outer-boundary"
+        assert observed["timeout_s"] == 7
+        assert json.loads(capsys.readouterr().out) == {"outcome": "nominated"}
+    finally:
+        budget.uninstall_process_guard()
+
+
 def test_shift_status_stays_fail_open_read_only(contracts_disabled, capsys):
-    from daedalus.shift import main
+    from daedalus.interfaces.cli.shift import main
 
     assert main(["status"]) == 0
     assert capsys.readouterr().out.strip(), "status inspection must keep working"
 
 
 def test_shift_state_writes_refuse_fail_closed(contracts_disabled):
-    from daedalus.shift import main
+    from daedalus.interfaces.cli.shift import main
 
     with pytest.raises(EffectStartRefused):
         main(["note", "probe"])
+
+
+def test_python_shift_compatibility_status_stays_fail_open_read_only(
+    contracts_disabled, capsys
+):
+    from daedalus.shift import main
+
+    assert main(["status"]) == 0
+    assert capsys.readouterr().out.strip(), "status inspection must keep working"
+
+
+def test_python_shift_compatibility_writes_refuse_fail_closed(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    from daedalus.shift import main
+
+    monkeypatch.setenv("DAEDALUS_REPO_ROOT", str(tmp_path))
+    with pytest.raises(EffectStartRefused):
+        main(["note", "probe"])
+    assert not (tmp_path / "runs" / "shift.json").exists()
 
 
 def test_structcore_json_write_refuses_but_summary_stays_fail_open(
@@ -142,7 +223,7 @@ def test_structcore_slice_write_refuses_fail_closed(
 def test_token_monitor_refuses_fail_closed_without_the_contract(
     tmp_path, monkeypatch, contracts_disabled
 ):
-    from daedalus.token_monitor import main
+    from daedalus.interfaces.cli.token_monitor import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr(
@@ -155,7 +236,7 @@ def test_token_monitor_refuses_fail_closed_without_the_contract(
 def test_arch_memory_show_stays_fail_open_but_build_refuses(
     tmp_path, monkeypatch, contracts_disabled, capsys
 ):
-    from daedalus.arch_memory import main
+    from daedalus.interfaces.cli.arch_memory import main
 
     root = _target_repo(tmp_path)
     assert main([str(root), "--show"]) == 0
@@ -164,7 +245,7 @@ def test_arch_memory_show_stays_fail_open_but_build_refuses(
 
 
 def test_bookkeeper_update_refuses_fail_closed(contracts_disabled):
-    from daedalus.bookkeeper import main
+    from daedalus.interfaces.cli.bookkeeper import main
 
     with pytest.raises(EffectStartRefused):
         main(["update"])
@@ -594,7 +675,7 @@ def test_runs_council_dead_letter_replay_refuses_but_list_stays_fail_open(
 def test_web_api_main_refuses_fail_closed_before_binding(
     monkeypatch, contracts_disabled
 ):
-    from daedalus import web_api
+    from daedalus.interfaces.http import web_api
 
     def _exploded(*_a, **_kw):  # pragma: no cover - must never run
         raise AssertionError("run() must not bind after a refused boundary")
@@ -604,11 +685,59 @@ def test_web_api_main_refuses_fail_closed_before_binding(
         web_api.main(["--host", "127.0.0.1"])
 
 
+def test_web_api_main_uses_real_process_guard_and_forwards_bound_callback(
+    monkeypatch,
+):
+    import subprocess
+
+    import daedalus.budget as budget
+    from daedalus.interfaces.http import web_api
+    from daedalus.spine import effect_boundary
+
+    callback = lambda: None
+    observed = {}
+    real_begin_effect = effect_boundary.begin_effect
+
+    def checked_begin_effect(*args, **kwargs):
+        observed["guard_active_at_boundary"] = getattr(
+            subprocess.run, "__daedalus_budget__", False
+        )
+        return real_begin_effect(*args, **kwargs)
+
+    def fake_run(host, port, *, allow_remote_clients=False, on_bound=None):
+        observed.update(
+            host=host,
+            port=port,
+            allow_remote_clients=allow_remote_clients,
+            on_bound=on_bound,
+        )
+
+    budget.uninstall_process_guard()
+    monkeypatch.setattr(web_api, "run", fake_run)
+    monkeypatch.setattr(effect_boundary, "begin_effect", checked_begin_effect)
+    try:
+        web_api.main(["--host", "127.0.0.1", "--port", "9876"], on_bound=callback)
+
+        assert getattr(subprocess.run, "__daedalus_budget__", False)
+        assert observed == {
+            "guard_active_at_boundary": True,
+            "host": "127.0.0.1",
+            "port": 9876,
+            "allow_remote_clients": False,
+            "on_bound": callback,
+        }
+    finally:
+        budget.uninstall_process_guard()
+
+
 def test_command_gate_refuses_fail_closed(contracts_disabled):
     from daedalus.spine.attempt import command_gate
 
     with pytest.raises(EffectStartRefused):
-        command_gate(["python", "-c", "pass"])
+        command_gate(
+            ["python", "-c", "pass"],
+            scratch_cleanup=lambda _path: None,
+        )
 
 
 def test_worktree_reap_refuses_fail_closed(tmp_path, contracts_disabled):
@@ -623,7 +752,7 @@ def test_worktree_reap_refuses_fail_closed(tmp_path, contracts_disabled):
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget
-    from daedalus.enforce import main
+    from daedalus.interfaces.cli.enforce import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr("sys.argv", ["enforce", "--repo-root", str(root)])
@@ -637,3 +766,31 @@ def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypat
     finally:
         budget.uninstall_process_guard()
     assert (root / "AGENTS.md").exists()
+
+
+def test_council_refuses_fail_closed_without_the_contract(
+    tmp_path, monkeypatch, contracts_disabled, capsys
+):
+    """``daedalus council`` starts at the boundary before argparse or any plan.
+
+    G1-COUNCIL-01: the council spawns vendor CLIs and appends a hash-chained
+    transcript, so it is an effectful door and refuses fail-closed when the
+    process-guard contract is not implemented, even for ``--dry-run``.
+    """
+    from daedalus.interfaces.cli.entry import _council
+
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(EffectStartRefused):
+        _council(["--dry-run", "--vendors", "anthropic"])
+    assert capsys.readouterr().out == "", "a refused start must print no plan"
+    assert not (tmp_path / "runs").exists(), "a refused start must write nothing"
+
+
+def test_council_dry_run_runs_on_the_valid_chain(tmp_path, monkeypatch, capsys):
+    from daedalus.interfaces.cli.entry import _council
+
+    monkeypatch.chdir(tmp_path)
+    _council(["--dry-run", "--vendors", "anthropic", "plan only"])
+    out = capsys.readouterr().out
+    assert "NO MODEL WAS CALLED" in out
+    assert not (tmp_path / "runs").exists(), "a dry run convenes nothing and writes nothing"

@@ -1,15 +1,17 @@
 {
   "name": "daedalus-agent-os",
-  "version": "0.1.1",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
+    "test:app": "node src/app/run-spec.mjs",
     "test:motion": "node src/motion/run-spec.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@tauri-apps/plugin-dialog": "2.7.2",
     "@vitejs/plugin-react": "^4.3.4",
     "@xyflow/react": "^12.3.6",
     "framer-motion": "^11.15.0",
@@ -18,12 +20,17 @@
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sigma": "^3.0.3"
+    "react-markdown": "^9.1.0",
+    "remark-gfm": "^4.0.1",
+    "sigma": "^3.0.3",
+    "three": "0.185.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
+    "@tauri-apps/cli": "2.11.4",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "0.185.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
   }

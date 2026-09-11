@@ -153,8 +153,14 @@ def _rel(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
-def _excluded(path: Path) -> bool:
-    return any(part in EXCLUDED_DIRS for part in path.parts)
+def _excluded(root: Path, path: Path) -> bool:
+    """Return whether a path is excluded inside the measured tree.
+
+    The host path is not part of the experiment's frozen scope. Linked
+    worktrees commonly live below ``.claude/worktrees``; inspecting the
+    absolute path would therefore exclude every file in a valid checkout.
+    """
+    return any(part in EXCLUDED_DIRS for part in path.relative_to(root).parts)
 
 
 def _iter_files(root: Path, roots: tuple[str, ...], suffix: str) -> list[Path]:
@@ -164,7 +170,7 @@ def _iter_files(root: Path, roots: tuple[str, ...], suffix: str) -> list[Path]:
         if not base.exists():
             continue
         for path in sorted(base.rglob(f"*{suffix}")):
-            if path.is_file() and not _excluded(path):
+            if path.is_file() and not _excluded(root, path):
                 seen.setdefault(_rel(root, path), path)
     return [seen[key] for key in sorted(seen)]
 
@@ -1059,7 +1065,7 @@ def census(root: Path, scope: Scope = Scope()) -> dict:
                 for name in scope.documented_exclusions
             ):
                 bucket["excluded_documented"] += 1
-            elif _excluded(base / filename):
+            elif _excluded(root, base / filename):
                 bucket["excluded_by_dir_filter"] += 1
             else:
                 bucket["excluded_outside_frozen_roots"] += 1

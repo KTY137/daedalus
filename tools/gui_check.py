@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -45,7 +46,10 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
+
+from daedalus.atomic import publish_bytes_once
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
@@ -54,20 +58,31 @@ PASS, FAIL, INCOMPLETE = "PASS", "FAIL", "INCOMPLETE"
 EXIT_OK, EXIT_FAILED, EXIT_INCOMPLETE = 0, 1, 2
 
 READINESS_S = 60.0          # the server has this long to answer GET /
+BROWSER_PREFLIGHT_TIMEOUT_S = 180.0
+SERVER_DRAIN_TIMEOUT_S = 10.0
+SERVER_SHUTDOWN_TIMEOUT_S = 20.0
+AGGREGATE_TIMEOUT_MARGIN_S = 30.0
 SUITE_TIMEOUT_DEFAULT_S = 600   # one playwright invocation, on a quiet box
 SUITE_TIMEOUT_ENV = "DAEDALUS_GUI_SUITE_TIMEOUT_S"
+ACCEPTANCE_PROJECT_ENV = "DAEDALUS_GUI_PROJECT"
+SHELL_SHARDS = 4
 NOT_BUILT_MARKER = "Run npm install"
 
 
 def suite_timeout_s(env: dict[str, str] | None = None) -> float:
     """How long one playwright invocation may take.
 
-    The default remains bounded and a timeout remains a FAIL. The override
-    exists because the shell suite includes deliberately slow cold-index and
-    project-switch acceptance paths, while CI load can vary substantially.
-    A positive numeric value lets the caller declare the budget explicitly;
-    invalid or non-positive values fall back to the 600s default rather than
-    becoming a way to disable the bound.
+    The default is unchanged and this is not a way to make a hanging suite
+    pass -- a timeout is still a FAIL. It exists because the budget was sized
+    for a machine running only this: [MEASURED 2026-09-03] the shell suite
+    took 13.9 minutes on this box while parallel agent sessions held ~87
+    python processes, so the harness reported "did not finish within 600s"
+    for a suite that is entirely green. A verdict of FAIL that means "the
+    machine was busy" is the kind of number this repository refuses to
+    report, so the operator can say how slow their box is instead.
+
+    A non-numeric or non-positive value is ignored rather than obeyed: it
+    would otherwise be a way to disable the bound by typo.
     """
     raw = (os.environ if env is None else env).get(SUITE_TIMEOUT_ENV, "").strip()
     try:
@@ -78,7 +93,8 @@ def suite_timeout_s(env: dict[str, str] | None = None) -> float:
 
 
 def timeout_message(budget: float) -> str:
-    """Produce an actionable timeout verdict without weakening the gate."""
+    """What a timed-out suite says. A verdict nobody can act on costs the
+    next person an hour of guessing which of the two causes they have."""
     return (f"the browser suite did not finish within {budget:g}s. If the machine "
             f"is under load rather than the suite being stuck, raise "
             f"{SUITE_TIMEOUT_ENV} and report the value with the verdict.")
@@ -120,7 +136,7 @@ def _browser_installed(web_root: Path, node: str, cli: Path) -> tuple[bool, str]
         proc = subprocess.run(
             [node, str(cli), "install", "chromium", "--only-shell", "--dry-run"],
             cwd=str(web_root), capture_output=True, encoding="utf-8",
-            errors="replace", timeout=180)
+            errors="replace", timeout=BROWSER_PREFLIGHT_TIMEOUT_S)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, f"could not ask playwright where its browser lives: {exc}"
     out = (proc.stdout or "") + (proc.stderr or "")
@@ -181,6 +197,80 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
+def _acceptance_project_target(repo_root: Path) -> tuple[str, Path]:
+    """Reserve this run's identity before publishing any registry row."""
+    root = repo_root.resolve()
+    if not root.is_dir():
+        raise OSError(f"the checkout does not exist or is not a directory: {root}")
+    project_dir = root / "projects"
+    project_dir.mkdir(exist_ok=True)
+    resolved_project_dir = project_dir.resolve()
+    try:
+        resolved_project_dir.relative_to(root)
+    except ValueError as exc:
+        raise OSError(
+            f"the project registry resolves outside the checkout: {resolved_project_dir}"
+        ) from exc
+
+    name = f"000_gui_acceptance_{os.getpid()}_{uuid.uuid4().hex[:10]}"
+    return name, resolved_project_dir / f"{name}.json"
+
+
+def _install_acceptance_project(repo_root: Path, name: str, path: Path) -> None:
+    """Atomically register this exact checkout for live browser reads.
+
+    A clean CI checkout has no local project registry, while a developer's
+    checkout can contain several machine-local rows. Letting the browser pick
+    the first reachable row made the acceptance gate depend on whichever
+    unrelated repository happened to sort first. The temporary row is inside
+    the specimen so ``--repo-root`` still tests that specimen's code and data.
+    """
+    root = repo_root.resolve()
+    expected = (root / "projects").resolve() / f"{name}.json"
+    if path != expected:
+        raise OSError("the acceptance-project target does not match this checkout")
+    payload = {
+        "name": name,
+        "repo_root": str(root),
+        "center": ["daedalus", "apps/web/src"],
+        "ignore": ["@tests", "daedalus/eval/fixtures/"],
+    }
+    encoded = (json.dumps(payload, indent=2, ensure_ascii=False) + "\n").encode(
+        "utf-8"
+    )
+    if not publish_bytes_once(path, encoded):
+        raise OSError(f"the acceptance-project row already exists: {path.name}")
+
+
+def _remove_acceptance_project(path: Path | None, *, retry_s: float = 1.0) -> str:
+    """Remove only this run's row; return a diagnostic instead of raising."""
+    if path is None:
+        return ""
+    deadline = time.monotonic() + max(0.0, retry_s)
+    while True:
+        try:
+            path.unlink(missing_ok=True)
+            return ""
+        except FileNotFoundError:
+            return ""
+        except OSError as exc:
+            if time.monotonic() >= deadline:
+                return f"could not remove acceptance-project row '{path}': {exc}"
+            time.sleep(0.02)
+
+
+def _suite_plan() -> list[tuple[str, list[str]]]:
+    """Bound each serial invocation without introducing concurrent browsers."""
+    shell = [
+        (
+            f"shell-{current}/{SHELL_SHARDS}",
+            ["--grep-invert", "@loopui", "--shard", f"{current}/{SHELL_SHARDS}"],
+        )
+        for current in range(1, SHELL_SHARDS + 1)
+    ]
+    return [*shell, ("loop-ui", ["--grep", "@loopui"])]
+
+
 def _child_env(repo_root: Path) -> dict:
     env = {k: v for k, v in os.environ.items() if k not in SCRUB_ENV}
     env["PYTHONIOENCODING"] = "utf-8"
@@ -209,7 +299,7 @@ def _drain(proc: subprocess.Popen, output_file) -> str:
     if proc.poll() is None:
         proc.kill()
         try:
-            proc.wait(timeout=10)
+            proc.wait(timeout=SERVER_DRAIN_TIMEOUT_S)
         except Exception:
             pass
     try:
@@ -227,9 +317,22 @@ def _drain(proc: subprocess.Popen, output_file) -> str:
 # is the sentence that actually helps -- "the CLI wrapper is broken, the server
 # is fine" versus "something about the web did not work".
 SERVER_ENTRIES = (
-    ("daedalus web (the documented entry point)", ["-m", "daedalus.cli", "web"]),
-    ("python -m daedalus.web_api (diagnostic fallback)", ["-m", "daedalus.web_api"]),
+    ("daedalus web (the documented entry point)", ["-m", "daedalus.interfaces.cli.entry", "web"]),
+    ("python -m daedalus.interfaces.http.web_api (diagnostic fallback)", ["-m", "daedalus.interfaces.http.web_api"]),
 )
+
+
+def aggregate_timeout_s(env: dict[str, str] | None = None) -> int:
+    """Outer bound for preflight, both server attempts, suites and cleanup."""
+    startup = len(SERVER_ENTRIES) * (READINESS_S + SERVER_DRAIN_TIMEOUT_S)
+    suites = len(_suite_plan()) * suite_timeout_s(env)
+    return math.ceil(
+        BROWSER_PREFLIGHT_TIMEOUT_S
+        + startup
+        + suites
+        + SERVER_SHUTDOWN_TIMEOUT_S
+        + AGGREGATE_TIMEOUT_MARGIN_S
+    )
 
 
 def _start_server(repo_root: Path, port: int, verbose: bool):
@@ -252,7 +355,12 @@ def _start_server(repo_root: Path, port: int, verbose: bool):
             output_file.close()
             documented_error = documented_error or f"{label} could not be spawned: {exc}"
             continue
-        ready, body, why = _wait_ready(port, proc)
+        try:
+            ready, body, why = _wait_ready(port, proc)
+        except BaseException:
+            _drain(proc, output_file)
+            output_file.close()
+            raise
         if ready:
             return proc, body, label, documented_error, output_file
         tail = _drain(proc, output_file).strip().replace("\n", " | ")[-700:]
@@ -325,8 +433,17 @@ def _run_suite(node: str, cli: Path, web_root: Path, grep: list[str],
                               encoding="utf-8", errors="replace",
                               timeout=budget, env=env)
         rc, out = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
-    except subprocess.TimeoutExpired:
-        return 124, timeout_message(budget), {}
+    except subprocess.TimeoutExpired as exc:
+        def decoded(value: str | bytes | None) -> str:
+            if isinstance(value, bytes):
+                return value.decode("utf-8", "replace")
+            return value or ""
+
+        partial = decoded(exc.stdout) + decoded(exc.stderr)
+        detail = timeout_message(budget)
+        if partial.strip():
+            detail += f"\nLast Playwright output before timeout:\n{partial[-1800:]}"
+        return 124, detail, {}
     except OSError as exc:
         return 127, f"could not execute playwright: {exc}", {}
     return rc, out, _read_report(report_path)
@@ -355,7 +472,24 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
     report_path = work / "report.json"
     proc = None
     server_output = None
+    acceptance_project_path: Path | None = None
+    outcome: Outcome | None = None
     try:
+        try:
+            acceptance_project, acceptance_project_path = _acceptance_project_target(
+                repo_root
+            )
+            _install_acceptance_project(
+                repo_root, acceptance_project, acceptance_project_path
+            )
+        except OSError as exc:
+            outcome = Outcome(
+                FAIL,
+                f"could not establish the checkout-local browser fixture: {exc}",
+                info,
+            )
+            return outcome
+        info["acceptance_project"] = acceptance_project
         if verbose:
             print(f"  serving {repo_root} on http://127.0.0.1:{port} (loopback only)")
         proc, body, entry, documented_error, server_output = _start_server(
@@ -365,9 +499,13 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
         if documented_error:
             info["documented_entry_error"] = documented_error
         if proc is None:
-            return Outcome(FAIL,
-                           f"no cockpit server could be started, so the GUI could "
-                           f"not be exercised at all: {documented_error}", info)
+            outcome = Outcome(
+                FAIL,
+                f"no cockpit server could be started, so the GUI could "
+                f"not be exercised at all: {documented_error}",
+                info,
+            )
+            return outcome
         if verbose and documented_error:
             print(f"  [!!] running the specs against the fallback entry point; "
                   f"this run CANNOT pass")
@@ -385,15 +523,23 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
             # system_check's own verdict() precedence -- otherwise a broken
             # entry point could hide behind a missing build.
             if documented_error:
-                return Outcome(FAIL, f"{documented_error} -- and additionally, {unbuilt}",
-                               {**info, "served": body[:200]})
-            return Outcome(INCOMPLETE, unbuilt, {**info, "served": body[:200]})
+                outcome = Outcome(
+                    FAIL,
+                    f"{documented_error} -- and additionally, {unbuilt}",
+                    {**info, "served": body[:200]},
+                )
+                return outcome
+            outcome = Outcome(
+                INCOMPLETE, unbuilt, {**info, "served": body[:200]}
+            )
+            return outcome
 
         env = {
             **{k: v for k, v in os.environ.items() if k not in SCRUB_ENV},
             "DAEDALUS_GUI_BASE_URL": f"http://127.0.0.1:{port}",
             "DAEDALUS_GUI_DEAD_URL": f"http://127.0.0.1:{dead_port}/",
             "DAEDALUS_GUI_REPORT": str(report_path),
+            ACCEPTANCE_PROJECT_ENV: acceptance_project,
             "PLAYWRIGHT_JSON_OUTPUT_NAME": str(report_path),  # belt and braces
             "DAEDALUS_GUI_OUTDIR": str(work / "artifacts"),
             "PLAYWRIGHT_HTML_OPEN": "never",
@@ -403,26 +549,37 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
         rows: list[dict] = []
         raw_tail = ""
         nonzero_rc = 0
-        # Two invocations so the CONTRACT and the SURFACE report separately: a
-        # cockpit that renders no loop view and a cockpit that renders it wrong
-        # are different findings with different owners.
-        for label, grep in (("shell", ["--grep-invert", "@loopui"]),
-                            ("loop-ui", ["--grep", "@loopui"])):
+        # Shell shards remain strictly serial. They bound one runner process
+        # after the suite grew beyond a single timeout budget without bringing
+        # back interleaved route interception. Loop CONTRACT and SURFACE still
+        # report separately: missing loop UI and wrong loop UI have different
+        # owners.
+        for label, grep in _suite_plan():
             rc, out, report = _run_suite(node, cli, web_root, grep, env, report_path)
             raw_tail = out[-1500:]
             if _MISSING_BROWSER.search(out):
-                return Outcome(INCOMPLETE,
-                               "playwright could not launch a browser (binary missing). "
-                               "Download it with:  npx --prefix apps/web playwright "
-                               "install chromium --only-shell",
-                               {**info, "output_tail": raw_tail})
+                outcome = Outcome(
+                    INCOMPLETE,
+                    "playwright could not launch a browser (binary missing). "
+                    "Download it with:  npx --prefix apps/web playwright "
+                    "install chromium --only-shell",
+                    {**info, "output_tail": raw_tail},
+                )
+                return outcome
             if rc in (124, 127):
-                return Outcome(FAIL, out, info)
+                outcome = Outcome(
+                    FAIL, f"{label}: {out}", {**info, "suite": label}
+                )
+                return outcome
             got = _specs(report)
             if not got and rc != 0:
-                return Outcome(FAIL,
-                               f"the {label} suite failed before running any spec "
-                               f"(rc={rc}): {out[-500:]!r}", info)
+                outcome = Outcome(
+                    FAIL,
+                    f"the {label} suite failed before running any spec "
+                    f"(rc={rc}): {out[-500:]!r}",
+                    info,
+                )
+                return outcome
             for row in got:
                 row["suite"] = label
             rows.extend(got)
@@ -440,38 +597,51 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
             "skipped": [r["title"] for r in skipped],
         }
         if not rows:
-            return Outcome(INCOMPLETE, "no browser spec ran at all", evidence)
+            outcome = Outcome(INCOMPLETE, "no browser spec ran at all", evidence)
+            return outcome
         # THE DOCUMENTED ENTRY POINT IS PART OF THE PRODUCT. If `daedalus web`
         # cannot start, this run is FAILED however well the specs then did
         # against the fallback -- otherwise the fallback would be a way to
         # report a broken command as a working one.
         if documented_error:
-            return Outcome(FAIL,
-                           f"the documented entry point is broken: {documented_error}",
-                           evidence)
+            outcome = Outcome(
+                FAIL,
+                f"the documented entry point is broken: {documented_error}",
+                evidence,
+            )
+            return outcome
         # A skip is not a pass. If a spec declined to run, this run does not
         # prove what that spec was for.
         if skipped:
-            return Outcome(INCOMPLETE,
-                           f"spec(s) did not run: {[r['title'] for r in skipped]}",
-                           evidence)
+            outcome = Outcome(
+                INCOMPLETE,
+                f"spec(s) did not run: {[r['title'] for r in skipped]}",
+                evidence,
+            )
+            return outcome
         if failed:
             summary = "; ".join(f"{r['title']} -- {r['error']}" for r in failed[:4])
-            return Outcome(FAIL, summary, evidence)
+            outcome = Outcome(FAIL, summary, evidence)
+            return outcome
         if nonzero_rc:
             # Every spec is green and the runner still exited non-zero: that is
             # the runner telling us something the report does not carry, and
             # trusting the report over it is how a green lie gets told.
-            return Outcome(FAIL,
-                           f"every spec passed but playwright exited {nonzero_rc}: {raw_tail[-400:]!r}",
-                           evidence)
-        return Outcome(PASS, "", evidence)
+            outcome = Outcome(
+                FAIL,
+                f"every spec passed but playwright exited {nonzero_rc}: "
+                f"{raw_tail[-400:]!r}",
+                evidence,
+            )
+            return outcome
+        outcome = Outcome(PASS, "", evidence)
+        return outcome
     finally:
         # EVERY PATH. This repo has orphaned servers before.
         if proc is not None and proc.poll() is None:
             proc.kill()
             try:
-                proc.wait(timeout=20)
+                proc.wait(timeout=SERVER_SHUTDOWN_TIMEOUT_S)
             except Exception:
                 pass
         if server_output is not None:
@@ -479,6 +649,18 @@ def gui_run(repo_root: Path, web_root: Path, *, verbose: bool = True) -> Outcome
                 server_output.close()
             except Exception:
                 pass
+        cleanup_error = _remove_acceptance_project(acceptance_project_path)
+        if cleanup_error:
+            if outcome is not None:
+                outcome.outcome = FAIL
+                outcome.detail = (
+                    f"{outcome.detail} -- {cleanup_error}"
+                    if outcome.detail
+                    else cleanup_error
+                )
+                outcome.evidence["cleanup_error"] = cleanup_error
+            else:
+                print(cleanup_error, file=sys.stderr)
         shutil.rmtree(work, ignore_errors=True)
 
 

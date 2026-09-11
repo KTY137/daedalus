@@ -7,7 +7,7 @@ on:
     paths:
       - "daedalus/kernel/runtime_effects.py"
       - "daedalus/kernel/effects.py"
-      - "daedalus/kernel/contracts.py"
+      - "daedalus/kernel/contracts/**"
       - "daedalus/runtimes/**"
       - "daedalus/spine/effect_boundary.py"
       - "configs/schemas/runtime-bound-effect-lease-v1.schema.json"

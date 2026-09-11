@@ -1,9 +1,4 @@
-"""One-shot loopback bridge from a sealed Hermes operation to Daedalus tools.
-
-The 07D4 provider operation receives only an authenticated descriptor.  The
-caller-owned server retains the actual Python invoker, so no callable crosses
-into the sealed provider registry.
-"""
+"""One-shot loopback bridge from a sealed Hermes operation to Daedalus tools."""
 
 from __future__ import annotations
 
@@ -18,8 +13,8 @@ import threading
 import time
 from typing import Mapping
 
-from .protocol import canonical_sha256
-from .tool_provider import DaedalusToolProvider, ToolOutcome
+from ...sensitivity import is_loopback_literal
+from .tool_provider import DaedalusToolProvider, ToolOutcome, canonical_sha256
 
 GATEWAY_SCHEMA = "daedalus-hermes-tool-gateway/1"
 _MAX_FRAME_BYTES = 2 * 1024 * 1024
@@ -76,7 +71,10 @@ class HermesGatewayDescriptor:
     schema: str = GATEWAY_SCHEMA
 
     def __post_init__(self) -> None:
-        if self.schema != GATEWAY_SCHEMA or self.host not in {"127.0.0.1", "::1"}:
+        if self.schema != GATEWAY_SCHEMA or not is_loopback_literal(
+            self.host,
+            allow_bracketed_ipv6=False,
+        ):
             raise HermesToolGatewayError("gateway descriptor is not loopback-only")
         if not 1 <= self.port <= 65535 or not 0 <= self.max_calls <= 4096:
             raise HermesToolGatewayError("gateway descriptor bounds are invalid")
@@ -87,17 +85,7 @@ class HermesGatewayDescriptor:
             raise HermesToolGatewayError("gateway descriptor digest mismatch")
 
     def _unsigned(self) -> dict[str, object]:
-        return {
-            "schema": self.schema,
-            "host": self.host,
-            "port": self.port,
-            "token_file": self.token_file,
-            "request_id": self.request_id,
-            "task_id": self.task_id,
-            "tool_scope_digest": self.tool_scope_digest,
-            "max_calls": self.max_calls,
-            "expires_at_ns": self.expires_at_ns,
-        }
+        return {"schema": self.schema, "host": self.host, "port": self.port, "token_file": self.token_file, "request_id": self.request_id, "task_id": self.task_id, "tool_scope_digest": self.tool_scope_digest, "max_calls": self.max_calls, "expires_at_ns": self.expires_at_ns}
 
     def to_dict(self) -> dict[str, object]:
         value = self._unsigned()
@@ -105,69 +93,20 @@ class HermesGatewayDescriptor:
         return value
 
     @classmethod
-    def create(
-        cls,
-        *,
-        host: str,
-        port: int,
-        token_file: str,
-        request_id: str,
-        task_id: str,
-        tool_scope_digest: str,
-        max_calls: int,
-        expires_at_ns: int,
-    ) -> "HermesGatewayDescriptor":
-        unsigned = {
-            "schema": GATEWAY_SCHEMA,
-            "host": host,
-            "port": port,
-            "token_file": token_file,
-            "request_id": request_id,
-            "task_id": task_id,
-            "tool_scope_digest": tool_scope_digest,
-            "max_calls": max_calls,
-            "expires_at_ns": expires_at_ns,
-        }
+    def create(cls, *, host: str, port: int, token_file: str, request_id: str, task_id: str, tool_scope_digest: str, max_calls: int, expires_at_ns: int) -> "HermesGatewayDescriptor":
+        unsigned = {"schema": GATEWAY_SCHEMA, "host": host, "port": port, "token_file": token_file, "request_id": request_id, "task_id": task_id, "tool_scope_digest": tool_scope_digest, "max_calls": max_calls, "expires_at_ns": expires_at_ns}
         return cls(**unsigned, digest=canonical_sha256(unsigned))
 
     @classmethod
     def from_dict(cls, value: Mapping[str, object]) -> "HermesGatewayDescriptor":
-        exact = {
-            "schema",
-            "host",
-            "port",
-            "token_file",
-            "request_id",
-            "task_id",
-            "tool_scope_digest",
-            "max_calls",
-            "expires_at_ns",
-            "digest",
-        }
+        exact = {"schema", "host", "port", "token_file", "request_id", "task_id", "tool_scope_digest", "max_calls", "expires_at_ns", "digest"}
         if set(value) != exact:
             raise HermesToolGatewayError("gateway descriptor fields are not exact")
-        return cls(
-            schema=str(value["schema"]),
-            host=str(value["host"]),
-            port=int(value["port"]),
-            token_file=str(value["token_file"]),
-            request_id=str(value["request_id"]),
-            task_id=str(value["task_id"]),
-            tool_scope_digest=str(value["tool_scope_digest"]),
-            max_calls=int(value["max_calls"]),
-            expires_at_ns=int(value["expires_at_ns"]),
-            digest=str(value["digest"]),
-        )
+        return cls(schema=str(value["schema"]), host=str(value["host"]), port=int(value["port"]), token_file=str(value["token_file"]), request_id=str(value["request_id"]), task_id=str(value["task_id"]), tool_scope_digest=str(value["tool_scope_digest"]), max_calls=int(value["max_calls"]), expires_at_ns=int(value["expires_at_ns"]), digest=str(value["digest"]))
 
 
 class HermesToolGatewayServer:
-    def __init__(
-        self,
-        provider: DaedalusToolProvider,
-        *,
-        control_root: str | Path,
-        lifetime_seconds: float = 900.0,
-    ) -> None:
+    def __init__(self, provider: DaedalusToolProvider, *, control_root: str | Path, lifetime_seconds: float = 900.0) -> None:
         if not 0.5 <= lifetime_seconds <= 86_400:
             raise HermesToolGatewayError("gateway lifetime is outside the accepted range")
         self._provider = provider
@@ -214,19 +153,8 @@ class HermesToolGatewayServer:
         listener.listen(1)
         listener.settimeout(min(self._lifetime_seconds, 30.0))
         expires_at_ns = time.time_ns() + int(self._lifetime_seconds * 1_000_000_000)
-        descriptor = HermesGatewayDescriptor.create(
-            host="127.0.0.1",
-            port=int(listener.getsockname()[1]),
-            token_file=str(token_file),
-            request_id=self._provider.request_id,
-            task_id=self._provider.task_id,
-            tool_scope_digest=self._provider.scope_digest,
-            max_calls=max_calls,
-            expires_at_ns=expires_at_ns,
-        )
-        self._listener = listener
-        self._descriptor = descriptor
-        self._token_file = token_file
+        descriptor = HermesGatewayDescriptor.create(host="127.0.0.1", port=int(listener.getsockname()[1]), token_file=str(token_file), request_id=self._provider.request_id, task_id=self._provider.task_id, tool_scope_digest=self._provider.scope_digest, max_calls=max_calls, expires_at_ns=expires_at_ns)
+        self._listener, self._descriptor, self._token_file = listener, descriptor, token_file
         self._thread = threading.Thread(target=self._serve, args=(token,), name="daedalus-hermes-tool-gateway", daemon=True)
         self._thread.start()
         return descriptor
@@ -240,14 +168,7 @@ class HermesToolGatewayServer:
             with client:
                 client.settimeout(max(0.1, (descriptor.expires_at_ns - time.time_ns()) / 1_000_000_000))
                 authentication = _recv_frame(client)
-                required_auth = {
-                    "schema",
-                    "type",
-                    "token",
-                    "request_id",
-                    "task_id",
-                    "tool_scope_digest",
-                }
+                required_auth = {"schema", "type", "token", "request_id", "task_id", "tool_scope_digest"}
                 if set(authentication) != required_auth or authentication.get("type") != "authenticate":
                     raise HermesToolGatewayError("gateway authentication frame is not exact")
                 if not secrets.compare_digest(str(authentication["token"]), token):
@@ -271,29 +192,14 @@ class HermesToolGatewayServer:
                     if set(request) != {"schema", "type", "call_id", "name", "arguments"} or request_type != "invoke":
                         raise HermesToolGatewayError("gateway invoke frame is not exact")
                     if calls >= descriptor.max_calls:
-                        outcome = ToolOutcome(
-                            ok=False,
-                            observation="tool refused: authenticated gateway call budget exhausted",
-                            observation_digest=canonical_sha256({"refusal": "tool_call_budget_exhausted"}),
-                            receipt_digest=canonical_sha256({"refusal": "tool_call_budget_exhausted", "call_id": request["call_id"]}),
-                            invocation_digest=canonical_sha256({"call_id": request["call_id"], "name": request["name"]}),
-                            refusal="tool_call_budget_exhausted",
-                        )
+                        outcome = ToolOutcome(False, "tool refused: authenticated gateway call budget exhausted", canonical_sha256({"refusal": "tool_call_budget_exhausted"}), canonical_sha256({"refusal": "tool_call_budget_exhausted", "call_id": request["call_id"]}), canonical_sha256({"call_id": request["call_id"], "name": request["name"]}), "tool_call_budget_exhausted")
                     else:
                         arguments = request["arguments"]
                         if not isinstance(arguments, Mapping):
                             raise HermesToolGatewayError("gateway tool arguments must be an object")
                         outcome = self._provider.invoke(str(request["name"]), arguments)
                         calls += 1
-                    _send_frame(
-                        client,
-                        {
-                            "schema": GATEWAY_SCHEMA,
-                            "type": "result",
-                            "call_id": str(request["call_id"]),
-                            **outcome.to_dict(),
-                        },
-                    )
+                    _send_frame(client, {"schema": GATEWAY_SCHEMA, "type": "result", "call_id": str(request["call_id"]), **outcome.to_dict()})
         except BaseException as exc:
             if not self._closed.is_set():
                 self._failure_type = type(exc).__name__
@@ -339,17 +245,7 @@ class HermesToolGatewayClient:
         token = token_path.read_text(encoding="ascii").strip()
         sock = socket.create_connection((self._descriptor.host, self._descriptor.port), timeout=self._timeout_seconds)
         sock.settimeout(self._timeout_seconds)
-        _send_frame(
-            sock,
-            {
-                "schema": GATEWAY_SCHEMA,
-                "type": "authenticate",
-                "token": token,
-                "request_id": self._descriptor.request_id,
-                "task_id": self._descriptor.task_id,
-                "tool_scope_digest": self._descriptor.tool_scope_digest,
-            },
-        )
+        _send_frame(sock, {"schema": GATEWAY_SCHEMA, "type": "authenticate", "token": token, "request_id": self._descriptor.request_id, "task_id": self._descriptor.task_id, "tool_scope_digest": self._descriptor.tool_scope_digest})
         response = _recv_frame(sock)
         if response != {"schema": GATEWAY_SCHEMA, "type": "authenticated", "descriptor_digest": self._descriptor.digest}:
             sock.close()
@@ -359,38 +255,12 @@ class HermesToolGatewayClient:
     def invoke(self, *, call_id: str, name: str, arguments: Mapping[str, object]) -> ToolOutcome:
         if self._socket is None:
             raise HermesToolGatewayError("gateway client is not connected")
-        _send_frame(
-            self._socket,
-            {
-                "schema": GATEWAY_SCHEMA,
-                "type": "invoke",
-                "call_id": call_id,
-                "name": name,
-                "arguments": dict(arguments),
-            },
-        )
+        _send_frame(self._socket, {"schema": GATEWAY_SCHEMA, "type": "invoke", "call_id": call_id, "name": name, "arguments": dict(arguments)})
         response = _recv_frame(self._socket)
-        exact = {
-            "schema",
-            "type",
-            "call_id",
-            "ok",
-            "observation",
-            "observation_digest",
-            "receipt_digest",
-            "invocation_digest",
-            "refusal",
-        }
+        exact = {"schema", "type", "call_id", "ok", "observation", "observation_digest", "receipt_digest", "invocation_digest", "refusal"}
         if set(response) != exact or response["type"] != "result" or response["call_id"] != call_id:
             raise HermesToolGatewayError("gateway result frame is invalid")
-        return ToolOutcome(
-            ok=bool(response["ok"]),
-            observation=str(response["observation"]),
-            observation_digest=str(response["observation_digest"]),
-            receipt_digest=str(response["receipt_digest"]),
-            invocation_digest=str(response["invocation_digest"]),
-            refusal=str(response["refusal"]),
-        )
+        return ToolOutcome(ok=bool(response["ok"]), observation=str(response["observation"]), observation_digest=str(response["observation_digest"]), receipt_digest=str(response["receipt_digest"]), invocation_digest=str(response["invocation_digest"]), refusal=str(response["refusal"]))
 
     def close(self) -> None:
         sock = self._socket

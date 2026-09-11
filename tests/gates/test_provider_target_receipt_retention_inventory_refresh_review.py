@@ -14,7 +14,15 @@ INVENTORY_TEST = (
 )
 
 EXPECTED_PARENT = "0df759d1fd9bc5d83e9fc72f1c850756afa93fe5"
-EXPECTED_BLOB = "a5e3d1321e257c9ce1d70e9a68e4079445c6985a"
+#: The blob the hardening packet measured at EXPECTED_PARENT. It is history:
+#: those exact bytes existed at that revision, under the flat path.
+HARDENED_BLOB = "a5e3d1321e257c9ce1d70e9a68e4079445c6985a"
+#: Where the same module lives now, and what it hashes to. G1-PKG-01 moved
+#: it into daedalus/runtimes/provider/ and its imports changed with its
+#: siblings' names. Both are pinned: the historical record must not be
+#: rewritten, and the live fixture must match the relocation.
+RELOCATED_BLOB = "cc9dd91f55c543030e82e0e1f526766419cbd98a"
+RELOCATED_PATH = "daedalus/runtimes/provider/target_receipt_ledger.py"
 STALE_PARENT = "b2bda280f8f98d6e977e092c5429da3c85427a33"
 
 
@@ -37,7 +45,7 @@ def test_refresh_fixture_uses_exact_hardened_identity() -> None:
     assignments = _assignments(tree)
 
     assert assignments["REVISION"] == EXPECTED_PARENT
-    assert assignments["SOURCE_GIT_BLOB_SHA1"] == EXPECTED_BLOB
+    assert assignments["SOURCE_GIT_BLOB_SHA1"] == RELOCATED_BLOB
     assert assignments["PRE_HARDENING_REVISION"] == STALE_PARENT
     assert assignments["REVISION"] != assignments["PRE_HARDENING_REVISION"]
 
@@ -46,7 +54,17 @@ def test_packet_does_not_launder_fixture_binding_into_head_authentication() -> N
     payload = json.loads(PACKET.read_text(encoding="utf-8"))
 
     assert payload["exact_parent"]["revision"] == EXPECTED_PARENT
-    assert payload["source_identity"]["git_blob_sha1"] == EXPECTED_BLOB
+    # The historical identity is asserted UNCHANGED. A packet that relocates a
+    # module may append to this record; it may not rewrite what the record
+    # said about the revision it measured.
+    assert payload["source_identity"]["git_blob_sha1"] == HARDENED_BLOB
+    assert payload["source_identity"]["path"] == (
+        "daedalus/runtimes/provider_target_receipt_ledger.py"
+    )
+    relocation = payload["relocation"]
+    assert relocation["git_blob_sha1"] == RELOCATED_BLOB
+    assert relocation["path"] == RELOCATED_PATH
+    assert relocation["bytes_changed"] == "import statements only"
     assert payload["source_identity"]["pre_hardening_revision"] == STALE_PARENT
     assert payload["scope"]["production_behavior_changed"] is False
     assert payload["scope"]["canonical_effect_inventory_changed"] is False

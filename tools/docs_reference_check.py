@@ -125,6 +125,42 @@ ALLOWED = {
     ("docs/ENGINE_PARITY.md", "docs/vendor/x.py"): "illustrative path in an example",
     (".claude/proposals/README.md", "vault/Sessions/YYYY-MM-DD.md"): "date template",
     (".claude/skills/vault-sync/SKILL.md", "vault/Sessions/YYYY-MM-DD.md"): "date template",
+    (".claude/proposals/README.md", ".claude/settings.local.json"):
+        "an optional operator-local file the proposal explicitly tells the reader to create",
+    (
+        "docs/architecture/target-layout.md",
+        "docs/work-packets/G1-HIER-01..12",
+    ):
+        "a RANGE, not a path: the evidence table's row for the packet series, "
+        "written the way a reader says it aloud. The count beside it (23 docs "
+        "present) is the checkable claim; the range is its label.",
+    ("docs/DESKTOP.md", "projects/daedalus.json"):
+        "runtime state seeded below the external profile root, not a repository file",
+    (
+        ".quarantine/G1-IKARUS-16/README.md",
+        "docs/work-packets/G1-IKARUS-15_TOOL_BEARING_VOICE.md",
+    ):
+        "named BECAUSE it is absent: the quarantine record reports that the "
+        "tool-bearing-Voice packet was never written, so the section explaining "
+        "that has to say which path it looked for. Repairing this mention would "
+        "delete the finding it exists to state.",
+    ("docs/DESKTOP.md", "daedalus/openvscode-server"):
+        "a local Docker image tag, not a repository path",
+    ("packaging/openvscode/README.md", "vscode-agent-env/dist/daedalus-vscode.vsix"):
+        "a build artifact the Dockerfile copies; it exists after packaging, not in the tree",
+    # These two name App.tsx BECAUSE it is gone: G1-UI-02 retired the Classic
+    # app in e133e09b, and both pages cite the old path to say what the current
+    # pointer replaced. Repairing the mention would delete the provenance.
+    ("docs/MISSION_CONTROL.md", "apps/web/src/App.tsx"):
+        "cited as the retired predecessor of apps/web/src/app/Cockpit.tsx (e133e09b)",
+    ("vscode-agent-env/DESIGN.md", "apps/web/src/App.tsx"):
+        "cited as the retired surface whose behaviour two paragraphs here assumed (e133e09b)",
+    ("docs/chip-design/README.md", ".agentenv/chip-eda-policy.json"):
+        "an operator-owned authority-root policy path; the page explicitly records that it is absent here",
+    ("docs/chip-design/WORKFLOWS.md", ".agentenv/chip-eda-policy.json"):
+        "an operator-owned authority-root policy path; the retained dry run explicitly records its absence",
+    ("docs/architecture-narrative.md", "daedalus/hermes/"):
+        "named precisely as a removed bytecode husk in the same sentence",
     # Quoted precisely BECAUSE they are wrong: the page is about a tier that
     # invented plausible module paths. Repairing them would delete the evidence.
     (".claude/skills/funnel/SKILL.md", "daedalus/core/process.py"): "quoted hallucination",
@@ -135,6 +171,49 @@ ALLOWED = {
     ("docs/GUI_CATALOGUE.md", "apps/ui/"): "a path in the Origin UI repository",
     ("docs/GUI_CATALOGUE.md", ".claude/skills/build-gui/"):
         "a proposal under the heading 'What it would be', explicitly not implemented",
+    # Same shape as the STATUS.md entries above: the page names this directory
+    # BECAUSE it is gone. G1-UI-04 removed twelve catalogue entries whose
+    # source_path pointed here after e133e09b deleted it, and section 5 records
+    # what was lost and where it is recoverable. Repairing the mention would
+    # delete the record of the loss.
+    ("docs/GUI_CATALOGUE.md", "apps/web/src/components/glass/"):
+        "named precisely as the directory e133e09b deleted; the section is the record of the removal",
+    # Integration review on 2026-09-06 surfaced current pages whose purpose is
+    # to retain a removed path or name a generated/future artifact. Keep these
+    # exact exceptions narrow: the page and absent target are both guarded by
+    # test_allowlist_entries_*, so a replacement becoming tracked makes the
+    # allowlist itself fail.
+    ("docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md", "daedalus/twin/contractions.py"):
+        "the G1-TENSOR-01CV tombstone names the duplicate module it records as pruned",
+    ("docs/LOCAL_DESKTOP_PACKAGE.md", "apps/web/src-tauri/backend"):
+        "generated sidecar output inside an isolated packaging copy, not tracked source",
+    ("docs/backlog/G1-HW-01_KICAD_READ_ONLY_INSPECTION.md", "docs/chip-design/KICAD.md"):
+        "a future in-scope deliverable named by the retained backlog packet",
+    (
+        "docs/evidence/G1-IKARUS-26_COMPUTER_LOOP_LIVE/adversarial_review.md",
+        ".claude/worktrees/lane9-adversarial-stage13",
+    ):
+        "the retained adversarial receipt names the disposable worktree it measured",
+    (
+        "docs/evidence/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT/rejected-candidates.md",
+        "tests/test_iron_plan_guard.py",
+    ):
+        "rejected-candidate evidence explicitly records why this removed test must not be rewritten",
+    ("docs/wiki/architecture/hooks.md", ".claude/proposals/hook_precompact_vault.py"):
+        "the live hooks page pins the absence of the retired parallel hook proposal",
+    ("docs/wiki/architecture/observe.md", "tests/observe/"):
+        "the live observation page explicitly records that no dedicated test directory exists",
+    (
+        "docs/wiki/experiments/forest-v2-s01-resolution.md",
+        "experiments/forest_v2/s01_resolution/README.md",
+    ):
+        "the audit records this missing path as the measured documentation defect and names its real target",
+    ("docs/wiki/experiments/forest-v2-s07-bm25.md", "tools/iron_plan_guard.py"):
+        "a frozen gold path retained precisely because the guard and file were retired",
+    ("docs/wiki/experiments/forest-v2-s07-bm25.md", "daedalus/verifier.py"):
+        "a frozen gold path retained to explain why the historical ranking no longer reproduces",
+    ("docs/wiki/tooling/claude-proposals.md", ".claude/proposals/hook_precompact_vault.py"):
+        "the proposals page pins the retired copy's absence and its canonical hooks replacement",
 }
 
 MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")

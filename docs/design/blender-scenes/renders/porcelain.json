@@ -1,0 +1,24 @@
+{
+  "scene": "porcelain",
+  "title": "Porcelain",
+  "blender": "4.5.13 LTS",
+  "objects": 16,
+  "meshes": 10,
+  "vertices_base": 4756,
+  "materials": 4,
+  "cameras": 2,
+  "devices": [
+    "NVIDIA GeForce MX330"
+  ],
+  "resolution": [
+    1600,
+    1000
+  ],
+  "samples_max": 64,
+  "seed": 20260905,
+  "build_seconds": 0.45,
+  "total_seconds": 81.88,
+  "blend": "blend\\porcelain.blend",
+  "render": "renders\\porcelain.png",
+  "render_completed": true
+}

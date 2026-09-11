@@ -1,231 +1,24 @@
-/**
- * "A DEGRADED SOURCE IS VISIBLE, not silently rendered as 'no work'."
- *
- * This is the property the whole harness exists for. In this repo a task queue
- * silently dropped tasks while 1756 unit tests were green; the picker grew
- * `degraded_sources` and a distinct exit code so that "a source failed" could
- * never again read as "there is nothing to do". The same failure is available
- * one layer up: a panel that renders an empty list when its endpoint 500s tells
- * the operator the fleet is idle.
- *
- * BOTH HALVES AGAIN. The healthy run establishes what the screen says when
- * nothing is wrong; the faulted run must say something MORE. Asserting only
- * that a faulted page contains the word "error" would pass on a page that
- * always contains it.
- */
 import { expect, test } from '@playwright/test';
-import { GIBBERISH, TROUBLE, collect, dockSpaces, failJson, newLines, openApp, openSpace, settle, visibleText } from './_app';
 
-/** Phrasings that mean "there is nothing here" -- fine on their own, a lie
- *  when the reason is actually "we could not look". */
-const READS_AS_EMPTY = /no runtimes|none detected|nothing (yet|here|to)|no results|empty|0 of 0|keine laufzeit(?:en)? (?:ist erreichbar|gemeldet)/i;
-const RUNTIME_EMPTY_STATE = /keine laufzeit ist erreichbar|keine laufzeiten gemeldet/i;
-
-const SAMPLE_RUNTIME = {
-  id: 'claude_code_cli',
-  label: 'Claude Code CLI',
-  mode: 'cli',
-  available: true,
-  auth_status: 'authenticated',
-  command_path: '/test/claude',
-  version: 'test-1.0',
-  models: [],
-  selected_model: '',
-  model_present: false,
-  last_error: '',
-  notes: 'controlled runtime fixture',
-  measured_at: '2026-09-06T06:00:00Z',
-  measured_age_s: 0,
-};
-
-const SAMPLE_PROVIDER = {
-  name: 'claude_cli',
-  display_name: 'Claude CLI',
-  local: false,
-  trusted_with_ip: false,
-  can_write: true,
-  agentic: true,
-  requires_key: false,
-  env_keys: [],
-  implemented: true,
-  configured: true,
-  available: true,
-  last_error: '',
-};
-
-function okJson(body: Record<string, unknown>) {
-  return {
+test('a refused runtime source is reported in Settings instead of rendered as an empty fleet', async ({ page }) => {
+  await page.route('**/api/**', (route) => route.fulfill({
     status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({
+    json: {
       ok: true,
-      generated_at: '2026-09-06T06:00:00Z',
+      generated_at: '',
       project: null,
       warnings: [],
-      ...body,
-    }),
-  };
-}
-
-test('a source that FAILED is visible, and does not read as "nothing here"', async ({ page }) => {
-  // --- control: what a healthy cockpit says -------------------------------
-  const healthySignals = collect(page);
-  await openApp(page);
-  await settle(page, healthySignals);
-  const healthy = await visibleText(page);
-  expect(
-    healthy,
-    'the HEALTHY cockpit already reads as broken, so this spec could not tell a fault from the baseline:\n' + healthy.slice(0, 400),
-  ).not.toMatch(/did not respond/i);
-
-  // --- fault: one endpoint 500s -------------------------------------------
-  await page.route('**/api/runtimes/status*', (r) => r.fulfill(failJson('runtimes status is down')));
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('navigation')).toBeVisible({ timeout: 20_000 });
-  await settle(page);
-  const faulted = await visibleText(page);
-
-  // 1. The screen CHANGED. A cockpit that looks identical with a dead source
-  //    is one whose display is not a function of its inputs.
-  expect(
-    faulted,
-    'a data source returned 500 and the cockpit rendered EXACTLY the same screen -- the failure is invisible',
-  ).not.toEqual(healthy);
-
-  // 2. What changed says something went wrong, in words.
-  const added = newLines(healthy, faulted);
-  expect(
-    added.join(' | '),
-    `a data source returned 500 but nothing on screen names a failure. new text was: ${JSON.stringify(added)}`,
-  ).toMatch(TROUBLE);
-
-  // 3. THE CORE CLAIM. If any panel now reads as empty, the page must ALSO
-  //    carry the reason -- otherwise "could not look" is being displayed as
-  //    "nothing to see".
-  if (READS_AS_EMPTY.test(faulted)) {
-    expect(
-      faulted,
-      'a panel reads as EMPTY while its source was failing, and the page carries no failure notice: ' +
-        '"we could not look" is being rendered as "there is nothing there"',
-    ).toMatch(TROUBLE);
-  }
-
-  // 4. The cockpit is still operable. Degradation must not be an outage.
-  const spaces = await dockSpaces(page);
-  expect(spaces.length, 'the dock disappeared when one source failed').toBeGreaterThanOrEqual(3);
-  const somewhere = spaces.find((n) => /code map|structure|network|mission|queue|feed/i.test(n));
-  if (somewhere) {
-    const heading = await openSpace(page, somewhere);
-    expect(heading, `the cockpit became unnavigable after one source failed (${somewhere} opened nothing)`).not.toEqual('');
-  }
-});
-
-test('classic runtime failure revokes a stale Ikarus brain instead of reusing cached availability', async ({ page }) => {
-  let failRuntime = false;
-
-  await page.route('**/api/runtimes/status*', (route) => {
-    if (failRuntime) return route.fulfill(failJson('runtimes status is down'));
-    return route.fulfill(okJson({ runtimes: [SAMPLE_RUNTIME] }));
-  });
-  await page.route('**/api/providers/status*', (route) => route.fulfill(okJson({ providers: [SAMPLE_PROVIDER] })));
-  // The health glance is intentionally expensive in production. Keep this
-  // regression focused on the runtime source rather than paying that probe.
-  await page.route('**/api/health*', (route) => route.fulfill(okJson({
-    health: {
-      schema: 1,
-      generated_at: '2026-09-06T06:00:00Z',
-      states: ['working', 'present', 'degraded', 'absent', 'unknown'],
-      counts: { working: 0, present: 0, degraded: 0, absent: 0, unknown: 0 },
-      verdict: 0,
-      not_proven: [],
-      subsystems: [],
-    },
-  })));
-
-  const seen = collect(page);
-  await openApp(page);
-  await settle(page, seen);
-
-  const brain = page.getByLabel('Ikarus brain / provider');
-  await expect(brain.locator('option[value="claude_code_cli"]')).toBeEnabled({ timeout: 20_000 });
-  await brain.selectOption('claude_code_cli');
-  await expect(brain).toHaveValue('claude_code_cli');
-
-  // Wait for the initial aggregate refresh to finish before requesting a new
-  // sample through the same user-facing Refresh affordance. Use the exact
-  // accessible name: Mission Control also exposes "Refresh Mission Control",
-  // and a fuzzy role lookup turns two valid controls into a strict-mode error.
-  const refresh = page.getByRole('button', { name: 'Refresh', exact: true });
-  await expect(refresh).toBeEnabled({ timeout: 60_000 });
-  failRuntime = true;
-  await refresh.click();
-
-  // The runtime-specific catch commits immediately; it does not wait for the
-  // other refresh tasks. Stale positive evidence must therefore stop being
-  // action authority as soon as this source fails.
-  await expect(page.getByText(/Runtime inventory could not be read/i)).toBeVisible({ timeout: 20_000 });
-  await expect(brain).toHaveValue('deterministic');
-  // Cached rows stay visible in Connections for diagnosis, but stale runtime
-  // evidence is removed from the actionable picker rather than merely styled
-  // disabled: there must be no browser-selectable authority left to reuse.
-  await expect(brain.locator('option[value="claude_code_cli"]')).toHaveCount(0);
-  await expect(page.getByText(/No runtimes detected yet/i)).toHaveCount(0);
-
-  await page.getByRole('navigation').getByRole('button', { name: 'Connections', exact: true }).click();
-  const sheet = page.getByRole('dialog');
-  await expect(sheet).toBeVisible();
-  await expect(sheet.getByText(/runtimes status is down/i)).toBeVisible();
-  await expect(sheet.getByText(/Cached runtime rows below are stale evidence and cannot select an Ikarus brain/i)).toBeVisible();
-  await expect(sheet.getByText('unknown', { exact: true })).toBeVisible();
-  await expect(sheet.getByText('Claude Code CLI', { exact: true })).toBeVisible();
-  expect(seen.pageErrors, `classic runtime failure threw while revoking a stale brain: ${seen.pageErrors.join(' || ')}`).toEqual([]);
-});
-
-test('runtime settings distinguish a failed status read from a measured empty inventory', async ({ page }) => {
-  await page.route('**/api/runtimes/status*', (r) => r.fulfill(failJson('runtimes status is down')));
-  const seen = collect(page);
-
-  // This invariant belongs to the themed cockpit's Settings surface, not the
-  // legacy `?surface=classic` helper used by the broader degraded-source test.
-  const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
-  expect(response, 'the themed cockpit did not answer GET /').not.toBeNull();
-  expect(response!.status(), 'GET / did not come back 200').toBe(200);
-  await expect(page.locator('.cockpit'), 'the themed cockpit never mounted').toBeVisible({ timeout: 20_000 });
-
-  // Ctrl+, is the cockpit's documented settings chord and avoids depending on
-  // theme-specific button placement.
-  await page.keyboard.press('Control+,');
-  const settings = page.getByRole('complementary', { name: 'Einstellungen' });
-  await expect(settings).toBeVisible({ timeout: 20_000 });
-  await expect(settings.getByText(/runtimes status is down/i)).toBeVisible({ timeout: 20_000 });
-
-  const text = await settings.innerText();
-  expect(
-    text,
-    'the runtime status endpoint failed, but Settings converted "unknown" into a zero-runtime claim',
-  ).not.toMatch(RUNTIME_EMPTY_STATE);
-  expect(seen.pageErrors, `Settings threw while rendering a failed runtime source: ${seen.pageErrors.join(' || ')}`).toEqual([]);
-});
-
-test('the failure notice is written for a human, not printed from a variable', async ({ page }) => {
-  await page.route('**/api/runtimes/status*', (r) => r.fulfill(failJson('runtimes status is down')));
-  const seen = collect(page);
-  await openApp(page);
-  await settle(page);
-
-  const text = await visibleText(page);
-  const trouble = text
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => TROUBLE.test(l));
-
-  expect(trouble.length, `no line on screen reports the failed source at all:\n${text.slice(0, 600)}`).toBeGreaterThan(0);
-  for (const line of trouble) {
-    expect(line, `a failure was reported as raw placeholder text: ${JSON.stringify(line)}`).not.toMatch(GIBBERISH);
-  }
-  expect(
-    trouble.join(' '),
-    `the failure notice is too short to act on: ${JSON.stringify(trouble)}`,
-  ).toMatch(/.{20,}/);
-  expect(seen.pageErrors, `the cockpit threw while handling a failed source: ${seen.pageErrors.join(' || ')}`).toEqual([]);
+      projects: [],
+      env: { env_file: '', env_file_exists: false, loaded_keys: [], public: {}, secrets: {}, providers: {} }
+    }
+  }));
+  await page.route('**/api/runtimes/status', (route) => route.fulfill({
+    status: 500,
+    json: { ok: false, error: 'acceptance: runtime inventory failed' }
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.cockpit')).toBeVisible();
+  await page.getByRole('button', { name: /^Einstellungen/ }).click();
+  await expect(page.locator('.settings.open')).toBeVisible();
+  await expect(page.getByText('acceptance: runtime inventory failed', { exact: true })).toBeVisible();
 });

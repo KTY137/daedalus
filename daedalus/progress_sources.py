@@ -6,13 +6,13 @@ Nothing in this file is a second source of truth. Every function here either
 :class:`~daedalus.progress.ProgressEvent` records, or (b) performs a
 READ-ONLY poll of a store this repo already keeps durably. This module never
 edits, wraps the internals of, or monkeypatches the modules it reads --
-:mod:`daedalus.ikarus_os`, :mod:`daedalus.offload`, :mod:`daedalus.spine.attempt`
+:mod:`daedalus.orchestration.ikarus.shell`, :mod:`daedalus.offload`, :mod:`daedalus.spine.attempt`
 and :mod:`daedalus.spine.ledger` are all owned elsewhere and are used here
 exactly as their own public functions already behave.
 
 SIGNALS USED, AND WHY EACH IS TRUSTED
 --------------------------------------------------------------------------
-* ``daedalus.ikarus_os.ask_stream`` / ``_claude_stream``: every non-empty
+* ``daedalus.orchestration.ikarus.shell.ask_stream`` / ``_claude_stream``: every non-empty
   "delta" is a byte physically read from a live child process's stdout (see
   ``_claude_stream``'s ``for line in proc.stdout:`` loop) -- it cannot be
   produced by a hung or dead process. Trusted for GENERATING.
@@ -46,7 +46,7 @@ SIGNALS REFUSED, ON PURPOSE
   SELF-REPORTS about what it did. This is the exact fake-offload failure
   named in this project's own history (a model narrated an edit it never
   made, and a harness read the narration as a finished report) -- see
-  ``daedalus/verifier.py``'s comment on that same field. No function in this
+  ``daedalus/orchestration/verifier.py``'s comment on that same field. No function in this
   file reads it, and :func:`daedalus.progress.record_disk_change` refuses a
   ``basis`` that is not a mechanical diff even if a caller tried to smuggle
   one through.
@@ -85,12 +85,12 @@ __all__ = [
 
 
 # --------------------------------------------------------------------------- #
-# 1 -- the chat stream: daedalus.ikarus_os.ask_stream / _claude_stream         #
+# 1 -- the chat stream: daedalus.orchestration.ikarus.shell.ask_stream / _claude_stream         #
 # --------------------------------------------------------------------------- #
 def watch_stream(unit_id: str, event_payload_iter: Iterable[tuple[str, Any]], *,
                  source: str = "ikarus_os.ask_stream",
                  log: "P.ProgressLog | None" = None) -> Iterator[tuple[str, Any]]:
-    """Wrap the ``(event, payload)`` iterator :func:`daedalus.ikarus_os.ask_stream`
+    """Wrap the ``(event, payload)`` iterator :func:`daedalus.orchestration.ikarus.shell.ask_stream`
     yields. A transparent tee: every item is yielded UNCHANGED, in the same
     order, with recording as a side effect only -- a caller drops this around
     an existing ``for event, payload in ask_stream(...):`` loop with no other
@@ -115,7 +115,7 @@ def watch_stream(unit_id: str, event_payload_iter: Iterable[tuple[str, Any]], *,
                              that may ride inside the envelope's ``action``
                              field is a PROPOSAL gated on a confirmation that
                              has not happened yet (see
-                             ``daedalus.ikarus_os._enqueue``) -- a caller that
+                             ``daedalus.orchestration.ikarus.shell._enqueue``) -- a caller that
                              later confirms it should open a SEPARATE unit
                              for that effect and record its own
                              DISK_CHANGED/NO_CHANGE there.
@@ -479,11 +479,15 @@ def _bridge_progress(key: str, latest_kind: str, age_s: float | None, succeeded:
 
 
 def _report_verdict(report_path: "Path") -> tuple[bool | None, object]:
-    """Return a tri-state verdict from a bridge report.
+    """``(succeeded, raw_status)`` for a bridge report, or ``(None, None)``.
 
-    Archived requests do not contain an outcome. Both archived and unarchived
-    projections therefore use this one rule so filing a request can never turn
-    a failed or unknown run into a success.
+    ONE rule, called from both the archived branch and the report branch, so
+    an archived task and a not-yet-archived one can never disagree about the
+    same report. They did: the archive branch used to hardcode success.
+
+    ``succeeded`` is tri-state on purpose. A report with no status at all is
+    ``None`` -- unproven -- never ``False``, because "the watcher wrote no
+    status" and "the watcher wrote a failure" are different facts.
     """
     import json as _json
 
@@ -519,14 +523,40 @@ def snapshot_from_bridge(key: str, *, now: float | None = None) -> "P.UnitProgre
 
     archive_path = fb.ARCHIVE / f"{key}.json"
     report_path = fb.INBOX / f"{key}.report.json"
+
     if archive_path.exists():
         age = max(0.0, now - archive_path.stat().st_mtime)
+        # THE ARCHIVE HOLDS THE REQUEST, NOT THE OUTCOME.
+        #
+        # ``runs/processed/{key}.json`` is the enqueued REQUEST -- objective,
+        # lane, paths, model -- and carries no status field of any kind.
+        # "Archived" means the watcher acknowledged the task and filed it,
+        # which it does for FAILURES exactly as it does for successes.
+        #
+        # This branch used to return ``succeeded=True, applied=True`` from that
+        # file. It was this module's own forbidden collapse, named in
+        # ``progress.py``'s docstring -- "finished is not succeeded, and
+        # succeeded is not applied" -- and it was invisible, because this
+        # branch runs BEFORE the report branch below and masks it. A task whose
+        # report said ``bridge_status=failed`` flipped to a green "succeeded"
+        # the moment the watcher filed it, while the task-level view kept
+        # reporting the failure honestly. Two projections of one run,
+        # disagreeing, with the optimistic one winning.
+        #
+        # Measured 2026-09-03 on a real dispatch: state=failed, error="the
+        # trusted local bench did not accept the task", progress.succeeded=true.
+        #
+        # The verdict now comes from the report, by the same rule the report
+        # branch uses. With no report retained there is no evidence either way,
+        # so the answer is None -- unproven -- never True.
         if report_path.exists():
             succeeded, status = _report_verdict(report_path)
             note = f"archived (acknowledged); report says bridge_status={status!r}"
         else:
-            succeeded = None
-            note = "archived (acknowledged); no report retained, outcome unproven"
+            succeeded, note = None, ("archived (acknowledged); no report was retained, "
+                                     "so the outcome is unproven")
+        # ``applied`` stays None for the reason it does in the report branch:
+        # nothing here is evidence that anything reached the disk.
         return _bridge_progress(key, P.DONE, age, succeeded, None, note,
                                 source_path=archive_path)
 

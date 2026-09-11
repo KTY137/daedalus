@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.repository_write_inventory import (
+from daedalus.gates.repository.write_inventory import (
     RepositoryWriteCallsite,
     RepositoryWriteInventory,
     RepositoryWriteInventoryError,

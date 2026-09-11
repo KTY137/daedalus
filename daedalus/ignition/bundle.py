@@ -171,11 +171,14 @@ def import_closure(root: Path, roots: Sequence[str]) -> tuple[str, ...]:
     Fourfold while every root's digest stayed put. A judge is its transitive
     code, so the identity has to be too.
 
-    MEASURED on this tree: the closure is 124 modules, essentially the daedalus
-    package. That is not a mistake in the measurement -- the evaluators really
-    do reach that far -- and it is why the closure is recorded as its own digest
-    beside the roots rather than replacing them: a reviewer reads the six roots,
-    and the digest still moves when anything they reach changes.
+    The closure has changed repeatedly as the package evolved (124 modules in
+    the original measurement and 198 on 2026-09-03). Its current count is
+    computed and recorded in every bundle instead of being asserted here as a
+    timeless constant. It is essentially the daedalus package. That is not a
+    mistake in the measurement -- the evaluators really do reach that far --
+    and it is why the closure is recorded as its own digest beside the roots
+    rather than replacing them: a reviewer reads the six roots, and the digest
+    still moves when anything they reach changes.
     """
 
     seen: set[str] = {rel for rel in roots if (root / rel).is_file()}
@@ -193,8 +196,9 @@ def import_closure(root: Path, roots: Sequence[str]) -> tuple[str, ...]:
 def _blob_shas_bulk(repo_root: Path, rels: Sequence[str]) -> dict[str, str | None]:
     """``git hash-object`` for many paths in one call.
 
-    124 separate subprocesses cost more than the rest of the bundle put
-    together on this platform; --stdin-paths answers them all at once.
+    One subprocess per closure member costs more than the rest of the bundle
+    put together on this platform; --stdin-paths answers them all at once. The
+    point is the per-path spawn, not a revision-specific member count.
     """
 
     if not rels:

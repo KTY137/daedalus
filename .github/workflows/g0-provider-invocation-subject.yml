@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-observation-authority-linear
     paths:
-      - "daedalus/runtimes/provider_invocation.py"
+      - "daedalus/runtimes/provider/invocation.py"
       - "tests/runtimes/test_provider_invocation_subject*.py"
       - "docs/work-packets/G0-RTC-06T_PROVIDER_INVOCATION_SUBJECT.*"
       - ".github/workflows/g0-provider-invocation-subject.yml"
@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-provider-invocation-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_invocation import (
+          from daedalus.runtimes.provider.invocation import (
               ProviderInvocationSubject,
               ProviderInvocationSubjectError,
           )

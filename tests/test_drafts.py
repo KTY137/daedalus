@@ -63,25 +63,38 @@ class DraftStoreTests(unittest.TestCase):
         self.assertNotEqual(a, b)
         self.assertEqual(len(drafts.list_drafts()), 2)
 
-    def test_apply_marks_handled_and_returns_review_packet(self):
+    def test_handoff_marks_handled_without_claiming_repository_application(self):
         drafts.save_draft("Tidy the readme", ["README.md"], "quill", "ollama",
                            "Lucia", _report(summary="reword the intro"), repo_root="/r")
         did = drafts.list_drafts()[0]["id"]
-        packet = drafts.apply_payload(did)
+        packet = drafts.handoff_payload(did)
         self.assertEqual(packet["objective"], "Tidy the readme")
         self.assertEqual(packet["paths"], ["README.md"])
         self.assertEqual(packet["proposal"], "reword the intro")
         self.assertIn("never merges", packet["handoff"])
-        # apply is a status transition, NOT a write -> draft now marked applied
-        self.assertEqual(drafts.get_draft(did)["status"], "applied")
+        # Handoff is a status transition, NOT a repository write.
+        self.assertEqual(drafts.get_draft(did)["status"], "handed_off")
 
     def test_dismiss_and_invalid_status(self):
         drafts.save_draft("x", [], "a", "ollama", "P", _report())
         did = drafts.list_drafts()[0]["id"]
         self.assertEqual(drafts.set_status(did, "dismissed")["status"], "dismissed")
+        # The old caller spelling remains a compatibility alias but normalises
+        # to the honest durable state.
         self.assertIsNone(drafts.set_status("nope", "applied"))
         with self.assertRaises(ValueError):
             drafts.set_status(did, "merged")
+
+    def test_legacy_applied_row_is_projected_as_handed_off_without_rewrite(self):
+        path = drafts.save_draft("legacy", [], "a", "p", "x", _report())
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        stored["status"] = "applied"
+        path.write_text(json.dumps(stored), encoding="utf-8")
+
+        projected = drafts.get_draft(path.stem)
+        self.assertEqual(projected["status"], "handed_off")
+        self.assertEqual(projected["legacy_status"], "applied")
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["status"], "applied")
 
     def test_listing_scopes_to_one_repository(self):
         """One project must never be shown another project's drafts.

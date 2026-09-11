@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-artifact-verification-receipt-v1.schema.json",
+  "title": "Daedalus Repository-Write Artifact Verification Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_type",
+    "contract_version",
+    "verification_id",
+    "source_revision",
+    "source_tree_revision",
+    "gate_report_v3_sha256",
+    "artifact_evidence_sha256",
+    "artifact_content_sha256",
+    "inventory_sha256",
+    "verified_at",
+    "checks",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {
+      "const": "daedalus-repository-write-artifact-verification-receipt/1"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "verification_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "source_tree_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "gate_report_v3_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "artifact_evidence_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "artifact_content_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "inventory_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "checks": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "artifact-content-sha256"
+        },
+        {
+          "const": "artifact-report-binding"
+        },
+        {
+          "const": "canonical-inventory-v2"
+        },
+        {
+          "const": "failure-set-binding"
+        },
+        {
+          "const": "inventory-artifact-binding"
+        },
+        {
+          "const": "strict-json-bytes"
+        }
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "input_digests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "uniqueItems": true
+        },
+        "trace_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

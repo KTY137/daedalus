@@ -1,9 +1,11 @@
 """Lazy compatibility facade for :mod:`daedalus.runtimes.admission`.
 
-Runtime admission belongs to the runtime layer, not the kernel. Importing this
-legacy module alone does not load the runtime package. Attribute access resolves
-lazily to the canonical owner, so old and new imports receive the same objects
-rather than parallel wrapper functions or duplicated singleton state.
+The runtime admission owner moved out of the kernel in G1-RUNTIME-02. Importing
+this legacy module alone does not load a runtime package. Attribute access
+resolves lazily to the canonical owner, so old and new imports receive the same
+objects rather than parallel wrapper functions or duplicated singleton state.
+The registered shim and its retirement audit are recorded in the packet-local
+shim register.
 """
 from __future__ import annotations
 

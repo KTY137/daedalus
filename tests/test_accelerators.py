@@ -1,9 +1,39 @@
 from __future__ import annotations
 
 import json
+import sys
+import time
 from unittest import mock
 
-from daedalus import accelerators
+import pytest
+
+from daedalus.foundation import accelerators
+
+
+# A line only the real probe source contains. Asserted against the source
+# itself below, so it cannot rot into a substring that is trivially absent.
+_DEEP_PROBE_MARKER = "import_only: no device kernel smoke"
+# Upper bound on how long the deliberately hanging child of the transport test
+# holds its streams if the test never gets to release it.
+_HOLD_DEADLINE_SECONDS = 30
+
+
+@pytest.fixture(autouse=True)
+def _forget_the_cached_probe():
+    """``deep_framework_status`` is ``lru_cache``d at module scope.
+
+    Without this, the first test to reach the real cached function decides the
+    answer for every later one -- and a test asserting "the child was never
+    spawned" passes for the wrong reason, because a cache hit spawns nothing.
+    """
+
+    accelerators.deep_framework_status.cache_clear()
+    yield
+    accelerators.deep_framework_status.cache_clear()
+
+
+def test_the_probe_source_marker_is_real() -> None:
+    assert _DEEP_PROBE_MARKER in accelerators._DEEP_PROBE
 
 
 def _hardware(available: bool = True) -> dict:
@@ -21,6 +51,30 @@ def _hardware(available: bool = True) -> dict:
         ),
         "error": "" if available else "missing",
     }
+
+
+def _transport(
+    *,
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+    timed_out: bool = False,
+    overflowed: bool = False,
+) -> accelerators._ProbeTransport:
+    """A child-process outcome, built rather than Mock()ed.
+
+    A ``mock.Mock`` would auto-create ``timed_out`` as a truthy attribute, so
+    every mocked probe would look like a timeout. The real frozen dataclass
+    cannot do that.
+    """
+
+    return accelerators._ProbeTransport(
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        overflowed=overflowed,
+    )
 
 
 def _frameworks(cuda: tuple[str, ...] = ()) -> dict:
@@ -191,13 +245,67 @@ def test_deep_probe_import_only_yields_unverified_not_ready() -> None:
             contextlib.redirect_stdout(stdout):
         exec(accelerators._DEEP_PROBE, {})  # noqa: S102 - probe source under test
 
-    rows = json.loads(stdout.getvalue())
+    rows = accelerators._decode_deep_probe_output(stdout.getvalue(), "")
     for name in ("cuvs", "cugraph", "newton"):
         assert rows[name]["installed"] is True
         assert rows[name]["cuda_ready"] is None
         assert "import_only: no device kernel smoke" in rows[name]["detail"]
     assert rows["torch"]["installed"] is False
     assert rows["torch"]["cuda_ready"] is False
+
+
+def test_deep_probe_accepts_noisy_stdout_and_retains_diagnostics() -> None:
+    probe_rows = {
+        name: {
+            "installed": name in ("torch", "warp"),
+            "cuda_ready": name in ("torch", "warp"),
+            "detail": "measured",
+        }
+        for name in ("torch", "cupy", "warp", "cuvs", "cugraph", "newton")
+    }
+    completed = _transport(
+        stdout=(
+            "Warp 1.17.0 initialized on cuda:0\n"
+            f"{accelerators._DEEP_PROBE_SENTINEL}{json.dumps(probe_rows)}\n"
+            "runtime shutdown note\n"
+        ),
+        stderr="CUDA_PATH could not be detected\n",
+    )
+    with mock.patch.object(accelerators, "_run_deep_probe", return_value=completed):
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    assert rows["torch"]["installed"] is True
+    assert rows["warp"]["cuda_ready"] is True
+    assert rows["cupy"]["installed"] is False
+    assert rows["_diagnostics"] == {
+        "stdout": "Warp 1.17.0 initialized on cuda:0\nruntime shutdown note",
+        "stderr": "CUDA_PATH could not be detected",
+    }
+
+
+def test_failed_deep_probe_rows_are_unprobed_with_shallow_presence_evidence() -> None:
+    failure = {
+        "probe": {
+            "installed": False,
+            "cuda_ready": None,
+            "detail": "invalid probe output: missing sentinel",
+            "probed": False,
+        }
+    }
+    with mock.patch.object(accelerators, "deep_framework_status", return_value=failure), \
+            mock.patch.object(
+                accelerators,
+                "_has_module",
+                side_effect=lambda name: name in ("torch", "newton"),
+            ):
+        rows = accelerators._framework_rows(deep=True)
+
+    assert rows["torch"]["installed"] is True
+    assert rows["newton"]["installed"] is True
+    assert rows["cupy"]["installed"] is False
+    assert all(row["probed"] is False for row in rows.values())
+    assert all(row["cuda_ready"] is None for row in rows.values())
+    assert all("missing sentinel" in row["detail"] for row in rows.values())
 
 
 def test_deep_rows_preserve_unverified_tristate() -> None:
@@ -238,4 +346,635 @@ def test_deep_import_only_lanes_cap_at_unverified() -> None:
     assert not lanes["sparse_graph"]["evidence"]
     assert lanes["warp_kernels"]["state"] == "ready"
     assert lanes["newton_physics"]["state"] == "unverified"
+    assert lanes["newton_physics"]["missing"] == (
+        "Newton device execution was not probed",
+    )
 
+
+def test_cli_json_exposes_successful_probe_noise_as_bounded_diagnostics(
+    capsys,
+) -> None:
+    from daedalus.interfaces.cli import entry as cli_entry
+
+    oversized_stdout = "x" * (accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT + 17)
+    probe_rows = _frameworks(("torch", "warp"))
+    probe_rows["_diagnostics"] = {
+        "stdout": oversized_stdout,
+        "stderr": "CUDA_PATH fallback used",
+    }
+    with mock.patch.object(
+        accelerators, "deep_framework_status", return_value=probe_rows
+    ), mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.dict("os.environ", {}, clear=True):
+        cli_entry._accelerators(["--deep", "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    diagnostics = payload["framework_probe_diagnostics"]
+    assert diagnostics["requested"] is True
+    assert diagnostics["transport_outcome"] == "decoded"
+    assert diagnostics["stdout"] == (
+        "x" * accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+        + " ... [17 chars omitted]"
+    )
+    assert diagnostics["stderr"] == "CUDA_PATH fallback used"
+    assert diagnostics["failure"] == ""
+    assert (
+        diagnostics["retained_char_limit"]
+        == accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+    )
+    assert set(payload["frameworks"]) == {
+        "torch",
+        "cupy",
+        "warp",
+        "cuvs",
+        "cugraph",
+        "newton",
+    }
+    assert {row["id"] for row in payload["lanes"]} == {
+        "tensor_inference",
+        "sparse_graph",
+        "warp_kernels",
+        "newton_physics",
+        "nvidia_optical_flow",
+        "dlss",
+    }
+    assert "state" not in diagnostics
+    assert "ready" not in diagnostics
+
+
+def test_accelerator_status_exposes_top_level_probe_failure_diagnostics() -> None:
+    failure = accelerators._probe_failure(
+        "child process failed",
+        stdout="runtime banner",
+        stderr="driver warning",
+    )
+    with mock.patch.object(
+        accelerators, "deep_framework_status", return_value=failure
+    ), mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.object(
+        accelerators,
+        "_has_module",
+        side_effect=lambda name: name in ("torch", "newton"),
+    ), mock.patch.dict("os.environ", {}, clear=True):
+        payload = accelerators.accelerator_status(deep=True)
+
+    diagnostics = payload["framework_probe_diagnostics"]
+    assert diagnostics["requested"] is True
+    assert diagnostics["transport_outcome"] == "failed"
+    assert diagnostics["stdout"] == "runtime banner"
+    assert diagnostics["stderr"] == "driver warning"
+    assert "child process failed" in diagnostics["failure"]
+    assert (
+        diagnostics["retained_char_limit"]
+        == accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+    )
+    assert len(payload["frameworks"]) == 6
+    assert all(row["probed"] is False for row in payload["frameworks"].values())
+    assert all(row["cuda_ready"] is None for row in payload["frameworks"].values())
+    assert all(row["state"] != "ready" for row in payload["lanes"])
+
+
+
+# --- probe interpreter selection -------------------------------------------
+#
+# Regression cover for the desktop symptom of 2026-09-10: the capability panel
+# of the packaged app reported torch/cupy/warp/cuvs/cugraph/newton as "nicht
+# installiert" because the deep probe shelled out to ``sys.executable -c``,
+# and in a frozen build ``sys.executable`` is the packaged application, not an
+# interpreter.  MEASURED against the shipped generation: exit status 2 with
+# ``unrecognized arguments: -c``, after a full second sidecar bootstrap.
+
+
+def test_source_checkout_probe_uses_the_running_interpreter() -> None:
+    import sys as _sys
+
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True):
+        interpreter, refusal = accelerators.probe_interpreter()
+
+    assert refusal == ""
+    assert interpreter == _sys.executable
+
+
+def test_frozen_application_is_refused_and_never_executed() -> None:
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(
+                accelerators.sys, "executable", r"C:\app\daedalus-web-api.exe"
+            ), \
+            mock.patch.object(accelerators.subprocess, "Popen") as spawn:
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    # The decisive assertion: the frozen application is NOT spawned. Spawning
+    # it cost a second backend bootstrap and produced an argparse usage error
+    # that was then read as "no accelerator is installed".
+    spawn.assert_not_called()
+    failure = rows["probe"]
+    assert failure["probed"] is False
+    assert failure["installed"] is False
+    assert failure["cuda_ready"] is None
+    assert "daedalus-web-api.exe" in failure["detail"]
+    assert accelerators.ACCELERATOR_PYTHON_ENV in failure["detail"]
+
+
+def test_frozen_application_probe_failure_does_not_claim_absence(
+    tmp_path,
+) -> None:
+    """A refused probe must stay 'unprobed', never harden into 'absent'."""
+
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(
+                accelerators.sys, "executable", r"C:\app\daedalus-web-api.exe"
+            ), \
+            mock.patch.object(accelerators.subprocess, "Popen") as spawn, \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=True)
+
+    spawn.assert_not_called()
+    assert set(rows) == set(accelerators.FRAMEWORK_NAMES)
+    for name, row in rows.items():
+        assert row["probed"] is False, name
+        assert row["cuda_ready"] is None, name
+        assert accelerators.ACCELERATOR_PYTHON_ENV in row["detail"], name
+        # The fill-in installed=False came from THIS process's find_spec, and
+        # this process is the bundle. The surface has to be told that, or it
+        # paints the fallback red exactly like a measured absence.
+        assert row["host_visible"] is False, name
+
+
+def test_configured_interpreter_overrides_a_frozen_executable(tmp_path) -> None:
+    interpreter = tmp_path / "python.exe"
+    interpreter.write_bytes(b"")
+    completed = _transport(
+        stdout=(
+            accelerators._DEEP_PROBE_SENTINEL
+            + json.dumps(
+                {
+                    name: {
+                        "installed": name == "torch",
+                        "cuda_ready": name == "torch",
+                        "detail": "measured",
+                    }
+                    for name in accelerators.FRAMEWORK_NAMES
+                }
+            )
+            + "\n"
+        ),
+    )
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: str(interpreter)},
+        clear=True,
+    ), mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(
+                accelerators, "_run_deep_probe", return_value=completed
+            ) as run:
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    assert run.call_args.args[0] == str(interpreter)
+    assert rows["torch"]["installed"] is True
+
+
+def test_configured_interpreter_that_is_not_a_file_is_refused() -> None:
+    missing = r"C:\nowhere\python.exe"
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: missing},
+        clear=True,
+    ), mock.patch.object(accelerators.subprocess, "Popen") as spawn:
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    spawn.assert_not_called()
+    assert "is not an existing file" in rows["probe"]["detail"]
+    assert accelerators.ACCELERATOR_PYTHON_ENV in rows["probe"]["detail"]
+    # Verbatim: an operator reading this is about to retype the path, and
+    # ``repr`` would show them C:\\nowhere\\python.exe.
+    assert missing in rows["probe"]["detail"]
+
+
+def test_status_reports_which_interpreter_answered_the_deep_probe() -> None:
+    import sys as _sys
+
+    with mock.patch.object(
+        accelerators, "deep_framework_status", return_value=_frameworks(("torch",))
+    ), mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True):
+        payload = accelerators.accelerator_status(deep=True)
+
+    assert payload["framework_probe_diagnostics"]["interpreter"] == _sys.executable
+
+
+def test_shallow_status_names_no_interpreter_because_none_was_asked() -> None:
+    with mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.dict("os.environ", {}, clear=True):
+        payload = accelerators.accelerator_status(deep=False)
+
+    assert payload["framework_probe_diagnostics"]["interpreter"] == ""
+    assert (
+        payload["framework_probe_diagnostics"]["transport_outcome"]
+        == "not_requested"
+    )
+
+
+def test_shallow_rows_in_a_source_checkout_keep_the_quiet_sentinel() -> None:
+    """The cockpit suppresses this exact string; only a real checkout earns it."""
+
+    with mock.patch.dict("os.environ", {}, clear=True),             mock.patch.object(accelerators.sys, "frozen", False, create=True),             mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    assert all(row["detail"] == "deep probe not requested" for row in rows.values())
+
+
+def test_shallow_rows_in_a_source_checkout_are_marked_as_seeing_the_machine() -> None:
+    """The other half of the flag: a real checkout DID measure the host."""
+
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True), \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    # Without this the surface would have no way to tell a measured absence
+    # from a guaranteed one, and downgrading BOTH to "unchecked" would throw
+    # away the find_spec evidence a source checkout really does have.
+    assert all(row["host_visible"] is True for row in rows.values())
+
+
+def test_shallow_rows_in_a_frozen_bundle_are_not_a_claim_about_the_machine() -> None:
+    """The branch the desktop capability panel actually renders.
+
+    ``/api/accelerators/status`` is called without ``deep=1``, so the panel
+    reads ``_has_module`` inside the frozen backend. A frozen process imports
+    from its own bundle, so False there is guaranteed and says nothing about
+    the host. It must not be dressed as a measurement.
+    """
+
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    assert set(rows) == set(accelerators.FRAMEWORK_NAMES)
+    for name, row in rows.items():
+        assert row["probed"] is False, name
+        assert row["cuda_ready"] is None, name
+        # The machine-readable half. The detail is prose; the badge is drawn
+        # from this, and drawing it from prose would be the same bug again.
+        assert row["host_visible"] is False, name
+        # Not the string the cockpit hides: this reason has to reach the panel.
+        assert row["detail"] != "deep probe not requested", name
+        assert "not measured on this machine" in row["detail"], name
+        assert accelerators.ACCELERATOR_PYTHON_ENV in row["detail"], name
+
+
+def test_a_frozen_row_only_claims_an_exclusion_that_the_build_actually_makes() -> None:
+    """Two of the six rows are not on the exclusion list, and were told they were.
+
+    ``cuvs`` and ``cugraph`` are absent from ``DESKTOP_PYINSTALLER_EXCLUDES``.
+    The first version of this message asserted the build excluded them, which
+    sends an operator to read a build script that does not mention them.
+    """
+
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    for name in ("torch", "cupy", "warp", "newton"):
+        assert f"excludes {name} from the bundle" in rows[name]["detail"], name
+    for name in ("cuvs", "cugraph"):
+        assert "excludes" not in rows[name]["detail"], name
+        assert "imports from its own bundle" in rows[name]["detail"], name
+
+
+def test_the_exclusion_claim_tracks_the_build_script() -> None:
+    """The local copy is only honest while it still matches the build."""
+
+    from tools.build_tauri_sidecar import DESKTOP_PYINSTALLER_EXCLUDES
+
+    excluded = set(DESKTOP_PYINSTALLER_EXCLUDES)
+    for name in accelerators.FRAMEWORK_NAMES:
+        assert (name in accelerators.DESKTOP_EXCLUDED_FRAMEWORKS) == (
+            name in excluded
+        ), name
+
+
+def test_a_frozen_row_stays_honest_when_the_configured_interpreter_is_broken(
+    tmp_path,
+) -> None:
+    """The recommended configuration must not switch the explanation off.
+
+    Gating on "the variable is set" meant an operator who followed this
+    module's own advice, and typed the path wrong, got the unexplained red
+    back: the row fell through to "deep probe not requested", which the cockpit
+    suppresses. The variable never made this shallow answer a measurement --
+    it selects an interpreter for the DEEP probe.
+    """
+
+    broken = str(tmp_path / "nowhere" / "python.exe")
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: broken},
+        clear=True,
+    ), mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    for name, row in rows.items():
+        assert row["host_visible"] is False, name
+        assert row["detail"] != "deep probe not requested", name
+        assert "is not an existing file" in row["detail"], name
+
+
+def test_a_frozen_row_points_at_a_working_interpreter_instead_of_repeating_itself(
+    tmp_path,
+) -> None:
+    """With a usable interpreter the row says what to do, not what to set."""
+
+    interpreter = tmp_path / "python.exe"
+    interpreter.write_bytes(b"")
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: str(interpreter)},
+        clear=True,
+    ), mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=False)
+
+    for name, row in rows.items():
+        # Still not a measurement: find_spec in a frozen process reads the
+        # bundle whatever this variable says.
+        assert row["host_visible"] is False, name
+        assert "a deep probe through" in row["detail"], name
+        assert str(interpreter) in row["detail"], name
+
+
+def test_deep_rows_from_a_real_interpreter_are_marked_as_measured(tmp_path) -> None:
+    """A row that came back from the child IS about a machine."""
+
+    interpreter = tmp_path / "python.exe"
+    interpreter.write_bytes(b"")
+    probe_rows = {
+        name: {"installed": True, "cuda_ready": None, "detail": "measured"}
+        for name in accelerators.FRAMEWORK_NAMES
+    }
+    completed = _transport(
+        stdout=(
+            accelerators._DEEP_PROBE_SENTINEL + json.dumps(probe_rows) + "\n"
+        )
+    )
+    with mock.patch.dict(
+        "os.environ",
+        {accelerators.ACCELERATOR_PYTHON_ENV: str(interpreter)},
+        clear=True,
+    ), mock.patch.object(accelerators.sys, "frozen", True, create=True), \
+            mock.patch.object(
+                accelerators, "_run_deep_probe", return_value=completed
+            ):
+        rows = accelerators._framework_rows(deep=True)
+
+    # Frozen process, but the ANSWER came from the operator's interpreter.
+    assert all(row["host_visible"] is True for row in rows.values()), rows
+
+
+# --- what the probe child inherits, and how long it may take ----------------
+
+
+def test_the_probe_child_does_not_inherit_the_backend_secrets() -> None:
+    """MEASURED before the fix: the child received three provider tokens.
+
+    The probe answers "is torch importable". The executable is named by an
+    operator-settable variable. Handing it ANTHROPIC_API_KEY to answer that is
+    authority it never needed, and an allowlist is what keeps the NEXT secret
+    from being inherited by default too.
+    """
+
+    hostile = {
+        "ANTHROPIC_API_KEY": "sk-secret",
+        "DAEDALUS_RTX_OLLAMA_TOKEN": "bench-token",
+        "CLAUDE_CODE_MESSAGING_TOKEN": "messaging-token",
+        "PYTHONPATH": r"C:\parent\only",
+        "PATH": r"C:\Windows\System32",
+        "SYSTEMROOT": r"C:\Windows",
+        "CUDA_PATH": r"C:\cuda",
+    }
+    with mock.patch.dict("os.environ", hostile, clear=True):
+        child_env = accelerators._probe_environment()
+
+    assert "ANTHROPIC_API_KEY" not in child_env
+    assert "DAEDALUS_RTX_OLLAMA_TOKEN" not in child_env
+    assert "CLAUDE_CODE_MESSAGING_TOKEN" not in child_env
+    # The parent's import path is the parent's, not the operator interpreter's.
+    assert "PYTHONPATH" not in child_env
+    # ... and the child still has what it needs to start and to find CUDA.
+    assert child_env["PATH"] == r"C:\Windows\System32"
+    assert child_env["SYSTEMROOT"] == r"C:\Windows"
+    assert child_env["CUDA_PATH"] == r"C:\cuda"
+
+
+def test_the_probe_child_does_not_inherit_a_bundle_pointing_library_path() -> None:
+    """The PYTHONPATH mistake one layer down.
+
+    A PyInstaller bootloader PREPENDS its own bundle directory to
+    ``LD_LIBRARY_PATH`` / ``DYLD_LIBRARY_PATH``. Passing those on would point
+    the operator's interpreter at the frozen bundle's libraries. Latent while
+    tools/build_tauri_sidecar.py has no linux/darwin path; it must not become
+    live by default when one is added.
+    """
+
+    with mock.patch.dict(
+        "os.environ",
+        {
+            "LD_LIBRARY_PATH": "/tmp/_MEIxxxx:/usr/lib",
+            "DYLD_LIBRARY_PATH": "/tmp/_MEIxxxx",
+            "PYTHONHOME": "/opt/frozen",
+            "PATH": "/usr/bin",
+        },
+        clear=True,
+    ):
+        child_env = accelerators._probe_environment()
+
+    assert "LD_LIBRARY_PATH" not in child_env
+    assert "DYLD_LIBRARY_PATH" not in child_env
+    assert "PYTHONHOME" not in child_env
+    assert child_env["PATH"] == "/usr/bin"
+
+
+def test_the_filtered_environment_actually_reaches_the_spawn(tmp_path) -> None:
+    interpreter = tmp_path / "python.exe"
+    interpreter.write_bytes(b"")
+    spawned = mock.Mock()
+    spawned.wait.return_value = 0
+    with mock.patch.dict(
+        "os.environ",
+        {
+            accelerators.ACCELERATOR_PYTHON_ENV: str(interpreter),
+            "ANTHROPIC_API_KEY": "sk-secret",
+            "PATH": r"C:\Windows\System32",
+        },
+        clear=True,
+    ), mock.patch.object(
+        accelerators.subprocess, "Popen", return_value=spawned
+    ) as spawn:
+        accelerators._run_deep_probe(str(interpreter))
+
+    passed = spawn.call_args.kwargs["env"]
+    assert "ANTHROPIC_API_KEY" not in passed
+    assert passed["PATH"] == r"C:\Windows\System32"
+
+
+def test_a_timed_out_probe_does_not_paste_its_own_source_onto_six_rows() -> None:
+    """``str(TimeoutExpired)`` renders the whole argv, and argv[2] is the probe.
+
+    The failure detail is copied onto every framework row, so an unbounded one
+    is six unbounded ones -- 1.4 kB of probe source per row, in place of the
+    one fact an operator needs: the bound that was exceeded.
+    """
+
+    timed_out = _transport(returncode=-1, stdout="partial\n", timed_out=True)
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True), \
+            mock.patch.object(
+                accelerators, "_run_deep_probe", return_value=timed_out
+            ), \
+            mock.patch.object(accelerators, "_has_module", return_value=False):
+        rows = accelerators._framework_rows(deep=True)
+
+    for name, row in rows.items():
+        assert "importlib" not in row["detail"], name
+        assert _DEEP_PROBE_MARKER not in row["detail"], name
+        assert "exceeded its 30s bound" in row["detail"], name
+        # The partial output survives: it is the only evidence of how far the
+        # child got before the bound.
+        assert "partial" in row["detail"], name
+
+
+def test_an_unbounded_failure_detail_is_truncated_before_it_is_copied() -> None:
+    """Both halves: the streams were already bounded, the detail was not.
+
+    ``_probe_failure``'s detail carries text this module did not write, and
+    ``_framework_rows`` copies it onto all six rows, so an unbounded one is six
+    unbounded ones.
+    """
+
+    payload = accelerators._probe_failure(
+        "y" * 50_000, stdout="x" * 50_000, stderr="z" * 50_000
+    )
+    detail = payload["probe"]["detail"]
+    assert detail.count("chars omitted]") == 3, detail[:200]
+    assert len(detail) < 4 * accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+
+    flood = _transport(returncode=1, stderr="x" * 50_000)
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True), \
+            mock.patch.object(
+                accelerators, "_run_deep_probe", return_value=flood
+            ):
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    assert "chars omitted]" in rows["probe"]["detail"]
+    assert len(rows["probe"]["detail"]) < 3 * accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+
+
+def test_a_flooding_probe_is_killed_at_the_output_ceiling_not_at_the_clock(
+    tmp_path,
+) -> None:
+    """A REAL subprocess writing flat out.
+
+    Redirecting to a file moves a flood off the parent's heap and onto the
+    disk, which is an improvement and not a bound: MEASURED by the review,
+    1.94 GiB in 1.17s, so the 30s clock alone would admit roughly 50 GiB
+    against 27.5 GiB free. The ceiling has to stop it before the clock does.
+    """
+
+    flood = (
+        "import sys\n"
+        "block = 'x' * 1000000\n"
+        "while True:\n"
+        "    sys.stdout.write(block)\n"
+        "    sys.stdout.flush()\n"
+    )
+    started = time.monotonic()
+    with mock.patch.object(accelerators, "_DEEP_PROBE", flood), \
+            mock.patch.object(accelerators, "_DEEP_PROBE_TIMEOUT_SECONDS", 30.0), \
+            mock.patch.object(
+                accelerators, "_DEEP_PROBE_OUTPUT_CEILING", 8 * 1024 * 1024
+            ):
+        result = accelerators._run_deep_probe(sys.executable)
+    elapsed = time.monotonic() - started
+
+    assert result.overflowed is True
+    # The clock did NOT end this: it was still 30s away.
+    assert result.timed_out is False
+    assert elapsed < 15.0, f"the ceiling did not fire before the clock ({elapsed:.1f}s)"
+    # The parent still refuses to load what it did write.
+    assert len(result.stdout) <= accelerators._DEEP_PROBE_OUTPUT_LIMIT
+
+
+def test_an_overflowing_probe_says_which_bound_it_hit() -> None:
+    """'timed out' and 'wrote too much' are different operator problems."""
+
+    flooded = _transport(returncode=-1, overflowed=True)
+    with mock.patch.dict("os.environ", {}, clear=True), \
+            mock.patch.object(accelerators.sys, "frozen", False, create=True), \
+            mock.patch.object(
+                accelerators, "_run_deep_probe", return_value=flooded
+            ):
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    detail = rows["probe"]["detail"]
+    assert "output ceiling" in detail
+    assert "s bound" not in detail
+
+
+def test_the_probe_is_bounded_by_wall_clock_even_through_a_launcher_shim(
+    tmp_path,
+) -> None:
+    """A REAL subprocess, because the bug was in the transport itself.
+
+    ``subprocess.run(timeout=30)`` is not a wall-clock bound on Windows: after
+    ``TimeoutExpired`` it kills the direct child and then calls an UNTIMED
+    ``communicate()``, which blocks while any grandchild holds the inherited
+    pipe. MEASURED against the previous implementation: ``elapsed=600.1s`` for
+    ``timeout=30``. That is what ``py.exe``, a conda ``activate.bat`` or any
+    ``.cmd`` wrapper looks like -- the natural Windows value of
+    ``DAEDALUS_ACCELERATOR_PYTHON``.
+
+    The child here spawns a grandchild that holds both streams and outlives the
+    kill, exactly as a launcher shim's real interpreter would.
+    """
+
+    marker = tmp_path / "hold"
+    marker.write_text("held", encoding="utf-8")
+    grandchild = (
+        "import os, time\n"
+        f"deadline = time.time() + {_HOLD_DEADLINE_SECONDS}\n"
+        f"while os.path.exists(r'{marker}') and time.time() < deadline:\n"
+        "    time.sleep(0.05)\n"
+    )
+    hanging_probe = (
+        "import subprocess, sys, time\n"
+        f"subprocess.Popen([sys.executable, '-c', {grandchild!r}])\n"
+        f"time.sleep({_HOLD_DEADLINE_SECONDS})\n"
+    )
+
+    started = time.monotonic()
+    try:
+        with mock.patch.object(accelerators, "_DEEP_PROBE", hanging_probe), \
+                mock.patch.object(
+                    accelerators, "_DEEP_PROBE_TIMEOUT_SECONDS", 2.0
+                ):
+            result = accelerators._run_deep_probe(sys.executable)
+        elapsed = time.monotonic() - started
+    finally:
+        marker.unlink(missing_ok=True)
+
+    assert result.timed_out is True
+    # Generous against a loaded CI box and still an order of magnitude below
+    # the measured 600s: the assertion is "bounded", not "fast".
+    assert elapsed < 20.0, f"probe took {elapsed:.1f}s for a 2s bound"

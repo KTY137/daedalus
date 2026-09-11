@@ -2,7 +2,7 @@
 title: Night shift 2026-07-30
 type: finding
 status: verified
-updated: 2026-07-30
+updated: 2026-09-05
 ---
 
 # Night shift 2026-07-30
@@ -25,7 +25,7 @@ harness's own external lane, under the egress fence. 244 reports, 1,226 claims,
 ## The defect: content substitution in rewrites
 
 Three modules silently destroyed. Agents were asked to rewrite one file; they
-returned another. A `daedalus/shift.py` rewrite request returned a test module.
+returned another. A `daedalus/interfaces/cli/shift.py` rewrite request returned a test module.
 Both guards were blind: truncation (test module was **39% larger**), and
 elision-marker (nothing was omitted, just the wrong file).
 
@@ -100,5 +100,5 @@ found false so nobody re-schedules them.
 
 Full detail: [docs/research/NIGHT_SHIFT_2026-07-30.md](../research/NIGHT_SHIFT_2026-07-30.md)
 
-[[Feature backlog]] — the harvest from 29–30 July.
-[[Graph delta as fitness]] — the concurrent measurement that ran the same night.
+[Feature backlog](feature-backlog.md) — the harvest from 29–30 July.
+[Graph delta as fitness](graph-delta-as-fitness.md) — the concurrent measurement that ran the same night.

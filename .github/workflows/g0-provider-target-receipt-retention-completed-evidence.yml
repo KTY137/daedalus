@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-target-receipt-retention-recovery-frozen-9149602
     paths:
-      - "daedalus/runtimes/provider_target_receipt_retention_completed_evidence.py"
+      - "daedalus/runtimes/provider/target_receipt_retention_completed_evidence.py"
       - "configs/schemas/provider-target-receipt-retention-completed-evidence.schema.json"
       - "tests/runtimes/test_provider_target_receipt_retention_completed_evidence*.py"
       - "scripts/run_provider_target_receipt_retention_completed_evidence_mutations.py"
@@ -131,7 +131,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-retention-completed-evidence-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_target_receipt_retention_completed_evidence import (
+          from daedalus.runtimes.provider.target_receipt_retention_completed_evidence import (
               ProviderTargetReceiptRetentionCompletedEvidenceReceipt,
               verify_provider_target_receipt_retention_completed_evidence,
           )

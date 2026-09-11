@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/provider-executable-structure-receipt.schema.json",
+  "title": "Provider Executable Structure Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "provider_id",
+    "adapter_id",
+    "implementation_id",
+    "entrypoint_id",
+    "runtime_id",
+    "execution_id",
+    "idempotency_key",
+    "source_revision",
+    "target_contract_id",
+    "lease_sha256",
+    "target_authority_sha256",
+    "invocation_authority_sha256",
+    "invocation_contract_sha256",
+    "identity_sha256",
+    "identity_registry_sha256",
+    "identity_descriptor_sha256",
+    "target_projection_sha256",
+    "target_manifest_sha256",
+    "target_descriptor_sha256",
+    "adapter_artifact_sha256",
+    "adapter_config_sha256",
+    "invoke",
+    "output_digests",
+    "target_authority_authenticated",
+    "targets_structurally_verified",
+    "repository_bytes_executed",
+    "provider_execution_allowed",
+    "source_revision_verified_against_git_head"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-provider-executable-structure-receipt/2"
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "implementation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entrypoint_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtime_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execution_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "target_contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lease_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "target_authority_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "invocation_authority_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "invocation_contract_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "identity_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "identity_registry_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "identity_descriptor_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "target_projection_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "target_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "target_descriptor_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "adapter_artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "adapter_config_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "invoke": {
+      "$ref": "#/$defs/target"
+    },
+    "output_digests": {
+      "$ref": "#/$defs/target"
+    },
+    "target_authority_authenticated": {
+      "const": true
+    },
+    "targets_structurally_verified": {
+      "const": true
+    },
+    "repository_bytes_executed": {
+      "const": false
+    },
+    "provider_execution_allowed": {
+      "const": false
+    },
+    "source_revision_verified_against_git_head": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "target",
+        "source_path",
+        "source_sha256",
+        "source_size",
+        "definition_kind",
+        "line",
+        "column",
+        "end_line",
+        "end_column",
+        "chain_kinds",
+        "structure_sha256",
+        "structural_target_verified",
+        "behavior_verified",
+        "executed"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "invoke",
+            "output_digests"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "pattern": "^daedalus(?:\\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "definition_kind": {
+          "enum": [
+            "function",
+            "async_function",
+            "class"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chain_kinds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "function",
+              "async_function",
+              "class"
+            ]
+          }
+        },
+        "structure_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "structural_target_verified": {
+          "const": true
+        },
+        "behavior_verified": {
+          "const": false
+        },
+        "executed": {
+          "const": false
+        }
+      }
+    }
+  }
+}

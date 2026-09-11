@@ -38,7 +38,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from daedalus.projects import list_projects, load_project
+from daedalus.foundation.projects import list_projects, load_project
 
 from .core import SessionProbeResult
 

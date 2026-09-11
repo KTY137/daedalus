@@ -2,7 +2,7 @@
 
 The monitor was registered on the effect boundary and wired to
 ``begin_effect`` -- and then had no subcommand, so the only way to reach it was
-``python -m daedalus.token_monitor``.  A monitor nobody can invoke from the
+``python -m daedalus.interfaces.cli.token_monitor``.  A monitor nobody can invoke from the
 product's own CLI is a monitor that gets trusted and never run, which is worse
 than not having one: the registry row says the door is guarded, and the door is
 not there.
@@ -11,7 +11,7 @@ These probes pin the three halves of "wired": the verb dispatches from
 ``cli.main``'s argv, the registry row is no longer inventory-only, and the
 row's guard anchor still resolves against the tree it points at.
 
-MUTATION NOTE: delete the ``elif cmd == "tokens"`` arm in ``daedalus/cli.py``
+MUTATION NOTE: delete the ``elif cmd == "tokens"`` arm in ``daedalus/interfaces/cli/entry.py``
 and the first two tests go red.  Delete the ``begin_effect`` call in
 ``token_monitor.main`` and the anchor probe goes red (and the family probe in
 ``tests/test_cli_effect_boundary.py`` goes red with it).  Move that call below
@@ -53,7 +53,7 @@ def isolated_report(tmp_path, monkeypatch):
     probe slow and machine-dependent.
     """
     import daedalus.memory as memory
-    import daedalus.token_monitor as tm
+    import daedalus.interfaces.cli.token_monitor as tm
 
     mem = tmp_path / "memory"
     mem.mkdir()
@@ -85,7 +85,7 @@ def test_the_tokens_verb_is_reachable_from_cli_main_argv(
     canonical boundary.  Anything broken anywhere along that chain shows up
     here as an import error, a non-zero exit, or missing JSON.
     """
-    from daedalus.cli import main as cli_main
+    from daedalus.interfaces.cli.entry import main as cli_main
 
     monkeypatch.setattr(
         "sys.argv",
@@ -119,7 +119,7 @@ def test_the_tokens_verb_is_named_in_the_cli_usage():
     the usage line, which leaves the command working and undiscoverable --
     exactly the state this change was made to end.
     """
-    usage = (ROOT / "daedalus" / "cli.py").read_text(encoding="utf-8")
+    usage = (ROOT / "daedalus" / "interfaces" / "cli" / "entry.py").read_text(encoding="utf-8")
     assert "daedalus tokens" in usage
 
 
@@ -131,10 +131,10 @@ def test_the_registry_row_is_wired_and_claims_no_effect_it_does_not_make():
     )
     assert row.wiring is Wiring.CENTRAL
     assert row.surface is Surface.CLI
-    assert row.target == "daedalus.token_monitor:main"
+    assert row.target == "daedalus.interfaces.cli.token_monitor:main"
     assert row.guard_contracts == ("budget.process_guard",)
     assert {(anchor.target, anchor.call) for anchor in row.anchors} == {
-        ("daedalus.token_monitor:main", "begin_effect")
+        ("daedalus.interfaces.cli.token_monitor:main", "begin_effect")
     }
 
     # THE DISTINCTION THIS VERB EXISTS TO KEEP. It writes its own report, so
@@ -181,9 +181,9 @@ def test_the_registry_anchor_resolves_against_the_tree():
 def test_the_row_is_the_only_owner_of_its_target():
     """One target, one registry owner -- so adding the verb did not add a row."""
     owners = [
-        row for row in ENTRYPOINTS if row.target == "daedalus.token_monitor:main"
+        row for row in ENTRYPOINTS if row.target == "daedalus.interfaces.cli.token_monitor:main"
     ]
-    assert len(owners) == 1, f"daedalus.token_monitor:main has {len(owners)} owners"
+    assert len(owners) == 1, f"daedalus.interfaces.cli.token_monitor:main has {len(owners)} owners"
 
 
 def test_the_boundary_start_precedes_argument_parsing_in_the_source():
@@ -196,7 +196,7 @@ def test_the_boundary_start_precedes_argument_parsing_in_the_source():
     ordering was a property of the current code rather than of the function.
     """
     module = ast.parse(
-        (ROOT / "daedalus" / "token_monitor.py").read_text(encoding="utf-8")
+        (ROOT / "daedalus" / "interfaces" / "cli" / "token_monitor.py").read_text(encoding="utf-8")
     )
     main = next(
         node

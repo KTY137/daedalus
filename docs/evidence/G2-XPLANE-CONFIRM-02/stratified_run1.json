@@ -1,0 +1,118 @@
+{
+ "comparisons": [
+  {
+   "criterion": "14.1",
+   "reference": "code_only_bm25/raw#code_only",
+   "strata": {
+    "control_single_plane": {
+     "ci95_high": 0.097153,
+     "ci95_low": -0.204677,
+     "excludes_zero": false,
+     "losses": 16,
+     "n": 30,
+     "point": -0.05646,
+     "ties": 3,
+     "wins": 11
+    },
+    "cross_plane": {
+     "ci95_high": 0.110024,
+     "ci95_low": 0.041775,
+     "excludes_zero": true,
+     "losses": 244,
+     "n": 700,
+     "point": 0.075646,
+     "ties": 172,
+     "wins": 284
+    },
+    "pooled": {
+     "ci95_high": 0.103516,
+     "ci95_low": 0.03735,
+     "excludes_zero": true,
+     "losses": 260,
+     "n": 730,
+     "point": 0.070217,
+     "ties": 175,
+     "wins": 295
+    }
+   },
+   "subject": "fusion_rrf/raw#full"
+  },
+  {
+   "criterion": "14.1",
+   "reference": "bm25/raw",
+   "strata": {
+    "control_single_plane": {
+     "ci95_high": 0.03033,
+     "ci95_low": -0.173523,
+     "excludes_zero": false,
+     "losses": 19,
+     "n": 30,
+     "point": -0.070953,
+     "ties": 6,
+     "wins": 5
+    },
+    "cross_plane": {
+     "ci95_high": -0.059369,
+     "ci95_low": -0.102435,
+     "excludes_zero": true,
+     "losses": 284,
+     "n": 700,
+     "point": -0.081007,
+     "ties": 305,
+     "wins": 111
+    },
+    "pooled": {
+     "ci95_high": -0.059846,
+     "ci95_low": -0.10138,
+     "excludes_zero": true,
+     "losses": 303,
+     "n": 730,
+     "point": -0.080593,
+     "ties": 311,
+     "wins": 116
+    }
+   },
+   "subject": "fusion_rrf/raw#full"
+  },
+  {
+   "criterion": "14.3",
+   "reference": "separate_indices_bm25/raw#separate_indices",
+   "strata": {
+    "control_single_plane": {
+     "ci95_high": 0.097153,
+     "ci95_low": -0.204677,
+     "excludes_zero": false,
+     "losses": 16,
+     "n": 30,
+     "point": -0.05646,
+     "ties": 3,
+     "wins": 11
+    },
+    "cross_plane": {
+     "ci95_high": 0.107762,
+     "ci95_low": 0.039695,
+     "excludes_zero": true,
+     "losses": 244,
+     "n": 700,
+     "point": 0.073405,
+     "ties": 174,
+     "wins": 282
+    },
+    "pooled": {
+     "ci95_high": 0.101009,
+     "ci95_low": 0.035141,
+     "excludes_zero": true,
+     "losses": 260,
+     "n": 730,
+     "point": 0.068068,
+     "ties": 177,
+     "wins": 293
+    }
+   },
+   "subject": "fusion_rrf/raw#fusion"
+  }
+ ],
+ "n_control_single_plane": 30,
+ "n_cross_plane": 700,
+ "n_total": 730
+}

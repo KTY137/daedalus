@@ -2,7 +2,7 @@
 
 **These are not mockups.** Every image in this folder is a screenshot of the
 running application at `apps/web`, taken from the built bundle served by
-`python -m daedalus.cli web`, against the live local API. Two per theme —
+`python -m daedalus.interfaces.cli.entry web`, against the live local API. Two per theme —
 `karte-*.png` and `gespraech-*.png` — and `manifest.json` records what was on
 screen for each: the theme, the composition attributes, the nodes drawn, the
 module in the middle and the state line verbatim.

@@ -1,0 +1,69 @@
+{
+  "classification": "ALIGNED",
+  "plan_revision": 12,
+  "base_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "source_state": "working tree; existing staged and unstaged work preserved; no commit or promotion",
+  "publication_redaction": "Machine-local hostname and absolute temporary/workspace paths are replaced by explicit neutral tokens; test assertions, outcomes and timing are unchanged.",
+  "environment": {
+    "python": "3.13.14 (main, Jun 23 2026, 15:19:27) [MSC v.1944 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "interpreter": ".venv\\Scripts\\python.exe"
+  },
+  "command": ".\\.venv\\Scripts\\python.exe -m pytest -q tests/test_ikarus_computer_autonomy.py tests/test_ikarus_computer_loop.py tests/test_ikarus_computer_history.py tests/test_ikarus_computer_schedule.py tests/test_ikarus_computer_schedule_autonomy.py tests/test_ikarus_autonomy_review.py tests/interfaces/test_computer_watcher.py tests/runtimes/test_computer_service.py tests/runtimes/test_computer_browser.py tests/kernel/test_computer_policy.py tests/test_llm_client.py tests/test_ikarus_llm_voice.py tests/test_ikarus_shells.py tests/test_ikarus_stream.py tests/test_spine_ledger.py tests/test_effect_boundary.py::test_inventory_covers_package_and_tools_and_the_scan_reach_stays_pinned tests/test_registry_new_doors.py::test_the_new_rows_add_no_conformance_blocker --junitxml=docs/evidence/ikarus-autonomy-final-regression.xml",
+  "pytest_terminal_summary": {
+    "passed": 355,
+    "subtests_passed": 34,
+    "seconds": 490.55
+  },
+  "junit": {
+    "path": "docs/evidence/ikarus-autonomy-final-regression.xml",
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "389",
+    "time": "489.183",
+    "timestamp": "2026-09-05T10:19:07.651295+02:00",
+    "hostname": "redacted-local-host"
+  },
+  "registry_sha256": "a22bf29764c289e6ec15642f513844a2197bc6986edfab207f55d81bc9aac6cd",
+  "sha256": {
+    "daedalus/orchestration/ikarus/computer_loop.py": "8ffece3720596584b8ecd3d9961606a460a8661bd126fb0ea01f5b25a227e986",
+    "daedalus/orchestration/ikarus/computer_schedule.py": "e21938329f91a803928f94f29b8f28af5ec6bd8da1ffb7557a22d914d141781f",
+    "daedalus/orchestration/ikarus/computer_history.py": "8e93466702a02e06db3011b8a7896e465cf07fac2921607516ea2e7cca5ff01f",
+    "daedalus/runtimes/computer.py": "604e50bc6581ab8c22233eb36308767e29016e48593c720767e0b84eafde17f6",
+    "daedalus/kairos/scheduler.py": "a704118cc596813a89b20f4bc5af9f87882f5365895843d043816100fa04fd96",
+    "daedalus/kernel/events/ledger.py": "98bee991ac907a226025e1b84bf0cf06526f73a2ed54b76fbb42fa4a432d998b",
+    "daedalus/spine/effect_boundary.py": "055707248d66fb3dc0fe1d70260289f0cdb143f532e071f7e98ca4959596365f",
+    "apps/web/src/features/conversation/commands.ts": "d1ee846b8e77d6625f0fc669f1b7e9a8dd60c721087110bc03c45b2f19a9c34e",
+    "tests/test_ikarus_computer_autonomy.py": "012a6d1c83b71725f2677cb7420d64ef1de1368636e61e3074f3317d998719f6",
+    "tests/test_ikarus_computer_schedule_autonomy.py": "037c37e8856330d28bb3d7266a2d76b59df591e8ce088c80e5c339fb125f1a88",
+    "tests/test_ikarus_computer_history.py": "6d96bac8357c29b25e945553a269ccdf82664bb70c99f495dd816cf92d2a7f94",
+    "tests/test_ikarus_autonomy_review.py": "f8de8db96ba1e44b31ee68b6fa5cc05426f6251ce2a3cd24fa3ccbbda2b65024",
+    "tests/test_ikarus_computer_schedule.py": "0e71a006af3c6572df0ad15e9544ff43f0b4a5935a5f98dcb9d505d0472593fe",
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb",
+    "docs/evidence/ikarus-autonomy-final-regression.xml": "e444ecc122506c61611bb75cc1308813166874a844f0de7b39d0c4f1b4b93935"
+  },
+  "independent_browser_evidence": [
+    "Actual local Chromium; deterministic planner; loopback HTTP fixture only.",
+    "Cancellation during navigation: exactly one GET; started lease retained; no replay GET.",
+    "Finite series: two distinct missions and two GETs; no early or post-series dispatch.",
+    "Cancellation after due-read and before reservation prevents stale claim."
+  ],
+  "retained_prior_measurements": [
+    "docs/evidence/ikarus-autonomy-history-review.xml",
+    "docs/evidence/ikarus-autonomy-runtime-binding.xml",
+    "Negative intermediate fixture measurements retained in packets G1-IKARUS-21 and G1-IKARUS-22."
+  ],
+  "limits": [
+    "No live provider comparison, real user desktop input or rebuilt installer tested.",
+    "Existing release path-I/O and skill-loading fences remain in effect.",
+    "No user policy or personal task was created or enabled.",
+    "Automatic dispatch requires the existing running watcher; run-due is the manual alternative.",
+    "Cancellation is cooperative and cannot retract completed effects.",
+    "Interrupted effect claims are not replayed and can block other scheduled work for that root pending reconciliation.",
+    "Cancellation committed before cleanup interruption still blocks execution; unresolved row may remain until cancel is repeated.",
+    "Planning is advisory; model finish text alone is not verified general task success.",
+    "JUnit counts include subtests; overlapping earlier matrices are not additive."
+  ]
+}

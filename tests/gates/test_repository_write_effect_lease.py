@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import daedalus.gates.repository_write_effect_lease as effect_module
-from daedalus.gates.repository_write_classification import (
+import daedalus.gates.repository.write_effect_lease as effect_module
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     GuardDisposition,
@@ -16,18 +16,18 @@ from daedalus.gates.repository_write_classification import (
     TargetDisposition,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_effect_lease import (
+from daedalus.gates.repository.write_effect_lease import (
     EffectLeaseReplaySubject,
     RepositoryWriteEffectLeaseBindingError,
     RepositoryWriteEffectLeaseError,
     verify_repository_write_effect_leases,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     evidence_subject_sha256,
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_inventory_v2 import RepositoryWriteSurface
-from daedalus.gates.repository_write_runtime_conformance import (
+from daedalus.gates.repository.write_inventory_v2 import RepositoryWriteSurface
+from daedalus.gates.repository.write_runtime_conformance import (
     RepositoryWriteRuntimeConformanceReport,
     RuntimeConformanceReplayRecord,
 )

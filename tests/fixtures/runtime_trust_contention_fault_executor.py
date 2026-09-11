@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 import secrets
@@ -18,7 +20,7 @@ from typing import Any, Sequence
 import daedalus.kernel.effects as effects_module
 import daedalus.kernel.runtime_effects as runtime_effects_module
 import daedalus.runtimes.broker as broker_module
-import daedalus.runtimes.provider_observation as provider_observation_module
+import daedalus.runtimes.provider.observation as provider_observation_module
 import daedalus.runtimes.trust_store as trust_store_module
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
@@ -26,9 +28,11 @@ from daedalus.kernel.runtime_effects import (
     RuntimeBoundEffectAuthorization,
     issue_runtime_bound_effect_lease,
 )
-from daedalus.runtimes.broker import RuntimeProviderTrustFenceError, run_runtime_provider
+from daedalus.runtimes.broker import (
+    RuntimeProviderTrustFenceError,
+)
 from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )
@@ -73,6 +77,30 @@ _PROBE_SHA256 = "4" * 64
 _CONFORMANCE_SHA256 = "5" * 64
 _ENVELOPE_SHA256 = "6" * 64
 _MAX_RAW_EVIDENCE_BYTES = 64 * 1024
+
+
+def _load_test_broker():
+    """Load the callback fixture without making ``tests`` a Python package."""
+
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "runtimes"
+        / "runtime_provider_test_double.py"
+    )
+    name = "daedalus_runtime_provider_test_double_fixture"
+    module = sys.modules.get(name)
+    if module is not None:
+        return module.run_runtime_provider_test_double
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load runtime provider test double: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module.run_runtime_provider_test_double
+
+
+run_runtime_provider = _load_test_broker()
 
 
 class RuntimeTrustContentionFaultError(RuntimeError):
@@ -311,10 +339,24 @@ def _seed_record(
         state_changed_at=_timestamp(admitted),
         reason="",
     )
-    with ledger._connect() as connection:  # noqa: SLF001 - fixture setup
-        connection.execute("BEGIN IMMEDIATE")
-        ledger._insert(connection, record)  # noqa: SLF001 - fixture setup
-        connection.execute("COMMIT")
+    # The ``with`` here is load-bearing and is deliberately NOT replaced by
+    # ``contextlib.closing``. ``TerminalFenceContentionTrustLedger._connect``
+    # returns a ``_FenceArmingConnection``, which arms the competing writer only
+    # for a connection whose ``BEGIN`` arrives while ``_entered`` is False --
+    # that flag is set by ``__enter__``, and it is exactly how the fault tells
+    # the terminal fence's bare connection apart from every ordinary
+    # trust-store operation. Dropping the ``with`` would route this seeding
+    # ``BEGIN IMMEDIATE`` into the arming path and inject the writer at setup
+    # time instead of inside the fence's window. Only the missing ``close()``
+    # is added, wrapped around the unchanged transaction scope.
+    connection = ledger._connect()  # noqa: SLF001 - fixture setup
+    try:
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            ledger._insert(connection, record)  # noqa: SLF001 - fixture setup
+            connection.execute("COMMIT")
+    finally:
+        connection.close()
     return record
 
 
@@ -477,7 +519,7 @@ def _is_contention(exc: sqlite3.OperationalError) -> bool:
 
 
 def _terminal(path: Path, execution_id: str) -> dict[str, Any] | None:
-    with sqlite3.connect(str(path)) as connection:
+    with contextlib.closing(sqlite3.connect(str(path))) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
             "SELECT state, terminal_receipt_json FROM effect_executions "

@@ -6,23 +6,23 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
     issue_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderAdapterDescriptor,
     build_provider_invocation_registry_manifest,
 )
-from daedalus.runtimes.provider_invocation_resolution import (
+from daedalus.runtimes.provider.invocation_resolution import (
     ProviderInvocationResolutionAuthenticationError,
     ProviderInvocationResolutionBindingError,
     ProviderInvocationResolutionReceipt,
     resolve_provider_invocation_authority,
     verify_provider_invocation_resolution_receipt,
 )
-from daedalus.runtimes.provider_observation import issue_provider_observation_authority
+from daedalus.runtimes.provider.observation import issue_provider_observation_authority
 
 
 REVISION = "f2c7de5c65ba49f3a6de11dd1d5a26f89fa49f7b"

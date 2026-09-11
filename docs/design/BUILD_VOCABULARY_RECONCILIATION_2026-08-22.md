@@ -11,7 +11,7 @@ Master plan §7 fixes one chain:
     MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket
 
 `daedalus/build.py` carries a second decomposition vocabulary —
-`BuildSession` / `Wave` / `BuildTask` — and `daedalus/loop.py` drives real
+`BuildSession` / `Wave` / `BuildTask` — and `daedalus/orchestration/loop.py` drives real
 builds through it. Until the two are bound, a wave receipt names work that no
 mission claims, and the loop's `EffectBounds.mission_id` (`run_id`) is a third
 spelling of "mission" beside `mission_contract_for_candidate`'s
@@ -83,7 +83,7 @@ the wave/routing information the kernel contracts do not carry.
    `result["work_item"]` (the landed/bounced branch already gets it through
    `BuildTask.mark`); `_acquire_wave_lease` prefers `session.mission_id` over
    `bounds.mission_id`.
-2. `daedalus/loop.py` — `_session_for` passes `mission_id=self.run_id` so the
+2. `daedalus/orchestration/loop.py` — `_session_for` passes `mission_id=self.run_id` so the
    lease's mission and the session's mission are one string, not two.
 3. `tests/test_kernel_contracts_have_producers.py` — that census declares
    exactly which producers have no live caller.

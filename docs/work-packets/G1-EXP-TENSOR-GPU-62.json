@@ -1,0 +1,117 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-62",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "124927e43750f584e894c6dc68e8c7c9cc993d21",
+    "dependencies": "G1-EXP-TENSOR-GPU-60, G1-EXP-TENSOR-GPU-61",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "result"]},
+      "scope": {"source_fields": ["domain", "implementation"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "preserved_boundaries"]},
+      "acceptance_matrix": {"source_fields": ["verification", "evidence"]},
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "implementation"],
+        "projection_note": "The change is confined to the existing compile_relation_blocks owner and its existing relation-retention regression owner. Reverting commit e68002e47fc1b4d7e270eeda9d341a02a304ab45 restores label-coordinate rematerialization and from_coordinates readmission without changing Fourfold authority, rewriting history, or introducing a parallel projection path."
+      },
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundaries", "preserved_boundaries"]}
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-62",
+  "title": "Reuse Fourfold-bound indices in canonical relation block construction",
+  "classification": "implementation",
+  "domain": "fourfold-tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-07",
+  "masterplan": {
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "124927e43750f584e894c6dc68e8c7c9cc993d21",
+  "result": {
+    "summary": "The canonical multi-relation compiler now captures each Fourfold node's canonical plane index during its existing partition scan, carries those indices through retained Forest-edge and verified-binding records into semantic facts, and constructs blocks through the already-existing TypedRelationBlock._from_indexed owner. Label-coordinate reconstruction and the second from_coordinates validation/index-lookup pass are removed without changing relation semantics.",
+    "semantic_change": false,
+    "structural_change": "Replace label-coordinate rematerialization and readmission with Fourfold-bound integer coordinates reused by the existing indexed block constructor.",
+    "gardener": "The bounded block-construction duplication identified in GPU-60 is removed directly inside existing owners. No helper, cache, adapter, projection authority, registry, backend, fact store, public API, or duplicate test module was added."
+  },
+  "implementation": {
+    "production_change": true,
+    "production_and_test_commit": "e68002e47fc1b4d7e270eeda9d341a02a304ab45",
+    "production_blob": "daedalus/twin/relation_compiler.py@ac462f256c1eb673f55405f2179b996f830a7b44",
+    "test_blob": "tests/twin/test_relation_compiler_relation_retention.py@d1a3876cc6568031e675cf256c6ca4ad50f221b8",
+    "test_strategy": "The existing relation-retention regression owner monkeypatches TypedRelationBlock.from_coordinates to fail, proving retained same-plane compilation reuses the already-bound indexed construction path rather than performing a second coordinate-admission pass."
+  },
+  "preserved_boundaries": [
+    "GPU-56 exact verified Fourfold authority for cross-plane rows",
+    "GPU-57 retained same-plane hyperedge refusal",
+    "GPU-59 retained/unretained same-plane Boolean projection equivalence",
+    "GPU-61 empty-retention prehash prune",
+    "complete endpoint-plane closed-world refusal",
+    "observer-specific provenance materialization",
+    "Forest/Fourfold provenance-revision and global partition validation",
+    "public boolean_relation_block_from_fourfold compatibility surface"
+  ],
+  "verification": {
+    "implementation_run": {
+      "run_id": 34089160887,
+      "head": "e68002e47fc1b4d7e270eeda9d341a02a304ab45",
+      "base": "1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0",
+      "status": "completed/success",
+      "representative_python_3_12_hash_0": "403 passed, 2 skipped in 6.59s",
+      "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 all completed/success",
+      "public_api": "success",
+      "isolated_wheel": "success",
+      "complete_repository_collection": "success",
+      "complete_suite_manual_only": "skipped"
+    },
+    "pr_wide_tauri": {
+      "run_id": 34089160831,
+      "status": "completed/failure",
+      "failed_step": "Rust formatting",
+      "note": "This independent PR-wide desktop failure already existed on the GPU-61 closure line and is not treated as Tensor/Fourfold success evidence."
+    },
+    "full_repository_suite": "not claimed",
+    "exact_closure_head_ci": "required after this packet-record commit"
+  },
+  "evidence": {
+    "masterplan_blob": "docs/IKARUS_ARIADNE_MASTER_PLAN.md@49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "gpu60_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-60.json@816dbf29c5e73e0eded98b22152fa9137f4704c6",
+    "gpu61_packet_blob": "docs/work-packets/G1-EXP-TENSOR-GPU-61.json@d3fb26d53a168b5edc9c12ef36edfff3c9c7c734",
+    "prechange_compiler_blob": "daedalus/twin/relation_compiler.py@eaf0540ce9c8dbd8a3baf86f205b15ff53638ac0",
+    "production_blob": "daedalus/twin/relation_compiler.py@ac462f256c1eb673f55405f2179b996f830a7b44",
+    "prechange_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@da30355ac112566ad554e870f4e5dbf463ed3bf3",
+    "final_test_blob": "tests/twin/test_relation_compiler_relation_retention.py@d1a3876cc6568031e675cf256c6ca4ad50f221b8",
+    "campaign_issue": 239,
+    "pull_request": 317
+  },
+  "claim_boundaries": {
+    "correctness": "Claimed only for the tested indexed-construction refactor and the adjacent existing Fourfold/Tensor contract surface exercised by the focused workflow.",
+    "performance": "No benchmark claim. The packet structurally removes duplicate label-coordinate reconstruction and index lookup; it does not claim a measured latency improvement.",
+    "memory": "none",
+    "gpu_or_tensor_core": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "diagnostics": "CPU bitset and TypedRelationBlock profiles remain diagnostic-only with claim=none.",
+    "full_suite_green": false,
+    "all_pr_checks_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}

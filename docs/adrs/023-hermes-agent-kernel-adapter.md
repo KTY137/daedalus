@@ -2,8 +2,9 @@
 
 ## Status
 
-Accepted for adapter implementation and fixture-backed verification on
-`g1/ikarus-runtime-invocation-binding-07d3` (2026-08-30).
+Selected for adapter implementation and fixture-backed verification by
+`G1-IKARUS-13` on the current Gate-1 checkout (2026-08-31). This is an
+implementation candidate, not an owner merge, promotion or Gate decision.
 
 Live model invocation and production admission remain deferred until the full
 containment, unknown-outcome and exact-upstream compatibility evidence is green.

@@ -53,7 +53,7 @@ declared ``dimension`` (default :data:`DEFAULT_DIMENSION`).  That is what makes
 than approximately true -- a probe call to discover the dimension would break it.
 
 ``model_revision`` defaults to ``None`` on purpose.  The shipped reader,
-``daedalus.context_plan.latent_memory_seed_scores``, searches with no spec, so
+``daedalus.orchestration.context_plan.latent_memory_seed_scores``, searches with no spec, so
 the spec it resolves has ``model_revision=None``.  Pinning a revision here
 produces a *different* ``index_id``, and ``daedalus context --latent`` would
 report ``index_unavailable`` against a perfectly good index.  The worker warns

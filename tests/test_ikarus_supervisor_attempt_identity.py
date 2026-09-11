@@ -10,8 +10,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import daedalus.ikarus_claude_attempt_handoff as handoff  # noqa: E402
-from daedalus.ikarus_supervisor import (  # noqa: E402
+import daedalus.orchestration.ikarus.claude_attempt_handoff as handoff  # noqa: E402
+from daedalus.orchestration.execution.attempts import (  # noqa: E402
+    compose_task_attempt,
+)
+from daedalus.orchestration.ikarus.supervisor import (  # noqa: E402
     MissionSupervisor,
     PlannedItem,
     RoleHarness,
@@ -180,6 +183,11 @@ def _run_product_path(
             )
         },
         gate_timeout_s=120,
+        # PORT NOTE: main requires an injected attempt_factory (workspace and
+        # evaluator composition is owned by orchestration); the originating
+        # lane still constructed TaskAttempt inline. Inject the canonical
+        # composer rather than reinstating the inline construction.
+        attempt_factory=compose_task_attempt,
     )
     return supervisor, supervisor.run(session, mission, (item,))
 

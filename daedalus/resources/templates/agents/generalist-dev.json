@@ -1,0 +1,11 @@
+{
+  "name": "generalist-dev",
+  "call_name": "Dev",
+  "model_tier": "opus",
+  "external_ok": false,
+  "owns": ["src/", "lib/", "app/"],
+  "triggers": ["implement", "feature", "bug", "fix", "refactor", "function", "module", "api", "endpoint"],
+  "must_read": ["README.md"],
+  "output_schema": "agent_report_v1",
+  "category": "implementation"
+}

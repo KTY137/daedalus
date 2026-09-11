@@ -9,10 +9,10 @@ on:
       - main
       - g1/ikarus-tool-scope-05
     paths:
-      - "daedalus/ikarus_effect_bridge.py"
-      - "daedalus/ikarus_oneshot.py"
-      - "daedalus/ikarus_tool_scope.py"
-      - "daedalus/kernel/contracts.py"
+      - "daedalus/orchestration/ikarus/effect_bridge.py"
+      - "daedalus/orchestration/ikarus/oneshot.py"
+      - "daedalus/orchestration/ikarus/tool_scope.py"
+      - "daedalus/kernel/contracts/**"
       - "daedalus/kernel/effects.py"
       - "daedalus/schemas.py"
       - "daedalus/spine/effect_boundary.py"
@@ -53,10 +53,10 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: >-
           python -m py_compile
-          daedalus/ikarus_effect_bridge.py
-          daedalus/ikarus_oneshot.py
-          daedalus/ikarus_tool_scope.py
-          daedalus/kernel/contracts.py
+          daedalus/orchestration/ikarus/effect_bridge.py
+          daedalus/orchestration/ikarus/oneshot.py
+          daedalus/orchestration/ikarus/tool_scope.py
+          daedalus/kernel/contracts/*.py
           daedalus/kernel/effects.py
           tests/test_ikarus_effect_bridge.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json

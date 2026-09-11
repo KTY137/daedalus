@@ -1,0 +1,179 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-114",
+  "status": "closed-implementation",
+  "title": "Remove redundant outer fact-bucket default allocation",
+  "date_berlin": "2026-09-09",
+  "branch": "exp/tensor-kernel-contract-01",
+  "objective": "Delete the allocation-shaped redundancy in _record_fact where facts.setdefault(signature, {}) evaluated a fresh empty-dict default for every retained fact even after the signature bucket already existed, while preserving the existing single fact-map owner and all Fourfold/Tensor authority checks.",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "gate": 1,
+    "alignment": "ALIGNED"
+  },
+  "issue": 239,
+  "pr": 331,
+  "branch_sync": {
+    "prior_tensor_head": "1ca4e4de187072922750d53dbda33fe8de6b1c6c",
+    "main_head_before_packet": "094f3567fed318154f73b3f326ff150a4221f323",
+    "relationship": "The prior tensor head was the merge base and main was 348 commits ahead with zero tensor-branch-only commits. The canonical tensor branch was therefore fast-forwarded to main without force before new work.",
+    "force_update": false,
+    "new_remote_branch": false
+  },
+  "scope": {
+    "production": [
+      "daedalus/twin/relation_compiler.py"
+    ],
+    "focused_contract": [
+      "tests/twin/test_relation_compiler_fact_bucket_reuse.py::test_record_fact_creates_and_reuses_bucket_without_outer_setdefault"
+    ],
+    "existing_semantic_oracles": [
+      "tests/twin/test_relation_compiler_observer_semantics.py",
+      "tests/twin/test_relation_compiler_selected_pruning.py"
+    ],
+    "new_remote_branches": 0,
+    "new_public_apis": 0,
+    "new_caches": 0,
+    "new_indexes": 0,
+    "new_compilers": 0,
+    "new_fact_stores": 0,
+    "production_files_changed": 1,
+    "test_files_added": 1
+  },
+  "change": {
+    "before": "bucket = facts.setdefault(signature, {})",
+    "after": "bucket = facts.get(signature); create and insert one empty dict only when the signature has no bucket",
+    "reason": "Python evaluates call arguments before dict.setdefault executes, so the previous empty-dict default was constructed on every _record_fact call even when discarded for an existing signature. The fact map is already the sole local owner, so explicit get/create deletes this work without adding state or abstraction.",
+    "inner_coordinate_semantics_changed": false,
+    "authority_semantics_changed": false,
+    "observer_semantics_changed": false
+  },
+  "focused_contract_finding": {
+    "mechanism": "A dict subclass used as the outer facts map raises if outer setdefault is called. Two scalar facts under the same RelationSignature must create one bucket, preserve that bucket object identity, and retain both coordinates.",
+    "outer_setdefault_calls_allowed": 0,
+    "bucket_identity_reused": true
+  },
+  "evidence": {
+    "implementation_commit": "259da65519385f3d2b6323d9a872f7d7e01136be",
+    "production_blob": "daedalus/twin/relation_compiler.py@30d4c2570662209ac7a06ef3d360b00b6d97ae37",
+    "focused_contract_commit": "532bda95238292216771b62cc6a61d41676f96ad",
+    "focused_contract_blob": "tests/twin/test_relation_compiler_fact_bucket_reuse.py@0e054f9203b5e8c8b4bcc5331bf0e2acbb290502",
+    "fourfold_tensor_run": {
+      "id": 34332836133,
+      "head_sha": "532bda95238292216771b62cc6a61d41676f96ad",
+      "status": "completed",
+      "conclusion": "success",
+      "manual_full_suite": "skipped"
+    },
+    "tauri_run": {
+      "id": 34332836200,
+      "head_sha": "532bda95238292216771b62cc6a61d41676f96ad",
+      "status_at_packet_close": "in_progress",
+      "conclusion_at_packet_close": null
+    }
+  },
+  "diagnostic_comparison": {
+    "claim": "none",
+    "case": "existing frozen 512-node, row-width-16 relation-delta diagnostic with 8,193 delta Forest edges/facts",
+    "before": {
+      "head": "1ca4e4de187072922750d53dbda33fe8de6b1c6c",
+      "run": 34326955404,
+      "artifact": 10094159497,
+      "artifact_zip_sha256": "4acb6bfc12b9044eacc2900c709f91946309d8c5503ab065dabac309f0d520bb",
+      "report_sha256": "ea43c3116de14ddcfa9da72abb395bacaf71a41cbd19e9930f3e5576ef3b2aee",
+      "fact_aggregation_direct_calls": 8193,
+      "fact_aggregation_direct_cumulative_ms_median": 12.570413,
+      "fact_aggregation_direct_self_ms_median": 5.338137
+    },
+    "after": {
+      "head": "532bda95238292216771b62cc6a61d41676f96ad",
+      "run": 34332836133,
+      "artifact": 10096473571,
+      "artifact_zip_sha256": "bfa27ca29a285c4303f3696d7a989312011262c819e32512de479b1ce292c4db",
+      "report_sha256": "4ea88fd5fc79d5d330dce5b85b26cb86e5469882c4e8c4e9e817f33036e75d36",
+      "fact_aggregation_direct_calls": 8193,
+      "fact_aggregation_direct_cumulative_ms_median": 10.945027,
+      "fact_aggregation_direct_self_ms_median": 4.661928
+    },
+    "interpretation": "The hosted diagnostics are consistent with lower _record_fact profiling cost after the deletion, but they are separate shared-runner executions and are not treated as an isolated performance or memory experiment. The only promoted claim is the mechanically pinned deletion of repeated outer default-dict construction."
+  },
+  "gardener_outcome": {
+    "decision": "delete-redundant-default-allocation",
+    "parallel_abstractions_added": 0,
+    "persistent_state_added": 0,
+    "authority_layers_added": 0,
+    "bloat_added": 0
+  },
+  "claims": {
+    "performance_win": false,
+    "memory_win": false,
+    "exact_documentation_closure_head_green": false,
+    "focused_implementation_head_green": true,
+    "full_suite_green": false,
+    "gpu_tensor_core_win": false,
+    "tensor_vs_forest_win": false,
+    "crewai_win": false,
+    "alphaevolve_win": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_touched": false,
+    "archive_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "next_step": "GPU-115 should finish the same fact-owner audit before moving elsewhere: inspect the remaining entries = facts.get(signature, {}) selected-block path and evidence-only bucket.setdefault(coordinate, set()) path for discarded default-container construction. Delete only defaults proven redundant in existing-owner paths; preserve explicit empty-block semantics and evidence-dag alternative-witness aggregation, and do not introduce a helper cache or second fact store.",
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-114",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "532bda95238292216771b62cc6a61d41676f96ad",
+    "dependencies": "exp/tensor-kernel-contract-01",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title",
+          "objective",
+          "claims"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "scope"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "change",
+          "focused_contract_finding"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "evidence"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "next_step"
+        ],
+        "projection_note": "Rollback removes this research record and the focused assertions it cites. The packet adds no production code path, projection authority, cache, public API or persisted runtime state, so there is nothing else to migrate or revert."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "evidence",
+          "gardener_outcome"
+        ]
+      }
+    }
+  }
+}

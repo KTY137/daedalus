@@ -1,192 +1,132 @@
+"""Upstream Stop acceptance through the canonical durable conversation API.
+
+The process-local /api/ikarus/cancel proposal is superseded. Cancellation
+identity, idempotency, terminal proof and restart projection belong to the
+existing ConversationRequestManager and its canonical spine receipts.
+"""
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 import threading
 import time
-from types import SimpleNamespace
 from unittest import mock
 
-from daedalus import ikarus_cancellation, web_api
+import pytest
+
+from daedalus.orchestration.ikarus import cancellation as ikarus_cancellation
+from daedalus.interfaces.http import web_api
+from daedalus.orchestration import conversation, conversation_requests
+from daedalus.orchestration.ikarus import shell
 
 
-def _post_handler(body: dict, registry: ikarus_cancellation.CancellationRegistry):
-    handler = SimpleNamespace(path="/api/ikarus/cancel", _send_json=mock.Mock())
-    with mock.patch.object(web_api, "_read_body", return_value=body), \
-         mock.patch.object(web_api.ikarus_cancellation, "default_registry", return_value=registry):
-        web_api.DaedalusHandler._handle_post(handler)
+def _post(monkeypatch, manager, conversation_id, request_id, body):
+    handler = object.__new__(web_api.DaedalusHandler)
+    handler.path = f"/api/conversations/{conversation_id}/turns/{request_id}/cancel-requests"
+    handler._send_json = mock.Mock()
+    monkeypatch.setattr(web_api, "_read_body", lambda _: body)
+    monkeypatch.setattr(conversation_requests, "default_manager", lambda: manager)
+    web_api.DaedalusHandler._handle_post(handler)
     return handler._send_json
 
 
-def test_cancel_endpoint_returns_positive_exact_owner_release_evidence() -> None:
-    registry = ikarus_cancellation.CancellationRegistry()
-    request_id = "request-http-stop-001"
-    entered = threading.Event()
+def _wait(manager, request_id, wanted):
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        status = manager.status(request_id)
+        if status.get("cancellation", {}).get("status") == wanted:
+            return status
+        time.sleep(0.01)
+    raise AssertionError(manager.status(request_id))
 
-    def owner() -> None:
-        with registry.claim(request_id) as signal:
+
+@pytest.fixture
+def live_request(tmp_path):
+    store = conversation.ConversationStore(tmp_path / "spine.sqlite3")
+    entered = threading.Event()
+    holder = {}
+    signal = ikarus_cancellation.CancellationSignal("owned-child")
+    def frames():
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        holder["process"] = proc
+        try:
+            yield "start", {"intent": "chat"}
             entered.set()
             while not signal.cancelled():
                 time.sleep(0.002)
-
-    thread = threading.Thread(target=owner, daemon=True)
-    thread.start()
-    assert entered.wait(1.0)
-
-    send = _post_handler({"request_id": request_id}, registry)
-    thread.join(timeout=1.0)
-    assert not thread.is_alive()
-    payload = send.call_args.args[0]
-    assert payload["cancellation"] == {
-        "request_id": request_id,
-        "active": True,
-        "newly_cancelled": True,
-        "request_finished": True,
-    }
-
-
-def test_cancel_endpoint_surfaces_owned_cli_process_exit_evidence() -> None:
-    """The HTTP stop receipt must preserve stronger local child evidence.
-
-    Request-owner completion and child-process termination are different facts.
-    The endpoint already serialises ``StopReceipt.to_dict()``; this regression
-    proves a Claude/Codex-style owned child can now add its exact local terminal
-    receipt without inventing a second HTTP state store.
-    """
-    registry = ikarus_cancellation.CancellationRegistry()
-    request_id = "request-http-child-001"
-    entered = threading.Event()
-
-    def owner() -> None:
-        with registry.claim(request_id) as signal:
-            proc = subprocess.Popen(
-                [sys.executable, "-c", "import time; time.sleep(60)"],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            try:
-                entered.set()
-                while not signal.cancelled():
-                    time.sleep(0.002)
-                ikarus_cancellation.terminate_owned_subprocess(
-                    signal, proc, grace_s=0.1)
-            finally:
-                if proc.poll() is None:
-                    proc.kill()
-                    proc.wait(timeout=5)
-
-    thread = threading.Thread(target=owner, daemon=True)
-    thread.start()
-    assert entered.wait(1.0)
-
-    send = _post_handler({"request_id": request_id}, registry)
-    thread.join(timeout=1.0)
-    assert not thread.is_alive()
-
-    cancellation = send.call_args.args[0]["cancellation"]
-    assert cancellation["active"] is True
-    assert cancellation["newly_cancelled"] is True
-    assert cancellation["request_finished"] is True
-    assert cancellation["subprocess"] == {
-        "request_id": request_id,
-        "cancellation_requested": True,
-        "was_running": True,
-        "terminate_sent": True,
-        "kill_sent": False,
-        "process_exited": True,
-        "returncode": cancellation["subprocess"]["returncode"],
-    }
-    assert cancellation["subprocess"]["returncode"] is not None
+            ikarus_cancellation.terminate_owned_subprocess(signal, proc, grace_s=0.1)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=2)
+    stream = shell._CancellableAskStream(frames(), lambda value: value,
+        signal._event, signal)
+    manager = conversation_requests.ConversationRequestManager(store,
+        stream_factory=lambda *args, **kwargs: stream)
+    created, _ = manager.create(conversation_id="conv-stop", client_request_id="request-1",
+        project="sample", message="hello")
+    assert entered.wait(3.0)
+    try:
+        yield manager, created["request_id"], holder, store
+    finally:
+        stream.cancel()
+        worker = manager._runtime_for(created["request_id"]).worker
+        worker.join(timeout=3.0)
+        proc = holder.get("process")
+        if proc is not None and proc.poll() is None:
+            proc.kill(); proc.wait(timeout=2)
+        store.close()
 
 
-def test_cancel_endpoint_rejects_malformed_identity_without_owner_lookup() -> None:
-    registry = ikarus_cancellation.CancellationRegistry()
-    send = _post_handler({"request_id": "bad"}, registry)
-    assert send.call_args.kwargs["status"] == 400
-    assert "request_id" in send.call_args.args[0]["error"]
-    assert registry.active_count() == 0
+def test_cancel_endpoint_surfaces_owned_cli_process_exit_evidence(live_request, monkeypatch):
+    manager, request_id, holder, store = live_request
+    send = _post(monkeypatch, manager, "conv-stop", request_id,
+                 {"client_cancel_id": "stop-1"})
+    assert send.call_args.kwargs["status"] == 202
+    status = _wait(manager, request_id, "confirmed")
+    cancellation = status["cancellation"]
+    child = cancellation["subprocess"]
+    assert child["request_id"] == request_id
+    assert child["cancellation_requested"] is True
+    assert child["was_running"] is True
+    assert child["terminate_sent"] is True
+    assert child["process_exited"] is True
+    assert child["returncode"] is not None
+    assert cancellation["provider_process_terminated"] is True
+    assert holder["process"].poll() is not None
+    events = manager.events(request_id)["events"]
+    stopped = next(row["data"] for row in events if row["event"] == "cancelled")
+    assert stopped["subprocess"] == child
+    # Same canonical cancellation replays its exact proof after manager restart.
+    resumed = conversation_requests.ConversationRequestManager(store)
+    replay = resumed.cancel(request_id, client_cancel_id="stop-1")
+    assert replay["subprocess"] == child
+    assert replay["cancellation_id"] == cancellation["cancellation_id"]
+    assert replay["status"] == "confirmed"
 
 
-class _BrokenWriter:
-    def write(self, _data: bytes) -> int:
-        raise BrokenPipeError("client gone")
-
-    def flush(self) -> None:
-        return None
-
-
-def test_sse_disconnect_cancels_and_releases_exact_live_signal() -> None:
-    registry = ikarus_cancellation.CancellationRegistry()
-    request_id = "request-http-stream-001"
-    captured: dict[str, object] = {}
-
-    def fake_stream(*_args, cancellation=None, **_kwargs):
-        captured["signal"] = cancellation
-        yield "start", {"intent": "chat", "provider_used": "ollama_http"}
-        yield "final", {"ok": True}
-
-    handler = SimpleNamespace(
-        close_connection=False,
-        wfile=_BrokenWriter(),
-        send_response=lambda *_a, **_k: None,
-        send_header=lambda *_a, **_k: None,
-        end_headers=lambda *_a, **_k: None,
-        _send_json=mock.Mock(),
-    )
-    qs = {
-        "project": ["fixture"],
-        "message": ["hello"],
-        "request_id": [request_id],
-    }
-    with mock.patch.object(web_api.ikarus_cancellation, "default_registry", return_value=registry), \
-         mock.patch.object(web_api.ikarus_os, "ask_stream", side_effect=fake_stream), \
-         mock.patch("daedalus.progress.open_unit", side_effect=RuntimeError("skip progress")):
-        web_api.DaedalusHandler._handle_ikarus_stream(handler, qs)
-
-    signal = captured["signal"]
-    assert type(signal) is ikarus_cancellation.CancellationSignal
-    assert signal.request_id == request_id
-    assert signal.cancelled()
-    assert signal.finished()
-    assert registry.active_count() == 0
+def test_cancel_endpoint_rejects_foreign_conversation_before_signalling(live_request, monkeypatch):
+    manager, request_id, holder, _ = live_request
+    send = _post(monkeypatch, manager, "foreign", request_id,
+                 {"client_cancel_id": "stop-foreign"})
+    assert send.call_args.kwargs["status"] == 404
+    assert holder["process"].poll() is None
+    assert manager.status(request_id)["cancellation"] is None
 
 
-def test_sse_start_frame_exposes_the_exact_request_identity() -> None:
-    registry = ikarus_cancellation.CancellationRegistry()
-    request_id = "request-http-start-001"
-    chunks: list[bytes] = []
+def test_cancel_endpoint_rejects_malformed_identity_without_provider_effect(live_request, monkeypatch):
+    manager, _, holder, _ = live_request
+    send = _post(monkeypatch, manager, "conv-stop", "bad", {"client_cancel_id": "stop-bad"})
+    assert send.call_args.kwargs["status"] == 404
+    assert holder["process"].poll() is None
 
-    class Writer:
-        def write(self, data: bytes) -> int:
-            chunks.append(data)
-            return len(data)
-        def flush(self) -> None:
-            return None
 
-    def fake_stream(*_args, cancellation=None, **_kwargs):
-        assert cancellation.request_id == request_id
-        yield "start", {"intent": "chat", "provider_used": "ollama_http"}
-        yield "final", {"ok": True, "intent": "chat", "assistant": "done",
-                        "provider_used": "ollama_http"}
-
-    handler = SimpleNamespace(
-        close_connection=False,
-        wfile=Writer(),
-        send_response=lambda *_a, **_k: None,
-        send_header=lambda *_a, **_k: None,
-        end_headers=lambda *_a, **_k: None,
-        _send_json=mock.Mock(),
-    )
-    qs = {"project": ["fixture"], "message": ["hello"], "request_id": [request_id]}
-    with mock.patch.object(web_api.ikarus_cancellation, "default_registry", return_value=registry), \
-         mock.patch.object(web_api.ikarus_os, "ask_stream", side_effect=fake_stream), \
-         mock.patch("daedalus.progress.open_unit", side_effect=RuntimeError("skip progress")):
-        web_api.DaedalusHandler._handle_ikarus_stream(handler, qs)
-
-    body = b"".join(chunks).decode("utf-8")
-    start_data = body.split("event: start\n", 1)[1].split("\n\n", 1)[0]
-    payload = json.loads(start_data.removeprefix("data: "))
-    assert payload["request_id"] == request_id
-    assert registry.active_count() == 0
+def test_durable_observation_keeps_identity_without_replaying_or_stopping_provider(live_request):
+    manager, request_id, holder, _ = live_request
+    first = manager.events(request_id)
+    second = manager.events(request_id)
+    assert first["status"]["request_id"] == request_id
+    assert first["events"] == second["events"]
+    assert manager.status(request_id)["cancellation"] is None
+    assert holder["process"].poll() is None

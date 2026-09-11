@@ -9,14 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.ikarus_effect_bridge import (
+from daedalus.orchestration.ikarus.effect_bridge import (
     IkarusEffectBridgeRefused,
     build_oneshot_effect_execution_request,
     build_oneshot_effect_lease_request,
     validate_oneshot_mission_attempt,
 )
-from daedalus.ikarus_oneshot import OneShotRequest
-from daedalus.ikarus_tool_scope import project_oneshot_tool_scope
+from daedalus.orchestration.ikarus.oneshot import OneShotRequest
+from daedalus.orchestration.ikarus.tool_scope import project_oneshot_tool_scope
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.schemas import (
@@ -694,7 +694,7 @@ def test_execution_rejects_kernel_request_with_foreign_mission_trace(tmp_path):
 
 
 def test_bridge_has_no_provider_policy_lease_or_io_authority():
-    path = ROOT / "daedalus/ikarus_effect_bridge.py"
+    path = ROOT / "daedalus/orchestration/ikarus/effect_bridge.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports = {
         alias.name.split(".")[0]

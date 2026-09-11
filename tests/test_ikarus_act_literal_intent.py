@@ -7,7 +7,7 @@ from copy import deepcopy
 
 import pytest
 
-from daedalus.ikarus_act import may_act
+from daedalus.orchestration.ikarus.act import may_act
 
 
 OBJECTIVE = "build a settings dialog"

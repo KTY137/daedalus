@@ -124,7 +124,7 @@ _PLACEHOLDER = re.compile(r"[*?<>\[\]{}]|\.\.\.")
 _DOTTED = re.compile(r"^[a-z_][a-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+$")
 
 # `path/to/mod.py::symbol` and `path/to/mod.py:symbol`. The colon form requires
-# an IDENTIFIER after it, so `daedalus/cli.py:794` (a line number) is not read
+# an IDENTIFIER after it, so `daedalus/interfaces/cli/entry.py:794` (a line number) is not read
 # as a symbol that is missing.
 _PATH_SYMBOL = re.compile(r"^([\w./-]+\.py)::?([A-Za-z_][A-Za-z0-9_]*)$")
 
@@ -337,6 +337,11 @@ _EXCLUDED_DIRS: frozenset[str] = frozenset({
     ".mypy_cache", ".pytest_cache", ".worktrees", "site-packages", ".room",
 })
 
+_GENERATED_PYTHON_ROOTS: tuple[str, ...] = (
+    "apps/web/src-tauri/backend",
+    "apps/web/src-tauri/target",
+)
+
 
 def _repository_python_files(root: Path) -> list[Path]:
     """Every ``*.py`` in THIS checkout, nested checkouts excluded.
@@ -372,6 +377,9 @@ def _repository_python_files(root: Path) -> list[Path]:
             for name in dirnames
             if name not in _EXCLUDED_DIRS
             and not (here / name / ".git").exists()
+            and not (here / name).relative_to(root).as_posix().startswith(
+                _GENERATED_PYTHON_ROOTS
+            )
         )
         for name in sorted(filenames):
             if name.endswith(".py"):

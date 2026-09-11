@@ -2,7 +2,7 @@
 title: Feature backlog
 type: backlog
 status: living
-updated: 2026-07-30
+updated: 2026-09-05
 ---
 
 # Feature backlog
@@ -14,8 +14,8 @@ and has tests, **partial** means code exists but is unwired or untested,
 **designed** means a plan exists, **idea** means it was argued for and nothing
 was written.
 
-Related: [[Graph delta as fitness]], [[Type graph]], [[Data layer]],
-[[Knowledge layer]], [[Observation layer]], [[Agents hold no state]].
+Related: [Graph delta as fitness](graph-delta-as-fitness.md), [Type graph](architecture/type-graph.md), [Data layer](architecture/data-layer.md),
+[Knowledge layer](architecture/knowledge-layer.md), [Observation layer](architecture/observation-layer.md), [Agents hold no state](decisions/agents-hold-no-state.md).
 
 ## The four graphs
 
@@ -70,7 +70,7 @@ over the union, and a separately evaluated algorithm.
   arm; false alarm **0 of 38 real commits** on pure-deletion. Both regenerable:
   `python -m daedalus.eval.graph_delta . --held-out` and `--specificity`.
   *Supersedes the earlier 75.3% / 0.9% / 0.7% figures, which had no committed
-  command and cannot be reconciled — see [[Night shift 2026-07-30]].*
+  command and cannot be reconciled — see [Night shift 2026-07-30](night-shift-2026-07-30.md).*
   Remaining blind spot: **14 of 68 `change_constant` mutants** move no layer.
 - **Mutation generator**, built — six AST operators, deterministic,
   trivial-compiler-equivalence check, and no-go filters that **now actually
@@ -79,7 +79,7 @@ over the union, and a separately evaluated algorithm.
   inside `__main__` blocks, published on `generate.last_filtered`.
 - **Semantics-preserving generator — partial.** The other half of the cold
   start: rename a local, reorder independent statements, reformat. Good patches
-  by construction, exactly as mutants are bad ones. `daedalus/preservation.py`
+  by construction, exactly as mutants are bad ones. `daedalus/foundation/preservation.py`
   (15.3k) exists on branch `experiment/deepseek-lab`, unmerged and under
   adversarial review. Without it a new project has no specificity arm.
 - **Intent plus delta, never delta alone.** A fix that deletes a check and a
@@ -135,8 +135,8 @@ The transition from declared to measured is observable rather than asserted.
   MEASURED (what is wrong) and DECLARED (what is wanted). The picker today only
   has the first.
 - **Temporary vs static agents** — resolved: agents hold no state, knowledge
-  does. See [[Agents hold no state]].
-- **Shift / working window** — built: `daedalus/shift.py` + prompt hook +
+  does. See [Agents hold no state](decisions/agents-hold-no-state.md).
+- **Shift / working window** — built: `daedalus/interfaces/cli/shift.py` + prompt hook +
   ticker. The same object an autonomous Ikarus loop reads to decide whether to
   continue.
 

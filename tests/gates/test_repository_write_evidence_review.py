@@ -4,7 +4,7 @@ import ast
 import dataclasses
 import inspect
 
-import daedalus.gates.repository_write_evidence as evidence
+import daedalus.gates.repository.write_evidence as evidence
 
 
 def test_contract_has_no_execution_release_or_promotion_authority() -> None:

@@ -12,13 +12,13 @@ import pytest
 import daedalus.claude_bridge as claude_bridge
 import daedalus.providers.claude_cli as claude_provider
 import daedalus.runtimes.broker as lifecycle
-from daedalus.runtimes.provider_invocation_abi import (
+from daedalus.runtimes.provider.invocation_abi import (
     issue_provider_invocation_abi_contract,
 )
-from daedalus.runtimes.provider_invocation_payload import (
+from daedalus.runtimes.provider.invocation_payload import (
     build_provider_invocation_payload,
 )
-from daedalus.runtimes.sealed_broker import run_sealed_runtime_provider
+from daedalus.runtimes.broker import run_runtime_provider as run_sealed_runtime_provider
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -230,31 +230,18 @@ def test_sealed_output_evidence_failure_stays_started_for_reconciliation(
     assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"
 
 
-def test_public_ask_claude_surface_accepts_one_exact_bundle_only() -> None:
+def test_public_ask_claude_surface_requires_complete_keyword_authority() -> None:
     parameters = inspect.signature(claude_bridge.ask_claude).parameters
-    old_authority_fields = {
-        "runtime_authorization",
-        "effect_execution",
-        "workspace_grant",
-        "invocation_authority",
-        "invocation_payload",
-        "invocation_abi",
-        "observation_binding_ledger",
-        "executable_registry",
-        "pre_admission",
-        "observation_authority",
-    }
-    assert "sealed_bundle" in parameters
-    assert parameters["sealed_bundle"].kind is inspect.Parameter.KEYWORD_ONLY
-    assert old_authority_fields.isdisjoint(parameters)
-    assert {field.name for field in fields(claude_bridge.ClaudeSealedInvocationBundle)} == (
-        old_authority_fields - {"observation_authority"}
-    )
+    for name in ("runtime_authorization", "effect_execution", "workspace_grant",
+                 "invocation_authority", "invocation_payload", "invocation_abi",
+                 "observation_binding_ledger", "executable_registry", "pre_admission"):
+        assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+    assert "invoke" not in parameters and "output_digests" not in parameters
 
 
 def test_claude_provider_has_a_callback_free_sealed_callsite() -> None:
     source = inspect.getsource(claude_provider.ClaudeCLIProvider.run)
-    assert "run_sealed_runtime_provider(" in source
-    sealed_tail = source.split("run_sealed_runtime_provider(", 1)[1].split(")", 1)[0]
+    assert "run_runtime_provider(" in source
+    sealed_tail = source.split("run_runtime_provider(", 1)[1].split(")", 1)[0]
     assert "invoke=" not in sealed_tail
     assert "output_digests=" not in sealed_tail

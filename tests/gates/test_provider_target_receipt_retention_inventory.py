@@ -16,9 +16,12 @@ from daedalus.gates.provider_target_receipt_retention_inventory import (
 from daedalus.spine.envelope import canonical_json
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "daedalus/runtimes/provider_target_receipt_ledger.py"
+SOURCE = ROOT / "daedalus/runtimes/provider/target_receipt_ledger.py"
 REVISION = "0df759d1fd9bc5d83e9fc72f1c850756afa93fe5"
-SOURCE_GIT_BLOB_SHA1 = "a5e3d1321e257c9ce1d70e9a68e4079445c6985a"
+# Re-pinned in G1-PKG-01. The blob moved because the module moved into
+# daedalus/runtimes/provider/ and its own imports went from one dot to two;
+# `git diff` over the relocation shows import lines and nothing else.
+SOURCE_GIT_BLOB_SHA1 = "cc9dd91f55c543030e82e0e1f526766419cbd98a"
 PRE_HARDENING_REVISION = "b2bda280f8f98d6e977e092c5429da3c85427a33"
 EXPECTED_OPERATIONS = {
     "open-canonical-event-store-writer-transaction",
@@ -37,7 +40,7 @@ def _git_blob_sha1(raw: bytes) -> str:
 
 
 def _fixture_root(tmp_path: Path, raw: bytes | None = None) -> Path:
-    target = tmp_path / "repo/daedalus/runtimes/provider_target_receipt_ledger.py"
+    target = tmp_path / "repo/daedalus/runtimes/provider/target_receipt_ledger.py"
     target.parent.mkdir(parents=True)
     target.write_bytes(SOURCE.read_bytes() if raw is None else raw)
     return tmp_path / "repo"
@@ -86,7 +89,7 @@ def test_revision_and_source_bytes_are_bound(tmp_path: Path) -> None:
     assert first.source_sha256 == second.source_sha256
     assert first.digest != second.digest
 
-    path = root / "daedalus/runtimes/provider_target_receipt_ledger.py"
+    path = root / "daedalus/runtimes/provider/target_receipt_ledger.py"
     path.write_bytes(path.read_bytes() + b"\n# byte-bound inventory test\n")
     changed = scan_provider_target_receipt_retention(root, source_revision="1" * 40)
     assert changed.source_sha256 != first.source_sha256
@@ -153,7 +156,7 @@ def test_source_symlink_refuses_when_supported(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     target = tmp_path / "retention.py"
     target.write_bytes(SOURCE.read_bytes())
-    link = root / "daedalus/runtimes/provider_target_receipt_ledger.py"
+    link = root / "daedalus/runtimes/provider/target_receipt_ledger.py"
     link.parent.mkdir(parents=True)
     try:
         link.symlink_to(target)

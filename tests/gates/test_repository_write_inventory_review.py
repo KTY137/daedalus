@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.gates.repository_write_inventory as inventory
+import daedalus.gates.repository.write_inventory as inventory
 
 
 SOURCE_PATH = Path(inventory.__file__).resolve()

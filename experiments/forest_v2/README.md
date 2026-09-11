@@ -4534,3 +4534,508 @@ re-running these slices re-measures against the current tree and records a
 new row — they do not edit the old one. [MEASURED 2026-08-23, consolidation
 worktree: `pytest experiments/forest_v2/{s02_types,s07_bm25,s09_eval}` →
 256 passed, 3 failed, 20.44s.]
+
+### s07 current-tree remeasurement (2026-08-30)
+
+The two historical s07 rows above remain unchanged. On the current working
+tree, the same default `IndexConfig` probes measure:
+
+| probe | current corpus | measured result |
+| --- | --- | --- |
+| `tools`, `iron plan guard verify the plan digest` | 27 indexed files | `docs_reference_check.py` rank 1 (score 6.956630) |
+| retained confusable-neighbour miss | 186 indexed `forest_v2` files, with the three declared query carriers excluded | `probe_call_resolution.py` rank 6; the miss remains a miss |
+
+This is expected artifact drift, not a BM25 regression:
+`tools/iron_plan_guard.py` was retired and deleted by owner decision in commit
+`79825b57` on 2026-08-22, and the master plan carries the same retirement note.
+The current-tree smoke expectation therefore names the measured surviving
+rank-1 document, while the retained-miss ceiling moves from 5 to 6 without
+rewording the query or excluding a new competitor. The frozen 2026-08-18
+`QUERY_SET` in `measure_bm25.py` and the independent `s09_taskset.json` are not
+rewritten: a current full-corpus run honestly reports the retired guard gold as
+`gold_indexed: false`, `rank: null`. [MEASURED 2026-08-30, Windows,
+CPython 3.13.5: two identical ranking builds; `.venv/Scripts/python.exe -m
+pytest experiments/forest_v2/s07_bm25/ -q` → 60 passed in 0.58s.]
+
+## s02 re-measurement (2026-08-30, Windows)
+
+The 2026-08-18 result and the 2026-08-23 consolidation failure above remain
+unchanged as revision-bound negative evidence. The s02 corpus probe was run
+again on the full-suite source tree rooted at `3bee7ad805e9`; because the tree
+moves, the content pins below, rather than the Git prefix alone, are the
+authoritative corpus identities. Python 3.10.11 produced this complete
+declared-corpus report:
+
+| corpus | status / funcs | annot% | resolved% | marginal pp | name res% | verified internal% | content pin or absence |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `kernel` | 5285 | 93.62 | 93.51 | 0.1135 | 99.95 | 100.00 | `e79d9d418b7b9cafdf859f6d56438509bd165ec40206b594d0ef87b43a783d56` (336 files) |
+| `fixture_alias` | 19 | 73.68 | 57.89 | 15.7895 | 86.67 | 76.19 | `cc5d42c2455187c49c452feabe988ccd74118d80446de6aea91cc721d3579327` (18 files) |
+| `stdlib` | 48225 | 0.49 | 0.45 | 0.0311 | **88.77** | 59.86 | `09ab2d80efe32a46afabdc23f63fe7c743283b585edbdcbfb473db1650801bb9` (1562 files; 8 unparseable) |
+| `third_party_typed` | absent | | | | | | neither `fastapi` nor `anyio` present |
+| `third_party_reexport` | 197 | 10.15 | 10.15 | 0.0000 | 100.00 | 100.00 | `76944389331b20216d78dd8f6ad4ecf5cf273d2c4ab822c4ccd8acd062d6398f` (19 files) |
+| `third_party_untyped` | absent | | | | | | neither `bs4` nor `click` present |
+
+This stdlib snapshot contains the large `test` package and is materially
+different from the 2026-08-18 snapshot (48,225 versus 10,173 functions). The
+old cross-install `> 90%` guard therefore overfit one content pin: the current
+3.10.11 snapshot measures 88.77%, while the project venv's Python 3.13.5
+snapshot measures 90.57% at pin
+`e21263e34761f80e0109a061009ef862303cae580e99995edc4a7ee145d8ca06`.
+The executable claim is narrowed to `> 80%`: low annotation coverage and
+type-name resolvability remain visibly decoupled, without relabelling 88.77%
+as "nearly every" or deleting the failed 90% expectation.
+
+## v0.1.6 current-tree remeasurement (2026-09-05, Windows)
+
+The historical and 2026-08-30 rows above remain unchanged.  The two full-suite
+drift detectors were re-measured against pre-fix release commit `b59b2628ad6e`
+with CPython 3.13.14; each probe was built twice and produced identical ranks,
+counts, rates, and content pins.
+
+| probe | current corpus | measured result |
+| --- | --- | --- |
+| `tools`, `iron plan guard verify the plan digest` | 31 indexed files, default `IndexConfig`, no exclusions | `index_work_packets.py` rank 1 (score 7.898669); `docs_reference_check.py` rank 2 (score 6.177769) |
+| s02 `kernel` | 473 parsed files, 6,583 functions | annotation-only 94.32%; full resolver 94.20%; marginal 8 functions / 0.1215 pp; type-name resolution 99.93%; verified internal 90.47%; pin `1a51eb904dc5a61fee33be4ecd7ca0ebe7dee10f0c12f9d95458a0e154c8d68e` |
+
+The BM25 movement is corpus drift: `index_work_packets.py` was added after the
+2026-08-30 row and now matches five query terms (`digest`, `iron`, `plan`,
+`the`, `verify`).  The query, scoring configuration, exclusions, frozen
+2026-08-18 query set, and independent s09 task set were not changed.
+
+The s02 corpus grew by 137 files and 1,298 functions relative to its prior
+pin.  The new measurement also exposes 420 corpus-internal names that are only
+named, not symbol-table verified; the former zero / 100% row is retained above
+instead of being presented as timeless.  The fixture remains over 100x the
+kernel's measured marginal contribution, so the executable comparative claim
+is unchanged.
+
+## Final integrated-kernel remeasurement (2026-09-06, Windows)
+
+The historical rows above remain revision-bound evidence.  On exact integrated
+head `893b14674010b3ca299bd78ca63450f7252c596a`, the repository venv's CPython
+3.12.13 ran the complete `probe_external_corpora.py` declaration twice.  The
+kernel row was identical across both runs apart from its root and wall-clock
+fields:
+
+| probe | final integrated corpus | measured result |
+| --- | --- | --- |
+| s02 `kernel` | 483 parsed files, 6,729 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,801 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `08c3c28455dbcdd05a7cc87d0c6f78af4c7631a86121bd31b7015812071a883b` |
+
+Relative to the exact v0.1.6 measurement source `b59b2628ad6e`, this is a net
++10 files and +145 functions.  A direct source census decomposes that movement:
+12 added files contribute +137 functions (the eight `pcb_design` files +54,
+`chip_design/tcl_emit.py` +24, `runtimes/contracts/git_objects.py` +39,
+`hooks/serena.py` +13, and `wiki/treewalk.py` +7); deleting the duplicate
+`twin/contractions.py` and `twin/hybrid_retrieval.py` removes 36; changes in
+surviving files contribute the remaining +44.  Thus `137 - 36 + 44 = 145`;
+the new content pin records the integrated source rather than disguising that
+movement as a resolver improvement.  The fixture's 15.7895 pp contribution
+still exceeds the kernel's 0.1189 pp by more than two orders of magnitude, so
+the executable comparative claim remains unchanged.
+
+The GPU-44 merge changes four lines in `twin/relation_compiler.py` relative to
+first parent `e90002d37897`: it retains `forest_hyperedge_count`, validates and
+serializes it, and supplies the actual forest count.  It adds no function or
+import, but the field annotation contributes one resolved builtin type-name
+site (44,795 -> 44,796).  Consequently every displayed rate and count above
+except that raw site total is unchanged from the first-parent measurement,
+while the content-exact corpus digest correctly moves from
+`653bfb18c4a04cf9e111b9f902ae7799000cfac0e230c7cc1db08e66de1b48c8` to
+`d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930`.
+
+Two final product fixes after GPU-44 change only control-flow/refusal details in
+`runtimes/computer.py` and lexical path admission in
+`kernel/policy/computer.py`.  They add no file, function, import or type-name
+site, so every displayed measurement remains unchanged; their source bytes do
+move the content-exact digest from `d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930`
+to the pre-HTTP `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741`.
+
+The final unsanitized HTTP hardening changes early-refusal control flow in
+`interfaces/http/effects.py` and `interfaces/http/web_api.py`.  It adds no
+file, function or type-name site; `EffectStartRefused` joins an existing
+`spine.effect_boundary` import and therefore adds no resolved graph edge.
+All displayed measurements remain unchanged, while the exact source digest
+moves from `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741`
+to `c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7`.
+
+Merging `exp/tensor-kernel-contract-01` (`G1-EXP-TENSOR-GPU-45` and `-46`) into
+main moves the row again, and this time the counts move with it.  Both packets
+touch one file, `daedalus/twin/relation_compiler.py`: GPU-45 validates the
+receipt catalog as a bounded `Sequence` before normalization, and GPU-46 adds
+one private helper, `_materialize_declared_sequence`, reused by the receipt and
+explicit-signature paths.  The parsed file count is unchanged at 483; functions
+move 6,728 -> 6,729 (that single helper) and type-name sites 44,796 -> 44,801
+on the same bounded-Sequence validation path.  Every displayed rate is
+unchanged -- annotation-only 94.37%, full resolver 94.25%, marginal 8 functions
+/ 0.1189 pp, resolution 99.93%, verified internal 4,016 / 4,435 (90.55%) -- so
+the movement is source-size only and carries no retraction or restatement of
+the headline.  The exact source digest moves from
+`c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7` to
+`08c3c28455dbcdd05a7cc87d0c6f78af4c7631a86121bd31b7015812071a883b`.
+
+## Remote integration remeasurement (2026-09-08, Windows)
+
+The complete declared s02 probe ran twice with repository-venv CPython 3.12.13
+on the reviewed integration of runtime, tensor through GPU-86, mapping and the
+Genesis WAL reader correction. All corpus fields other than wall time matched
+between runs. Exact source identity is the normalized Python corpus pin below;
+the working tree was based on `b605586b2778659a119b25fa7d05938a986356e3` with
+the reviewed correction diff. Both complete outputs, including the absent
+external corpus reason, are retained as `s02-final-corpora-a.json.gz` and
+`s02-final-corpora-b.json.gz` in `docs/evidence/G1-INTEGRATION-01`, with hashes
+in `acceptance.json`. Command: repository Python followed by
+`experiments/forest_v2/s02_types/probe_external_corpora.py`.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,765 functions; annotation-only 94.35%; full resolver 94.24%; marginal 8 functions / 0.1183 pp; 45,059 type-name sites, resolution 99.93%; verified internal 4,044 / 4,463 (90.61%); 419 named-only internal sites |
+| source pin | `924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df` |
+
+Relative to the preceding 483-file row, source integration adds two files,
+36 functions and 258 type-name sites. This is corpus drift under an unchanged
+probe, not evidence that resolver quality improved. The eight marginal
+functions remain a small contribution; the hand-answered fixture remains over
+100 times larger in percentage-point contribution. Previous retractions,
+failed expectations and raw negative counts above are retained. This
+remeasurement establishes no Gate 2 or Gate 3 acceptance.
+
+
+### Podman inspection correction remeasurement (2026-09-08)
+
+The bounded `G1-RUNTIME-04` correction changes only the existing containment
+verifier body. Two complete s02 runs on CPython 3.12.13 have identical fields
+apart from wall time. All counts and rates in the preceding integration row
+remain unchanged; the exact normalized corpus pin moves from
+`924d2b84ef6cfbd8065730879fce0119cbca5a2e43fbb8c015ee65e4fd3f41df` to
+`b88367227824e604fb252435f759c64abc391b5f2c8a114b2bd45607c749fdbe`.
+Both complete results are retained as `s02-podman-corpora-a.json.gz` and
+`s02-podman-corpora-b.json.gz` under `docs/evidence/G1-INTEGRATION-01`, with
+hashes in `acceptance.json`. The frozen production file SHA256 is
+`7f52a56da9d01731e4de141a2f51fcdfc9ba80e524cd41c1f972a2e3b1371871`;
+base is `eb7834d52949ad10b2bb8c51fccd2a81c48aab20` plus the reviewed packet.
+This source census retains the prior negative research conclusions and carries
+no resolver improvement or Gate closure claim.
+
+### Ignition early-root admission remeasurement (2026-09-08)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`bf69e7195eba4d2c161e61aaead6aaa5695ab5bc` plus the frozen
+`G1-IGNITION-03` implementation. All fields other than wall time matched across
+both complete outputs: all six corpora remain declared, five are present, and
+the absent corpus still records its reason. Every Python source file under
+`daedalus/` was byte-identical before and after the measurements.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,772 functions; annotation-only 94.34%; full resolver 94.23%; marginal 8 functions / 0.1181 pp; 45,119 type-name sites, resolution 99.93%; verified internal 4,046 / 4,465 (90.62%); 419 named-only internal sites |
+| source pin | `af8997cf93e2ff07e6440498667bbed657f72f40b34d5fdf9e6859f4b77ab41e` |
+
+The seven additional functions are five in `ignition/gate1.py` and two in
+`primary_tree.py`; type-name sites increase by 60. This is a changed source
+corpus under the same probe, not measured resolver improvement. The fixed
+fixture's 15.7895 pp marginal contribution still exceeds this kernel row by
+more than two orders of magnitude. All prior retractions, failed expectations
+and measured rows above remain unchanged.
+
+The separate complete import-graph comparison measures 485 modules and 1,931
+edges, one more than accepted main: `daedalus.ignition.gate1` imports
+`daedalus.primary_tree`. All fourteen nontrivial components, their maximum
+size of nineteen, every member and component digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+remain identical; no architecture regression is waived by this moving count.
+
+Raw complete outputs are `s02-ignition-roots-corpora-a.json` and
+`s02-ignition-roots-corpora-b.json` under `runs/g1-ignition-03-20260908`, beside
+`metadata-measurement-source.json`, `metadata-comparison.json`, the complete
+SCC comparison and retained stderr logs. The frozen source SHA256 values are
+`373f7dce0199b77bf8d1a3744df0f67dd37c18a32ceaf98537825d6118c73d5b`
+for `ignition/gate1.py` and
+`64350c34aca3dfe015ba1f9a4f8c2b85fb00aa3330643c3cc448f586e194c62a`
+for `primary_tree.py`. This census establishes no Gate closure.
+
+### Ignition negative-evidence retention remeasurement (2026-09-08)
+
+On accepted main `24e229c0f34e5404bc219637b646386529f82035` plus the frozen
+`G1-IGNITION-04` source, the same complete s02 command ran twice with the
+repository-venv CPython 3.12.13. All fields except `corpora[*].wall_seconds`
+matched; their canonical non-timing SHA256 is
+`e15c50747fb071f4973faa294059dcb2dd85ac03f4580ce6b86af5867bad6307`.
+All six corpora remain declared. Four are present in this interpreter's current
+installation; `third_party_typed` finds neither `fastapi` nor `anyio`, and
+`third_party_untyped` finds neither `bs4` nor `click`. Both absence reasons stay
+in the complete outputs. No packages were installed or corpora removed for this
+measurement; the earlier five-present result above remains historical evidence.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,778 functions; annotation-only 94.35%; full resolver 94.23%; marginal 8 functions / 0.1180 pp; 45,190 type-name sites, resolution 99.93%; verified internal 4,053 / 4,478 (90.51%); 425 named-only internal sites |
+| source pin | `d6b652d970c1a5a63a3b8d3960da54befd6eaa440b2ee3122e466a1ee6a8358e` |
+
+Five functions were added in `ignition/gate1.py` and one in
+`kernel/fourfold_evidence.py`; type-name sites increased by 71. The named-only
+internal bucket increased from 419 to 425, and its verified share fell from
+90.62% to 90.51%. These are changed corpus measurements under an unchanged
+resolver, not evidence of resolver improvement. The fixed fixture's 15.7895 pp
+marginal contribution still exceeds the kernel result by more than two orders
+of magnitude. All prior retractions and negative results remain unchanged.
+
+The complete import comparison measures 485 modules and 1,932 edges. Its only
+added edge is `daedalus.ignition.gate1 -> daedalus.atomic`; no module or edge was
+removed. All fourteen nontrivial components, maximum size nineteen, exact
+memberships and digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+are unchanged. The moving census does not relax an architecture invariant.
+
+Raw complete outputs `s02-ignition-retention-corpora-a.json` and
+`s02-ignition-retention-corpora-b.json`, stderr logs, the complete SCC comparison,
+`metadata-measurement-source.json` and `metadata-comparison.json` are retained
+under `runs/g1-ignition-04-20260908`. Every Python source under `daedalus/` and
+all sixteen accepted functional test files were unchanged before and after each
+measurement. Frozen source SHA256:
+`5f2e95487c34890fbef9aad2d62d3dce09e2b179ec2d4fc3514879e19c7518be`
+for `ignition/gate1.py`, and
+`1367e64484514968eb8b710da25d15bbcd021b3ed80a24a39309916105860d19`
+for `kernel/fourfold_evidence.py`. This census establishes no Gate closure.
+
+### Project-registry self-row remeasurement (2026-09-08)
+### Leakage-boundary remeasurement (2026-09-08)
+### G3-BASE-01 re-landing remeasurement (2026-09-08)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus the frozen `G1-PROJECTS-01`
+change to `daedalus/foundation/projects.py`. All fields other than wall time
+and root path matched across both complete outputs; all six corpora remain
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus the frozen `G1-ARIADNE-10`
+change to `daedalus/ariadne/campaign.py`. All fields other than wall time and
+root path matched across both complete outputs; all six corpora remain
+`24e229c0f34e5404bc219637b646386529f82035` plus the frozen `G3-BASE-01`
+package (`daedalus/eval/gate3`, 24 modules). All fields other than wall time
+and root path matched across both complete outputs; all six corpora remain
+declared, five are present, and the absent corpus still records its reason.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 485 parsed files, 6,779 functions; annotation-only 94.35%; full resolver 94.23%; marginal 8 functions / 0.1180 pp; 45,191 type-name sites, resolution 99.93%; verified internal 4,053 / 4,478 (90.51%); 425 named-only internal sites |
+| source pin | `3e5b493b41eceba7a91611d778ba9405f55b77f4afc432f188b38bd9a3a4ba02` |
+
+The one additional function is `self_checkout_root` in
+`foundation/projects.py`; type-name sites increase by one. Every rate and
+every other count of the preceding row is unchanged. This is a changed source
+corpus under the same probe, not measured resolver improvement. The fixed
+fixture's 15.7895 pp marginal contribution still exceeds this kernel row by
+more than two orders of magnitude. All prior retractions, failed expectations
+and measured rows above remain unchanged.
+
+Raw complete outputs are `s02-g1-projects-01-corpora-a.json.gz` and
+`s02-g1-projects-01-corpora-b.json.gz` under `docs/evidence/G1-PROJECTS-01`,
+| kernel | 485 parsed files, 6,779 functions; annotation-only 94.35%; full resolver 94.23%; marginal 8 functions / 0.1180 pp; 45,197 type-name sites, resolution 99.93%; verified internal 4,053 / 4,478 (90.51%); 425 named-only internal sites |
+| source pin | `84ee13a13fc2fc65e9f6233a6ff7f649e8c73d04f64c49c735eb1d9f691839ea` |
+
+Against the row pinned at `db38a762` (6,778 functions, 45,190 type-name sites)
+the one additional function is `protected_prefix_for` in `ariadne/campaign.py`
+and type-name sites increase by seven (the tuple annotation and the helper's
+signature). Every rate and every other count is unchanged. This is a changed
+source corpus under the same probe, not measured resolver improvement. The
+fixed fixture's 15.7895 pp marginal contribution still exceeds this kernel row
+by more than two orders of magnitude. All prior retractions, failed
+expectations and measured rows above remain unchanged.
+
+Raw complete outputs are `s02-g1-ariadne-10-corpora-a.json.gz` and
+`s02-g1-ariadne-10-corpora-b.json.gz` under `docs/evidence/G1-ARIADNE-10`,
+with SHA256 values in `acceptance.json` beside them. This census establishes
+no Gate closure.
+| kernel | 509 parsed files, 6,941 functions; annotation-only 94.40%; full resolver 94.28%; marginal 8 functions / 0.1153 pp; 46,223 type-name sites, resolution 99.93%; verified internal 4,229 / 4,648 (90.99%); 419 named-only internal sites |
+| source pin | `ee7c7ee4f567c93fc3e1c50152528f2dde9991293a715ca019f5f7e79d3355e7` |
+
+The 24 additional files and 169 additional functions are exactly the new
+`daedalus/eval/gate3` package; type-name sites increase by 1,104. The marginal
+contribution stays at 8 functions and moves from 0.1181 pp to 0.1153 pp only
+because the denominator grew. This is a changed source corpus under the same
+probe, not measured resolver improvement. The fixed fixture's 15.7895 pp
+marginal contribution still exceeds this kernel row by more than two orders
+of magnitude. All prior retractions, failed expectations and measured rows
+above remain unchanged.
+
+The separate complete import-graph comparison measures 509 modules and 1,997
+edges. All fourteen nontrivial components, their maximum size of nineteen,
+every member and the component digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+remain identical: the package adds modules and edges, not a cycle.
+
+Raw complete outputs are `s02-g3-base-01-corpora-a.json.gz` and
+`s02-g3-base-01-corpora-b.json.gz` under `docs/evidence/G3-BASE-01`, with
+SHA256 values in `acceptance.json` beside them. This census establishes no
+Gate closure and no Gate-3 baseline evidence.
+
+### Evening integration remeasurement (2026-09-08)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus the merged packets
+`G1-PROJECTS-01`, `G1-IKARUS-36`, `G1-UI-22`, `G1-ARIADNE-10`, `G3-BASE-01`
+and `G1-TOKENIZER-01` (branch `integration/ignite-and-gate3-20260908`). All
+fields other than wall time and root path matched across both complete
+outputs; all six corpora remain declared, five are present, and the absent
+corpus still records its reason.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 509 parsed files, 6,975 functions; annotation-only 94.42%; full resolver 94.31%; marginal 8 functions / 0.1147 pp; 46,457 type-name sites, resolution 99.93%; verified internal 4,240 / 4,665 (90.89%); 425 named-only internal sites |
+| source pin | `b217070456853496d88dc47df449ea7652bb9baaddc991b876928464f3d648e7` |
+
+The 24 additional files are the `daedalus/eval/gate3` package (G3-BASE-01);
+the 197 additional functions and 1,267 additional type-name sites are the sum
+of that package and the four smaller packets whose own rows above describe
+each contribution. The marginal contribution stays at 8 functions and moves
+to 0.1147 pp only because the denominator grew. This is a changed source
+corpus under the same probe, not measured resolver improvement. The fixed
+fixture's 15.7895 pp marginal contribution still exceeds this kernel row by
+more than two orders of magnitude. All prior retractions, failed expectations
+and measured rows above remain unchanged.
+
+The separate complete import-graph comparison measures 509 modules and 1,998
+edges; all fourteen nontrivial components and their maximum size of nineteen
+remain identical. Raw complete outputs are
+`s02-g1-integration-02-corpora-a.json.gz` and
+`s02-g1-integration-02-corpora-b.json.gz` under
+`docs/evidence/G1-INTEGRATION-02`, with SHA256 values in `acceptance.json`
+beside them. This census establishes no Gate closure and no Gate-3 baseline
+evidence.
+### Cross-plane eval corpus remeasurement (2026-09-08)
+
+On accepted main `db38a762991b04cbc96c3cbed5209d6a517fa611` plus the frozen
+`G1-EVAL-CORPUS-01` source, the same complete s02 command ran twice with the
+repository-venv CPython 3.12.13. All fields except `corpora[*].wall_seconds`
+and `corpora[*].root` matched; their canonical non-timing SHA256 is
+`b6e04216e2355df1c990bf017c73e7e1892de01037068d8f43f173034739f281`.
+All six corpora remain declared. Four are present in this interpreter's current
+installation; `third_party_typed` finds neither `fastapi` nor `anyio`, and
+`third_party_untyped` finds neither `bs4` nor `click`. Both absence reasons stay
+in the complete outputs. No packages were installed and no corpus was removed
+for this measurement.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 490 parsed files, 6,801 functions; annotation-only 94.35%; full resolver 94.24%; marginal 8 functions / 0.1176 pp; 45,296 type-name sites, resolution 99.93%; verified internal 4,059 / 4,484 (90.52%); 425 named-only internal sites |
+| source pin | `966aff674b23088e6ea830aa32e69594215b8b1655a384b2ecc3f92aac1fc57a` |
+
+The corpus grew because the packaged four-plane eval fixture
+`daedalus/eval/fixtures/fourfold_wiki_app/` contains five Python files
+(`src/knowledge_hub/{__init__,app,models,repository,search}.py`) and this probe
+censuses the whole `daedalus` package tree, exactly as the older
+`fixtures/sunny_garden` files are already counted. Twenty-three functions and
+106 type-name sites are added; the annotation-only control is unmoved at
+94.35%, and the named-only internal bucket stays at 425 while its verified
+share moves 90.51% -> 90.52%. These are changed corpus measurements under an
+unchanged resolver, not evidence of resolver improvement. The fixed fixture's
+15.7895 pp marginal contribution still exceeds the kernel result by more than
+two orders of magnitude. All prior retractions and negative results remain
+unchanged.
+
+The complete import comparison measures 490 modules and 1,943 edges: the five
+fixture modules plus their seven internal edges, and four production import
+edges added by the corpus itself (`daedalus.eval.tasks` ->
+`daedalus.structcore.{index,languages,markdown}`, `daedalus.eval.harness` ->
+`daedalus.structcore.markdown`). No module or edge was removed. All fourteen
+nontrivial components, maximum size nineteen, exact memberships and digest
+`841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78`
+are unchanged. The rejected alternative is recorded rather than hidden: adding
+`daedalus.eval.tasks -> daedalus.eval.harness` was measured to enlarge the
+existing `(daedalus.eval, harness, report, tier2)` cycle to five members and
+move the component digest to
+`b45b3cc6b162ee19c527708529626d36b3338b4295cd17db107c27ddbfa9cbdb`,
+so the shared constant is defined in `tasks` and imported by `harness` instead.
+The moving census does not relax an architecture invariant.
+
+Raw complete outputs `s02-eval-corpus-a.json` and `s02-eval-corpus-b.json`,
+their stderr logs, the comparison log and the label-plane census log are
+retained under `runs/g1-eval-corpus-01` and archived with SHA256s in
+`docs/evidence/G1-EVAL-CORPUS-01/acceptance.json`. This census establishes no
+Gate closure and no Gate-3 baseline.
+
+#### Re-pin after the G1-EVAL-CORPUS-01 review fixes (2026-09-08, same day)
+
+The measurement above stands as recorded and is NOT rewritten: it is the census
+of the frozen source at `c6e1c499`. Independent review and adversarial
+verification then required a change to
+`daedalus/eval/harness.py::_plane_unindexed_reason` (a nonexistent target was
+downgraded to a reported-only row instead of erroring, so `run_gate` passed on
+a broken corpus). That file is inside the censused package tree, so the source
+pin moved. The same complete command ran twice again; all fields except
+`corpora[*].wall_seconds`/`root` matched.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 490 parsed files, 6,801 functions; annotation-only 94.35%; full resolver 94.24%; marginal 8 functions / 0.1176 pp; 45,296 type-name sites; 425 named-only internal sites; verified internal share 90.52% |
+| source pin | `9861df4379037a00b0951191a986717c8b3dc5a6c692af0a2da4a6c00e645e45` (was `966aff67...aac1fc57a`) |
+| non-timing canonical SHA256 | `eaf4808c4207d67b50f8b30556ad77af9a24a8172c98eca5804c7d422ada2eeb` (was `b6e04216...4739f281`) |
+
+Only the content digest moved. The file count (490), every resolver number, the
+annotation-only control, the `fixture_alias` row, and the import census
+(490 modules / 1,943 edges / fourteen components / digest `841a5a97...c2140a78`)
+are byte-identical to the block above. This is a re-pin of a moving content
+census, not a resolver result. Raw outputs `s02-fixer-c.json` and
+`s02-fixer-d.json` are retained under `runs/g1-eval-corpus-01`.
+
+### Evening integration remeasurement, complete wave (2026-09-09)
+
+The complete declared s02 probe ran twice with the unchanged repository-venv
+CPython 3.12.13 command
+`experiments/forest_v2/s02_types/probe_external_corpora.py` on accepted main
+`db38a762991b04cbc96c3cbed5209d6a517fa611` plus all eight merged packets of
+the 2026-09-08 wave: `G1-PROJECTS-01`, `G1-IKARUS-36`, `G1-UI-22`,
+`G1-ARIADNE-10`, `G3-BASE-01`, `G1-TOKENIZER-01`, `G1-EVAL-USAGE-01` and
+`G1-EVAL-CORPUS-01` (branch `integration/ignite-and-gate3-20260908`). All
+fields other than wall time and root path matched across both complete
+outputs; all six corpora remain declared, five are present, and the absent
+corpus still records its reason.
+
+| Corpus | Measured result |
+| --- | --- |
+| kernel | 514 parsed files, 7,016 functions; annotation-only 94.43%; full resolver 94.31%; marginal 8 functions / 0.1140 pp; 46,680 type-name sites, resolution 99.93%; verified internal 4,249 / 4,674 (90.91%); 425 named-only internal sites |
+| source pin | `6cdc73dd46d3b429f7f92a8014d52cdf73167026197f091c3766a1ab475215f2` |
+
+Against the 2026-09-08 integration row (509 files, 6,975 functions) the five
+additional files are the packaged four-plane eval fixture's Python modules
+under `daedalus/eval/fixtures/fourfold_wiki_app/src/knowledge_hub/`, and the
+41 additional functions and 223 additional type-name sites are those modules
+plus the provider-usage receipt and the corpus derivation helpers. The
+marginal contribution stays at 8 functions and moves to 0.1140 pp only because
+the denominator grew. This is a changed source corpus under the same probe,
+not measured resolver improvement. The fixed fixture's 15.7895 pp marginal
+contribution still exceeds this kernel row by more than two orders of
+magnitude. All prior retractions, failed expectations and measured rows above
+remain unchanged.
+
+The separate complete import-graph comparison measures 514 modules and 2,009
+edges; all fourteen nontrivial components and their maximum size of nineteen
+remain identical. Raw complete outputs are
+`s02-g1-integration-03-corpora-a.json.gz` and
+`s02-g1-integration-03-corpora-b.json.gz` under
+`docs/evidence/G1-INTEGRATION-03`, with SHA256 values in `acceptance.json`
+beside them. This census establishes no Gate closure and no Gate-3 baseline
+evidence.
+
+Re-measured 2026-09-10 for G1-IKARUS-46, which added one annotated module
+(`daedalus/runtimes/computer_daedalus.py`) to the kernel package. The kernel
+row moved from 7,107 to 7,160 functions and from 47,257 to 47,559 type-name
+sites over 520 parsed files; the annotation-only control reads 94.47 % (was
+94.47 %), the full resolver 94.36 % (was 94.36 %), the verified share of
+internal references 90.14 % (was 90.13 %). `marginal_functions` is exactly 8,
+as in every prior re-measurement; `marginal_pp` 0.1117 (was 0.1126). Source-size
+only, no retraction. Raw outputs, run twice and identical except wall time,
+are `s02-g1-ikarus-46-corpora-a.json.gz` and `-b.json.gz` under
+`docs/evidence/G1-IKARUS-46` with SHA256 values in `acceptance.json`.
+
+Re-measured again 2026-09-10 for G1-IKARUS-47, which added
+`daedalus/runtimes/computer_ariadne.py`: 7,179 functions and 47,637 type-name
+sites over 521 parsed files; annotation-only 94.46 %, full resolver 94.34 %,
+verified share 90.15 %; `marginal_functions` still exactly 8, `marginal_pp`
+0.1114. Raw outputs, run twice and identical except wall time, are
+`s02-g1-ikarus-47-corpora-a.json.gz` and `-b.json.gz` under
+`docs/evidence/G1-IKARUS-47` with SHA256 values in `acceptance.json`.

@@ -6,23 +6,23 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.gates.repository_write_artifact_admission as admission_module
+import daedalus.gates.repository.write_artifact_admission as admission_module
 from daedalus.gates.report_v3 import GateReportV3
-from daedalus.gates.repository_write_artifact_admission import (
+from daedalus.gates.repository.write_artifact_admission import (
     RepositoryWriteArtifactAdmissionError,
     admit_repository_write_artifact,
 )
-from daedalus.gates.repository_write_artifact_cas import (
+from daedalus.gates.repository.write_artifact_cas import (
     RepositoryWriteArtifactCASRoot,
     artifact_relative_path,
     resolve_repository_write_artifact,
 )
-from daedalus.gates.repository_write_artifact_verifier import (
+from daedalus.gates.repository.write_artifact_verifier import (
     RepositoryWriteArtifactVerificationReceipt,
     verify_repository_write_artifact,
 )
-from daedalus.gates.repository_write_evidence import RepositoryWriteArtifactEvidence
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_evidence import RepositoryWriteArtifactEvidence
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2,
     RepositoryWriteSurface,
 )

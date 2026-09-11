@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.gates.repository_write_inventory_v2 as inventory_v2
+import daedalus.gates.repository.write_inventory_v2 as inventory_v2
 
 
 def _call_name(node: ast.Call) -> str | None:

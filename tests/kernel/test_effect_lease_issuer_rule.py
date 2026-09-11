@@ -36,24 +36,29 @@ from daedalus.kernel.offload_lease import (
     WaveLeaseDenied,
     WaveOffloadLease,
     acquire_effect_lease,
-    acquire_wave_offload_lease,
+    acquire_wave_offload_lease as _kernel_acquire_wave_offload_lease,
     control_root,
     issuable_row,
 )
 from daedalus.spine.effect_boundary import REGISTRY_BY_ID, Wiring
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[2])
 REVISION = "c" * 40
 MECHANISM = "test: the isolation root is the manager's own worktree root"
 
-#: The second row the rule admits. MEASURED, not chosen: with the predicate in
-#: place exactly four of the 97 registry rows are issuable -- ``python.offload``,
-#: ``cli.eval_ceiling``, ``tools.funnel_report`` and ``tools.run_gate_checks``
-#: -- and the three new ones all declare ``process_spawn`` alone under
-#: ``budget.process_guard`` alone. Named rather than discovered, so a registry
+#: The second row the rule admits. MEASURED, not chosen: the complete current
+#: issuable set is pinned below. Named rather than discovered, so a registry
 #: edit that widens this row fails here instead of silently widening a lease.
 SECOND_DOOR = "cli.eval_ceiling"
+
+#: Genesis is intentionally admitted by the same predicate: its exact three
+#: effects can be represented by this issuer and every declared guard has an
+#: in-process implementation here. Keeping the name separate makes its new
+#: authority visible in focused assertions below.
+GENESIS_DOOR = "python.genesis"
 
 #: A row this issuer must never be able to run, used wherever the "contracts I
 #: cannot run" conjunct needs a subject. ``promotion.owner_approval`` is chosen
@@ -83,6 +88,12 @@ UNRUNNABLE_DOOR = next(
 )
 
 
+def acquire_wave_offload_lease(*args, **kwargs):
+    kwargs.setdefault("egress_admission", admit_offload_egress)
+    kwargs.setdefault("worktree_root_resolver", resolve_worktree_root)
+    return _kernel_acquire_wave_offload_lease(*args, **kwargs)
+
+
 @pytest.fixture
 def switch(tmp_path, monkeypatch):
     monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(tmp_path / "killswitch"))
@@ -106,6 +117,8 @@ def _acquire(sw, entrypoint_id, **overrides):
         contained=True,
         containment_evidence=MECHANISM,
         switch=sw,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     kwargs.update(overrides)
     return acquire_effect_lease(REPO_ROOT, entrypoint_id=entrypoint_id, **kwargs)
@@ -126,6 +139,26 @@ def test_the_second_door_the_rule_admits_declares_one_contract():
     spec, reasons = issuable_row(SECOND_DOOR)
     assert reasons == ()
     assert spec is not None
+    assert set(spec.guard_contracts) <= ISSUER_CONTRACTS
+    assert {effect.value for effect in spec.effects} <= ISSUER_EFFECTS
+
+
+def test_the_genesis_door_is_issuable_with_exact_bounded_authority():
+    spec, reasons = issuable_row(GENESIS_DOOR)
+
+    assert reasons == ()
+    assert spec is not None
+    assert tuple(effect.value for effect in spec.effects) == (
+        "filesystem_write",
+        "process_spawn",
+        "process_control",
+    )
+    assert spec.guard_contracts == (
+        "provider.write_policy",
+        "budget.process_guard",
+        "containment.attempt",
+        "containment.worktree",
+    )
     assert set(spec.guard_contracts) <= ISSUER_CONTRACTS
     assert {effect.value for effect in spec.effects} <= ISSUER_EFFECTS
 
@@ -176,20 +209,20 @@ def test_a_row_whose_contracts_this_issuer_cannot_run_is_refused_by_name():
         assert contract in contracts[0]
 
 
-def test_the_attempt_row_became_issuable_and_nothing_else_did():
-    """What 11dc0195 changed, pinned so the widening stays deliberate.
+def test_the_attempt_and_chip_rows_are_deliberately_issuable():
+    """Pin every row the shared issuer may mint, including the Gate-1 EDA door.
 
     ``python.attempt`` declared ``spine.intent_ledger`` and
     ``containment.worktree``; the issuer now runs both itself and the row also
     declares ``provider.write_policy``, without which ``issuer.effect_bounds``
     would still refuse its two write effects. The set of issuable rows is
     enumerated rather than spot-checked: a registry or issuer edit that admits a
-    sixth row fails here instead of silently minting a capability for it.
+    newly admitted row fails here instead of silently minting a capability for it.
 
     IT DID EXACTLY THAT, 2026-08-26, and the widening is recorded here rather
     than absorbed. Registering ``tools.docs_reference_check`` -- a docs reporter
-    that was running as an unregistered effectful door -- made it the SIXTH
-    issuable row. The set is enumerated so that consequence has to be argued,
+    that was running as an unregistered effectful door -- widened the issuable
+    set. The set is enumerated so that consequence has to be argued,
     and the argument is that the row is issuable for the same reason its two
     neighbours in this list already are: ``tools.funnel_report`` and
     ``tools.run_gate_checks`` are CENTRAL rows declaring PROCESS_SPAWN alone
@@ -199,6 +232,17 @@ def test_the_attempt_row_became_issuable_and_nothing_else_did():
     issuer's contract surface nor puts a write behind a reporter. Refusing it
     while admitting the identical two would have been an accident of order, not
     a rule.
+    G1-EDA-01 adds ``cli.daedalus_chip`` deliberately. It declares exactly
+    filesystem write, process spawn and process control, and the issuer runs
+    the corresponding write, containment and process-budget contracts. It has
+    no network, secret, spend or promotion effect.
+    Gate-1 Ariadne and Genesis are bounded producer doors under the same
+    issuer predicate. The desktop settings and Ollama rows are deliberately
+    narrower still: one exact settings-file write and loopback-only Ollama
+    observation. Their separate switch-verification helper is not issuable by
+    this persisted-lease factory because it deliberately carries no write-policy
+    contract; it is guarded directly at its own central begin_effect boundary.
+    None grants SSH, secret, listener, promotion, or service-process authority.
     """
 
     spec, reasons = issuable_row("python.attempt")
@@ -209,8 +253,14 @@ def test_the_attempt_row_became_issuable_and_nothing_else_did():
         row_id for row_id in sorted(REGISTRY_BY_ID) if issuable_row(row_id)[0]
     )
     assert issuable == (
+        "cli.daedalus_chip",
         "cli.eval_ceiling",
+        "python.ariadne_campaign",
         "python.attempt",
+        "python.desktop_ollama_adopt",
+        "python.desktop_settings_persist",
+        "python.genesis",
+        "python.ikarus_computer",
         "python.offload",
         "tools.docs_reference_check",
         "tools.funnel_report",
@@ -440,6 +490,9 @@ def test_a_row_with_no_containment_contract_retains_no_disjointness_record(switc
         for r in REGISTRY_BY_ID.values()
         if issuable_row(r.id)[0] is not None
         and not set(r.guard_contracts) & CONTAINMENT_CONTRACTS
+        # Computer rows also need an exact owner-policy operation. Their
+        # no-containment evidence is covered by the real computer service tests.
+        and "computer.tool_policy" not in r.guard_contracts
     )
     granted = _acquire(switch, row.id)
     assert isinstance(granted, WaveOffloadLease), getattr(granted, "reasons", None)

@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .resources import iter_builtin_files, read_builtin_text
+
 REPO_CONFIG = ".agentenv/agentenv.json"
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
@@ -244,7 +246,16 @@ def _apply_repo_confinement(data: dict | None, repo_root: str) -> dict | None:
     """
     if not data:
         return data
-    local = _repo_local_policy(data.get("repo_root") or repo_root)
+    registered_root = data.get("repo_root")
+    # A committed registry entry can outlive the workstation path that created
+    # it. When that path is gone and the caller supplied an existing checkout,
+    # judge the checkout that can actually be written. This never widens a
+    # live registered target: an existing registry root still wins, and the
+    # selected repo-local policy is intersected below rather than replaced.
+    policy_root = registered_root or repo_root
+    if registered_root and not Path(str(registered_root)).is_dir():
+        policy_root = repo_root
+    local = _repo_local_policy(str(policy_root))
     if not local:
         return data
     from .sensitivity import intersect_write_allow
@@ -270,7 +281,7 @@ def _apply_repo_confinement(data: dict | None, repo_root: str) -> dict | None:
 def resolve_project(repo_root: str, project: str | None = None) -> dict | None:
     """Return a project-config dict (with a 'policy' block) or None."""
     if project:
-        from .projects import load_project
+        from .foundation.projects import load_project
         return _apply_repo_confinement(load_project(project), repo_root)
     f = Path(repo_root) / REPO_CONFIG
     if f.exists():
@@ -289,12 +300,11 @@ def _copy_template_agents(agentenv_dir: Path) -> None:
     Copies `templates/agents/*.json` into the repo. Existing files are never
     overwritten, so per-repo customizations survive a re-run of `init_repo`.
     """
-    src = TEMPLATE_DIR / "agents"
-    if not src.is_dir():
-        return
     dst = agentenv_dir / "agents"
     dst.mkdir(exist_ok=True)
-    for path in sorted(src.glob("*.json")):
+    for path in iter_builtin_files(
+        "templates/agents", legacy=TEMPLATE_DIR / "agents", suffix=".json"
+    ):
         target = dst / path.name
         if not target.exists():
             target.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
@@ -312,12 +322,15 @@ def _copy_tool_instructions(repo_root: Path) -> None:
     overwritten, so per-repo customizations survive a re-run of `init_repo`.
     """
     for name in TOOL_INSTRUCTION_TEMPLATES:
-        src = TEMPLATE_DIR / name
-        if not src.exists():
+        try:
+            content = read_builtin_text(
+                f"templates/{name}", legacy=TEMPLATE_DIR / name
+            )
+        except FileNotFoundError:
             continue
         target = repo_root / name
         if not target.exists():
-            target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            target.write_text(content, encoding="utf-8")
 
 
 def init_repo(repo_root: str) -> str:

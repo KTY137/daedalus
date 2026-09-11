@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.context_plan as context_plan
-from daedalus.context_plan import (
+import daedalus.orchestration.context_plan as context_plan
+from daedalus.orchestration.context_plan import (
     LatentSeedResult,
     fuse_seed_scores,
     latent_memory_seed_scores,

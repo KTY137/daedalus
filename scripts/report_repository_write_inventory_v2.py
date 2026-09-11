@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2Error,
     scan_repository_write_surfaces_v2,
 )

@@ -44,7 +44,7 @@ globally**. `_suffix_index` resolves a documentation reference like
 `config.py` only when exactly **one** module in the tree ends with that
 suffix; two makes it ambiguous, and an ambiguous suffix stops resolving.
 `references/openevolve/config.py` and `cli.py` would each collide with
-`daedalus/config.py` and `daedalus/cli.py`.
+`daedalus/config.py` and `daedalus/interfaces/cli/entry.py`.
 
 MEASURED on 2026-07-29, by monkeypatching `_suffix_index` in-process (no files
 written to the tree, so no concurrent agent's gate run was disturbed):

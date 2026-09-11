@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/guard-implementation-manifest-report.schema.json",
+  "title": "Daedalus Gate-0 Guard Implementation Manifest Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "classification_digest",
+    "manifest_digest",
+    "manifest_id",
+    "authority_id",
+    "authority_key_id",
+    "entry_count",
+    "entry_set_sha256",
+    "guard_manifest_authenticated",
+    "guard_contract_semantics_verified",
+    "semantic_receipts_verified",
+    "evidence_authenticated",
+    "gate_report_bound",
+    "closed",
+    "scope",
+    "blockers",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-guard-implementation-manifest-report/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "classification_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "manifest_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "manifest_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "authority_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "authority_key_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "entry_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "entry_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "guard_manifest_authenticated": {
+      "const": true
+    },
+    "guard_contract_semantics_verified": {
+      "const": false
+    },
+    "semantic_receipts_verified": {
+      "const": false
+    },
+    "evidence_authenticated": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "guard-implementation-manifest-authentication"
+    },
+    "blockers": {
+      "const": [
+        "effect-lease-semantic-verification-missing",
+        "gate-report-binding-missing",
+        "guard-contract-semantic-replay-missing",
+        "primary-checkout-disjointness-semantic-verification-missing",
+        "retirement-semantic-verification-missing",
+        "runtime-conformance-semantic-verification-missing",
+        "source-anchor-chain-binding-missing"
+      ]
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    }
+  }
+}

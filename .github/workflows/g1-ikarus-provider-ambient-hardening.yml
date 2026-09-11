@@ -6,8 +6,8 @@ on:
       - g1/ikarus-provider-ambient-hardening-07c1
   pull_request:
     paths:
-      - "daedalus/runtimes/provider_executable_object_registry.py"
-      - "daedalus/runtimes/provider_runtime_executable_binding.py"
+      - "daedalus/runtimes/provider/executable_object_registry.py"
+      - "daedalus/runtimes/provider/runtime_executable_binding.py"
       - "tests/runtimes/test_provider_executable_object_registry.py"
       - "tests/runtimes/test_provider_executable_object_registry_review.py"
       - "tests/runtimes/test_provider_runtime_executable_binding.py"
@@ -45,8 +45,8 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: >-
           python -m py_compile
-          daedalus/runtimes/provider_executable_object_registry.py
-          daedalus/runtimes/provider_runtime_executable_binding.py
+          daedalus/runtimes/provider/executable_object_registry.py
+          daedalus/runtimes/provider/runtime_executable_binding.py
           tests/runtimes/test_provider_executable_object_registry.py
           tests/runtimes/test_provider_executable_object_registry_review.py
           tests/runtimes/test_provider_runtime_executable_binding.py

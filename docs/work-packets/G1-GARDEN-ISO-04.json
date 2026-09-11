@@ -1,0 +1,195 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-GARDEN-ISO-04",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "owner": "repository owner",
+    "base_revision": "b2026fda612f4cc88cbcfd67bcd54a283e6f7437",
+    "dependencies": "the exact pre_head and retained source evidence named in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "legacy_source",
+          "reintegrate_commit"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "repair",
+          "authority_transitions"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "verification",
+          "diagnostic_red"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "authority_transitions",
+          "next"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "verification",
+          "diagnostic_red"
+        ]
+      }
+    }
+  },
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-GARDEN-ISO-04",
+  "title": "Selectively reintegrate bounded Gate1 isolation evidence and close modern-tree CI drift",
+  "status": "closed",
+  "date": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority": "docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "b2026fda612f4cc88cbcfd67bcd54a283e6f7437",
+  "legacy_source": {
+    "ref": "packet/g1-iso-02",
+    "head": "afd28c7e3b0c9f941aae7b2341eb9e715f332f06",
+    "common_ancestor": "c06f872ebd00c6fb873aedc93a9ac513a0e4488d",
+    "branch_only_commit_count": 7,
+    "branch_only_commits": [
+      "06e65d43b23cb0c3ab9329f124f80c7d8c80deef",
+      "3e0437c57f51e782ecb2538013587db9eddc2195",
+      "bad5f68e2f89f13a1f8ca62542d7fc741b69f3f9",
+      "cb0f98179b02a63c7ae9f91f2dff56ec1d534026",
+      "51a03f815a72cc3717dc759966caf5c9e26223ea",
+      "a6e740b1b12c4a4f3071272f06e71acb3c1e60e7",
+      "afd28c7e3b0c9f941aae7b2341eb9e715f332f06"
+    ],
+    "selection": "Final source-state files were transplanted onto the canonical gardening tree and the source head was retained as the second parent, preserving commit and blob lineage without creating a new remote branch.",
+    "source_ref_deleted": false
+  },
+  "reintegrate_commit": {
+    "sha": "8b8d0808c26c5d48f7500883efb0453d193a0f81",
+    "tree": "724867e0618927930c8db2214bfa8658f1073e9d",
+    "parents": [
+      "b2026fda612f4cc88cbcfd67bcd54a283e6f7437",
+      "afd28c7e3b0c9f941aae7b2341eb9e715f332f06"
+    ],
+    "selected_final_state_blobs": {
+      ".github/workflows/gate1-ignition.yml": "14be2af01e9a659f8ccab21768fa31eda28a300e",
+      "daedalus/ignition/bundle.py": "3da1326586dab07947e59067c66f4ac8bd0eabb1",
+      "daedalus/ignition/checks.py": "1781c3d2dcbd89e674f3cb0da2ac435b355cc904",
+      "daedalus/ignition/gate1.py": "7ef619344fe6a01cebce8a52dd717fa522a9cc7a",
+      "daedalus/ignition/runner.py": "2fca41375b99898dc7004aa4eba06c533781131c",
+      "docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md": "b4362389505d20127a42afa26cb6ed70f90e9e39",
+      "docs/work-packets/G1-ISO-02_EVALUATOR_CHILD_BOUNDS.md": "b9376f04e8efa3e3567c336083aeebc54988bbb1",
+      "docs/work-packets/G1-ISO-03_BEHAVIOR_EVIDENCE_ASSURANCE.md": "859558b2ba094b2535d15d7b76c0b3f7b7707540",
+      "tests/ignition/test_behavior_probe_isolation.py": "f3488fb66cdf3f19d8b6c852b3333009397789e7",
+      "tests/ignition/test_pytest_check_isolation.py": "0853e34ba069485e10e37ae7aa9d0804c30a19b1",
+      "tests/test_ignition_gate1.py": "82eecf9bca98dfec6ff2c61d554650f8493824ca"
+    }
+  },
+  "diagnostic_red": {
+    "workflow": "Gate 1 Ignition Slice",
+    "run_id": 34000413904,
+    "head": "8b8d0808c26c5d48f7500883efb0453d193a0f81",
+    "event": "pull_request",
+    "merge_preview": "f8926b1dc84ff48506a6ca1f73e6b2ff46f6d17e",
+    "representative_python": "3.12.14",
+    "representative_hash_seed": "0",
+    "representative_result": {
+      "passed": 190,
+      "failed": 4,
+      "warnings": 13,
+      "duration_seconds": 111.09
+    },
+    "failures": [
+      "tests/test_ignition_bundle.py::test_the_digest_does_not_move_with_line_endings",
+      "tests/test_ignition_bundle.py::test_pytest_plugins_are_measured_on_this_host",
+      "tests/test_ignition_bundle_gitattributes.py::test_every_bundle_file_has_a_filter_stable_declaration",
+      "tests/test_ignition_bundle_gitattributes.py::test_the_gitattributes_pin_is_an_explicit_list_not_a_wildcard"
+    ],
+    "isolated_wheel": "success",
+    "interpretation": "The red integration run was retained as evidence. Two tests encoded host assumptions that were not their stated contract, and the modern Fourfold/Tensor closure had five newly reachable modules missing explicit EOL declarations. The production Gate1 implementation was not weakened to make the run green."
+  },
+  "repair": {
+    "commit": "7fb80add2e895f583d3c4538f7c5a872843a8cfb",
+    "tree": "4c97395dc86b88e433e95535443030e325eb0600",
+    "blobs": {
+      "tests/test_ignition_bundle.py": "a1724c8d70d419828032c75ea3ec9fb57420188e",
+      ".gitattributes": "9e5e23fb100fbc8c5e856f3bd24af9213269ad92",
+      ".github/workflows/gate1-ignition.yml": "5df72216ceea36d581322976638a101a0eee70a2"
+    },
+    "changes": [
+      "The line-ending identity test now explicitly configures core.autocrlf=true in its throwaway repository, matching the condition it claims to model.",
+      "The pytest-plugin measurement test accepts a real empty plugin list on a minimal CI image while still refusing an unmeasured query.",
+      "Five Fourfold/Tensor modules newly reachable from the Gate1 evaluator closure receive explicit -text declarations without introducing a wildcard policy.",
+      "The Gate1 workflow targets the real canonical main integration boundary, removes obsolete noncanonical branch triggers, and includes .gitattributes in its path trigger."
+    ]
+  },
+  "ancestry_containment": {
+    "source": "afd28c7e3b0c9f941aae7b2341eb9e715f332f06",
+    "verified_head": "7fb80add2e895f583d3c4538f7c5a872843a8cfb",
+    "source_behind_by": 0,
+    "merge_base": "afd28c7e3b0c9f941aae7b2341eb9e715f332f06",
+    "result": "The complete packet/g1-iso-02 history is reachable from the canonical gardening line. The source ref is intentionally retained; ref deletion is outside this packet."
+  },
+  "verification": {
+    "verified_head": "7fb80add2e895f583d3c4538f7c5a872843a8cfb",
+    "base_main": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "gate1": {
+      "run_id": 34000792502,
+      "event": "pull_request",
+      "merge_preview": "5927ebb553055b8849be0fa79a78fe94f735c47e",
+      "conclusion": "success",
+      "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+      "representative": {
+        "python": "3.12.14",
+        "hash_seed": "0",
+        "passed": 194,
+        "warnings": 13,
+        "duration_seconds": 124.72
+      },
+      "isolated_wheel": "success"
+    },
+    "fourfold_tensor": {
+      "run_id": 34000792396,
+      "event": "pull_request",
+      "conclusion": "success",
+      "observed_jobs": [
+        "Contract matrix under Python 3.10/3.12 and hash seeds 0/123456 succeeded.",
+        "Isolated wheel imports succeeded.",
+        "Complete repository collection succeeded."
+      ]
+    },
+    "full_repository_suite_claim": false,
+    "raw_head_checkout_claim": false,
+    "performance_claim": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "branch_deleted": false,
+    "archive_write": false,
+    "archive_ref": "archive/legacy-20260830",
+    "expected_archive_head": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "authority_transitions": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "next": "Assess packet/g1-map-02 commit-by-commit against the current tree and selectively reintegrate only still-valid mapping/preflight evidence into an existing canonical line; do not wholesale-merge or archive it."
+}

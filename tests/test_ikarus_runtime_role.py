@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from daedalus.ikarus_runtime_role import (  # noqa: E402
+from daedalus.orchestration.ikarus.runtime_role import (  # noqa: E402
     AUTHENTICATED_HANDOFF_EXECUTION_MODE,
     FIXTURE_EXECUTION_MODE,
     SOURCE_ONLY_EXECUTION_MODE,
@@ -20,19 +20,29 @@ from daedalus.ikarus_runtime_role import (  # noqa: E402
     RuntimeRoleRegistry,
     RuntimeRoleRegistryError,
 )
-from daedalus.ikarus_supervisor import (  # noqa: E402
-    MissionSupervisor,
+from daedalus.orchestration.ikarus.supervisor import (  # noqa: E402
+    MissionSupervisor as _MissionSupervisor,
     PlannedItem,
     RoleHarness,
     SupervisorRefused,
     plan_mission,
     verify_state_ledger,
 )
+from daedalus.orchestration.execution import (  # noqa: E402
+    compose_task_attempt,
+)
 from daedalus.schemas import MissionContract, ResourceBudget  # noqa: E402
 from daedalus.spine.attempt import GateResult  # noqa: E402
 
 
 HERMES_COMMIT = "fcbd1076a93841fa88855acce810e342a5b78101"
+
+
+def MissionSupervisor(*args, **kwargs):
+    """Test composition through the same explicit production Attempt port."""
+
+    kwargs.setdefault("attempt_factory", compose_task_attempt)
+    return _MissionSupervisor(*args, **kwargs)
 
 
 @pytest.fixture
@@ -349,6 +359,27 @@ def test_source_only_upstream_is_provenance_not_execution(
     assert "live conformance" in row["detail"]
 
 
+# The two tests below exercise the SUPERVISOR half of authenticated-handoff:
+# `RoleHarness.handoff_runner_factory` and the refusals MissionSupervisor raises
+# around it. That field lives in daedalus/orchestration/ikarus/supervisor.py,
+# which this port does not own and which has not been ported yet -- so the gate
+# is a measured capability check, never a stub of the missing API. It clears
+# itself the moment the supervisor half lands; it must never be widened into a
+# shim that fakes handoff execution.
+_SUPERVISOR_HANDOFF_MISSING = "handoff_runner_factory" not in getattr(
+    RoleHarness, "__dataclass_fields__", {}
+)
+_needs_supervisor_handoff = pytest.mark.skipif(
+    _SUPERVISOR_HANDOFF_MISSING,
+    reason=(
+        "RoleHarness.handoff_runner_factory is not present in "
+        "daedalus.orchestration.ikarus.supervisor; the supervisor half of the "
+        "authenticated-handoff port is owned by the runner-chain lane"
+    ),
+)
+
+
+@_needs_supervisor_handoff
 def test_authenticated_handoff_runtime_rejects_legacy_runner_before_attempt(
     target_repo, tmp_path, monkeypatch
 ):
@@ -387,6 +418,7 @@ def test_authenticated_handoff_runtime_rejects_legacy_runner_before_attempt(
     assert "authenticated-handoff" in row["detail"]
 
 
+@_needs_supervisor_handoff
 def test_authenticated_handoff_runtime_executes_only_after_taskattempt_handoff(
     target_repo, tmp_path, monkeypatch
 ):
@@ -1101,8 +1133,8 @@ def test_invalid_supervisor_timeout_refuses_before_state(
 def test_port_has_no_provider_import_process_spawn_or_vendor_branch():
     root = Path(__file__).resolve().parents[1]
     paths = (
-        root / "daedalus" / "ikarus_runtime_role.py",
-        root / "daedalus" / "ikarus_supervisor.py",
+        root / "daedalus" / "orchestration" / "ikarus" / "runtime_role.py",
+        root / "daedalus" / "orchestration" / "ikarus" / "supervisor.py",
     )
     vendor_tokens = {"claude", "codex", "hermes"}
     for path in paths:

@@ -44,7 +44,7 @@ def _output_evidence_handler() -> ast.ExceptHandler:
         if not isinstance(node, ast.Try):
             continue
         segment = ast.get_source_segment(SOURCE, node) or ""
-        if "_normalize_output_digests(output_digests(value))" in segment:
+        if "_normalize_output_digests(raw_digests)" in segment:
             assert len(node.handlers) == 1
             return node.handlers[0]
     raise AssertionError("output-evidence handler is missing")
@@ -104,7 +104,7 @@ def test_exception_cause_is_class_digest_not_retained_message() -> None:
     assert "repr(exc)" not in text
 
 
-def test_exact_replay_returns_before_provider_or_evidence_callbacks() -> None:
+def test_exact_replay_returns_before_sealed_provider_or_evidence_operation() -> None:
     function = _function("run_runtime_provider")
     lines: dict[str, list[int]] = {}
     for node in ast.walk(function):
@@ -119,8 +119,8 @@ def test_exact_replay_returns_before_provider_or_evidence_callbacks() -> None:
     assert len(replay_ifs) == 1
     returns = [node.lineno for node in ast.walk(replay_ifs[0]) if isinstance(node, ast.Return)]
     assert len(returns) == 1
-    assert returns[0] < min(lines["invoke"])
-    assert returns[0] < min(lines["output_digests"])
+    assert returns[0] < min(lines["_execute_sealed_operation"])
+    assert returns[0] < min(lines["_normalize_output_digests"])
 
 
 def test_old_post_provider_failed_terminal_branch_is_absent() -> None:

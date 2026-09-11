@@ -1,0 +1,10 @@
+killswitch: SwitchState(running=True, reason='armed', path='<SCRATCH>\\control\\killswitch', token='RUN')
+policy before: 998103dfaf81b20670b2a106e2eaaf23b3c74cc5be82fdc0606083a43df2c7f1 | tools: ['browser.navigate', 'browser.read'] | enabled: True
+configured: {'ok': True, 'changed': True, 'policy_sha256': '6f9242500fba9c00fc8924b39ff3198da788373471cf9d65f29285e81f6b9c66', 'policy': {'schema': 'daedalus-computer-policy/1', 'workspace': '<USERPROFILE>\\.daedalus\\computer-workspaces\\e7cef2dd3d99', 'tools': ['browser.navigate', 'browser.read'], 'origins': ['http://127.0.0.1:57660'], 'applications': {}, 'planner_provider': 'ollama_http', 'planner_model': 'qwen2.5-coder:7b', 'allow_remote_context': False, 'max_steps': 16, 'timeout_s': 900, 'max_file_bytes': 1048576}, 'evidence': {'sha256': 'ca2dfd25bac055238d9b4cc00df0cd83f399c111a768bd9af148f250780cd956', 'locator': 'artifact-locator:sha256:ca2dfd25bac055238d9b4cc00df0cd83f399c111a768bd9af148f250780cd956'}, 'start_evidence': {'sha256': '6bdf77b7826b592cab1be95ca1d9f524cecfa4e58dfafc2a60d4a14c56f67e65', 'locator': 'artifact-locator:sha256:6bdf77b7826b592cab1be95ca1d9f524cecfa4e58dfafc2a60d4a14c56f67e65'}}
+policy after: 6f9242500fba9c00fc8924b39ff3198da788373471cf9d65f29285e81f6b9c66 | enabled: True | tools: ['browser.navigate', 'browser.read'] | unavailable: {} | planner: ollama_http qwen2.5-coder:7b | remote: False
+state: stalled | ok: False | tool_steps: 2 | planner_calls: 6 | replans: 3 | repair_calls: 0 | elapsed_s: 147.2
+summary: Three consecutive identical advisory plans established no progress.
+planner_summary: None
+ step 1 browser.navigate | ok: True | status: observed | url: http://127.0.0.1:57660/notes.html | text: 'Daedalus stage 13 notes\n\nThis is a static page served from loopback for the Ikarus computer-loop measurement.\n\nToday\nwater the ficus\nrenew the library card\ncall'
+ step 2 browser.read | ok: True | status: observed | url: http://127.0.0.1:57660/notes.html | text: 'Daedalus stage 13 notes\n\nThis is a static page served from loopback for the Ikarus computer-loop measurement.\n\nToday\nwater the ficus\nrenew the library card\ncall'
+proposals retained: 6

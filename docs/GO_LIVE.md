@@ -8,8 +8,8 @@ rather than trusting a sentence written on some earlier day.
 > The "28 tests green" this page used to claim was measured in the harness's
 > first weeks; the suite collects 7798 tests today [MEASURED 2026-08-25,
 > `pytest tests/ --collect-only`]. A count is not a readiness claim, which is
-> why it no longer appears here. `python -m daedalus.cli health --deep` and
-> `python -m daedalus.cli governance` are the commands that answer readiness,
+> why it no longer appears here. `python -m daedalus.interfaces.cli.entry health --deep` and
+> `python -m daedalus.interfaces.cli.entry governance` are the commands that answer readiness,
 > and they exit non-zero rather than round up.
 
 Run this sequence:
@@ -33,7 +33,7 @@ python -m daedalus.doctor          # must say READY
 
 ```powershell
 python -m daedalus.kairos.scheduler  # spawn plan: who'd run where
-python -m daedalus.benchmark       # projected token/cost picture
+python -m daedalus.orchestration.benchmark       # projected token/cost picture
 ```
 
 ## 4. First LIVE task — on a safe, low-risk target

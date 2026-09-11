@@ -34,6 +34,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import daedalus.kernel.runtime_authorization_issuer as legacy_issuer  # noqa: E402
 from daedalus.kernel.contracts import (          # noqa: E402
     ContractProvenance,
     EffectLeaseRequest,
@@ -41,7 +42,8 @@ from daedalus.kernel.contracts import (          # noqa: E402
 )
 from daedalus.kernel.effects import EffectLeaseBindingMismatch  # noqa: E402
 from daedalus.kernel.offload_lease import kill_switch_generation  # noqa: E402
-from daedalus.kernel.runtime_authorization_issuer import (  # noqa: E402
+import daedalus.runtimes.admission as runtime_admission  # noqa: E402
+from daedalus.runtimes.admission import (  # noqa: E402
     RUNTIME_AUTHORITY_KEY_ID,
     RUNTIME_LEASE_KEY_ID,
     acquire_runtime_bound_authorization,
@@ -65,6 +67,20 @@ IDENTITY_SHA = "3" * 64
 ENVELOPE_SHA = "4" * 64
 POLICY_SHA = "5" * 64
 NOW = datetime.now(timezone.utc)
+
+
+@pytest.mark.parametrize(
+    "name",
+    (
+        "RUNTIME_AUTHORITY_KEY_ID",
+        "RUNTIME_LEASE_KEY_ID",
+        "acquire_runtime_bound_authorization",
+        "runtime_trust_ledger",
+        "runtime_trust_ledger_path",
+    ),
+)
+def test_legacy_kernel_path_reexports_canonical_objects(name: str) -> None:
+    assert getattr(legacy_issuer, name) is getattr(runtime_admission, name)
 
 
 @pytest.fixture

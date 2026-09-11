@@ -23,7 +23,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .. import skills as skills_mod
+from ..foundation import skills as skills_mod
 from . import vet as vet_mod
 
 INVENTORY_VERSION = "1"

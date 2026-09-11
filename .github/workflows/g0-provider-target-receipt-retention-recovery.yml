@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-target-receipt-retention-admission-frozen-b6d274a
     paths:
-      - "daedalus/runtimes/provider_target_receipt_retention_recovery.py"
+      - "daedalus/runtimes/provider/target_receipt_retention_recovery.py"
       - "configs/schemas/provider-target-receipt-retention-recovery-decision.schema.json"
       - "tests/runtimes/test_provider_target_receipt_retention_recovery*.py"
       - "scripts/run_provider_target_receipt_retention_recovery_mutations.py"
@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-retention-recovery-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_target_receipt_retention_recovery import (
+          from daedalus.runtimes.provider.target_receipt_retention_recovery import (
               ProviderTargetReceiptRetentionRecoveryDecision,
               decide_provider_target_receipt_retention_recovery,
           )

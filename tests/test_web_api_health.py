@@ -30,7 +30,7 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 
 
 @pytest.fixture

@@ -362,7 +362,7 @@ def _curated_relay_gate(box: dict, spec: Any):
     relay = _relay_gate(box)
 
     def _gate(ctx):
-        from daedalus.spine.attempt import command_gate
+        from daedalus.orchestration.execution import command_gate
 
         first = relay(ctx)
         if not first.passed:
@@ -382,7 +382,7 @@ def _attempt_assignment(assignment: "Assignment", base_revision: str, primary_ro
                          effect_authorization: Any = None,
                          effect_execution: Any = None,
                          ) -> GatedCandidate:
-    from daedalus.spine.attempt import run_attempt
+    from daedalus.orchestration.execution import run_attempt
 
     spec = _spec_for(assignment, base_revision, primary_root, uuid.uuid4().hex[:10],
                      gate=gate, model=model)
@@ -693,7 +693,7 @@ def _reattempt(candidate: GatedCandidate, new_base: str, root: Path, *, project,
     ``cancel`` is forwarded unchanged to this regeneration's own
     ``TaskAttempt`` -- see ``gate_candidates``' docstring for what it accepts.
     """
-    from daedalus.spine.attempt import run_attempt
+    from daedalus.orchestration.execution import run_attempt
 
     fresh_spec = _dc_replace(candidate.spec, base_revision=new_base)
     runner_kwargs: dict[str, Any] = {
@@ -832,7 +832,8 @@ def _promote_one_inner(candidate: GatedCandidate, integration_branch: str,
         git.run(["add", "-A"])
         git.run(["commit", "-m", f"kairos candidate {task_id}: {result.branch}"])
         if test_command:
-            from daedalus.spine.attempt import RunnerContext, TaskSpec, command_gate
+            from daedalus.orchestration.execution import command_gate
+            from daedalus.spine.attempt import RunnerContext, TaskSpec
 
             argv = shlex.split(test_command)
             ctx = RunnerContext(

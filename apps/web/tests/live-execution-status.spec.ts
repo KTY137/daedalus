@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { liveExecutionStatus } from '../src/cockpit/liveExecution';
+import { liveExecutionStatus } from '../src/features/mission/live';
 
 test.describe('live execution evidence', () => {
   test('renders current counters as live execution evidence', () => {
-    expect(liveExecutionStatus({ streamLive: true, inFlight: 2, queued: 3 })).toEqual({
-      text: 'Ausführung live · 2 aktiv · 3 wartend',
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 1, queued: 3 })).toEqual({
+      text: 'Ausführung live · 1 aktiv · 3 wartend',
       tone: 'ok',
       stale: false
     });
@@ -34,8 +34,8 @@ test.describe('live execution evidence', () => {
   });
 
   test('marks cached counters stale as soon as the event stream is gone', () => {
-    expect(liveExecutionStatus({ streamLive: false, inFlight: 2, queued: 1 })).toEqual({
-      text: 'Ereignisstrom getrennt · letzter Stand: 2 aktiv · 1 wartend',
+    expect(liveExecutionStatus({ streamLive: false, inFlight: 1, queued: 1 })).toEqual({
+      text: 'Ereignisstrom getrennt · letzter Stand: 1 aktiv · 1 wartend',
       tone: 'warn',
       stale: true
     });
@@ -56,9 +56,15 @@ test.describe('live execution evidence', () => {
       stale: false
     });
     expect(liveExecutionStatus({ streamLive: true, inFlight: 1.9, queued: 0.2 })).toEqual({
-      text: 'Ausführung live · 1 aktiv · 0 wartend',
-      tone: 'ok',
+      text: 'Ausführung live · Zähler unbekannt',
+      tone: 'warn',
       stale: false
     });
+  });
+
+  test('a flag is never a task total and partial zeroes never claim nothing is active', () => {
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 2 })).toMatchObject({ tone: 'warn' });
+    expect(liveExecutionStatus({ streamLive: true, queued: 0 }).text).not.toContain('nichts aktiv');
+    expect(liveExecutionStatus({ streamLive: true, inFlight: 0 }).text).not.toContain('nichts aktiv');
   });
 });

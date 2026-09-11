@@ -4,6 +4,7 @@ import ast
 import inspect
 
 import daedalus.kernel.source_trees as source_trees
+from daedalus.atomic import replace_with_retry as canonical_replace_with_retry
 
 
 def _function(tree: ast.AST, class_name: str, method_name: str) -> ast.FunctionDef:
@@ -58,7 +59,8 @@ def test_materialization_is_staged_and_cannot_replace_existing_destination() -> 
         "tempfile.mkdtemp"
     )
     assert "output.open(\"xb\")" in source
-    assert "os.replace(staging, target)" in source
+    assert "replace_with_retry(staging, target)" in source
+    assert source_trees.replace_with_retry is canonical_replace_with_retry
     assert "shutil.rmtree(staging" in source
     assert "git" not in source.lower()
     assert "subprocess" not in source

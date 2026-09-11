@@ -1,3 +1,4 @@
+import { stubLiveProject } from './_live-fixtures';
 import { expect, test } from '@playwright/test';
 import { NOT_BUILT } from './_app';
 
@@ -8,6 +9,7 @@ import { NOT_BUILT } from './_app';
  * project's active work as another project's work.
  */
 test('project switch does not relabel previous live execution evidence', async ({ page }) => {
+  await stubLiveProject(page, 'switch-alpha');
   await page.addInitScript(() => {
     type Listener = (event: MessageEvent<string>) => void;
 
@@ -36,7 +38,7 @@ test('project switch does not relabel previous live execution evidence', async (
           this.emitted = true;
           const project = new URL(this.url, location.origin).searchParams.get('project');
           if (project === 'switch-alpha') {
-            queueMicrotask(() => this.emit('hello', { in_flight: 4, queue_depth: 9 }));
+            queueMicrotask(() => this.emit('hello', { in_flight: 1, queue_depth: 9 }));
           }
         }
       }
@@ -110,13 +112,13 @@ test('project switch does not relabel previous live execution evidence', async (
   const status = page.locator('.statusline');
   await expect(page.locator('.cockpit'), 'the cockpit never mounted').toBeVisible({ timeout: 20_000 });
   await expect(status).toContainText('switch-alpha', { timeout: 20_000 });
-  await expect(status).toContainText('Ausführung live · 4 aktiv · 9 wartend', { timeout: 20_000 });
+  await expect(status).toContainText('Ausführung live · 1 aktiv · 9 wartend', { timeout: 20_000 });
 
   await page.locator('.scope-trigger').click();
   await page.getByRole('button', { name: 'switch-beta', exact: true }).click();
 
   await expect(status).toContainText('switch-beta', { timeout: 20_000 });
   await expect(status).toContainText('kein Ereignisstrom · Ausführungsstand unbekannt', { timeout: 20_000 });
-  await expect(status).not.toContainText('4 aktiv');
+  await expect(status).not.toContainText('1 aktiv');
   await expect(status).not.toContainText('9 wartend');
 });

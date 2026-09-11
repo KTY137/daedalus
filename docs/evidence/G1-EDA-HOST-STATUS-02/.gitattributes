@@ -1,0 +1,9 @@
+# G1-EDA-HOST-STATUS-02 retained evidence.
+#
+# emitted/manifest.json names each emitted script by the SHA-256 of its own
+# bytes, and the harness/agreement transcripts quote those digests. With
+# core.autocrlf=true a fresh Windows checkout would rewrite these files to
+# CRLF and every recorded digest would stop matching the file on disk. Pin
+# the whole directory to its committed bytes; the same "CRLF daemon" cure the
+# root .gitattributes documents, scoped to this packet so no shared list moves.
+* -text

@@ -35,6 +35,9 @@ _EXTENSIONS: dict[str, tuple[str, str, str, bool]] = {
     ".xdc": ("constraint", "xdc", "fpga/constraints", False),
     ".sdc": ("constraint", "sdc", "timing/constraints", False),
     ".qsf": ("constraint", "qsf", "quartus/project-constraints", False),
+    ".xpr": ("project", "vivado-xpr", "vivado/project", False),
+    ".bd": ("block_design", "vivado-bd", "vivado/source", True),
+    ".xci": ("ip_config", "vivado-xci", "vivado/source", True),
     ".tcl": ("script", "tcl", "eda/automation", False),
     ".do": ("script", "tcl", "simulator/automation", False),
     ".sby": ("formal_config", "sby", "formal/config", False),
@@ -45,7 +48,10 @@ _IGNORED_DIRS = {
     ".git", ".hg", ".svn", ".venv", "venv", "env", "__pycache__",
     "node_modules", "dist", "build", "out", "target", ".cache",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".idea", ".vs",
+    "ip_user_files", ".Xil",
 }
+
+_IGNORED_VENDOR_SUFFIXES = (".runs", ".cache", ".gen", ".sim", ".hw")
 
 
 def classify_source(path: str | os.PathLike[str]) -> SourceSpec | None:
@@ -93,7 +99,11 @@ def discover_sources(
     out: list[SourceSpec] = []
     for dirpath, dirnames, filenames in os.walk(base):
         dirnames[:] = sorted(
-            d for d in dirnames if d not in ignored and not d.startswith(".")
+            d
+            for d in dirnames
+            if d not in ignored
+            and not d.startswith(".")
+            and not d.casefold().endswith(_IGNORED_VENDOR_SUFFIXES)
         )
         for name in sorted(filenames):
             spec = classify_source(Path(dirpath) / name)

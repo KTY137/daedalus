@@ -1,0 +1,327 @@
+{
+  "schema": "daedalus-eda-host-status/1",
+  "measured": "2026-09-05",
+  "host": "Windows 11 developer box",
+  "tools": [
+    {
+      "id": "tclsh",
+      "label": "Tcl shell",
+      "command": "tclsh",
+      "roles": [
+        "tcl"
+      ],
+      "languages": [],
+      "version_args": [],
+      "tcl_backend": "tclsh",
+      "accepts_tcl_args": true,
+      "proprietary": false,
+      "notes": "Generic Tcl interpreter; use vendor backends for vendor commands.",
+      "available": true,
+      "command_path": "C:\\Program Files\\Git\\mingw64\\bin\\tclsh.exe",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": ""
+    },
+    {
+      "id": "verilator",
+      "label": "Verilator",
+      "command": "verilator",
+      "roles": [
+        "lint",
+        "simulation"
+      ],
+      "languages": [
+        "verilog",
+        "systemverilog"
+      ],
+      "version_args": [
+        "--version"
+      ],
+      "tcl_backend": "",
+      "accepts_tcl_args": false,
+      "proprietary": false,
+      "notes": "Fast RTL lint/compile/simulation front end.",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "verilator not found"
+    },
+    {
+      "id": "verible",
+      "label": "Verible SystemVerilog linter",
+      "command": "verible-verilog-lint",
+      "roles": [
+        "style_lint",
+        "syntax"
+      ],
+      "languages": [
+        "verilog",
+        "systemverilog"
+      ],
+      "version_args": [
+        "--version"
+      ],
+      "tcl_backend": "",
+      "accepts_tcl_args": false,
+      "proprietary": false,
+      "notes": "SystemVerilog developer tooling: parser/linter/formatter ecosystem.",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "verible-verilog-lint not found"
+    },
+    {
+      "id": "iverilog",
+      "label": "Icarus Verilog",
+      "command": "iverilog",
+      "roles": [
+        "simulation",
+        "compile"
+      ],
+      "languages": [
+        "verilog",
+        "systemverilog"
+      ],
+      "version_args": [
+        "-V"
+      ],
+      "tcl_backend": "",
+      "accepts_tcl_args": false,
+      "proprietary": false,
+      "notes": "",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "iverilog not found"
+    },
+    {
+      "id": "ghdl",
+      "label": "GHDL",
+      "command": "ghdl",
+      "roles": [
+        "simulation",
+        "compile"
+      ],
+      "languages": [
+        "vhdl"
+      ],
+      "version_args": [
+        "--version"
+      ],
+      "tcl_backend": "",
+      "accepts_tcl_args": false,
+      "proprietary": false,
+      "notes": "",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "ghdl not found"
+    },
+    {
+      "id": "yosys",
+      "label": "Yosys",
+      "command": "yosys",
+      "roles": [
+        "synthesis",
+        "formal_frontend",
+        "tcl"
+      ],
+      "languages": [
+        "verilog",
+        "systemverilog"
+      ],
+      "version_args": [
+        "-V"
+      ],
+      "tcl_backend": "yosys",
+      "accepts_tcl_args": false,
+      "proprietary": false,
+      "notes": "Tcl is supported with yosys -c; script argv is intentionally not guessed.",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "yosys not found"
+    },
+    {
+      "id": "sby",
+      "label": "SymbiYosys",
+      "command": "sby",
+      "roles": [
+        "formal"
+      ],
+      "languages": [
+        "verilog",
+        "systemverilog"
+      ],
+      "version_args": [
+        "--version"
+      ],
+      "tcl_backend": "",
+      "accepts_tcl_args": false,
+      "proprietary": false,
+      "notes": "",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "sby not found"
+    },
+    {
+      "id": "openroad",
+      "label": "OpenROAD",
+      "command": "openroad",
+      "roles": [
+        "physical_design",
+        "sta",
+        "tcl"
+      ],
+      "languages": [
+        "verilog"
+      ],
+      "version_args": [
+        "-version"
+      ],
+      "tcl_backend": "openroad",
+      "accepts_tcl_args": false,
+      "proprietary": false,
+      "notes": "Runs Tcl command files; Daedalus adds -no_init -exit for reproducibility.",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "openroad not found"
+    },
+    {
+      "id": "vivado",
+      "label": "AMD Vivado",
+      "command": "vivado",
+      "roles": [
+        "fpga",
+        "synthesis",
+        "implementation",
+        "simulation",
+        "tcl"
+      ],
+      "languages": [
+        "verilog",
+        "systemverilog",
+        "vhdl"
+      ],
+      "version_args": [
+        "-version"
+      ],
+      "tcl_backend": "vivado",
+      "accepts_tcl_args": true,
+      "proprietary": true,
+      "notes": "",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "vivado not found"
+    },
+    {
+      "id": "vitis",
+      "label": "AMD Vitis",
+      "command": "vitis",
+      "roles": [
+        "embedded_software",
+        "hardware_platform",
+        "acceleration"
+      ],
+      "languages": [],
+      "version_args": [
+        "-version"
+      ],
+      "tcl_backend": "",
+      "accepts_tcl_args": false,
+      "proprietary": true,
+      "notes": "Discovery only in the Gate-1 Vivado slice; an XSA without a Vitis workspace/application is not an executable software mission.",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "vitis not found"
+    },
+    {
+      "id": "xsct",
+      "label": "AMD XSCT",
+      "command": "xsct",
+      "roles": [
+        "embedded_software",
+        "tcl"
+      ],
+      "languages": [],
+      "version_args": [
+        "-version"
+      ],
+      "tcl_backend": "",
+      "accepts_tcl_args": false,
+      "proprietary": true,
+      "notes": "Discovery only; no XSCT execution adapter is admitted by this slice.",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "xsct not found"
+    },
+    {
+      "id": "quartus",
+      "label": "Altera/Intel Quartus Prime",
+      "command": "quartus_sh",
+      "roles": [
+        "fpga",
+        "synthesis",
+        "implementation",
+        "sta",
+        "tcl"
+      ],
+      "languages": [
+        "verilog",
+        "systemverilog",
+        "vhdl"
+      ],
+      "version_args": [
+        "--version"
+      ],
+      "tcl_backend": "quartus",
+      "accepts_tcl_args": true,
+      "proprietary": true,
+      "notes": "",
+      "available": false,
+      "command_path": "",
+      "version": "",
+      "probe_status": "not_run",
+      "version_probe_returncode": null,
+      "probe_warning": "",
+      "last_error": "quartus_sh not found"
+    }
+  ]
+}

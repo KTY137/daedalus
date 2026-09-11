@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import json
 import os
-import queue
-import threading
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
@@ -24,8 +22,7 @@ from typing import Any
 from ._openai_compat import (
     ProviderCancelled,
     ProviderHTTPError,
-    _budget_explicit_bridge,
-    _poll_interval,
+    _cancellable_stream,
 )
 
 # Sized by MEASUREMENT on the 15.7GB reference box (2026-07-26), not by the
@@ -206,7 +203,7 @@ def native_chat(
     num_predict: int | None = None,
     think: bool | None = None,
     keep_alive: str | None = None,
-    timeout_s: float = 300.0,
+    timeout_s: float | None = 300,
     temperature: float = 0.0,
 ) -> dict[str, Any]:
     """POST one non-streaming native ``/api/chat`` request.
@@ -230,12 +227,12 @@ def native_chat(
     except urllib.error.URLError as exc:
         raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
     except TimeoutError as exc:
-        raise ProviderHTTPError(
-            f"request to {url} timed out after {timeout_s:g}s") from exc
+        detail = f" after {timeout_s:g}s" if timeout_s is not None else ""
+        raise ProviderHTTPError(f"request to {url} timed out{detail}") from exc
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ProviderHTTPError(f"invalid JSON response from {url}: {exc}") from exc
 
-    message = payload.get("message")
+    message = payload.get("message") if isinstance(payload, dict) else None
     if not isinstance(message, dict):
         raise ProviderHTTPError(f"unexpected response shape: {payload}")
     return _adapt_message(message)
@@ -251,6 +248,10 @@ def _native_stream_deltas(resp: Any, url: str) -> Iterator[str]:
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise ProviderHTTPError(
                 f"invalid streaming frame from {url}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise ProviderHTTPError(f"unexpected streaming frame shape from {url}")
+        if "done" in payload and not isinstance(payload["done"], bool):
+            raise ProviderHTTPError(f"invalid streaming completion flag from {url}")
         if payload.get("error"):
             raise ProviderHTTPError(
                 f"Ollama stream error from {url}: {payload.get('error')}")
@@ -259,8 +260,9 @@ def _native_stream_deltas(resp: Any, url: str) -> Iterator[str]:
             content = message.get("content")
             if isinstance(content, str) and content:
                 yield content
-        if payload.get("done"):
-            break
+        if payload.get("done") is True:
+            return
+    raise ProviderHTTPError(f"native Ollama stream from {url} ended before its completion frame")
 
 
 def native_chat_stream(
@@ -274,7 +276,7 @@ def native_chat_stream(
     num_predict: int | None = None,
     think: bool | None = None,
     keep_alive: str | None = None,
-    timeout_s: float = 300.0,
+    timeout_s: float | None = 300,
     temperature: float = 0.0,
     cancelled: Callable[[], bool] | None = None,
     poll_interval_s: float | None = None,
@@ -284,8 +286,10 @@ def native_chat_stream(
     Without ``cancelled`` this remains the historical direct blocking generator.
     With a probe, the worker owns the socket and the caller owns a small event
     queue. A cancellation that arrives after the response exists closes that
-    response and raises the shared typed :class:`ProviderCancelled`; the same
-    request is never replayed. If cancellation happens while ``urlopen`` itself
+    response asynchronously and raises the shared :class:`ProviderCancelled`;
+    the same request is never replayed. A close may itself block, so returning
+    control does not establish that remote generation or billing has stopped.
+    If cancellation happens while ``urlopen`` itself
     is still blocked, stdlib exposes no portable response handle yet, so the
     daemon worker can only be abandoned until that open returns. This mirrors
     the OpenAI-compatible transport's honest residual rather than inventing a
@@ -302,90 +306,24 @@ def native_chat_stream(
     )
     url, request = _native_request(host, body)
 
-    if cancelled is None:
-        try:
-            with urllib.request.urlopen(request, timeout=timeout_s) as resp:
-                yield from _native_stream_deltas(resp, url)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")[:500]
-            raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
-        except TimeoutError as exc:
-            raise ProviderHTTPError(
-                f"request to {url} timed out after {timeout_s:g}s") from exc
-        return
-
-    interval = _poll_interval(poll_interval_s)
-    if cancelled():
-        raise ProviderCancelled("cancelled before native Ollama stream opened a connection")
-
-    events: queue.Queue[tuple[str, Any]] = queue.Queue()
-    stop_requested = threading.Event()
-    response_lock = threading.Lock()
-    response_box: dict[str, Any] = {}
-    adopt_budget_mark = _budget_explicit_bridge()
-
-    def _close_active_response() -> None:
-        with response_lock:
-            response = response_box.get("response")
-        if response is not None:
-            try:
-                response.close()
-            except Exception:  # noqa: BLE001 - cancellation remains terminal
-                pass
-
-    def _produce() -> None:
-        adopt_budget_mark()
-        try:
-            with urllib.request.urlopen(request, timeout=timeout_s) as resp:
-                with response_lock:
-                    response_box["response"] = resp
-                if stop_requested.is_set():
-                    return
-                for piece in _native_stream_deltas(resp, url):
-                    if stop_requested.is_set():
-                        return
-                    events.put(("delta", piece))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")[:500]
-            events.put(("error", ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}")))
-        except urllib.error.URLError as exc:
-            events.put(("error", ProviderHTTPError(f"cannot reach {url}: {exc.reason}")))
-        except TimeoutError as exc:
-            events.put(("error", ProviderHTTPError(
-                f"request to {url} timed out after {timeout_s:g}s")))
-        except BaseException as exc:  # noqa: BLE001 - preserve legacy stream failures
-            events.put(("error", exc))
-        finally:
-            with response_lock:
-                response_box.pop("response", None)
-            events.put(("done", None))
-
-    threading.Thread(
-        target=_produce,
-        name="daedalus-ollama-native-stream",
-        daemon=True,
-    ).start()
-
     try:
-        while True:
-            if cancelled():
-                stop_requested.set()
-                _close_active_response()
-                raise ProviderCancelled("cancelled while native Ollama stream was in flight")
-            try:
-                kind, value = events.get(timeout=interval)
-            except queue.Empty:
-                continue
-            if kind == "delta":
-                yield value
-            elif kind == "error":
-                raise value
-            elif kind == "done":
-                return
-            else:  # pragma: no cover - private producer emits a closed vocabulary
-                raise RuntimeError(f"unknown native Ollama stream event: {kind}")
-    finally:
-        stop_requested.set()
-        _close_active_response()
+        if cancelled is None:
+            with urllib.request.urlopen(request, timeout=timeout_s) as response:
+                yield from _native_stream_deltas(response, url)
+        else:
+            yield from _cancellable_stream(
+                lambda: urllib.request.urlopen(request, timeout=timeout_s),
+                lambda response: _native_stream_deltas(response, url),
+                cancelled=cancelled,
+                poll_interval_s=poll_interval_s,
+                name="native Ollama stream",
+                url=url,
+            )
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
+    except TimeoutError as exc:
+        detail = f" after {timeout_s:g}s" if timeout_s is not None else ""
+        raise ProviderHTTPError(f"request to {url} timed out{detail}") from exc

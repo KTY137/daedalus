@@ -312,7 +312,7 @@ def test_current_repository_task_attempt_writer_is_factory_admitted() -> None:
     attempt_sites = [
         site
         for site in report.callsites
-        if site.path == "daedalus/spine/attempt.py"
+            if site.path == "daedalus/kernel/attempt_execution.py"
     ]
     assert attempt_sites, "TaskAttempt ledger opening is invisible to the scan"
     assert any(site.kind == "gate0_factory" for site in attempt_sites)
@@ -338,7 +338,7 @@ def test_conversation_store_opens_its_writer_through_the_factory() -> None:
     neither blocks.
     """
     report = scan_event_store_writers(ROOT, source_revision=REVISION)
-    sites = [s for s in report.callsites if s.path == "daedalus/conversation.py"]
+    sites = [s for s in report.callsites if s.path == "daedalus/orchestration/conversation.py"]
     assert sites, "the conversation writer seam is invisible to the scan"
     kinds = {s.kind for s in sites}
     assert "gate0_factory" in kinds, (

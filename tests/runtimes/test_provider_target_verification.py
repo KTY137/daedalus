@@ -11,31 +11,31 @@ import pytest
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.kernel.source_trees import SourceTreeStore
-from daedalus.runtimes.provider_executable_targets import (
+from daedalus.runtimes.provider.executable_targets import (
     ProviderExecutableTargetAuthority,
     ProviderExecutableTargetDescriptor,
     ProviderExecutableTargetManifest,
     build_provider_executable_target_manifest,
     issue_provider_executable_target_authority,
 )
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
     issue_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderAdapterDescriptor,
     ProviderInvocationRegistryManifest,
     build_provider_invocation_registry_manifest,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     issue_provider_observation_authority,
 )
-from daedalus.runtimes.provider_target_verification import (
+from daedalus.runtimes.provider.target_verification import (
     issue_provider_target_verification_receipt,
     verify_provider_target_verification_receipt,
 )
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
     ProviderTargetVerificationBindingError,
     ProviderTargetVerificationSignatureError,

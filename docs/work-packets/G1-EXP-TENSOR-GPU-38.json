@@ -1,0 +1,127 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-38",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "ed463851d445823b4ca6609dcd196d5b9c20d922",
+    "dependencies": "G1-EXP-TENSOR-GPU-37 and the exact pre_head/base_head retained in this packet",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": [
+          "finding",
+          "decision",
+          "title"
+        ]
+      },
+      "scope": {
+        "source_fields": [
+          "domain"
+        ]
+      },
+      "contracts_and_behavior": {
+        "source_fields": [
+          "decision",
+          "cleanup",
+          "probe"
+        ]
+      },
+      "acceptance_matrix": {
+        "source_fields": [
+          "probe"
+        ]
+      },
+      "migration_and_rollback": {
+        "source_fields": [
+          "branch_hygiene",
+          "cleanup",
+          "decision"
+        ],
+        "projection_note": "No runtime migration is introduced by this registry projection; removing registry_contract rolls back only the projection and retains the packet evidence."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": [
+          "claim_boundaries",
+          "finding"
+        ]
+      }
+    }
+  },
+  "work_packet": "G1-EXP-TENSOR-GPU-38",
+  "title": "Bound indexed column fail-closed ordering before a production change",
+  "classification": "research",
+  "domain": "tensor-kernel",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "ed463851d445823b4ca6609dcd196d5b9c20d922",
+  "finding": {
+    "owner": "TypedRelationBlock._from_indexed",
+    "problem": "GPU-37 validates indexed row keys before sorting, but indexed column keys still reach ordered.sort() before the canonical constructor validates column types. A mixed exact-integer/non-integer column set can therefore leak Python comparison TypeError instead of failing closed through the relation-block ValueError contract.",
+    "risk": "The canonical indexed owner is now used by verified Fourfold/Forest projections. Letting Python tuple ordering decide malformed-column behavior makes the internal boundary less deterministic and less fail-closed than its row side and persisted CSR contract."
+  },
+  "probe": {
+    "commit": "2a8827ded876478454f6f385ffb5c58491e02ca4",
+    "path": "tests/twin/test_indexed_column_validation_probe.py",
+    "blob": "9e8de1bd543f0d593d6470f10bad1b2a4a8b180d",
+    "case": "one valid (row=0,column=0) entry plus one (row=0,column='1') entry; require canonical ValueError before sorting",
+    "workflow_run_id": 34015662552,
+    "merge_preview_sha": "20f2d90f078e3fbc41db32fef92c6dfd81683b25",
+    "result": "negative evidence: multiple Python/hash contract arms had already failed in the integrated contract surface before the run was cancelled by the deliberate cleanup commit; isolated-wheel imports had succeeded",
+    "run_final_conclusion": "cancelled-by-cleanup-concurrency-after-contract-failures"
+  },
+  "cleanup": {
+    "commit": "895350bdcaa7db48b308d22b34f41a91c98e9b82",
+    "probe_removed": true,
+    "production_path": "daedalus/twin/relation_blocks.py",
+    "production_blob_unchanged": "a0d4785eb3ffdf25a9d9c778e0211ff6c8ccc8e5",
+    "cleanup_merge_preview_sha": "e55aa1520f1c6a98948b1e5241404ef4b6182405",
+    "verification_run_id": 34015705433,
+    "verification_conclusion": "success",
+    "contract_matrix": "success",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "full_repository_suite": "manual-only/skipped"
+  },
+  "decision": {
+    "production_change_in_this_packet": false,
+    "next_bounded_change": "In the existing TypedRelationBlock._from_indexed owner, validate every column key as an exact int within column-axis bounds before ordered.sort(), preserving the existing constructor as the final CSR/scalar validator. Pin mixed incomparable columns plus bool/float/string aliases and range failures without adding another builder or validator.",
+    "parallel_abstraction_allowed": false
+  },
+  "gardener_constraints": {
+    "parallel_abstraction_added": false,
+    "new_backend_added": false,
+    "new_cache_added": false,
+    "new_registry_added": false,
+    "new_public_api_added": false,
+    "temporary_probe_pruned": true,
+    "production_tree_restored": true
+  },
+  "claim_boundaries": {
+    "correctness": "Negative PR-integration evidence for the indexed-column pre-sort validation gap only; no production fix is claimed in GPU-38.",
+    "performance": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "archive_legacy_20260830_written": false,
+    "unique_evidence_deleted": false,
+    "negative_probe_evidence_retained_in_history": true
+  }
+}

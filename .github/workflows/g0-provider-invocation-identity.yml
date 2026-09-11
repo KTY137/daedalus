@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-invocation-registry-manifest-linear
     paths:
-      - "daedalus/runtimes/provider_invocation_identity.py"
+      - "daedalus/runtimes/provider/invocation_identity.py"
       - "tests/runtimes/test_provider_invocation_identity*.py"
       - "scripts/run_provider_invocation_identity_mutations.py"
       - "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_IDENTITY.*"
@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-provider-invocation-identity-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_invocation_identity import (
+          from daedalus.runtimes.provider.invocation_identity import (
               PROVIDER_INVOCATION_CONTRACT_ID,
               ProviderInvocationIdentityProjection,
               project_provider_invocation_identity,

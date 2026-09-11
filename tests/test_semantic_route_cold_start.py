@@ -2,7 +2,7 @@
 
 THE DEFECT THIS FILE EXISTS TO KEEP FIXED
 -----------------------------------------
-``daedalus/semantic_route.py`` was fully wired into
+``daedalus/orchestration/semantic_route.py`` was fully wired into
 ``provider_router.route_and_select``, covered by two test files, and listed as a
 shipped feature. It had also never once run in production.
 
@@ -50,7 +50,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from daedalus import semantic_route as sr
+from daedalus.orchestration import semantic_route as sr
 from daedalus.provider_router import LATENT_ENV, route_and_select
 from daedalus.router import load_agents
 

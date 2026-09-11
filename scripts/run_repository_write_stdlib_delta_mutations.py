@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "daedalus" / "gates" / "repository_write_stdlib_delta.py"
+SOURCE = ROOT / "daedalus" / "gates" / "repository" / "write_stdlib_delta.py"
 TESTS = (
     "tests/gates/test_repository_write_stdlib_delta.py",
     "tests/gates/test_repository_write_stdlib_delta_review.py",

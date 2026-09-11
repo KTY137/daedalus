@@ -27,9 +27,13 @@ from daedalus.kernel.offload_lease import (          # noqa: E402
     acquire_attempt_lease,
     issuable_row,
 )
+from daedalus.orchestration.workspace_containment import (  # noqa: E402
+    resolve_worktree_root,
+)
 from daedalus.sensitivity import Policy              # noqa: E402
 from daedalus.spine.killswitch import KillSwitch, control_root  # noqa: E402
 from daedalus.spine.ledger import SpineLedger        # noqa: E402
+from daedalus.spine.picker import resolve_spine_db_path  # noqa: E402
 
 REVISION = "b" * 40
 DOCS_POLICY = Policy(write_allow=("docs/",))
@@ -86,6 +90,8 @@ def _acquire(repo, **overrides):
         write_policy=DOCS_POLICY,
         contained=True,
         containment_evidence="TaskAttempt worktree, test",
+        worktree_root_resolver=resolve_worktree_root,
+        intent_ledger_path_resolver=resolve_spine_db_path,
     )
     kwargs.update(overrides)
     return acquire_attempt_lease(repo, **kwargs)
@@ -121,6 +127,37 @@ def test_an_attempt_with_a_durable_intent_is_leased(repo, armed_switch):
         assert "INTENDED" in by_name["spine.intent_ledger"].evidence
         assert by_name["containment.worktree"].allowed is True
         assert by_name["provider.write_policy"].allowed is True
+    finally:
+        led.close()
+
+
+def test_attempt_intent_guard_denies_without_composed_path_resolver(
+    repo, armed_switch, monkeypatch
+):
+    led = _intend(repo, "daedalus-attempt-test-branch")
+    try:
+        import sqlite3
+
+        def unexpected_connect(*_args, **_kwargs):
+            raise AssertionError("SQLite must not be touched without the path port")
+
+        monkeypatch.setattr(sqlite3, "connect", unexpected_connect)
+        denied = _acquire(
+            repo,
+            switch=armed_switch,
+            intent_ledger_path_resolver=None,
+        )
+        assert isinstance(denied, WaveLeaseDenied)
+        decision = next(
+            item
+            for item in denied.guard_decisions
+            if item.contract == "spine.intent_ledger"
+        )
+        assert decision.allowed is False
+        assert decision.evidence == (
+            "no repository-confined intent-ledger path resolver port was "
+            "composed; the lease is refused before any SQLite access"
+        )
     finally:
         led.close()
 
@@ -189,7 +226,8 @@ def test_a_leased_attempt_begins_before_the_worktree_and_terminalises(
     the branch ref, and the terminal outcome lands in the effect ledger and on
     the result -- COMPLETED even though only the gate's verdict, not the
     attempt's success, is the payload."""
-    from daedalus.spine.attempt import TaskAttempt, TaskSpec
+    from daedalus.orchestration.execution import compose_task_attempt
+    from daedalus.spine.attempt import TaskSpec
     from daedalus.kernel.effect_replay import inspect_effect_execution
 
     monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
@@ -197,7 +235,7 @@ def test_a_leased_attempt_begins_before_the_worktree_and_terminalises(
                     target_paths=("docs/probe.md",))
     ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
     SpineLedger(ledger_path).close()      # the durable ground exists up front
-    attempt = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+    attempt = compose_task_attempt(task, runner=_writing_runner("docs/probe.md"),
                           gate=_passing_gate(), repo_root=repo,
                           ledger_path=ledger_path)
     lease = _acquire(repo, switch=armed_switch, effect_key=attempt.branch,
@@ -226,14 +264,15 @@ def test_the_same_lease_cannot_run_a_second_attempt(repo, armed_switch,
     the same lease is refused as lease_refused BEFORE any worktree exists --
     its own state, so the receipt does not claim a worktree failure that
     never happened."""
-    from daedalus.spine.attempt import STATE_LEASE_REFUSED, TaskAttempt, TaskSpec
+    from daedalus.orchestration.execution import compose_task_attempt
+    from daedalus.spine.attempt import STATE_LEASE_REFUSED, TaskSpec
 
     monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
     ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
     SpineLedger(ledger_path).close()      # the durable ground exists up front
     task = TaskSpec(task_id="leased-attempt", instruction="probe",
                     target_paths=("docs/probe.md",))
-    first = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+    first = compose_task_attempt(task, runner=_writing_runner("docs/probe.md"),
                         gate=_passing_gate(), repo_root=repo,
                         ledger_path=ledger_path)
     lease = _acquire(repo, switch=armed_switch, effect_key=first.branch,
@@ -243,7 +282,7 @@ def test_the_same_lease_cannot_run_a_second_attempt(repo, armed_switch,
     first._attempt_lease = lease
     assert first.run().state == "clean"
 
-    second = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+    second = compose_task_attempt(task, runner=_writing_runner("docs/probe.md"),
                          gate=_passing_gate(), repo_root=repo,
                          ledger_path=ledger_path)
     second._attempt_lease = lease
@@ -280,14 +319,15 @@ def test_a_terminalised_attempt_lease_leaves_a_terminal_record(
     """
     import json
 
-    from daedalus.spine.attempt import TaskAttempt, TaskSpec
+    from daedalus.orchestration.execution import compose_task_attempt
+    from daedalus.spine.attempt import TaskSpec
 
     monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
     task = TaskSpec(task_id="terminal-record", instruction="probe",
                     target_paths=("docs/probe.md",))
     ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
     SpineLedger(ledger_path).close()
-    attempt = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+    attempt = compose_task_attempt(task, runner=_writing_runner("docs/probe.md"),
                           gate=_passing_gate(), repo_root=repo,
                           ledger_path=ledger_path)
     lease = _acquire(repo, switch=armed_switch, effect_key=attempt.branch,
@@ -352,14 +392,15 @@ def test_a_refused_terminal_record_is_reported_and_never_fails_the_attempt(
     fails silently would satisfy the first half exactly as well as a working
     one.
     """
-    from daedalus.spine.attempt import TaskAttempt, TaskSpec
+    from daedalus.orchestration.execution import compose_task_attempt
+    from daedalus.spine.attempt import TaskSpec
 
     monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
     task = TaskSpec(task_id="terminal-refused", instruction="probe",
                     target_paths=("docs/probe.md",))
     ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
     SpineLedger(ledger_path).close()
-    attempt = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+    attempt = compose_task_attempt(task, runner=_writing_runner("docs/probe.md"),
                           gate=_passing_gate(), repo_root=repo,
                           ledger_path=ledger_path)
     lease = _acquire(repo, switch=armed_switch, effect_key=attempt.branch,

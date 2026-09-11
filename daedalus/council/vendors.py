@@ -388,6 +388,32 @@ def council_cwd(repo_root: str | Path | None = None) -> tempfile.TemporaryDirect
     return handle
 
 
+def _resolve_command(argv: Sequence[str], env: Mapping[str, str]) -> list[str]:
+    """Resolve a bare ``argv[0]`` the way a shell would, against ``env``'s PATH.
+
+    ``CreateProcess`` on Windows searches PATH but never ``PATHEXT``, so the
+    npm ``codex.CMD`` shim that ``shutil.which`` finds was ``not_on_path`` for
+    every live council seat (measured 2026-09-05). A command that already
+    carries a directory is passed through untouched; an unresolvable name is
+    left for the spawn to refuse as ``not_on_path`` so the failure class is
+    unchanged.
+    """
+    argv = [str(part) for part in argv]
+    if not argv or os.path.dirname(argv[0]):
+        return argv
+    found = shutil.which(argv[0], path=env.get("PATH"))
+    if found:
+        argv[0] = found
+    return argv
+
+
+def _is_budget_refusal(exc: BaseException) -> bool:
+    """True for the process guard's ``BudgetRefused`` (lazy import: no ledger dependency at import time)."""
+    from daedalus.kernel.policy.ledger import BudgetRefused
+
+    return isinstance(exc, BudgetRefused)
+
+
 def run_managed(
     argv: Sequence[str],
     *,
@@ -410,29 +436,43 @@ def run_managed(
       immediate child only; a hung vendor's grandchildren outlive it.
     """
     started = time.monotonic()
+    argv = _resolve_command(argv, env)
     try:
-        with tempfile.TemporaryDirectory(prefix="dcouncil-io-") as iodir:
-            box = Path(iodir)
-            in_path, out_path, err_path = box / "in", box / "out", box / "err"
-            in_path.write_text(stdin_text, encoding="utf-8")
+        # On Windows, a killed grandchild can retain an inherited stdio handle
+        # for a moment after the direct child has been reaped.  Named files in
+        # a TemporaryDirectory then make its eager rmtree fail with WinError 32,
+        # incorrectly replacing an already-observed timeout with spawn_error.
+        # TemporaryFile uses delete-on-close on Windows (and unlink semantics on
+        # POSIX), so cleanup is deferred safely until the last inherited handle
+        # closes without changing the bounded, file-backed I/O contract.
+        with (
+            tempfile.TemporaryFile(prefix="dcouncil-in-") as fin,
+            tempfile.TemporaryFile(prefix="dcouncil-out-") as fout,
+            tempfile.TemporaryFile(prefix="dcouncil-err-") as ferr,
+        ):
+            fin.write(stdin_text.encode("utf-8"))
+            fin.seek(0)
             timed_out = False
-            with open(in_path, "rb") as fin, open(out_path, "wb") as fout, open(err_path, "wb") as ferr:
-                with ManagedProcess(argv, cwd=cwd, env=env, stdin=fin, stdout=fout, stderr=ferr) as proc:
-                    deadline = started + max(0.0, timeout_s)
-                    while True:
-                        code = proc.poll()
-                        if code is not None:
-                            break
-                        if time.monotonic() >= deadline:
-                            proc.cancel()
-                            timed_out = True
-                            code = proc.returncode
-                            break
-                        time.sleep(0.02)
+            with ManagedProcess(
+                argv, cwd=cwd, env=env, stdin=fin, stdout=fout, stderr=ferr
+            ) as proc:
+                deadline = started + max(0.0, timeout_s)
+                while True:
+                    code = proc.poll()
+                    if code is not None:
+                        break
+                    if time.monotonic() >= deadline:
+                        proc.cancel()
+                        timed_out = True
+                        code = proc.returncode
+                        break
+                    time.sleep(0.02)
+            fout.seek(0)
+            ferr.seek(0)
             return RunResult(
                 returncode=code,
-                stdout=out_path.read_text(encoding="utf-8", errors="replace"),
-                stderr=err_path.read_text(encoding="utf-8", errors="replace"),
+                stdout=fout.read().decode("utf-8", errors="replace"),
+                stderr=ferr.read().decode("utf-8", errors="replace"),
                 timed_out=timed_out,
             )
     except FileNotFoundError as exc:
@@ -667,6 +707,17 @@ class CouncilAdapter:
         try:
             reply = self._dispatch(text, model=model, timeout_s=timeout_s)
         except Exception as exc:  # a vendor must never take the council down
+            if _is_budget_refusal(exc):
+                # The process guard refused the spawn: a missing voice with a
+                # named reason in the bus vocabulary, never a "transport error".
+                return self._reply(
+                    model,
+                    status="unavailable",
+                    reason="budget_exhausted",
+                    stderr=str(exc),
+                    latency_s=time.monotonic() - started,
+                    withheld=withheld,
+                )
             return self._reply(
                 model,
                 status="error",
@@ -722,6 +773,31 @@ class _CliAdapter(CouncilAdapter):
         super().__init__(**kw)
         self.vendor = self.profile.vendor
         self._runner = runner or run_managed
+        # A bounded caller may own a narrower ledger than the process-wide
+        # council default.  The seat still performs exactly one canonical
+        # reservation; only its ledger and provenance label are rebound.
+        self._budget_ledger: Any | None = None
+        self._budget_label = ""
+        self._last_budget_error: BaseException | None = None
+
+    def bind_budget_ledger(self, ledger: Any, *, label: str) -> None:
+        """Route this seat's single reservation to a caller-owned ledger.
+
+        This does not disable or replace the council budget guard.  It lets a
+        bounded campaign avoid stacking a second reservation around the same
+        vendor effect while retaining the adapter's reported-cost settlement.
+        """
+
+        if ledger is None:
+            raise ValueError("a bound council budget ledger cannot be None")
+        self._budget_ledger = ledger
+        self._budget_label = str(label or "").strip()
+
+    @property
+    def last_budget_error(self) -> BaseException | None:
+        """Typed refusal from the most recent reservation, if any."""
+
+        return self._last_budget_error
 
     def argv(self, model: str) -> list[str]:
         argv = [self.profile.command, *self.profile.args]
@@ -729,17 +805,58 @@ class _CliAdapter(CouncilAdapter):
             argv += [self.profile.model_arg, model]
         return argv
 
+    #: Budget vendor key per council profile: the same keys the process guard
+    #: derives from an argv, named here so the seat reserves EXPLICITLY.
+    budget_vendor = ""
+
     def _dispatch(self, text: str, *, model: str, timeout_s: float) -> dict[str, Any]:
+        from daedalus.budget import BudgetError, guard
+
+        if not self.budget_vendor:
+            # An unpriced seat would be booked at the $5.00 unknown-call worst
+            # case without anyone having chosen that; a seat must name its vendor.
+            raise ValueError(f"council seat {self.vendor!r} declares no budget vendor")
         argv = self.argv(model)
-        with council_cwd(self.repo_root) as cwd:
-            result = self._runner(
-                argv,
-                stdin_text=text,
-                timeout_s=timeout_s,
-                cwd=cwd,
-                env=council_env(),
-            )
-        return self._interpret(result)
+        # Reserve explicitly around the whole call instead of letting the
+        # process guard interpose the spawn: the guard cannot see the vendor's
+        # own price report and books every CLI call at its worst case (measured
+        # 2026-09-05: a $0.34 Claude reply booked at $3.00), while a seat whose
+        # executable is missing must be released, not charged. ``guard`` stands
+        # the interposer down for the spawn, so nothing is reserved twice, and
+        # its exit settles at the estimate whenever nothing below settled first.
+        self._last_budget_error = None
+        try:
+            with guard(
+                self.budget_vendor or None,
+                model if model != "unknown" else None,
+                label=(
+                    self._budget_label
+                    or f"council seat {self.vendor}: {argv[0]}"
+                ),
+                led=self._budget_ledger,
+            ) as reservation:
+                with council_cwd(self.repo_root) as cwd:
+                    result = self._runner(
+                        argv,
+                        stdin_text=text,
+                        timeout_s=timeout_s,
+                        cwd=cwd,
+                        env=council_env(),
+                    )
+                reply = self._interpret(result)
+                if result.spawn_error and result.spawn_error.startswith("not_on_path"):
+                    reservation.release("council seat executable not found; nothing was spawned")
+                else:
+                    reported = (reply.get("usage") or {}).get("total_cost_usd")
+                    if isinstance(reported, (int, float)) and reported >= 0:
+                        reservation.settle(float(reported))
+        except BudgetError as exc:
+            # ``CouncilAdapter.ask`` intentionally converts transport failures
+            # into a no-voice record.  Retain the typed refusal as an ephemeral
+            # side channel so a bounded caller can classify it accurately.
+            self._last_budget_error = exc
+            raise
+        return reply
 
     def _interpret(self, result: RunResult) -> dict[str, Any]:
         if result.spawn_error:
@@ -795,6 +912,7 @@ class ClaudeAdapter(_CliAdapter):
     profile_name = "anthropic"
     endpoint = "cli:claude"
     local = False
+    budget_vendor = "anthropic_cli"
 
     def _auth_failure(self, result: RunResult) -> str:
         if result.returncode not in (0, None) and _looks_unauthenticated(result.stderr, result.stdout):
@@ -837,6 +955,7 @@ class CodexAdapter(_CliAdapter):
     profile_name = "openai"
     endpoint = "cli:codex"
     local = False
+    budget_vendor = "openai_cli"
 
     def _auth_failure(self, result: RunResult) -> str:
         if result.returncode not in (0, None) and _looks_unauthenticated(result.stderr, result.stdout):

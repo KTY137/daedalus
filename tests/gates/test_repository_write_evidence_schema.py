@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 
-from daedalus.gates.repository_write_evidence import (
+from daedalus.gates.repository.write_evidence import (
     RepositoryWriteArtifactEvidence,
 )
 from daedalus.schemas import ContractProvenance, KERNEL_CONTRACT_VERSION

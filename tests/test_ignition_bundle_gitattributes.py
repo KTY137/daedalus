@@ -143,7 +143,7 @@ def test_an_ordinary_module_outside_the_closure_is_not_asserted_pinned():
     the census has a real boundary rather than one that happens to exclude
     nothing."""
 
-    assert "daedalus/cli.py" not in _bundle_full_file_list()
+    assert "daedalus/interfaces/cli/entry.py" not in _bundle_full_file_list()
 
 
 # --------------------------------------------------------------------------- #

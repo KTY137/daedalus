@@ -1,4 +1,8 @@
 ---
+permalink: main/templates/finding
+---
+
+---
 tags: [findings]
 created: {{date}}
 source:

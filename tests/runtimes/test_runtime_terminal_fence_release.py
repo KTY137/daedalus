@@ -25,9 +25,11 @@ from daedalus.kernel.runtime_effects import (
     RuntimeBoundEffectAuthorization,
     issue_runtime_bound_effect_lease,
 )
-from daedalus.runtimes.broker import run_runtime_provider
+from runtime_provider_test_double import (
+    run_runtime_provider_test_double as run_runtime_provider,
+)
 from daedalus.runtimes.fixture_fault_collector import report_runtime_fault_outcome
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )

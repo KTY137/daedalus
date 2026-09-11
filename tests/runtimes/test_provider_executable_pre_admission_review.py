@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_executable_pre_admission as module
+import daedalus.runtimes.provider.executable_pre_admission as module
 
 
 def test_pre_admission_module_has_no_loader_process_network_or_callback_imports():

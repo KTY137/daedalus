@@ -140,7 +140,8 @@ def test_the_gate1_code_type_shape_seals_only_when_it_declares(
     """
     from daedalus.ignition import checks as ignition_checks
     from daedalus.ignition.gate1 import DEFAULT_FIXTURE, prepare_ignition_repo
-    from daedalus.spine.attempt import GateResult, TaskAttempt
+    from daedalus.orchestration.execution import compose_task_attempt
+    from daedalus.spine.attempt import GateResult
     from daedalus.spine.receipts import evaluator_assurance_detail
 
     repo, base = prepare_ignition_repo(DEFAULT_FIXTURE, tmp_path / "target")
@@ -151,7 +152,7 @@ def test_the_gate1_code_type_shape_seals_only_when_it_declares(
         target_paths=("src/ignition_app/models.py",
                       "src/ignition_app/repository.py"),
         gate_criterion_paths=(criterion,), gate_reads_scope=declared)
-    attempt = TaskAttempt(
+    attempt = compose_task_attempt(
         spec, runner=lambda ctx: None,
         gate=lambda ctx: GateResult(passed=True, name="ignition-code-type",
                                     command=command),

@@ -66,24 +66,29 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import math
 import os
 import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.contracts.base import ContractProvenance
+from daedalus.kernel.contracts.policy import PolicyDecision
+from daedalus.kernel.contracts.resources import EffectScope
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseError,
     EffectLeaseLedger,
     EffectLeaseStateError,
+    EffectTerminalReceipt,
     issue_effect_lease,
 )
-from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
+from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     Effect,
@@ -95,14 +100,182 @@ from daedalus.spine.effect_boundary import (
 from daedalus.spine.envelope import canonical_json, canonical_sha
 from daedalus.spine.killswitch import KillSwitch, LoopHalted, profile_root_disagreement
 
-if TYPE_CHECKING:  # pragma: no cover - typing only, never an import cycle
-    from daedalus.sensitivity import Policy
-
 #: The registry row :func:`acquire_wave_offload_lease` pins. The general issuer
 #: below is parameterised, but NOT by "whichever entrypoint you name" -- see
 #: :data:`ISSUER_CONTRACTS` and :func:`issuable_row` for the predicate that
 #: replaced this constant as the refusal.
 ENTRYPOINT_ID = "python.offload"
+
+#: The chip path has a stricter, non-overridable composition root.  Keep this
+#: identifier beside the generic issuer's pinned row so the public generic
+#: API can refuse attempts to mint the chip capability directly.
+CHIP_EDA_ENTRYPOINT_ID = "cli.daedalus_chip"
+
+
+class RepositoryHeadRevisionReceiptPort(Protocol):
+    """Gate-owned repository-HEAD receipt consumed by the lease issuer."""
+
+    @property
+    def expected_revision(self) -> str: ...
+
+    @property
+    def resolved_revision(self) -> str: ...
+
+    def to_dict(self) -> dict[str, Any]: ...
+
+
+class RepositoryHeadRevisionVerifierPort(Protocol):
+    """Injected exact-HEAD verifier; the kernel provides no implementation."""
+
+    def __call__(
+        self,
+        repository_root: Path,
+        expected_revision: str,
+        /,
+    ) -> RepositoryHeadRevisionReceiptPort: ...
+
+
+class WorktreeRootResolverPort(Protocol):
+    """Outer composition port for the planned attempt-worktree root."""
+
+    def __call__(self, repository_root: Path, /) -> str | Path: ...
+
+
+class IntentLedgerPathResolverPort(Protocol):
+    """Outer composition port for the repository-confined attempt ledger."""
+
+    def __call__(
+        self,
+        repository_root: str | Path | None = None,
+        /,
+    ) -> tuple[Path | None, str | None]: ...
+
+
+@dataclass(frozen=True)
+class EgressAdmissionObservation:
+    """Runtime-owned endpoint admission consumed by lease authorization."""
+
+    requested_lanes: tuple[str, ...]
+    endpoints: tuple[str, ...]
+    decision: GuardDecision
+
+    def __post_init__(self) -> None:
+        requested = tuple(str(lane) for lane in self.requested_lanes)
+        endpoints = tuple(str(endpoint) for endpoint in self.endpoints)
+        if requested != tuple(sorted(set(requested))) or any(
+            not lane.strip() for lane in requested
+        ):
+            raise ValueError(
+                "egress admission requested_lanes must be sorted, unique and non-empty"
+            )
+        if endpoints != tuple(dict.fromkeys(endpoints)) or any(
+            not endpoint.strip() for endpoint in endpoints
+        ):
+            raise ValueError(
+                "egress admission endpoints must be ordered, unique and non-empty"
+            )
+        if type(self.decision) is not GuardDecision:
+            raise TypeError("egress admission requires an exact GuardDecision")
+        if self.decision.contract != "provider.egress_policy":
+            raise ValueError(
+                "egress admission decision must bind provider.egress_policy"
+            )
+
+
+class EgressAdmissionPort(Protocol):
+    """Runtime-owned provider/endpoint/egress determination port."""
+
+    def __call__(
+        self,
+        lanes: Sequence[str],
+        /,
+    ) -> EgressAdmissionObservation: ...
+
+
+class LaneEndpointResolverPort(Protocol):
+    """Compatibility port for the historical ``lane_endpoint`` helper."""
+
+    def __call__(self, lane: str, /) -> str: ...
+
+
+@dataclass(frozen=True)
+class ChipExecutionPlanBinding:
+    """Neutral fields the lease issuer consumes from one validated EDA plan."""
+
+    source_root: str
+    cwd: str
+    digest: str
+
+    def __post_init__(self) -> None:
+        if not self.source_root.strip() or not self.cwd.strip():
+            raise ValueError("chip execution plan roots must be non-empty")
+        if not _SHA256.fullmatch(self.digest):
+            raise ValueError("chip execution plan digest must be SHA-256")
+
+
+class ChipExecutionPlanValidatorPort(Protocol):
+    """Chip-owned exact execution-plan validator; the kernel has no type owner."""
+
+    def __call__(self, operation_plan: object, /) -> ChipExecutionPlanBinding: ...
+
+
+class ChipPublicationGraphVerifierPort(Protocol):
+    """Chip-owned canonical publication-graph verifier."""
+
+    def __call__(self, **kwargs: Any) -> dict[str, Any]: ...
+
+
+class ChipTerminalArtifactRetainerPort(Protocol):
+    """Chip-owned terminal artifact retainer behind the stable effect facade."""
+
+    def __call__(self, **kwargs: Any) -> Any: ...
+
+
+class ChipPublicationRecorderPort(Protocol):
+    """Chip-owned completion publisher behind the stable effect facade."""
+
+    def __call__(self, **kwargs: Any) -> dict[str, Any]: ...
+
+
+_REPOSITORY_HEAD_RECEIPT_FIELDS = frozenset(
+    {
+        "schema",
+        "expected_revision",
+        "resolved_revision",
+        "head_mode",
+        "head_ref",
+        "resolution_source",
+        "head_sha256",
+        "head_size",
+        "reference_path",
+        "reference_sha256",
+        "reference_size",
+        "repository_head_verified",
+        "commit_object_verified",
+        "worktree_clean_verified",
+        "process_spawned",
+        "repository_mutated",
+    }
+)
+
+
+def chip_eda_lease_id(mission_id: str, attempt_id: str) -> str:
+    """Return the stable recovery identity for one chip EDA attempt.
+
+    The operation digest is deliberately absent: after an unresolved crash,
+    drift in project state must not mint fresh authority for the same
+    mission/attempt pair.  Keeping this derivation public and pure lets
+    recovery code identify that prior lease without acquiring a new one.
+    """
+
+    return "chip-" + canonical_sha(
+        {
+            "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+            "mission_id": str(mission_id),
+            "attempt_id": str(attempt_id),
+        }
+    )[:40]
+
 
 #: THE RULE, PART ONE: the guard contracts this module runs ITSELF, in-process,
 #: as functions of subject material a caller supplies -- never of a verdict a
@@ -126,6 +299,7 @@ ENTRYPOINT_ID = "python.offload"
 #: the only third answer.
 ISSUER_CONTRACTS: frozenset[str] = frozenset(
     {
+        "computer.tool_policy",
         "budget.process_guard",
         "provider.egress_policy",
         "provider.write_policy",
@@ -147,8 +321,10 @@ ISSUER_CONTRACTS: frozenset[str] = frozenset(
 #: which is worse than no lease.
 ISSUER_EFFECTS: frozenset[str] = frozenset(
     {
+        Effect.COMPUTER_USE.value,
         Effect.FILESYSTEM_WRITE.value,
         Effect.PROCESS_SPAWN.value,
+        Effect.PROCESS_CONTROL.value,
         Effect.NETWORK_EGRESS.value,
         Effect.SPEND.value,
         Effect.REPOSITORY_MUTATION.value,
@@ -169,6 +345,7 @@ ISSUER_EFFECTS: frozenset[str] = frozenset(
 #: had already been evaluated. A predicate that cannot answer before the work
 #: starts is not the boundary; it is a crash with a boundary's name on it.
 EFFECT_BOUNDS: Mapping[str, str] = {
+    Effect.COMPUTER_USE.value: "computer.tool_policy",
     # the endpoint list, admitted by `ollama_endpoint_admission` and friends
     Effect.NETWORK_EGRESS.value: "provider.egress_policy",
     Effect.LISTEN_SOCKET.value: "provider.egress_policy",
@@ -233,14 +410,6 @@ def _issuer_request_id(entrypoint_id: str, mission_id: str, attempt_id: str) -> 
 #: snapshot/diff machinery offload uses to measure what changed; `python` is
 #: the gate runner. Declared, not discovered.
 BASE_TOOLS = ("git", "python")
-
-#: Lane -> the endpoint that lane speaks. A lane absent from this map cannot be
-#: leased: naming an endpoint we have not verified would put a claim in a
-#: receipt that nobody measured.
-LANE_ENDPOINTS: Mapping[str, str] = {
-    "ollama": "",  # resolved live from the provider's own host, see below
-    "deepseek": "https://api.deepseek.com",
-}
 
 _KEY_BYTES = 32
 _MIN_TTL_S = 60
@@ -327,6 +496,10 @@ LEASE_EXECUTION_RECORD_SCHEMA = "daedalus-effect-lease-execution-record/1"
 
 #: One terminalised execution, replayed out of the ledger.
 LEASE_TERMINAL_RECORD_SCHEMA = "daedalus-effect-lease-terminal-record/1"
+MAX_RETAINED_EFFECT_RECORD_BYTES = 1024 * 1024
+MAX_RETAINED_EFFECT_TERMINAL_RECORDS = 256
+CHIP_EDA_PUBLICATION_RECORD_SCHEMA = "daedalus-chip-eda-publication-record/2"
+CHIP_EDA_PUBLICATION_INDEX_SCHEMA = "daedalus-chip-eda-publication-index/1"
 
 #: The chain's own payload id for an ``effect_lease_receipt``. Spelled here
 #: because this module produces the fact that payload is built from; the gates
@@ -345,6 +518,7 @@ ISSUER_TARGET = "daedalus.kernel.offload_lease:acquire_effect_lease"
 ISSUER_MODULE_PATH = "daedalus/kernel/offload_lease.py"
 
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _TERMINAL_STATES = frozenset({"completed", "failed", "cancelled"})
 
 
@@ -444,6 +618,147 @@ def _record_sha256(body: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json(subject).encode("ascii")).hexdigest()
 
 
+def _stable_regular_bytes(
+    path: Path,
+    *,
+    label: str,
+    max_bytes: int | None = None,
+) -> bytes:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"{label} is not a regular file")
+    with path.open("rb") as handle:
+        before = os.fstat(handle.fileno())
+        if max_bytes is not None and before.st_size > max_bytes:
+            raise ValueError(f"{label} exceeds its {max_bytes}-byte ceiling")
+        observed = handle.read() if max_bytes is None else handle.read(max_bytes + 1)
+        after = os.fstat(handle.fileno())
+    named = os.stat(path, follow_symlinks=False)
+    identities = (
+        (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns),
+        (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns),
+        (named.st_dev, named.st_ino, named.st_size, named.st_mtime_ns),
+    )
+    if identities[0] != identities[1] or identities[1] != identities[2]:
+        raise ValueError(f"{label} changed during verification")
+    if max_bytes is not None and len(observed) > max_bytes:
+        raise ValueError(f"{label} exceeds its {max_bytes}-byte ceiling")
+    return observed
+
+
+def _publish_exact_bytes_once(path: Path, expected: bytes, *, label: str) -> None:
+    from daedalus.atomic import publish_bytes_once
+
+    publish_bytes_once(path, expected)
+    observed = _stable_regular_bytes(path, label=label)
+    if observed != expected:
+        raise ValueError(f"{label} bytes contradict their immutable identity")
+
+
+def _strict_canonical_record(payload: bytes, *, label: str) -> dict[str, Any]:
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError(f"{label} contains duplicate key {key!r}")
+            value[key] = item
+        return value
+
+    def nonfinite(value: str) -> None:
+        raise ValueError(f"{label} contains non-finite number {value}")
+
+    try:
+        decoded = payload.decode("ascii")
+        value = json.loads(
+            decoded,
+            object_pairs_hook=unique_object,
+            parse_constant=nonfinite,
+        )
+    except (UnicodeError, json.JSONDecodeError, TypeError) as exc:
+        raise ValueError(f"{label} is malformed JSON") from exc
+    if not isinstance(value, dict) or canonical_json(value).encode("ascii") != payload:
+        raise ValueError(f"{label} is not canonical JSON")
+    return value
+
+
+def _chip_publication_index_path(
+    evidence_root: str | Path,
+    *,
+    source_revision: str,
+    execution_id: str,
+) -> tuple[Path, str]:
+    identity = canonical_sha(
+        {
+            "schema": CHIP_EDA_PUBLICATION_INDEX_SCHEMA,
+            "source_revision": str(source_revision),
+            "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+            "execution_id": str(execution_id),
+        }
+    )
+    return Path(evidence_root) / "chip-publication-index" / f"{identity}.json", identity
+
+
+def load_chip_eda_publication(
+    evidence_root: str | Path,
+    *,
+    source_revision: str,
+    execution_id: str,
+) -> dict[str, Any] | None:
+    """Load the unique authenticated completion edge for one EDA execution."""
+
+    if not _REVISION.fullmatch(str(source_revision)):
+        raise ValueError("chip publication source_revision must be lowercase 40-hex")
+    if not str(execution_id).strip():
+        raise ValueError("chip publication execution_id must be non-empty")
+    index_path, identity = _chip_publication_index_path(
+        evidence_root,
+        source_revision=source_revision,
+        execution_id=execution_id,
+    )
+    if index_path.is_symlink():
+        raise ValueError("chip publication index is a symlink")
+    if not index_path.exists():
+        return None
+    index = _strict_canonical_record(
+        _stable_regular_bytes(index_path, label="chip publication index"),
+        label="chip publication index",
+    )
+    if set(index) != {
+        "schema",
+        "source_revision",
+        "entrypoint_id",
+        "execution_id",
+        "publication_record_sha256",
+        "identity_sha256",
+    } or index != {
+        "schema": CHIP_EDA_PUBLICATION_INDEX_SCHEMA,
+        "source_revision": str(source_revision),
+        "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+        "execution_id": str(execution_id),
+        "publication_record_sha256": index.get("publication_record_sha256"),
+        "identity_sha256": identity,
+    }:
+        raise ValueError("chip publication index identity is invalid")
+    record_sha256 = str(index["publication_record_sha256"])
+    if not _SHA256.fullmatch(record_sha256):
+        raise ValueError("chip publication index record digest is invalid")
+    record_path = Path(evidence_root) / "chip-publication" / f"{record_sha256}.json"
+    record = _strict_canonical_record(
+        _stable_regular_bytes(record_path, label="chip publication record"),
+        label="chip publication record",
+    )
+    if (
+        record.get("schema") != CHIP_EDA_PUBLICATION_RECORD_SCHEMA
+        or record.get("source_revision") != str(source_revision)
+        or record.get("entrypoint_id") != CHIP_EDA_ENTRYPOINT_ID
+        or record.get("execution_id") != str(execution_id)
+        or record.get("record_sha256") != record_sha256
+        or _record_sha256(record) != record_sha256
+        or record.get("security_boundary_claimed") is not False
+    ):
+        raise ValueError("chip publication record identity is invalid")
+    return record
+
+
 def _publish_evidence_record(
     evidence_root: str | Path, kind: str, body: Mapping[str, Any]
 ) -> Path:
@@ -455,11 +770,12 @@ def _publish_evidence_record(
     replace an object whose identity was already published.
     """
 
-    from daedalus.atomic import publish_bytes_once
-
     digest = str(body["record_sha256"])
     path = Path(evidence_root) / str(kind) / f"{digest}.json"
-    publish_bytes_once(path, canonical_json(dict(body)).encode("ascii"))
+    expected = canonical_json(dict(body)).encode("ascii")
+    _publish_exact_bytes_once(path, expected, label="published evidence record")
+    if _record_sha256(dict(body)) != digest:
+        raise ValueError("published evidence record digest is invalid")
     return path
 
 
@@ -601,8 +917,9 @@ def record_effect_lease_subject_parts(
         raise ValueError("positions must be a positive integer")
     lease = authorization.lease
     revision = lease.provenance.source_revision
-    if not _REVISION.fullmatch(str(revision)):
-        raise ValueError("the retained lease carries no 40-hex source revision")
+    adapter_source = lease.entrypoint_id == "python.ikarus_computer" and _SHA256.fullmatch(str(revision))
+    if not _REVISION.fullmatch(str(revision)) and not adapter_source:
+        raise ValueError("the retained lease carries no valid source revision")
     body: dict[str, Any] = {
         "schema": LEASE_SUBJECT_RECORD_SCHEMA,
         "source_revision": str(revision),
@@ -631,6 +948,13 @@ def record_effect_lease_subject_parts(
         "control_root_sha256": write_root_identity_sha256(control_root_path),
         "recorded_at": _timestamp(recorded_at or _utc_now()),
     }
+    if adapter_source:
+        body["source_identity_kind"] = "trusted-adapter-sha256"
+        body["repository_revision_applicable"] = False
+    if authorization.execution_limit_policy is not None:
+        body["execution_limit_policy"] = _limit_policy_evidence(
+            authorization.execution_limit_policy
+        )
     body["record_sha256"] = _record_sha256(body)
     _publish_evidence_record(evidence_root, "lease-subject", body)
     return body
@@ -679,6 +1003,11 @@ def rebuild_effect_lease_authorization(
     )
     path = ledger_path if ledger_path is not None else subject_record["ledger_path"]
     generation = int(lease.kill_switch_generation)
+    retained_limit_policy = (
+        _limit_policy_from_evidence(subject_record["execution_limit_policy"])
+        if "execution_limit_policy" in subject_record
+        else None
+    )
     return NonRuntimeEffectAuthorization(
         lease=lease,
         request=request,
@@ -687,6 +1016,7 @@ def rebuild_effect_lease_authorization(
         lease_keyring=dict(keyring),
         guard_decisions=decisions,
         kill_switch_generation_reader=lambda: generation,
+        execution_limit_policy=retained_limit_policy,
     )
 
 
@@ -747,6 +1077,235 @@ def record_effect_lease_execution(
         )
         return None
     return body
+
+
+def _read_retained_effect_record(
+    root: Path,
+    kind: str,
+    digest: str,
+) -> dict[str, Any]:
+    path = root / kind / f"{digest}.json"
+    try:
+        payload = _stable_regular_bytes(
+            path,
+            label=f"{kind} record",
+            max_bytes=MAX_RETAINED_EFFECT_RECORD_BYTES,
+        )
+        record = _strict_canonical_record(payload, label=f"{kind} record")
+    except (OSError, TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            f"retained {kind} evidence is unavailable or invalid"
+        ) from exc
+    if (
+        path.stem != digest
+        or record.get("record_sha256") != digest
+        or _record_sha256(record) != digest
+    ):
+        raise EffectLeaseStateError(f"retained {kind} record identity is invalid")
+    return record
+
+
+def require_retained_effect_lease_start_records(
+    evidence_root: str | Path,
+    *,
+    subject_record_sha256: str,
+    execution_record_sha256: str,
+    entrypoint_id: str,
+    source_revision: str,
+    attempt_id: str,
+    operation_sha256: str,
+    expected_lease_sha256: str,
+    expected_execution_id: str,
+    expected_execution_request_sha256: str,
+) -> dict[str, Any]:
+    """Verify the exact retained subject -> execution chain before commit."""
+
+    values = {
+        "subject_record_sha256": str(subject_record_sha256),
+        "execution_record_sha256": str(execution_record_sha256),
+        "operation_sha256": str(operation_sha256),
+        "expected_lease_sha256": str(expected_lease_sha256),
+        "expected_execution_request_sha256": str(
+            expected_execution_request_sha256
+        ),
+    }
+    invalid = sorted(
+        name for name, value in values.items() if not _SHA256.fullmatch(value)
+    )
+    if invalid:
+        raise EffectLeaseStateError(
+            "retained start binding has invalid digests: " + ", ".join(invalid)
+        )
+    if not _REVISION.fullmatch(str(source_revision)) and not (
+        entrypoint_id == "python.ikarus_computer" and _SHA256.fullmatch(str(source_revision))
+    ):
+        raise EffectLeaseStateError(
+            "retained start binding has invalid source revision"
+        )
+    root = Path(evidence_root)
+    subject = _read_retained_effect_record(
+        root, "lease-subject", values["subject_record_sha256"]
+    )
+    try:
+        lease = EffectLease.from_dict(subject["lease"])
+        request = EffectLeaseRequest.from_dict(subject["request"])
+        policy = PolicyDecision.from_dict(subject["policy_decision"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            "retained lease-subject contract is invalid"
+        ) from exc
+    if (
+        subject.get("schema") != LEASE_SUBJECT_RECORD_SCHEMA
+        or subject.get("entrypoint_id") != entrypoint_id
+        or subject.get("source_revision") != source_revision
+        or subject.get("lease_sha256") != lease.digest
+        or subject.get("lease_id") != lease.lease_id
+        or subject.get("issuer_key_id") != lease.issuer_key_id
+        or subject.get("kill_switch_generation")
+        != lease.kill_switch_generation
+        or lease.digest != values["expected_lease_sha256"]
+        or lease.request_id != request.request_id
+        or lease.request_sha256 != request.digest
+        or lease.policy_decision_id != policy.decision_id
+        or lease.policy_decision_sha256 != policy.digest
+        or lease.entrypoint_id != entrypoint_id
+        or lease.provenance.source_revision != source_revision
+        or request.entrypoint_id != entrypoint_id
+        or request.attempt_id != attempt_id
+        or request.operation_sha256 != values["operation_sha256"]
+        or request.requested_effects != lease.requested_effects
+        or request.effect_scope != lease.effect_scope
+        or request.idempotency_namespace != lease.idempotency_namespace
+        or request.kill_switch_generation != lease.kill_switch_generation
+    ):
+        raise EffectLeaseStateError("retained lease-subject binding is invalid")
+
+    retained_execution = _read_retained_effect_record(
+        root, "lease-execution", values["execution_record_sha256"]
+    )
+    try:
+        execution_payload = dict(retained_execution["execution"])
+        execution = EffectExecutionRequest(**execution_payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            "retained lease-execution contract is invalid"
+        ) from exc
+    if (
+        retained_execution.get("schema") != LEASE_EXECUTION_RECORD_SCHEMA
+        or retained_execution.get("entrypoint_id") != entrypoint_id
+        or retained_execution.get("source_revision") != source_revision
+        or retained_execution.get("lease_sha256") != lease.digest
+        or retained_execution.get("subject_record_sha256")
+        != values["subject_record_sha256"]
+        or retained_execution.get("execution_id") != execution.execution_id
+        or retained_execution.get("execution_request_sha256") != execution.digest
+        or execution.operation_sha256 != values["operation_sha256"]
+        or execution.execution_id != str(expected_execution_id)
+        or execution.digest != values["expected_execution_request_sha256"]
+    ):
+        raise EffectLeaseStateError("retained lease-execution binding is invalid")
+    return {
+        "lease_sha256": lease.digest,
+        "execution_id": execution.execution_id,
+        "execution_request_sha256": execution.digest,
+        "execution": execution_payload,
+        "subject_record": subject,
+        "execution_record": retained_execution,
+    }
+
+
+def require_retained_effect_lease_terminal_record(
+    evidence_root: str | Path,
+    *,
+    subject_record_sha256: str,
+    execution_record_sha256: str,
+    entrypoint_id: str,
+    source_revision: str,
+    attempt_id: str,
+    operation_sha256: str,
+    expected_lease_sha256: str,
+    expected_execution_id: str,
+    expected_execution_request_sha256: str,
+    expected_terminal_state: str,
+    expected_output_digests: Sequence[str],
+) -> dict[str, Any]:
+    """Read and verify one exact retained subject -> execution -> terminal chain.
+
+    This is deliberately a content-addressed evidence check, not a second
+    ledger authority.  It performs no reconciliation and writes nothing.  A
+    caller can bind the subject and execution digests into its own canonical
+    commit before terminalization, then use this projection to ensure a later
+    replay never hides a missing terminal-evidence record.
+    """
+
+    chain = require_retained_effect_lease_start_records(
+        evidence_root,
+        subject_record_sha256=subject_record_sha256,
+        execution_record_sha256=execution_record_sha256,
+        entrypoint_id=entrypoint_id,
+        source_revision=source_revision,
+        attempt_id=attempt_id,
+        operation_sha256=operation_sha256,
+        expected_lease_sha256=expected_lease_sha256,
+        expected_execution_id=expected_execution_id,
+        expected_execution_request_sha256=expected_execution_request_sha256,
+    )
+    state = str(expected_terminal_state)
+    if state not in _TERMINAL_STATES:
+        raise EffectLeaseStateError("retained terminal binding has invalid expected state")
+    try:
+        if isinstance(expected_output_digests, (str, bytes)):
+            raise TypeError("expected outputs must be a sequence of digests")
+        submitted_outputs = tuple(
+            str(value) for value in expected_output_digests
+        )
+        if any(not _SHA256.fullmatch(value) for value in submitted_outputs):
+            raise ValueError("expected output digest is invalid")
+        outputs = tuple(sorted(set(submitted_outputs)))
+    except (TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            "retained terminal binding has invalid expected outputs"
+        ) from exc
+
+    root = Path(evidence_root)
+    execution_payload = chain["execution"]
+    terminal_root = root / "lease-terminal"
+    try:
+        terminal_paths = sorted(terminal_root.glob("*.json"))
+    except OSError as exc:
+        raise EffectLeaseStateError("retained terminal evidence is unavailable") from exc
+    if len(terminal_paths) > MAX_RETAINED_EFFECT_TERMINAL_RECORDS:
+        raise EffectLeaseStateError("retained terminal evidence bound exceeded")
+    matches: list[dict[str, Any]] = []
+    for path in terminal_paths:
+        digest = path.stem
+        if not _SHA256.fullmatch(digest):
+            raise EffectLeaseStateError("retained terminal evidence filename is invalid")
+        terminal = _read_retained_effect_record(root, "lease-terminal", digest)
+        if (
+            terminal.get("schema") == LEASE_TERMINAL_RECORD_SCHEMA
+            and terminal.get("receipt_schema") == EFFECT_LEASE_RECEIPT_SCHEMA
+            and terminal.get("entrypoint_id") == entrypoint_id
+            and terminal.get("source_revision") == source_revision
+            and terminal.get("lease_sha256") == chain["lease_sha256"]
+            and terminal.get("subject_record_sha256")
+            == str(subject_record_sha256)
+            and terminal.get("execution_id") == chain["execution_id"]
+            and terminal.get("execution_request_sha256")
+            == chain["execution_request_sha256"]
+            and terminal.get("execution") == execution_payload
+            and terminal.get("requested_effects")
+            == execution_payload.get("requested_effects")
+            and terminal.get("terminal_state") == state
+            and terminal.get("output_digests") == list(outputs)
+            and _SHA256.fullmatch(str(terminal.get("start_receipt_sha256", "")))
+            and _SHA256.fullmatch(str(terminal.get("receipt_sha256", "")))
+            and isinstance(terminal.get("recorded_at"), str)
+        ):
+            matches.append(terminal)
+    if len(matches) != 1:
+        raise EffectLeaseStateError("bound terminal evidence is missing or ambiguous")
+    return matches[0]
 
 
 def emit_effect_lease_terminal_record(
@@ -818,6 +1377,7 @@ def emit_effect_lease_terminal_record(
         "start_receipt_sha256": replay.start_receipt.receipt_sha256,
         "receipt_sha256": terminal.receipt_sha256,
         "terminal_state": state,
+        "output_digests": list(terminal.output_digests),
         "requested_effects": list(execution.requested_effects),
         "control_root_sha256": write_root_identity_sha256(control_root_path),
         "recorded_at": terminal.finished_at,
@@ -825,6 +1385,205 @@ def emit_effect_lease_terminal_record(
     body["record_sha256"] = _record_sha256(body)
     _publish_evidence_record(evidence_root, "lease-terminal", body)
     return body
+
+
+def _verify_chip_eda_terminal_bookkeeping(
+    *,
+    authority_root: str | Path,
+    source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+) -> Path:
+    """Authenticate the terminal lifecycle that permits authority bookkeeping.
+
+    Derived CAS objects and the completion index are not a second candidate
+    effect and grant no new authority.  They may nevertheless write only below
+    the kernel-owned evidence root and only after the exact signed execution is
+    durably terminal in the canonical ledger.
+    """
+
+    from daedalus.kernel.effect_replay import inspect_effect_execution
+
+    if type(authorization) is not NonRuntimeEffectAuthorization:
+        raise TypeError("chip terminal bookkeeping requires exact authorization")
+    if type(execution) is not EffectExecutionRequest:
+        raise TypeError("chip terminal bookkeeping requires exact execution")
+    if type(terminal_receipt) is not EffectTerminalReceipt:
+        raise TypeError("chip terminal bookkeeping requires exact terminal receipt")
+    if (
+        authorization.request.entrypoint_id != CHIP_EDA_ENTRYPOINT_ID
+        or authorization.lease.entrypoint_id != CHIP_EDA_ENTRYPOINT_ID
+        or authorization.lease.provenance.source_revision != str(source_revision)
+        or authorization.request.provenance.source_revision != str(source_revision)
+        or execution.operation_sha256 != authorization.request.operation_sha256
+        or terminal_receipt.execution_id != execution.execution_id
+    ):
+        raise ValueError("chip terminal bookkeeping authority binding is invalid")
+    expected_ledger = lease_ledger_path(authority_root).resolve(strict=False)
+    observed_ledger = Path(authorization.effect_ledger.path).resolve(strict=False)
+    if os.path.normcase(str(expected_ledger)) != os.path.normcase(
+        str(observed_ledger)
+    ):
+        raise ValueError("chip terminal bookkeeping authority root is invalid")
+    replay = inspect_effect_execution(authorization, execution)
+    if (
+        replay is None
+        or replay.pending_reconciliation
+        or replay.terminal_receipt is None
+        or replay.terminal_receipt.to_dict() != terminal_receipt.to_dict()
+    ):
+        raise ValueError("chip terminal bookkeeping lacks an exact durable terminal")
+    return write_evidence_root(authority_root, source_revision)
+
+
+def _retain_chip_eda_terminal_artifact(
+    *,
+    authority_root: str | Path,
+    source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+    artifact_store: Any,
+    payload: bytes,
+    expected_sha256: str,
+    media_type: str,
+    metadata: Mapping[str, Any],
+    provenance: Mapping[str, Any],
+    terminal_artifact_retainer: ChipTerminalArtifactRetainerPort | None = None,
+) -> Any:
+    """Stable fail-closed facade over chip-owned terminal retention."""
+
+    if not callable(terminal_artifact_retainer):
+        raise TypeError(
+            "_retain_chip_eda_terminal_artifact() requires a callable "
+            "terminal_artifact_retainer"
+        )
+    return terminal_artifact_retainer(
+        authority_root=authority_root,
+        source_revision=source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal_receipt,
+        artifact_store=artifact_store,
+        payload=payload,
+        expected_sha256=expected_sha256,
+        media_type=media_type,
+        metadata=metadata,
+        provenance=provenance,
+    )
+
+
+def verify_chip_eda_publication_graph(
+    *,
+    authority_root: str | Path,
+    source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+    artifact_store: Any,
+    phase: str,
+    publication_adapter_sha256: str,
+    raw_execution_receipt_sha256: str,
+    raw_execution_receipt_locator: str,
+    chip_receipt_sha256: str,
+    chip_receipt_locator: str,
+    evidence_packet_sha256: str,
+    evidence_packet_locator: str,
+    publication_graph_verifier: ChipPublicationGraphVerifierPort,
+) -> dict[str, Any]:
+    """Fail-closed compatibility facade over the chip-owned graph verifier."""
+
+    if not callable(publication_graph_verifier):
+        raise TypeError(
+            "verify_chip_eda_publication_graph() requires a callable "
+            "publication_graph_verifier"
+        )
+    verified = publication_graph_verifier(
+        authority_root=authority_root,
+        source_revision=source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal_receipt,
+        artifact_store=artifact_store,
+        phase=phase,
+        publication_adapter_sha256=publication_adapter_sha256,
+        raw_execution_receipt_sha256=raw_execution_receipt_sha256,
+        raw_execution_receipt_locator=raw_execution_receipt_locator,
+        chip_receipt_sha256=chip_receipt_sha256,
+        chip_receipt_locator=chip_receipt_locator,
+        evidence_packet_sha256=evidence_packet_sha256,
+        evidence_packet_locator=evidence_packet_locator,
+    )
+    if type(verified) is not dict:
+        raise TypeError("chip publication verifier must return an exact dict")
+    return verified
+
+
+def _record_chip_eda_publication(
+    *,
+    authority_root: str | Path,
+    evidence_root: str | Path,
+    source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+    artifact_store: Any,
+    phase: str,
+    publication_adapter_sha256: str,
+    lease_sha256: str,
+    execution_id: str,
+    execution_request_sha256: str,
+    terminal_receipt_sha256: str,
+    raw_execution_receipt_sha256: str,
+    raw_execution_receipt_locator: str,
+    chip_receipt_sha256: str,
+    chip_receipt_locator: str,
+    evidence_packet_sha256: str,
+    evidence_packet_locator: str,
+    authority_head_record_sha256: str,
+    lease_subject_record_sha256: str,
+    lease_execution_record_sha256: str,
+    lease_terminal_record_sha256: str,
+    finished_at: str,
+    publication_recorder: ChipPublicationRecorderPort | None = None,
+) -> dict[str, Any]:
+    """Stable fail-closed facade over the chip-owned completion publisher."""
+
+    if not callable(publication_recorder):
+        raise TypeError(
+            "_record_chip_eda_publication() requires a callable "
+            "publication_recorder"
+        )
+    recorded = publication_recorder(
+        authority_root=authority_root,
+        evidence_root=evidence_root,
+        source_revision=source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal_receipt,
+        artifact_store=artifact_store,
+        phase=phase,
+        publication_adapter_sha256=publication_adapter_sha256,
+        lease_sha256=lease_sha256,
+        execution_id=execution_id,
+        execution_request_sha256=execution_request_sha256,
+        terminal_receipt_sha256=terminal_receipt_sha256,
+        raw_execution_receipt_sha256=raw_execution_receipt_sha256,
+        raw_execution_receipt_locator=raw_execution_receipt_locator,
+        chip_receipt_sha256=chip_receipt_sha256,
+        chip_receipt_locator=chip_receipt_locator,
+        evidence_packet_sha256=evidence_packet_sha256,
+        evidence_packet_locator=evidence_packet_locator,
+        authority_head_record_sha256=authority_head_record_sha256,
+        lease_subject_record_sha256=lease_subject_record_sha256,
+        lease_execution_record_sha256=lease_execution_record_sha256,
+        lease_terminal_record_sha256=lease_terminal_record_sha256,
+        finished_at=finished_at,
+    )
+    if type(recorded) is not dict:
+        raise TypeError("chip publication recorder must return an exact dict")
+    return recorded
 
 
 def harvest_effect_lease_terminal_records(
@@ -946,6 +1705,23 @@ def issuer_keyring(repo_root: str | Path | None) -> dict[str, bytes]:
     return {ISSUER_KEY_ID: material}
 
 
+def read_issuer_keyring(repo_root: str | Path | None) -> dict[str, bytes]:
+    """Read the existing issuer key for recovery without creating authority."""
+
+    path = control_root(repo_root) / "effect-lease-issuer.key"
+    try:
+        material = path.read_bytes()
+    except OSError as exc:
+        raise EffectLeaseStateError(
+            "retained effect-lease issuer key is unavailable"
+        ) from exc
+    if len(material) < _KEY_BYTES:
+        raise EffectLeaseStateError(
+            "retained effect-lease issuer key is shorter than 32 bytes"
+        )
+    return {ISSUER_KEY_ID: material}
+
+
 def kill_switch_generation(switch: KillSwitch) -> int:
     """The current generation, or raise if the permit is not armed.
 
@@ -1018,6 +1794,15 @@ class WritePolicySource:
     def usable(self) -> bool:
         return self.policy is not None
 
+    @property
+    def confined(self) -> bool:
+        """Whether the policy names a non-empty, auditable write allow-list."""
+
+        return bool(
+            self.policy is not None
+            and tuple(getattr(self.policy, "write_allow", ()) or ())
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "origin": self.origin,
@@ -1035,7 +1820,10 @@ CALLER_POLICY_ORIGIN = "caller-supplied:daedalus.sensitivity.Policy"
 
 
 def resolve_write_policy(
-    repo_root: str | Path, policy: "Policy | None" = None
+    repo_root: str | Path,
+    policy: "Policy | None" = None,
+    *,
+    policy_path: str | Path | None = None,
 ) -> WritePolicySource:
     """Name the policy that will decide this wave's write fence.
 
@@ -1050,9 +1838,16 @@ def resolve_write_policy(
     block) returns ``policy=None`` with the reason on :attr:`WritePolicySource.error`.
     It never falls back to ``DEFAULT_POLICY``: that fallback IS the bug.
     """
-    from daedalus.config import REPO_CONFIG, _repo_local_policy
+    from daedalus.config import REPO_CONFIG
     from daedalus.sensitivity import load_policy
 
+    if policy is not None and policy_path is not None:
+        return WritePolicySource(
+            policy=None,
+            origin="ambiguous:caller-policy-and-policy-path",
+            sha256="",
+            error="write policy object and policy_path are mutually exclusive",
+        )
     if policy is not None:
         return WritePolicySource(
             policy=policy,
@@ -1070,35 +1865,52 @@ def resolve_write_policy(
             ),
         )
 
-    path = Path(repo_root) / REPO_CONFIG
+    root = Path(repo_root).expanduser().resolve(strict=False)
+    raw_path = Path(policy_path) if policy_path is not None else Path(REPO_CONFIG)
+    path = raw_path if raw_path.is_absolute() else root / raw_path
+    path = path.expanduser().resolve(strict=False)
     origin = str(path)
-    block = _repo_local_policy(str(repo_root))
-    if not block:
+    try:
+        common = os.path.commonpath((str(root), str(path)))
+    except ValueError:
+        common = ""
+    if os.path.normcase(common) != os.path.normcase(str(root)):
         return WritePolicySource(
             policy=None,
             origin=origin,
             sha256="",
-            error=(
-                f"no usable 'policy' block at {origin} (absent, unreadable, "
-                f"malformed, or without one)"
-            ),
+            error=f"write policy path is outside the operator authority root: {origin}",
         )
     try:
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as exc:
+        material = path.read_bytes()
+        document = json.loads(material.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         return WritePolicySource(
             policy=None,
             origin=origin,
             sha256="",
-            error=f"{origin} could not be digested ({exc})",
+            error=f"no usable 'policy' block at {origin}: {type(exc).__name__}",
+        )
+    block = document.get("policy") if isinstance(document, Mapping) else None
+    if not isinstance(block, Mapping):
+        return WritePolicySource(
+            policy=None,
+            origin=origin,
+            sha256=hashlib.sha256(material).hexdigest(),
+            error=f"no usable 'policy' block at {origin}",
         )
     return WritePolicySource(
-        policy=load_policy({"policy": block}), origin=origin, sha256=digest
+        policy=load_policy({"policy": dict(block)}),
+        origin=origin,
+        sha256=hashlib.sha256(material).hexdigest(),
     )
 
 
 def wave_containment_roots(
-    repo_root: str | Path, worktree_root: str | Path | None = None
+    repo_root: str | Path,
+    worktree_root: str | Path | None = None,
+    *,
+    worktree_root_resolver: WorktreeRootResolverPort | None = None,
 ) -> tuple[str, str]:
     """The two roots the containment predicate is about. It decides nothing.
 
@@ -1107,24 +1919,81 @@ def wave_containment_roots(
     isolation root cannot be resolved at all; the caller turns that into a
     refusal, because unknown containment is no containment.
 
-    ``worktree_root`` is THE CALLER'S OWN PLANNED ROOT, and it exists because
-    asking :class:`GitWorktreeManager` for its default was a measurement
-    wearing the wrong name. A caller that injects its own manager -- every
-    ``TaskAttempt`` constructed with ``worktree_manager=`` -- writes under a
-    root this function never saw, so the ``containment.attempt`` allow named a
-    pair of directories those writes never touch, and that allow rode into the
-    retained disjointness record and out as a ``CHECKOUT_EXTERNAL`` target
-    disposition. Omitted, the default manager still answers, so the wave path
-    is unchanged.
+    ``worktree_root`` is THE CALLER'S OWN PLANNED ROOT. When it is omitted the
+    orchestration owner must inject ``worktree_root_resolver``; the kernel does
+    not import or silently select a worktree manager. A caller that injects its
+    own manager -- every ``TaskAttempt`` constructed with
+    ``worktree_manager=`` -- can instead pass that exact planned root, keeping
+    the retained disjointness record bound to the directories writes may touch.
     """
 
     root = Path(repo_root).resolve()
-    if worktree_root is not None:
-        return str(root), str(Path(worktree_root).resolve())
+    planned = worktree_root
+    if planned is None:
+        if not callable(worktree_root_resolver):
+            raise TypeError(
+                "wave containment requires an explicit worktree_root or "
+                "worktree_root_resolver port"
+            )
+        planned = worktree_root_resolver(root)
+    if not str(planned).strip():
+        raise ValueError("worktree root resolver returned an empty root")
+    return str(root), str(Path(planned).resolve())
 
-    from daedalus.kairos.worktree import GitWorktreeManager
 
-    return str(root), str(GitWorktreeManager(root).worktree_root)
+# --------------------------------------------------------------------------- #
+# receipt evidence is a CONTRACT FIELD, so the filesystem may not size it       #
+# --------------------------------------------------------------------------- #
+# MEASURED (G1-CHIP-01). ``PolicyDecision.reasons`` refuses any entry longer
+# than 1000 characters (``kernel/contracts/canonical.py::_sorted_strings``), and
+# ``spine/receipts.py`` renders every guard row into one of those entries as
+# ``f"{contract}: {evidence}"``. ``derive_wave_containment`` interpolated up to
+# five ABSOLUTE PATHS into one evidence string and the caller's mechanism was
+# appended after it, so the length of the deployment path decided whether a
+# refusal could be represented at all. Under a 92-character pytest
+# ``--basetemp`` the ``containment.attempt`` reason reached 1046 characters and
+# the contract raised: the structured REFUSAL became an unstructured
+# ``ValueError`` whose payload had no ``steps`` at all -- the guard's answer was
+# destroyed by the guard's own diagnostics.
+#
+# THE BOUND BELONGS AT THE MINT SITE. Truncating in ``spine/receipts.py`` or in
+# ``GuardDecision`` would bound every row in the system at once and hide this
+# whole class of overflow instead of fixing the rows that overflow; the renderer
+# would then be silently editing evidence it did not write.
+#
+# ELISION, NOT RELATIVISATION. These paths are asserted to be DISJOINT from one
+# another, so none of them is a legitimate base for the others -- rendering one
+# relative to another would state the containment relation that is the very
+# thing under test. The MIDDLE is dropped instead: a path's head names the
+# volume and its tail names the leaf, and those two are what identify which
+# directory overlapped.
+_EVIDENCE_PATH_MAX_CHARS = 90
+_EVIDENCE_DETAIL_MAX_CHARS = 200
+_CONTAINMENT_EVIDENCE_MAX_CHARS = 700
+_CONTAINMENT_MECHANISM_MAX_CHARS = 200
+
+
+def _elide_middle(text: str, limit: int) -> str:
+    """Bound *text* to *limit* characters by dropping its middle, never its ends.
+
+    ``...`` marks the cut, so an elided path cannot be misread as a real one.
+    Shorter text is returned unchanged, so the common case is verbatim evidence
+    and the bound is visible only where it actually bit.
+    """
+
+    if limit < 8:
+        raise ValueError("an evidence budget below 8 characters cannot elide")
+    if len(text) <= limit:
+        return text
+    keep = limit - 3
+    head = (keep + 1) // 2
+    return f"{text[:head]}...{text[len(text) - (keep - head):]}"
+
+
+def _evidence_path(value: object) -> str:
+    """One filesystem path, bounded, for a receipt evidence field."""
+
+    return _elide_middle(str(value), _EVIDENCE_PATH_MAX_CHARS)
 
 
 def derive_wave_containment(
@@ -1132,6 +2001,7 @@ def derive_wave_containment(
     worktree_root: str | Path | None = None,
     *,
     authority_root: str | Path | None = None,
+    worktree_root_resolver: WorktreeRootResolverPort | None = None,
 ) -> tuple[bool, str]:
     """Does THIS checkout's isolation machinery really land outside it?
 
@@ -1160,11 +2030,8 @@ def derive_wave_containment(
     behind it, and a receipt that says "asserted with no evidence" in the ALLOW
     column is worse than no receipt: it reads as a guard that ran.
 
-    What the issuer CAN check without the caller is the structural half:
-    ``daedalus.kairos.gated_writes.run_write_wave`` isolates each write task in
-    a ``TaskAttempt`` worktree allocated by
-    :class:`daedalus.kairos.worktree.GitWorktreeManager`, whose ``worktree_root``
-    is outside the checkout by construction -- unless it is not, on this
+    What the issuer CAN check after orchestration supplies the planned root is
+    the structural half: the worktree root must be outside the checkout on this
     machine, under this environment, which is exactly the fact worth checking.
     :func:`daedalus.primary_tree.planned_overlap_reason` is the one
     implementation of that comparison for a directory that may not exist yet,
@@ -1180,20 +2047,36 @@ def derive_wave_containment(
 
     root = Path(repo_root).resolve()
     try:
-        _, planned = wave_containment_roots(root, worktree_root)
+        _, planned = wave_containment_roots(
+            root,
+            worktree_root,
+            worktree_root_resolver=worktree_root_resolver,
+        )
     except Exception as exc:  # noqa: BLE001 - unknown containment is no containment
-        return False, (
-            f"the isolation root for {root} could not be resolved "
-            f"({type(exc).__name__}: {exc}), so containment cannot be derived"
+        return False, _elide_middle(
+            f"the isolation root for {_evidence_path(root)} could not be "
+            f"resolved ({type(exc).__name__}: "
+            f"{_elide_middle(str(exc), _EVIDENCE_DETAIL_MAX_CHARS)}), so "
+            f"containment cannot be derived",
+            _CONTAINMENT_EVIDENCE_MAX_CHARS,
         )
     # A PLANNED directory: the manager creates it after the check, so it is
     # asked about the name it will land on, not about its existing ancestor
     # (which contains the checkout for every sibling root -- 57a2e7cb).
     overlap = planned_overlap_reason(Path(planned), root)
+    # Every path below goes through `_evidence_path`, and every already-composed
+    # sub-reason through `_elide_middle`, so the length of this evidence is a
+    # property of the CONTRACT and not of where the operator happened to check
+    # the tree out. The final `_elide_middle` on each return is the backstop: a
+    # sixth interpolation added later cannot reintroduce the 1046-character
+    # refusal that could not be represented.
+    shown_planned = _evidence_path(planned)
+    shown_root = _evidence_path(root)
     if overlap is not None:
-        return False, (
-            f"the attempt isolation root {planned} overlaps the primary "
-            f"checkout: {overlap}"
+        return False, _elide_middle(
+            f"the attempt isolation root {shown_planned} overlaps the primary "
+            f"checkout: {_elide_middle(overlap, _EVIDENCE_DETAIL_MAX_CHARS)}",
+            _CONTAINMENT_EVIDENCE_MAX_CHARS,
         )
     authority = (
         Path(authority_root).resolve() if authority_root is not None else None
@@ -1203,37 +2086,76 @@ def derive_wave_containment(
         # caller could name any throwaway subject and still land its writes
         # inside the installation.
         authority_overlap = planned_overlap_reason(Path(planned), authority)
+        shown_authority = _evidence_path(authority)
         if authority_overlap is not None:
-            return False, (
-                f"the attempt isolation root {planned} is disjoint from the "
-                f"subject checkout {root} but overlaps the AUTHORITY checkout "
-                f"{authority}: {authority_overlap}"
+            return False, _elide_middle(
+                f"the attempt isolation root {shown_planned} is disjoint from "
+                f"the subject checkout {shown_root} but overlaps the AUTHORITY "
+                f"checkout {shown_authority}: "
+                f"{_elide_middle(authority_overlap, _EVIDENCE_DETAIL_MAX_CHARS)}",
+                _CONTAINMENT_EVIDENCE_MAX_CHARS,
             )
-        return True, (
-            f"primary_tree.planned_overlap_reason({planned}, {root}) and "
-            f"({planned}, {authority}) are both None: worktrees allocated "
-            f"under {planned} land outside the subject checkout AND outside "
-            f"the authority checkout, in both directions"
+        return True, _elide_middle(
+            f"primary_tree.planned_overlap_reason({shown_planned}, "
+            f"{shown_root}) and ({shown_planned}, {shown_authority}) are both "
+            f"None: worktrees allocated under {shown_planned} land outside the "
+            f"subject checkout AND outside the authority checkout, in both "
+            f"directions",
+            _CONTAINMENT_EVIDENCE_MAX_CHARS,
         )
-    return True, (
-        f"primary_tree.planned_overlap_reason({planned}, {root}) is "
-        f"None: TaskAttempt worktrees allocated under {planned} land "
-        f"outside the primary checkout in both directions"
+    return True, _elide_middle(
+        f"primary_tree.planned_overlap_reason({shown_planned}, {shown_root}) is "
+        f"None: TaskAttempt worktrees allocated under {shown_planned} land "
+        f"outside the primary checkout in both directions",
+        _CONTAINMENT_EVIDENCE_MAX_CHARS,
     )
 
 
-def lane_endpoint(lane: str) -> str:
-    """The endpoint a dispatch lane speaks, or ``""`` when none is declared."""
-    if lane == "ollama":
-        from daedalus.providers.ollama import DEFAULT_HOST
+def lane_endpoint(
+    lane: str,
+    *,
+    endpoint_resolver: LaneEndpointResolverPort | None = None,
+) -> str:
+    """Compatibility facade over one explicitly composed runtime resolver."""
 
-        return (os.environ.get("OLLAMA_HOST") or DEFAULT_HOST).strip().rstrip("/")
-    return LANE_ENDPOINTS.get(lane, "")
+    if not callable(endpoint_resolver):
+        raise TypeError("lane_endpoint() requires an endpoint_resolver port")
+    endpoint = str(endpoint_resolver(str(lane))).strip().rstrip("/")
+    return endpoint
 
 
 # --------------------------------------------------------------------------- #
 # the results                                                                  #
 # --------------------------------------------------------------------------- #
+def _limit_policy_evidence(policy: ExecutionLimitPolicy) -> dict[str, Any]:
+    """Canonical resource-policy snapshot carried by digests and receipts."""
+
+    return {
+        "policy": policy.as_dict(),
+        "effective": policy.effective.as_dict(),
+        "fingerprint_sha256": policy.fingerprint_sha256,
+    }
+
+
+def _limit_policy_from_evidence(value: object) -> ExecutionLimitPolicy:
+    """Strictly rebuild the typed snapshot retained in existing evidence."""
+
+    if not isinstance(value, Mapping):
+        raise ValueError("execution_limit_policy evidence must be an object")
+    expected = {"policy", "effective", "fingerprint_sha256"}
+    if set(value) != expected:
+        raise ValueError(
+            "execution_limit_policy evidence must contain exactly policy, "
+            "effective and fingerprint_sha256"
+        )
+    policy = ExecutionLimitPolicy.from_dict(value["policy"])
+    if value["effective"] != policy.effective.as_dict():
+        raise ValueError("execution_limit_policy effective axes do not match its mode")
+    if value["fingerprint_sha256"] != policy.fingerprint_sha256:
+        raise ValueError("execution_limit_policy fingerprint does not match its policy")
+    return policy
+
+
 @dataclass(frozen=True)
 class WaveLeaseDenied:
     """No capability was issued, and the canonical reason why.
@@ -1255,6 +2177,9 @@ class WaveLeaseDenied:
     #: denial above keeps its exact shape; a denial that named the wrong row
     #: would be a receipt about a capability nobody asked for.
     entrypoint_id: str = ENTRYPOINT_ID
+    #: Captured execution-resource policy. Older hand-built denials have no
+    #: issuer snapshot and retain ``None`` rather than inventing one later.
+    limit_policy: ExecutionLimitPolicy | None = None
 
     @property
     def granted(self) -> bool:
@@ -1276,6 +2201,11 @@ class WaveLeaseDenied:
             "write_policy": (
                 None if self.write_policy is None else self.write_policy.to_dict()
             ),
+            "execution_limit_policy": (
+                None
+                if self.limit_policy is None
+                else _limit_policy_evidence(self.limit_policy)
+            ),
             "lease_id": None,
             "requested_effects": [],
             "security_boundary_claimed": False,
@@ -1291,6 +2221,7 @@ class WaveOffloadLease:
     lease: EffectLease
     request: EffectLeaseRequest
     policy_decision: PolicyDecision
+    limit_policy: ExecutionLimitPolicy
     ledger: EffectLeaseLedger = field(repr=False)
     ledger_path: str = ""
     #: The policy that cleared the declared roots, named on the receipt.
@@ -1323,7 +2254,12 @@ class WaveOffloadLease:
         return tuple(self.lease.requested_effects)
 
     def execution_for(
-        self, position: int, writable_paths: Sequence[str] = ()
+        self,
+        position: int,
+        writable_paths: Sequence[str] = (),
+        tools: Sequence[str] = (),
+        *,
+        operation_sha256: str | None = None,
     ) -> EffectExecutionRequest:
         """The narrowed execution request for one task position in the wave.
 
@@ -1332,12 +2268,22 @@ class WaveOffloadLease:
         collide on one execution identity and one candidate re-dispatched in
         the same wave is correctly refused as a replay rather than run twice.
         """
+        lease_operation = self.request.operation_sha256
+        if lease_operation is not None and operation_sha256 != lease_operation:
+            raise EffectLeaseStateError(
+                "execution operation does not match the operation signed into the lease request"
+            )
         key = int(position)
         cached = self._executions.get(key)
         if cached is not None:
+            if cached.operation_sha256 != operation_sha256:
+                raise EffectLeaseStateError(
+                    "execution position is already bound to a different operation"
+                )
             return cached
         scope = self.lease.effect_scope
         declared = tuple(str(p) for p in writable_paths if str(p).strip())
+        selected_tools = tuple(str(tool) for tool in tools if str(tool).strip())
         execution = EffectExecutionRequest(
             execution_id=f"{self.lease.lease_id}-exec-{key}",
             idempotency_key=f"{self.lease.idempotency_namespace}-{key}",
@@ -1348,17 +2294,28 @@ class WaveOffloadLease:
             # a false bound in the receipt.
             writable_paths=declared or scope.writable_paths,
             egress_endpoints=scope.egress_endpoints,
-            tools=scope.tools,
-            max_cost_microusd=scope.max_cost_microusd or 0,
+            # A consumer that knows the exact executable may narrow the
+            # issuer's conservative tool set (which also contains the shared
+            # git/python base tools). Empty preserves the compatibility shape.
+            tools=selected_tools or scope.tools,
+            # Preserve the lease's explicit null.  Converting it to zero would
+            # silently reintroduce a spend cap after Revision 10 disabled the
+            # mission-spend axis.
+            max_cost_microusd=scope.max_cost_microusd,
             kill_switch_ref=scope.kill_switch_ref,
             kill_switch_generation=self.lease.kill_switch_generation,
+            operation_sha256=operation_sha256,
         )
         self._executions[key] = execution
         # Retained HERE because this is the one place an execution identity
         # comes into being, and because rediscovering the set later would mean
         # a second reader of the effect ledger. See
         # `record_effect_lease_execution` -- it never raises into this call.
-        record_effect_lease_execution(self, execution)
+        retained = record_effect_lease_execution(self, execution)
+        if retained is not None:
+            self.evidence_records[f"lease_execution:{execution.execution_id}"] = str(
+                retained["record_sha256"]
+            )
         return execution
 
     def issued_execution(self, position: int) -> EffectExecutionRequest | None:
@@ -1501,6 +2458,7 @@ class WaveOffloadLease:
             "write_policy": (
                 None if self.write_policy is None else self.write_policy.to_dict()
             ),
+            "execution_limit_policy": _limit_policy_evidence(self.limit_policy),
             "ledger_path": self.ledger_path,
             "security_boundary_claimed": False,
         }
@@ -1509,7 +2467,12 @@ class WaveOffloadLease:
 # --------------------------------------------------------------------------- #
 # the issuer                                                                   #
 # --------------------------------------------------------------------------- #
-def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision:
+def _intent_ledger_decision(
+    root: Path,
+    effect_key: str | None,
+    *,
+    ledger_path_resolver: IntentLedgerPathResolverPort | None,
+) -> GuardDecision:
     """``spine.intent_ledger``, run by the issuer itself.
 
     The contract at issuance time: the effect key this lease would authorise
@@ -1521,12 +2484,13 @@ def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision
 
     READ-ONLY BY CONSTRUCTION: the ledger is opened with sqlite's ``mode=ro``
     URI, so this guard cannot create the database it claims to inspect, and a
-    missing ledger is a deny rather than a fresh file. The path comes from
-    :func:`daedalus.spine.picker.resolve_spine_db_path`, the repo-confined
-    resolver -- deliberately not ``DAEDALUS_SPINE_DB``, the process-global
-    surface (Codex, room turn 51: the two resolvers must not be unified).
-    The intent's state is the newest ``intent_events`` row, exactly as
-    :meth:`SpineLedger.get` derives it.
+    missing ledger is a deny rather than a fresh file. The outer composition
+    supplies the repository-confined path resolver; the kernel neither owns
+    nor discovers the spine projection. That resolver must deliberately remain
+    distinct from ``DAEDALUS_SPINE_DB``, the process-global surface (Codex,
+    room turn 51: the two resolvers must not be unified). The intent's state is
+    the newest ``intent_events`` row, exactly as the canonical ledger derives
+    it.
     """
     contract = "spine.intent_ledger"
     if not effect_key:
@@ -1535,9 +2499,15 @@ def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision
             "the row declares spine.intent_ledger and the caller supplied no "
             "effect_key; a lease for an attempt nobody intends cannot be "
             "issued")
-    from daedalus.spine.picker import resolve_spine_db_path
+    if ledger_path_resolver is None:
+        return GuardDecision(
+            contract,
+            False,
+            "no repository-confined intent-ledger path resolver port was "
+            "composed; the lease is refused before any SQLite access",
+        )
 
-    path, err = resolve_spine_db_path(root)
+    path, err = ledger_path_resolver(root)
     if err or path is None:
         return GuardDecision(
             contract, False,
@@ -1691,6 +2661,7 @@ def _deny(
     now: datetime,
     write_policy: WritePolicySource | None = None,
     entrypoint_id: str = ENTRYPOINT_ID,
+    limit_policy: ExecutionLimitPolicy | None = None,
 ) -> WaveLeaseDenied:
     decision = PolicyDecision(
         decision_id=f"{subject_id}-deny",
@@ -1722,10 +2693,11 @@ def _deny(
         guard_decisions=tuple(guard_decisions),
         write_policy=write_policy,
         entrypoint_id=str(entrypoint_id),
+        limit_policy=limit_policy,
     )
 
 
-def acquire_effect_lease(
+def _acquire_effect_lease_impl(
     repo_root: str | Path,
     *,
     entrypoint_id: str = ENTRYPOINT_ID,
@@ -1742,6 +2714,7 @@ def acquire_effect_lease(
     containment_evidence: str = "",
     write_policy_blocked: Sequence[str] = (),
     write_policy: "Policy | None" = None,
+    write_policy_path: str | Path | None = None,
     switch: KillSwitch | None = None,
     trace_id: str | None = None,
     lease_id: str | None = None,
@@ -1750,6 +2723,12 @@ def acquire_effect_lease(
     effect_key: str | None = None,
     subject_root: str | Path | None = None,
     worktree_root: str | Path | None = None,
+    worktree_root_resolver: WorktreeRootResolverPort | None = None,
+    intent_ledger_path_resolver: IntentLedgerPathResolverPort | None = None,
+    egress_admission: EgressAdmissionPort | None = None,
+    limit_policy: ExecutionLimitPolicy | None = None,
+    operation_sha256: str | None = None,
+    computer_operation: Mapping[str, Any] | None = None,
 ) -> WaveOffloadLease | WaveLeaseDenied:
     """Run the guard contracts ONE registry row declares, then issue or deny.
 
@@ -1813,6 +2792,13 @@ def acquire_effect_lease(
     in as corroboration; it can only ever add a refusal, never remove one.
     """
     instant = now or _utc_now()
+    if limit_policy is None:
+        captured_limit_policy = load_from_env()
+    elif isinstance(limit_policy, ExecutionLimitPolicy):
+        captured_limit_policy = limit_policy
+    else:
+        raise TypeError("limit_policy must be ExecutionLimitPolicy or None")
+    limit_policy_material = _limit_policy_evidence(captured_limit_policy)
     # THE AUTHORITY ROOT. Everything the operator owns and the candidate must
     # never choose hangs off this name: the permit, the issuer key, the lease
     # ledger, the evidence store, the write fence, the attempt ledger the
@@ -1841,6 +2827,7 @@ def acquire_effect_lease(
                 "registry_sha256": registry_sha256(),
                 "issuer_contracts": sorted(ISSUER_CONTRACTS),
                 "issuer_effects": sorted(ISSUER_EFFECTS),
+                "execution_limit_policy": limit_policy_material,
                 "reasons": sorted(row_refusals),
             }
         )
@@ -1856,6 +2843,7 @@ def acquire_effect_lease(
             policy_sha256=refusal_sha256,
             now=instant,
             entrypoint_id=door,
+            limit_policy=captured_limit_policy,
         )
     effects = tuple(sorted(effect.value for effect in spec.effects))
     declared_contracts = frozenset(spec.guard_contracts)
@@ -1873,40 +2861,33 @@ def acquire_effect_lease(
         guards.append(process_guard_boundary_decision())
 
     endpoints: list[str] = []
-    egress_reasons: list[str] = []
-    egress_ok = True
     if "provider.egress_policy" in declared_contracts:
-        for lane in sorted({str(l) for l in lanes if str(l).strip()}):
-            endpoint = lane_endpoint(lane)
-            if not endpoint:
-                egress_ok = False
-                egress_reasons.append(
-                    f"lane {lane!r} declares no endpoint, so its egress cannot be leased"
-                )
-                continue
-            if lane == "ollama":
-                from daedalus.providers.ollama import ollama_endpoint_admission
-
-                allowed, _lane, evidence = ollama_endpoint_admission(endpoint)
-                egress_reasons.append(f"{lane}: {evidence}")
-                if not allowed:
-                    egress_ok = False
-                    continue
-            else:
-                egress_reasons.append(
-                    f"{lane}: declared endpoint {endpoint} (no admission contract "
-                    f"implements this lane yet, so it is leased only as a declaration)"
-                )
-            endpoints.append(endpoint)
-        if not endpoints:
-            egress_ok = False
-            egress_reasons.append(
-                "no admissible endpoint for this wave; a network-effect lease must "
-                "name at least one"
-            )
-        guards.append(
-            GuardDecision("provider.egress_policy", egress_ok, "; ".join(egress_reasons))
+        requested_lanes = tuple(
+            sorted({str(lane) for lane in lanes if str(lane).strip()})
         )
+        if not callable(egress_admission):
+            observation = EgressAdmissionObservation(
+                requested_lanes=requested_lanes,
+                endpoints=(),
+                decision=GuardDecision(
+                    "provider.egress_policy",
+                    False,
+                    "no runtime egress admission port was composed; a network-effect "
+                    "lease is refused before endpoint selection",
+                ),
+            )
+        else:
+            observation = egress_admission(requested_lanes)
+        if type(observation) is not EgressAdmissionObservation:
+            raise TypeError(
+                "egress_admission must return an exact EgressAdmissionObservation"
+            )
+        if observation.requested_lanes != requested_lanes:
+            raise ValueError(
+                "egress admission observation is not bound to the requested lanes"
+            )
+        endpoints = list(observation.endpoints)
+        guards.append(observation.decision)
     else:
         # NOT RUN, THEREFORE NOT GRANTED. The endpoints stay empty so the scope
         # below carries none: a row that does not declare `provider.egress_policy`
@@ -1921,7 +2902,11 @@ def acquire_effect_lease(
         sorted({str(p).strip() for p in writable_paths if str(p).strip()})
     ) or (".",)
 
-    policy_source = resolve_write_policy(root, write_policy)
+    policy_source = resolve_write_policy(
+        root,
+        write_policy,
+        policy_path=write_policy_path,
+    )
     caller_blocked = tuple(str(p) for p in write_policy_blocked)
     if "provider.write_policy" not in declared_contracts:
         # The fence is still RESOLVED (the receipt names which policy this
@@ -1941,6 +2926,16 @@ def acquire_effect_lease(
                 f"{policy_source.error}; a write lease is refused rather than "
                 "issued under sensitivity.DEFAULT_POLICY, whose empty "
                 "write_allow means UNCONFINED",
+            )
+        )
+    elif spec.id == CHIP_EDA_ENTRYPOINT_ID and not policy_source.confined:
+        blocked = caller_blocked or declared_paths
+        guards.append(
+            GuardDecision(
+                "provider.write_policy",
+                False,
+                f"{policy_source.origin} declares no non-empty write_allow; "
+                "the chip EDA entrypoint refuses an unconfined write policy",
             )
         )
     else:
@@ -1990,7 +2985,10 @@ def acquire_effect_lease(
     )
     if "containment.attempt" in declared_contracts:
         derived_ok, derived_evidence = derive_wave_containment(
-            subject_checkout, worktree_root, authority_root=root
+            subject_checkout,
+            worktree_root,
+            authority_root=root,
+            worktree_root_resolver=worktree_root_resolver,
         )
         containment_refusals: list[str] = []
         if not contained:
@@ -2008,7 +3006,14 @@ def acquire_effect_lease(
                 not containment_refusals,
                 "; ".join(containment_refusals)
                 if containment_refusals
-                else f"{derived_evidence}; caller mechanism: {declared_mechanism}",
+                # The mechanism is CALLER TEXT appended to issuer evidence
+                # inside one 1000-character contract field. Unbounded, it can
+                # push a derivation that fits over the edge and destroy the
+                # refusal it was meant to explain, so it carries its own budget.
+                else (
+                    f"{derived_evidence}; caller mechanism: "
+                    f"{_elide_middle(declared_mechanism, _CONTAINMENT_MECHANISM_MAX_CHARS)}"
+                ),
             )
         )
 
@@ -2025,9 +3030,11 @@ def acquire_effect_lease(
         # allows. With `containment_evidence=""` against the same pair of roots,
         # `containment.attempt` is False ("the caller named no containment
         # mechanism") while `containment.worktree` is True. The relation is
-        # SUBSUMPTION -- attempt implies worktree -- so for `python.attempt`,
-        # the only row declaring both, this decision adds no refusal the other
-        # cannot already make. It is not deletable: `worktree.reap`,
+        # SUBSUMPTION -- attempt implies worktree -- so for `python.attempt`
+        # and the Gate-1 `python.genesis` / `python.ariadne_campaign` aggregate
+        # doors, the three rows currently declaring both, this decision adds no
+        # refusal the other cannot already make. It is not deletable:
+        # `worktree.reap`,
         # `worktree.create`, `worktree.commit`, `worktree.cleanup` and
         # `python.promote_candidates` declare it ALONE, and there it is the
         # sole containment check.
@@ -2036,7 +3043,10 @@ def acquire_effect_lease(
         # Two names quoting one evidence string read as two independent
         # measurements, and only one of them is independent.
         worktree_ok, worktree_evidence = derive_wave_containment(
-            subject_checkout, worktree_root, authority_root=root
+            subject_checkout,
+            worktree_root,
+            authority_root=root,
+            worktree_root_resolver=worktree_root_resolver,
         )
         guards.append(
             GuardDecision(
@@ -2048,18 +3058,58 @@ def acquire_effect_lease(
         )
 
     if "spine.intent_ledger" in declared_contracts:
-        guards.append(_intent_ledger_decision(root, effect_key))
+        guards.append(
+            _intent_ledger_decision(
+                root,
+                effect_key,
+                ledger_path_resolver=intent_ledger_path_resolver,
+            )
+        )
+
+    if "computer.tool_policy" in declared_contracts:
+        from daedalus.kernel.policy.computer import admit_operation, ComputerRefused
+
+        try:
+            if computer_operation is None or canonical_sha(computer_operation) != operation_sha256:
+                raise ComputerRefused("computer operation must bind the lease operation digest")
+            computer_policy = admit_operation(root, computer_operation)
+            if tuple(tools) != (computer_operation["tool"],):
+                raise ComputerRefused("computer lease must name exactly the admitted tool")
+            guards.append(GuardDecision("computer.tool_policy", True,
+                                        f"policy={computer_policy.digest}; operation={operation_sha256}"))
+        except (ValueError, TypeError, KeyError, OSError) as exc:
+            guards.append(GuardDecision("computer.tool_policy", False, str(exc)))
 
     # -- 3. the request, and the policy digest over what decided ------------ #
     # WHAT THE ROW DID NOT DECLARE IS NOT GRANTED. `_scope_requirements`
     # refuses a scope that is too NARROW for the declared effects; nothing in
     # the kernel refuses one that is too wide, so the narrowing happens here.
-    cost_microusd = 0 if max_spend_usd is None else int(round(float(max_spend_usd) * 1e6))
-    if cost_microusd < 0:
-        cost_microusd = 0
     if Effect.SPEND.value not in declared_effects:
-        cost_microusd = 0
-    timeout = int(max(1, round(float(timeout_s)))) if timeout_s else 3600
+        # None means unbounded spend, so it must never appear on a lease whose
+        # registry row did not declare the SPEND effect.
+        cost_microusd: int | None = 0
+    elif not captured_limit_policy.enforces("mission_spend"):
+        cost_microusd = None
+    else:
+        cost_microusd = (
+            0
+            if max_spend_usd is None
+            else int(round(float(max_spend_usd) * 1e6))
+        )
+        if cost_microusd < 0:
+            cost_microusd = 0
+
+    timeout: int | None
+    if captured_limit_policy.enforces("wall_time"):
+        timeout = int(max(1, round(float(timeout_s)))) if timeout_s else 3600
+    else:
+        timeout = None
+
+    max_concurrency: int | None = (
+        max(1, int(positions))
+        if captured_limit_policy.enforces("concurrency")
+        else None
+    )
     spawns = bool(
         declared_effects
         & {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value}
@@ -2071,10 +3121,22 @@ def acquire_effect_lease(
         if spawns
         else ()
     )
+    if Effect.COMPUTER_USE.value in declared_effects:
+        declared_tools = tuple(tools)
     writes = bool(
         declared_effects
         & {Effect.FILESYSTEM_WRITE.value, Effect.REPOSITORY_MUTATION.value}
     )
+    if Effect.COMPUTER_USE.value in declared_effects and computer_operation is not None:
+        # A mediated file mutation still carries a truthful filesystem scope.
+        # These paths are relative to the workspace bound by computer policy,
+        # whose exact identity is in the guard and signed operation.
+        computer_tool = computer_operation.get("tool")
+        if computer_tool in {"file.write", "file.mkdir", "file.move"}:
+            arguments = computer_operation.get("arguments", {})
+            keys = ("source", "destination") if computer_tool == "file.move" else ("path",)
+            declared_paths = tuple(sorted({str(arguments.get(key, ".")) for key in keys}))
+            writes = True
     if not writes:
         declared_paths = ()
 
@@ -2093,6 +3155,7 @@ def acquire_effect_lease(
                 for d in sorted(guards, key=lambda d: d.contract)
             ],
             "kill_switch_generation": generation,
+            "execution_limit_policy": limit_policy_material,
             # The write fence's IDENTITY travels inside the digest, so a
             # decision recomputed under a different policy file does not
             # reproduce this sha: the drift is visible rather than silent.
@@ -2102,7 +3165,8 @@ def acquire_effect_lease(
             "writable_paths": list(declared_paths),
             "egress_endpoints": sorted(set(endpoints)),
             "tools": list(declared_tools),
-            "max_concurrency": max(1, int(positions)),
+            "max_concurrency": max_concurrency,
+            "operation_sha256": operation_sha256,
         }
     )
 
@@ -2126,6 +3190,7 @@ def acquire_effect_lease(
             now=instant,
             write_policy=policy_source,
             entrypoint_id=spec.id,
+            limit_policy=captured_limit_policy,
         )
 
     scope = EffectScope(
@@ -2134,7 +3199,7 @@ def acquire_effect_lease(
         egress_endpoints=tuple(sorted(set(endpoints))),
         tools=declared_tools,
         max_cost_microusd=cost_microusd,
-        max_concurrency=max(1, int(positions)),
+        max_concurrency=max_concurrency,
         timeout_s=timeout,
         kill_switch_ref=KILL_SWITCH_REF,
     )
@@ -2142,6 +3207,7 @@ def acquire_effect_lease(
         origin=_issuer_origin(spec.id),
         source_revision=source_revision,
         created_at=_timestamp(instant),
+        input_digests=(operation_sha256,) if operation_sha256 is not None else (),
         trace_id=trace_id,
     )
     request = EffectLeaseRequest(
@@ -2156,6 +3222,7 @@ def acquire_effect_lease(
         runtime_manifest_sha256=None,
         runtime_conformance_sha256=None,
         provenance=provenance,
+        operation_sha256=operation_sha256,
     )
     policy = PolicyDecision(
         decision_id=f"{request_id}-allow",
@@ -2194,10 +3261,15 @@ def acquire_effect_lease(
             now=instant,
             write_policy=policy_source,
             entrypoint_id=spec.id,
+            limit_policy=captured_limit_policy,
         )
 
     keyring = issuer_keyring(root)
-    ttl = min(max(_MIN_TTL_S, timeout), _MAX_TTL_S)
+    # Lease expiry is an authorization-credential lifetime, not the disabled
+    # execution wall-time cap. Keep the existing one-hour credential lifetime
+    # when the scope has no execution deadline.
+    lease_ttl_basis = timeout if timeout is not None else 3600
+    ttl = min(max(_MIN_TTL_S, lease_ttl_basis), _MAX_TTL_S)
     lease = issue_effect_lease(
         request,
         policy,
@@ -2220,6 +3292,7 @@ def acquire_effect_lease(
         # operator's stop during a running wave invalidates the lease at the
         # next start/finish instead of being noticed only after the spend.
         kill_switch_generation_reader=lambda: kill_switch_generation(live_switch),
+        execution_limit_policy=captured_limit_policy,
     )
     # PERSIST BEFORE ANY EXECUTION MAY START. `EffectLeaseLedger.begin` refuses
     # a lease it has never seen ("effect lease was not persisted before start"),
@@ -2236,6 +3309,7 @@ def acquire_effect_lease(
         lease=lease,
         request=request,
         policy_decision=policy,
+        limit_policy=captured_limit_policy,
         ledger=ledger,
         ledger_path=str(ledger_path),
         write_policy=policy_source,
@@ -2281,7 +3355,9 @@ def acquire_effect_lease(
         # `derive_wave_containment` just judged -- the subject and the caller's
         # planned isolation root.
         primary_root, target_root = wave_containment_roots(
-            subject_checkout, worktree_root
+            subject_checkout,
+            worktree_root,
+            worktree_root_resolver=worktree_root_resolver,
         )
         record = record_primary_checkout_disjointness(
             GuardDecision(
@@ -2299,8 +3375,42 @@ def acquire_effect_lease(
     return granted
 
 
+def acquire_effect_lease(
+    repo_root: str | Path,
+    *,
+    entrypoint_id: str = ENTRYPOINT_ID,
+    limit_policy: ExecutionLimitPolicy | None = None,
+    **kwargs: Any,
+) -> WaveOffloadLease | WaveLeaseDenied:
+    """Public generic issuer for rows without a stricter pinned wrapper.
+
+    ``cli.daedalus_chip`` is intentionally unavailable here.  Its supported
+    issuer is :func:`acquire_chip_eda_lease`, which pins the authority-owned
+    policy source, evidence root, clock, lease identity, tool, write scope,
+    containment roots, concurrency, egress and spend dimensions.  Letting a
+    caller name that row through this generic API would bypass those pins even
+    though the resulting lease looked valid to the executor.
+    """
+
+    if str(entrypoint_id) == CHIP_EDA_ENTRYPOINT_ID:
+        raise TypeError(
+            "cli.daedalus_chip leases are issued only by "
+            "acquire_chip_eda_lease(); the public generic issuer refuses this row"
+        )
+    granted = _acquire_effect_lease_impl(
+        repo_root,
+        entrypoint_id=entrypoint_id,
+        limit_policy=limit_policy,
+        **kwargs,
+    )
+    return granted
+
+
 def acquire_wave_offload_lease(
-    repo_root: str | Path, **kwargs: Any
+    repo_root: str | Path,
+    *,
+    limit_policy: ExecutionLimitPolicy | None = None,
+    **kwargs: Any,
 ) -> "WaveOffloadLease | WaveLeaseDenied":
     """One wave's ``python.offload`` lease. The row is PINNED here, not passed.
 
@@ -2316,7 +3426,12 @@ def acquire_wave_offload_lease(
             "acquire_wave_offload_lease() issues for python.offload only; call "
             "acquire_effect_lease(entrypoint_id=...) to ask for another row"
         )
-    return acquire_effect_lease(repo_root, entrypoint_id=ENTRYPOINT_ID, **kwargs)
+    return acquire_effect_lease(
+        repo_root,
+        entrypoint_id=ENTRYPOINT_ID,
+        limit_policy=limit_policy,
+        **kwargs,
+    )
 
 
 ATTEMPT_ENTRYPOINT_ID = "python.attempt"
@@ -2353,29 +3468,260 @@ def acquire_attempt_lease(
     )
 
 
+def acquire_chip_eda_lease(
+    repo_root: str | Path,
+    *,
+    project_root: str | Path,
+    worktree_root: str | Path,
+    containment_evidence: str,
+    write_policy_path: str | Path,
+    operation_plan: object,
+    source_revision: str,
+    execution_plan_validator: ChipExecutionPlanValidatorPort | None = None,
+    repository_head_verifier: RepositoryHeadRevisionVerifierPort,
+    **kwargs: Any,
+) -> "WaveOffloadLease | WaveLeaseDenied":
+    """Issue the single-position ``daedalus-chip`` lease without egress scope.
+
+    The operator's ``repo_root`` remains the authority root. ``project_root``
+    is the subject checkout the containment contract measures, while
+    ``worktree_root`` is the caller's explicit isolated execution root. The
+    wrapper pins every kernel capability dimension the EDA path must not
+    choose: entrypoint, concurrency, egress, spend and the containment
+    assertion. Repository-HEAD verification is a required injected port; the
+    kernel neither imports nor silently selects a Gate implementation. Empty
+    egress and secret scopes are not OS-level offline, no-egress, or
+    no-secret-access confinement for the vendor process.
+    """
+
+    forbidden = {
+        "entrypoint_id": "entrypoint",
+        "positions": "positions",
+        "lanes": "network lanes",
+        "max_spend_usd": "spend",
+        "subject_root": "project root",
+        "contained": "containment assertion",
+        "write_policy": "in-memory write policy",
+        "switch": "kill-switch authority",
+        "evidence_root": "evidence root",
+        "lease_id": "lease identity",
+        "now": "authority clock",
+        "effect_key": "effect key",
+        "tools": "tool scope",
+        "writable_paths": "write scope",
+        "limit_policy": "execution limit policy",
+        "operation_sha256": "raw operation digest",
+        "egress_admission": "egress admission",
+        "worktree_root_resolver": "worktree root resolver",
+    }
+    overridden = [label for key, label in forbidden.items() if key in kwargs]
+    if overridden:
+        raise TypeError(
+            "acquire_chip_eda_lease() pins "
+            + ", ".join(overridden)
+            + "; callers may not override them"
+        )
+    if not callable(repository_head_verifier):
+        raise TypeError(
+            "acquire_chip_eda_lease() requires a callable "
+            "repository_head_verifier"
+        )
+    if not str(project_root).strip():
+        raise TypeError("acquire_chip_eda_lease() requires a non-empty project_root")
+    if not str(worktree_root).strip():
+        raise TypeError("acquire_chip_eda_lease() requires a non-empty worktree_root")
+    if not str(containment_evidence).strip():
+        raise TypeError(
+            "acquire_chip_eda_lease() requires explicit containment_evidence"
+        )
+    if not str(write_policy_path).strip():
+        raise TypeError(
+            "acquire_chip_eda_lease() requires an operator-owned write_policy_path"
+        )
+    revision = str(source_revision)
+    if not _REVISION.fullmatch(revision):
+        raise TypeError(
+            "acquire_chip_eda_lease() requires a lowercase 40-hex source_revision"
+        )
+    if not callable(execution_plan_validator):
+        raise TypeError(
+            "acquire_chip_eda_lease() requires a callable "
+            "execution_plan_validator"
+        )
+    plan_binding = execution_plan_validator(operation_plan)
+    if type(plan_binding) is not ChipExecutionPlanBinding:
+        raise TypeError(
+            "execution_plan_validator must return an exact "
+            "ChipExecutionPlanBinding"
+        )
+    if write_root_identity_sha256(plan_binding.source_root) != (
+        write_root_identity_sha256(project_root)
+    ):
+        raise ValueError(
+            "acquire_chip_eda_lease() requires the execution plan source_root "
+            "to match project_root"
+        )
+    if write_root_identity_sha256(plan_binding.cwd) != write_root_identity_sha256(
+        worktree_root
+    ):
+        raise ValueError(
+            "acquire_chip_eda_lease() requires the execution plan cwd to match "
+            "the containment worktree_root"
+        )
+    operation = plan_binding.digest
+    if not _SHA256.fullmatch(operation):
+        raise TypeError(
+            "acquire_chip_eda_lease() requires a digestible EDA execution plan"
+        )
+    from daedalus.primary_tree import planned_overlap_reason
+
+    authority_source_overlap = planned_overlap_reason(
+        Path(project_root).resolve(),
+        Path(repo_root).resolve(),
+    )
+    if authority_source_overlap is not None:
+        raise ValueError(
+            "acquire_chip_eda_lease() requires disjoint authority and source roots: "
+            + authority_source_overlap
+        )
+    authority_head = repository_head_verifier(
+        Path(repo_root),
+        revision,
+    )
+    try:
+        authority_expected_revision = authority_head.expected_revision
+        authority_resolved_revision = authority_head.resolved_revision
+        authority_head_payload = authority_head.to_dict()
+    except AttributeError as exc:
+        raise TypeError(
+            "repository_head_verifier must return a repository-HEAD receipt port"
+        ) from exc
+    if not isinstance(authority_head_payload, Mapping):
+        raise TypeError(
+            "repository_head_verifier receipt to_dict() must return a mapping"
+        )
+    authority_head_payload = dict(authority_head_payload)
+    if (
+        set(authority_head_payload) != _REPOSITORY_HEAD_RECEIPT_FIELDS
+        or authority_head_payload.get("schema")
+        != "daedalus-repository-head-revision-receipt/1"
+        or authority_head_payload.get("commit_object_verified") is not False
+        or authority_head_payload.get("worktree_clean_verified") is not False
+        or authority_head_payload.get("process_spawned") is not False
+        or authority_head_payload.get("repository_mutated") is not False
+    ):
+        raise ValueError(
+            "repository_head_verifier returned a malformed receipt contract"
+        )
+    if (
+        authority_expected_revision != revision
+        or authority_resolved_revision != revision
+        or authority_head_payload.get("expected_revision") != revision
+        or authority_head_payload.get("resolved_revision") != revision
+        or authority_head_payload.get("repository_head_verified") is not True
+    ):
+        raise ValueError(
+            "repository_head_verifier returned a receipt not bound to the "
+            "requested source_revision"
+        )
+    # Force canonical serialization before the first lease write. A malformed
+    # injected port must never gain a lease merely because evidence publication
+    # would have failed later.
+    canonical_json(authority_head_payload)
+
+    # Stable across processes: reusing one mission/attempt reaches
+    # the ledger's lease-id replay refusal instead of minting fresh authority
+    # and starting Vivado again after an unresolved crash.  Deliberately omit
+    # the operation digest here: workspace drift after a crash must not turn
+    # the same attempt into a new capability.
+    deterministic_lease_id = chip_eda_lease_id(
+        str(kwargs.get("mission_id", "")),
+        str(kwargs.get("attempt_id", "")),
+    )
+
+    granted = _acquire_effect_lease_impl(
+        repo_root,
+        entrypoint_id=CHIP_EDA_ENTRYPOINT_ID,
+        positions=1,
+        lanes=(),
+        tools=("vivado",),
+        writable_paths=(".",),
+        max_spend_usd=None,
+        contained=True,
+        containment_evidence=str(containment_evidence).strip(),
+        subject_root=project_root,
+        worktree_root=worktree_root,
+        write_policy_path=write_policy_path,
+        operation_sha256=operation,
+        lease_id=deterministic_lease_id,
+        source_revision=authority_resolved_revision,
+        **kwargs,
+    )
+    if type(granted) is WaveOffloadLease:
+        try:
+            body: dict[str, Any] = {
+                "schema": "daedalus-chip-authority-head-record/1",
+                "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+                "lease_sha256": granted.lease.digest,
+                "operation_sha256": operation,
+                "repository_head_receipt": authority_head_payload,
+            }
+            body["record_sha256"] = _record_sha256(body)
+            _publish_evidence_record(
+                granted.evidence_root,
+                "authority-head",
+                body,
+            )
+            granted.evidence_records["authority_head"] = str(
+                body["record_sha256"]
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            granted.evidence_errors.append(
+                f"authority_head: {type(exc).__name__}: {exc}"
+            )
+    return granted
+
+
 __all__ = [
     "CALLER_POLICY_ORIGIN",
+    "CHIP_EDA_PUBLICATION_INDEX_SCHEMA",
+    "CHIP_EDA_PUBLICATION_RECORD_SCHEMA",
+    "CHIP_EDA_ENTRYPOINT_ID",
+    "ChipExecutionPlanBinding",
+    "ChipExecutionPlanValidatorPort",
+    "ChipPublicationGraphVerifierPort",
+    "ChipPublicationRecorderPort",
+    "ChipTerminalArtifactRetainerPort",
     "CONTAINMENT_CONTRACTS",
     "DISJOINTNESS_RECEIPT_SCHEMA",
     "DISJOINTNESS_RECORD_SCHEMA",
     "EFFECT_LEASE_RECEIPT_SCHEMA",
     "ENTRYPOINT_ID",
+    "EgressAdmissionObservation",
+    "EgressAdmissionPort",
     "ISSUER_CONTRACTS",
     "ISSUER_EFFECTS",
     "ISSUER_KEY_ID",
+    "IntentLedgerPathResolverPort",
     "KILL_SWITCH_REF",
     "LEASE_EXECUTION_RECORD_SCHEMA",
     "LEASE_SUBJECT_RECORD_SCHEMA",
     "LEASE_TERMINAL_RECORD_SCHEMA",
     "POLICY_VERSION",
+    "LaneEndpointResolverPort",
+    "RepositoryHeadRevisionReceiptPort",
+    "RepositoryHeadRevisionVerifierPort",
     "ROOT_IDENTITY_SCHEMA",
     "WORKTREE_CONTAINMENT_CONTRACT",
     "WaveLeaseDenied",
     "WaveLeaseKillSwitchEngaged",
     "WaveOffloadLease",
     "WritePolicySource",
+    "WorktreeRootResolverPort",
+    "acquire_chip_eda_lease",
     "acquire_effect_lease",
     "acquire_wave_offload_lease",
+    "chip_eda_lease_id",
     "control_root",
     "derive_wave_containment",
     "emit_effect_lease_terminal_record",
@@ -2386,11 +3732,16 @@ __all__ = [
     "kill_switch_generation",
     "lane_endpoint",
     "lease_ledger_path",
+    "load_chip_eda_publication",
     "rebuild_effect_lease_authorization",
     "record_effect_lease_execution",
     "record_effect_lease_subject",
     "record_effect_lease_subject_parts",
+    "verify_chip_eda_publication_graph",
     "record_primary_checkout_disjointness",
+    "read_issuer_keyring",
+    "require_retained_effect_lease_start_records",
+    "require_retained_effect_lease_terminal_record",
     "resolve_write_policy",
     "wave_containment_roots",
     "write_evidence_root",

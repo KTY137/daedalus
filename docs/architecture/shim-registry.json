@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "registry_id": "G1-HIER-01-shim-registry",
+  "master_plan_revision": 11,
+  "active_gate": 1,
+  "baseline_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+  "entries": [
+    {
+      "import_path": "daedalus.budget",
+      "owner": "kernel-policy-and-runtimes",
+      "targets": [
+        "daedalus.kernel.policy.ledger",
+        "daedalus.kernel.policy.pricing",
+        "daedalus.runtimes.execution.budget_process"
+      ],
+      "kind": "effect_and_compatibility_facade",
+      "removal_criteria": "Registered budget-effect targets receive a dedicated target-migration packet and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining compatibility caller."
+    },
+    {
+      "import_path": "daedalus.file_bridge",
+      "owner": "interfaces-bridge",
+      "targets": [
+        "daedalus.interfaces.bridge.cli",
+        "daedalus.interfaces.bridge.conversation",
+        "daedalus.interfaces.bridge.dispatch",
+        "daedalus.interfaces.bridge.journal",
+        "daedalus.interfaces.bridge.projection",
+        "daedalus.interfaces.bridge.queue",
+        "daedalus.interfaces.bridge.watcher"
+      ],
+      "kind": "registered_effect_facade",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining implementation caller after one supported compatibility release."
+    },
+    {
+      "import_path": "daedalus.kairos.gated_writes",
+      "owner": "kernel-promotion",
+      "targets": [
+        "daedalus.kernel.promotion"
+      ],
+      "kind": "sealed_compatibility_strangler",
+      "removal_criteria": "A dedicated packet proves old imports and pickle names absent, preserves registry identity, and replaces the retained source without weakening owner approval."
+    },
+    {
+      "import_path": "daedalus.kernel.attempts",
+      "owner": "kernel-attempts",
+      "targets": [
+        "daedalus.kernel.attempt_contracts",
+        "daedalus.kernel.attempt_ledger",
+        "daedalus.kernel.attempt_workspace"
+      ],
+      "kind": "package_facade",
+      "removal_criteria": "All callers use responsibility modules and a clean wheel import audit observes no facade imports."
+    },
+    {
+      "import_path": "daedalus.kernel.offload_lease",
+      "owner": "kernel-effects",
+      "targets": [
+        "daedalus.chip_design.completion_publication",
+        "daedalus.chip_design.lease_ports",
+        "daedalus.chip_design.publication_verifier",
+        "daedalus.orchestration.workspace_containment",
+        "daedalus.runtimes.admission.offload_egress"
+      ],
+      "kind": "function_port_strangler",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, and pickle audits show no callers of the lane, worktree, or chip-publication compatibility facades; the registered effect targets and anchors remain unchanged."
+    },
+    {
+      "import_path": "daedalus.orchestrate",
+      "owner": "interfaces-cli",
+      "targets": [
+        "daedalus.kairos.orchestrate"
+      ],
+      "kind": "cli_facade",
+      "removal_criteria": "The replacement CLI is packaged and effect-registry plus wheel audits show no remaining legacy target."
+    },
+    {
+      "import_path": "daedalus.orchestration.legacy_reports",
+      "owner": "orchestration-and-runtimes",
+      "targets": [
+        "daedalus.runtimes.contracts.provider_report"
+      ],
+      "kind": "mixed_owner_with_provider_contract_reexports",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining provider-report import through the orchestration module; AgentTask and RunState stay with their orchestration owner."
+    },
+    {
+      "import_path": "daedalus.providers",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.catalogue"
+      ],
+      "kind": "provider_factory_effect_door_with_catalogue_reexports",
+      "removal_criteria": "Registered provider targets receive dedicated target-migration packets and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, executable-object, and pickle audits show no remaining catalogue caller through the legacy package."
+    },
+    {
+      "import_path": "daedalus.providers._report",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.budget_admission",
+        "daedalus.runtimes.providers.context",
+        "daedalus.runtimes.providers.execution_policy",
+        "daedalus.runtimes.providers.reporting"
+      ],
+      "kind": "provider_helper_facade_with_injected_context_ports",
+      "removal_criteria": "Provider source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no helper imports through the legacy module after one supported compatibility release."
+    },
+    {
+      "import_path": "daedalus.providers.base",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.contracts"
+      ],
+      "kind": "contract_reexport_facade",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining legacy contract import after one supported compatibility release."
+    },
+    {
+      "import_path": "daedalus.providers.claude_cli",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.contracts.claude"
+      ],
+      "kind": "registered_effect_door_with_contract_reexports",
+      "removal_criteria": "A dedicated target-migration packet preserves the Effect Registry digest and authenticated invoke/output source locators, while source, runtime-string, wheel, documentation, executable-object, and pickle audits show no remaining legacy contract import."
+    },
+    {
+      "import_path": "daedalus.providers.personas",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.personas"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining legacy persona import; the verified legacy JSON mirror may then be retired separately."
+    },
+    {
+      "import_path": "daedalus.runtimes.faults",
+      "owner": "runtimes-faults",
+      "targets": [
+        "daedalus.runtimes.fault_matrix"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "Source, wheel, and runtime-string audits show no compatibility imports and fault-contract object identities remain stable."
+    },
+    {
+      "import_path": "daedalus.schemas",
+      "owner": "kernel-contracts-and-orchestration",
+      "targets": [
+        "daedalus.kernel.contracts.canonical",
+        "daedalus.orchestration.legacy_reports",
+        "daedalus.runtimes.contracts.provider_report"
+      ],
+      "kind": "mixed_owner_contract_reexport_facade",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining caller importing kernel contracts, agent tasks, or provider reports through this module; each caller names the owning module directly. The kernel is already migrated by G1-HIER-10 and the boundary contract forbids it from returning."
+    },
+    {
+      "import_path": "daedalus.spine.attempt",
+      "owner": "kernel-attempt-execution",
+      "targets": [
+        "daedalus.kernel.attempt_execution"
+      ],
+      "kind": "registered_effect_facade",
+      "removal_criteria": "A dedicated target-migration packet changes the Effect Registry intentionally and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining compatibility caller."
+    }
+  ]
+}

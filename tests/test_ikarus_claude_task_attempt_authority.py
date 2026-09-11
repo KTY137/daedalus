@@ -7,17 +7,18 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.ikarus_claude_task_attempt_authority as authority
-from daedalus.ikarus_claude_attempt_handoff import ClaudeTaskAttemptRunnerHandoff
+import daedalus.orchestration.ikarus.claude_composition as composition
+import daedalus.orchestration.ikarus.claude_task_attempt_authority as authority
+from daedalus.orchestration.ikarus.claude_attempt_handoff import ClaudeTaskAttemptRunnerHandoff
 from daedalus.providers.claude_cli import (
     RUNTIME_ID as CLAUDE_RUNTIME_ID,
     ClaudeWorkspaceGrant,
 )
-from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.runtimes.provider_runtime_executable_binding import (
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.runtime_executable_binding import (
     ProviderRuntimeExecutableBindingReceipt,
 )
-from daedalus.runtimes.provider_runtime_invocation_binding import (
+from daedalus.runtimes.provider.runtime_invocation_binding import (
     ProviderRuntimeInvocationBindingMismatch,
 )
 
@@ -260,14 +261,16 @@ def test_live_task_attempt_dispatches_without_terminal_attempt_contract(
     )
     calls = []
 
+    # PORT NOTE: main's ask_claude takes the nine authority members as separate
+    # keyword arguments (and refuses any partial set), where the originating
+    # lane took one `sealed_bundle`. The double mirrors the real signature.
     def fake_ask_claude(
         objective,
         repo_root,
         paths,
         model="sonnet",
         timeout_s=300,
-        *,
-        sealed_bundle=None,
+        **members,
     ):
         calls.append(
             {
@@ -276,7 +279,7 @@ def test_live_task_attempt_dispatches_without_terminal_attempt_contract(
                 "paths": paths,
                 "model": model,
                 "timeout_s": timeout_s,
-                "sealed_bundle": sealed_bundle,
+                "members": members,
             }
         )
         return _terminal_provider_result(subjects, body)
@@ -287,7 +290,13 @@ def test_live_task_attempt_dispatches_without_terminal_attempt_contract(
 
     assert len(calls) == 1
     assert calls[0]["repo_root"] == str(tmp_path)
-    assert calls[0]["sealed_bundle"] is invocation.sealed_bundle
+    # Identity, not equality: the exact member objects held by the sealed
+    # bundle must be the ones that reach the provider seam.
+    assert set(calls[0]["members"]) == set(composition._SEALED_BUNDLE_MEMBERS)
+    assert all(
+        calls[0]["members"][name] is getattr(invocation.sealed_bundle, name)
+        for name in composition._SEALED_BUNDLE_MEMBERS
+    )
     assert result["mission_id"] == subjects[0].mission_id
     assert result["work_item_id"] == subjects[1].task_id
     assert result["attempt_id"] == subjects[1].attempt_id

@@ -1,0 +1,1117 @@
+/*
+ * The conversation: Ikarus's page — the thread bar, the transcript with its
+ * Protokoll under every answer, the composer well that carries its own
+ * context, and the `/` menu above it.
+ *
+ * THE RHYTHM. Everything steps on the theme's own unit — u2 (8) inside a
+ * group, u4 (16) between the page's blocks, u6 (24) between two turns. One
+ * scale, and a theme that changes `unit` moves all of them together.
+ *
+ * MOTION IN CSS. `--dur-fast`, `--dur`, `--dur-slow` and `--ease` are now
+ * published on :root by shared/ui/motion/motion.css from the tokens, so an
+ * acknowledgement that a pseudo-class already expresses (hover, focus) stays
+ * here, and nothing below writes a number of its own.
+ *
+ * NO LITERAL COLOUR, RADIUS, TYPE SIZE OR DURATION. A value a theme cannot
+ * reach is a design one of the themes cannot have.
+ */
+
+/* ---------------------------------------------------------- conversation */
+
+.convo {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--u3);
+  gap: var(--u4);
+}
+/* Every control on this surface is a tap target before it is a click target. */
+.convo button,
+.composer button,
+.brain-menu [role='option'],
+.cmd-menu [role='option'] { touch-action: manipulation; }
+
+/* The conversation claims what is left of `.talk-main` after whatever sits
+   above it; `min-height: 0` lets the transcript scroll inside itself instead
+   of pushing the composer off the bottom. */
+:root .cockpit-body.talk .convo {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* Declared in docs/design/handoffs-2026-08-26/ikarus.md: the row takes the
+   body's height in both directions, so the transcript can shrink and scroll. */
+.cockpit-body.talk { grid-auto-rows: minmax(0, 1fr); }
+.cockpit-body.talk .talk-main { min-height: 0; }
+
+:root[data-chat='column'] .ctxplan-body { max-height: 34vh; }
+.convo.compact { max-height: min(42vh, 420px); }
+
+/* The transcript and the jump button share a positioned box. */
+.convo-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.convo-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  min-height: 0;
+  padding-right: var(--u2);
+}
+/*
+ * A turn is a self-contained block, and an off-screen one does not need to be
+ * laid out at all.
+ *
+ * The transcript and the composer share one flex column, so every size change
+ * in the composer marks the transcript dirty. Measured 2026-09-10 with a
+ * 40-turn thread (Chromium 151, devtools trace): each keystroke produced two
+ * layouts with dirtyObjects=10 but totalObjects=3416 and partialLayout=false
+ * -- Chromium walked the entire transcript's layout tree to place ten dirty
+ * boxes, ~4 ms a pass. The transcript was not re-rendering; it was simply too
+ * big to walk. `content-visibility: auto` lets the browser skip layout and
+ * paint for the turns nobody is looking at: totalObjects fell to 1166 and the
+ * pass to 1.17 ms. (`contain: layout` on the scroller was tried here too and
+ * measured as noise beside this, so it is deliberately absent.)
+ *
+ * `contain-intrinsic-size: auto <size>` is what keeps the scrollbar honest:
+ * the `auto` keyword makes Chromium remember each turn's last rendered height
+ * instead of guessing the placeholder value forever, so scroll position and
+ * the pin-to-bottom in Conversation.tsx stay where the reader left them.
+ */
+.convo-scroll > .turn {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 160px;
+}
+.convo-scroll,
+.ctxplan-body,
+.brain-menu,
+.cmd-menu,
+.threads-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  overscroll-behavior: contain;
+}
+/* A question and its answer are one exchange, so they sit closer to each
+   other than to the next one. */
+.turn.you { margin-top: var(--u4); }
+.turn.you:first-child { margin-top: 0; }
+.cockpit-body.talk .convo-scroll { max-height: none; overflow: auto; }
+/* A short transcript sits just above the composer rather than clinging to
+   the top of a mostly empty column. */
+.convo-scroll > .turn:first-child { margin-top: auto; }
+
+/* AT REST the page is an invitation: the sentence and the box you answer it
+   in are one object, centred in the column. */
+.convo-scroll.empty {
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  flex: 0 1 auto;
+  padding-bottom: var(--u4);
+}
+.cockpit-body.talk .convo.at-rest { justify-content: center; padding-bottom: 6vh; }
+.convo.at-rest .convo-body { flex: 0 1 auto; }
+
+.convo-reading { color: var(--ink3); font-size: var(--fs-sm); }
+
+/* New text below the fold while the reader is up in the thread. */
+.convo-jump {
+  position: absolute;
+  left: 50%;
+  bottom: var(--u2);
+  transform: translateX(-50%);
+  z-index: 3;
+  min-height: 44px;
+  padding: 0 var(--u4);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface2), var(--surface2));
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  box-shadow: var(--shadow-pane);
+  cursor: pointer;
+}
+.convo-jump:hover,
+.convo-jump:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+
+/* ------------------------------------------------------- the invitation */
+
+.convo-open { display: grid; gap: var(--u3); }
+.convo-open-line {
+  margin: 0;
+  max-width: 24ch;
+  text-wrap: balance;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: var(--fs-2xl);
+  line-height: 1.16;
+  color: var(--ink);
+}
+.convo-open-line b {
+  font-family: var(--font-mono);
+  font-weight: inherit;
+  font-size: 0.84em;
+  letter-spacing: 0;
+}
+.convo-open-note {
+  margin: 0;
+  max-width: 52ch;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--ink2);
+}
+.convo-suggestions { display: flex; flex-wrap: wrap; gap: var(--u2); max-width: 62ch; }
+.convo-suggestions button {
+  min-height: 44px;
+  text-align: left;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink2);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.convo-suggestions button:hover,
+.convo-suggestions button:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+
+/* ------------------------------------------------------------ the turns */
+
+.turn { display: grid; }
+.turn-body { display: grid; gap: var(--u2); justify-items: start; }
+.turn-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+/*
+ * A link inside an answer is the one control in a turn that still relied on
+ * `.cockpit :focus-visible` (shell.css), which paints a 2px outline at a 2px
+ * offset -- 4px OUTSIDE the border box. Since `content-visibility: auto` above
+ * implies `contain: paint`, and `.turn-body`'s rows sit flush on the turn's
+ * edges (`justify-items: start`, no padding), a keyboard reader tabbing to it
+ * lost part of the indicator: measured reach 4px against 0px of room.
+ * Same inset treatment as `.cite` below, which already had it.
+ */
+.turn-text a:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.turn-text > p { margin: 0; white-space: pre-wrap; }
+.turn-text > p + p { margin-top: 0.7em; }
+
+/* The question is the reader's own words: quieter, carried by a rule. */
+.turn.you .turn-body {
+  border-left: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  padding-left: var(--u3);
+}
+.turn.you .turn-text { color: var(--ink2); }
+.cockpit-body.talk .turn.you .turn-text { font-size: var(--fs-md); line-height: 1.5; }
+
+/* COLD GLASS, WARM VOICE — the one place the warm half is spent. */
+.turn.ikarus .turn-text {
+  color: var(--ink);
+  font-family: var(--font-voice);
+  font-weight: var(--voice-weight);
+}
+.cockpit-body.talk .turn.ikarus .turn-text { font-size: var(--fs-lg); line-height: 1.6; max-width: 68ch; }
+.turn.ikarus .turn-text code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--ink2);
+}
+.turn.ikarus .turn-text b,
+.turn.ikarus .turn-text strong { font-weight: var(--display-weight); }
+
+/* A note the surface wrote itself. Set in the interface face, not the voice
+   — it is the page speaking, and it says so on its stamp. */
+.turn.note .turn-body {
+  border-left: 2px dashed var(--line);
+  padding-left: var(--u3);
+}
+.turn.note .turn-text { color: var(--ink2); font-size: var(--fs-sm); }
+.turn.note .turn-text code { font-family: var(--font-mono); color: var(--ink); }
+
+:root[data-chat='flow'] .turn.you .turn-text {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.18em;
+  background: var(--accent);
+  animation: blink calc(var(--dur-slow) * 2.5) steps(2, start) infinite;
+}
+@keyframes blink { to { visibility: hidden; } }
+
+/* ---------------------------------------------------------- the Protokoll */
+
+/*
+ * A hairline spine, one row per receipt. The glyph carries the tone; the
+ * label is the role word; the datum is the fact. The whole thing reads as
+ * one column of small type under the answer — never as a card, never as a
+ * strip of badges.
+ */
+.ledger {
+  display: grid;
+  gap: var(--u1);
+  margin-top: var(--u1);
+  padding-left: var(--u3);
+  border-left: var(--border) solid var(--line);
+  max-width: 68ch;
+}
+.ledger-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ledger-row {
+  --tone: var(--ink3);
+  display: grid;
+  grid-template-columns: 12px auto minmax(0, 1fr);
+  grid-template-areas: 'glyph label datum' '. detail detail';
+  align-items: center;
+  column-gap: var(--u2);
+  min-height: 22px;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+.ledger-row.ok { --tone: var(--ok); }
+.ledger-row.bad { --tone: var(--bad); }
+.ledger-row.warn { --tone: var(--warn); }
+.ledger-row.live { --tone: var(--live); }
+.ledger-glyph { grid-area: glyph; color: var(--tone); }
+.ledger-glyph-pulse { animation: ledger-pulse calc(var(--dur-slow) * 4) var(--ease) infinite; transform-origin: center; }
+@keyframes ledger-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+.ledger-label {
+  grid-area: label;
+  min-width: 6.5ch;
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.ledger-datum {
+  grid-area: datum;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink2);
+}
+.ledger-row.bad .ledger-datum { color: var(--bad); }
+.ledger-row.live .ledger-datum { color: var(--ink); }
+.ledger-detail {
+  grid-area: detail;
+  list-style: none;
+  margin: 2px 0 var(--u1);
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+.ledger-toggle {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.ledger-toggle:hover,
+.ledger-toggle:focus-visible { color: var(--accent); text-decoration-color: var(--accent); outline: none; }
+
+/* The stamp inside the ledger keeps its three colours by tone; on a note it
+   stands alone as a small label. */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u2);
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+}
+.stamp.note { color: var(--ink3); }
+.stamp-word { flex: none; text-transform: uppercase; }
+.stamp-origin { font-weight: var(--datum-weight); letter-spacing: 0; text-transform: none; color: var(--ink3); }
+.ledger-datum.stamp { display: inline; font-weight: var(--datum-weight); letter-spacing: var(--datum-tracking); text-transform: none; }
+
+/* ---- cited modules and the actions under an answer ---- */
+
+.turn-cites { display: flex; flex-wrap: wrap; align-items: center; gap: var(--u1) var(--u2); }
+.cite {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.cite:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.cite:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.turn-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--u2); }
+.turn-actions button {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.turn-actions button:hover,
+.turn-actions button:focus-visible { color: var(--ink); border-color: var(--line); outline: none; }
+.turn-actions .turn-cancel { border-color: var(--line); color: var(--ink2); }
+.turn-actions .turn-cancel:hover:not(:disabled),
+.turn-actions .turn-cancel:focus-visible:not(:disabled) { color: var(--bad); border-color: var(--bad); }
+.turn-actions .turn-cancel:disabled { cursor: default; opacity: 0.65; }
+
+/* Ikarus proposing something is a decision with two answers, inline in the
+   thread where it was made — and, above them, exactly what the yes would run. */
+.offer-confirm {
+  margin: 0 0 var(--u2);
+  padding: var(--u2) var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--ink2);
+}
+.offer-confirm dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--u2);
+  margin: 0 0 var(--u2);
+}
+.offer-confirm dt { color: var(--ink3); }
+.offer-confirm dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.offer-confirm dd.warn { color: var(--warn); }
+.offer-confirm p { margin: 0 0 var(--u1); }
+.offer-confirm p:last-child { margin-bottom: 0; }
+.offer-confirm .offer-note.warn { color: var(--warn); }
+.offer-acts button:disabled { cursor: default; opacity: 0.55; }
+
+.offer-acts { display: flex; gap: var(--u2); flex-wrap: wrap; }
+.offer-acts button {
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.offer-acts button:focus-visible { outline: none; border-color: var(--accent); }
+.offer-acts button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.turn-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u2);
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.turn-nudge button {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.turn-nudge button:hover,
+.turn-nudge button:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+
+.convo-error {
+  margin: 0;
+  padding-left: var(--u3);
+  border-left: 2px solid var(--bad);
+  color: var(--bad);
+  font-size: var(--fs-sm);
+}
+
+/* --------------------------------------------------------- thread bar */
+
+.convo-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  padding-bottom: var(--u1);
+}
+.convo-bar-rule {
+  flex: 1 1 auto;
+  min-width: var(--u4);
+  height: 0;
+  border-top: var(--border) solid var(--line2);
+}
+.convo-thread {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--u2);
+  min-width: 0;
+  flex: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.convo-thread-role {
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.convo-thread > * + *::before { content: '·'; margin-right: var(--u2); color: var(--ink3); }
+.convo-thread-role + *::before { content: none; }
+.convo-thread code {
+  font-family: var(--font-mono);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  color: var(--ink2);
+}
+.convo-elapsed {
+  flex: none;
+  color: var(--live);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+}
+.convo-bar button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.convo-bar button:hover,
+.convo-bar button:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+
+/* ---------------------------------------------------------- the threads */
+
+/*
+ * VERLAUF, in the rail. Each row is the first thing the person said, then
+ * the facts about the thread — turns, when, which route last answered. The
+ * open thread carries the accent rule the reader's own words carry in the
+ * transcript, so the two read as the same "yours".
+ */
+.threads { display: grid; gap: var(--u2); min-width: 0; }
+.threads-head { display: flex; align-items: center; justify-content: space-between; gap: var(--u2); }
+.threads-role {
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.threads-new,
+.threads-note button {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.threads-new:hover,
+.threads-new:focus-visible,
+.threads-note button:hover,
+.threads-note button:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+.threads-note { margin: 0; font-size: var(--fs-xs); color: var(--ink3); display: grid; gap: var(--u1); }
+.threads-note p { margin: 0; }
+.threads-note.failed { color: var(--bad); }
+.threads-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 52vh; overflow: auto; }
+.threads-row { border-left: 2px solid transparent; }
+.threads-row.current { border-left-color: var(--accent); }
+.threads-row > button,
+.threads-row > .threads-title {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--u1) var(--u2);
+  border: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.threads-row > button:hover,
+.threads-row > button:focus-visible { background: var(--surface2); color: var(--ink); outline: none; }
+.threads-row.current > button { color: var(--ink); }
+.threads-row.current { padding: var(--u1) var(--u2); display: grid; gap: 2px; }
+.threads-row.current > .threads-title { min-height: 0; padding: 0; }
+.threads-title {
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.threads-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u2);
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  color: var(--ink3);
+}
+.threads-meta > * + *::before { content: '·'; margin-right: var(--u2); }
+
+/* ---- who answers ---- */
+
+.composer-rail {
+  grid-area: rail;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u1) var(--u2);
+  min-width: 0;
+}
+.brain { position: relative; flex: none; min-width: 0; }
+.brain-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u2);
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.brain-btn:hover:not(:disabled),
+.brain-btn:focus-visible:not(:disabled) { color: var(--ink); border-color: var(--accent); outline: none; }
+.brain-btn[aria-expanded='true'] { color: var(--ink); border-color: var(--accent); }
+.brain-btn:disabled { color: var(--ink3); cursor: default; }
+/* A role word, not a heading: sentence case at the row's own size. Two
+   tracked uppercase labels in one 44 px row read as shouting. */
+.brain-btn-role {
+  flex: none;
+  color: var(--ink3);
+}
+.brain-btn-name { white-space: nowrap; color: inherit; }
+.brain-btn-wait {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink3);
+}
+.brain-caret { flex: none; opacity: 0.65; margin-left: calc(var(--u1) * -1); }
+
+.brain-menu {
+  position: absolute;
+  bottom: calc(100% + var(--u1));
+  left: 0;
+  z-index: 5;
+  min-width: 340px;
+  padding: var(--u1);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface), var(--surface));
+  box-shadow: var(--shadow-drawer);
+}
+.brain-list { list-style: none; margin: 0; padding: 0; }
+.brain-opt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--u3);
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.brain-opt:hover { background: var(--surface2); }
+.brain-opt:focus-visible { outline: none; background: var(--surface2); box-shadow: inset 0 0 0 2px var(--accent); }
+.brain-opt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--ink); }
+.brain-opt.on .brain-opt-name { color: var(--accent); }
+.brain-opt-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink3); }
+.brain-opt-wait {
+  min-width: 5.5ch;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.brain-legend {
+  margin: var(--u1) 0 0;
+  padding: 0 var(--u2);
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  color: var(--ink3);
+}
+.brain-off { margin-top: var(--u1); padding: var(--u2); border-top: var(--border) solid var(--line2); }
+.brain-off-head { margin: 0 0 var(--u1); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); }
+.brain-off-row { display: flex; justify-content: space-between; gap: var(--u3); margin: 0; padding: 2px 0; font-size: var(--fs-xs); color: var(--ink3); }
+.brain-off-row span:last-child { font-family: var(--font-mono); }
+.brain-off-note { margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--ink3); }
+.brain-recheck {
+  min-height: 44px;
+  margin-top: var(--u1);
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.brain-recheck:hover,
+.brain-recheck:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+
+/* ---- how hard ---- */
+
+.effort { flex: none; display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.effort-role {
+  margin-right: var(--u1);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.effort-opt {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.effort-opt:hover:not(:disabled),
+.effort-opt:focus-visible:not(:disabled) { color: var(--ink); outline: none; border-color: var(--accent); }
+.effort-opt.on { color: var(--ink); background: var(--surface2); }
+.effort-opt:disabled { cursor: default; }
+
+/* ----------------------------------------------------- the composer well */
+
+/*
+ * ONE CONTROL. The box, what will be read with it, and send share a border,
+ * a radius and a focus ring. The rail under the input reads in the order the
+ * four facts matter: WHO ANSWERS, HOW HARD, what is on the stage, and what
+ * would be read. The plan opens beneath all four, inside the well.
+ */
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'line'
+    'rail'
+    'attachment';
+  align-items: center;
+  gap: var(--u1) var(--u2);
+  padding: var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+/* Docked and opaque: every surface token is translucent by design, so a
+   sticky element painted with one shows the transcript through itself. */
+.cockpit-body.talk .composer {
+  position: sticky;
+  bottom: var(--u1);
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface2), var(--surface2));
+}
+
+.composer-line {
+  grid-area: line;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--u2);
+  min-width: 0;
+}
+/*
+ * The field sizes itself against a hidden copy of its own text stacked in the
+ * same grid cell, so nothing has to measure it (see Conversation.tsx).
+ *
+ * THE RULE THAT KEEPS IT HONEST: every selector that sizes `.composer
+ * textarea` names `.composer-grow::after` beside it, in the same file and at
+ * the same specificity. The two boxes have to agree on min-height, padding,
+ * font and line-height, or the mirror sizes the field for a typography the
+ * field does not have. shell.css and responsive.css carry the same pair for
+ * their own breakpoints; a lone `.composer textarea` rule is a bug.
+ */
+.composer-grow {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.composer-grow::after {
+  content: attr(data-value);
+  visibility: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  pointer-events: none;
+}
+.composer-grow > textarea,
+.composer-grow::after { grid-area: 1 / 1 / 2 / 2; }
+.composer textarea,
+.composer-grow::after {
+  min-width: 0;
+  min-height: 44px;
+  max-height: 200px;
+  padding: 11px var(--u2);
+  border: 0;
+  font: inherit;
+  line-height: 1.45;
+}
+.composer textarea {
+  background: transparent;
+  color: var(--ink);
+  resize: none;
+  overflow-y: auto;
+}
+.composer textarea:focus { outline: none; }
+.composer textarea::placeholder { color: var(--ink3); }
+.cockpit-body.talk .composer textarea,
+.cockpit-body.talk .composer-grow::after { min-height: 52px; padding: 13px var(--u2); font-size: var(--fs-lg); }
+
+.composer-send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.composer-send:disabled { cursor: default; }
+.composer-send:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-ink); }
+.composer-send.stopping {
+  background: var(--surface);
+  color: var(--bad);
+  box-shadow: inset 0 0 0 var(--border) var(--bad);
+}
+.cockpit-body.talk .composer-send { min-width: 52px; min-height: 52px; }
+.cockpit-body.talk .composer button { min-width: 0; min-height: 44px; }
+.cockpit-body.talk .composer .composer-send { min-width: 52px; min-height: 52px; }
+/* The shell's `min-width: 0` on every composer button also reached the
+   effort radios; a three-letter option measured 41px wide (audit 2026-09-02). */
+.cockpit-body.talk .composer .effort-opt { min-width: 44px; }
+
+/* ---- the `/` menu, hanging over the line it completes ---- */
+
+.cmd-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + var(--u2));
+  z-index: 6;
+  padding: var(--u1);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface), var(--surface));
+  box-shadow: var(--shadow-drawer);
+  max-height: 44vh;
+  overflow: auto;
+}
+.cmd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cmd-opt {
+  display: grid;
+  grid-template-columns: minmax(12ch, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--u3);
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.cmd-opt.on { background: var(--surface2); box-shadow: inset 0 0 0 var(--border) var(--accent); }
+.cmd-name { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink); white-space: nowrap; }
+.cmd-arg { color: var(--ink3); }
+.cmd-summary { min-width: 0; font-size: var(--fs-xs); color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-none,
+.cmd-hint { margin: 0; padding: var(--u2); font-size: var(--fs-xs); color: var(--ink3); }
+.cmd-hint { color: var(--ink2); border-top: var(--border) solid var(--line2); }
+
+/* ---- the rail: what is on the stage ---- */
+
+.composer-stage {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.composer-stage-label {
+  flex: none;
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.composer-stage > code { flex: none; color: var(--ink2); }
+.composer-stage button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.composer-stage button:hover,
+.composer-stage button:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+
+.editor-attachment {
+  grid-area: attachment;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u1) var(--u2);
+  min-width: 0;
+  padding: var(--u1) var(--u2);
+  border-left: 2px solid var(--line);
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.editor-attachment.attached { border-color: var(--ok); }
+.editor-attachment.withheld,
+.editor-attachment.unavailable { border-color: var(--live); color: var(--ink3); }
+.editor-attachment-label { color: var(--ink3); font-weight: var(--label-weight); letter-spacing: var(--label-tracking); text-transform: uppercase; }
+.editor-attachment code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.editor-attachment-status { overflow-wrap: anywhere; }
+
+/* --------------------------------------------------------- context plan */
+
+.ctxplan { display: contents; }
+.ctxplan-toggle {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.ctxplan-toggle:hover:not(:disabled),
+.ctxplan-toggle:focus-visible:not(:disabled) { color: var(--accent); border-color: var(--accent); outline: none; }
+.ctxplan-toggle:disabled { color: var(--ink3); cursor: default; }
+.ctxplan-body {
+  flex-basis: 100%;
+  order: 10;
+  border-top: var(--border) solid var(--line2);
+  padding: var(--u2) var(--u1) 0;
+  max-height: 34vh;
+  overflow: auto;
+}
+.ctxplan-line { font-size: var(--fs-xs); color: var(--ink2); margin: 0; }
+.ctxplan-line code { margin-right: 6px; }
+.ctxplan-error { font-size: var(--fs-xs); color: var(--bad); margin: 0; }
+.ctxplan-seeds { list-style: none; margin: var(--u1) 0; padding: 0; counter-reset: seed; }
+.ctxplan-seeds li { counter-increment: seed; display: flex; align-items: center; gap: var(--u1); }
+.ctxplan-seeds button,
+.ctxplan-off {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-align: left;
+}
+.ctxplan-seeds button { cursor: pointer; }
+.ctxplan-seeds button:hover { color: var(--accent); }
+.ctxplan-seeds button:focus-visible { color: var(--accent); outline: none; border-radius: var(--radius-sm); box-shadow: inset 0 0 0 2px var(--accent); }
+.ctxplan-off { color: var(--ink3); }
+.ctxplan-seeds li::before { content: counter(seed) '.'; flex: none; width: 1.6em; text-align: right; font-size: var(--fs-xs); color: var(--ink3); }
+.ctxplan-name { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctxplan-score { font-family: var(--font-mono); color: var(--ink3); flex: none; }
+
+.decision-auto {
+  font-size: var(--fs-xs);
+  color: var(--live);
+  border-left: 2px solid var(--live);
+  padding-left: var(--u2);
+  margin-top: var(--u2);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------ conversational Markdown */
+
+.turn.ikarus .markdown,
+.turn.note .markdown { white-space: normal; width: min(100%, 74ch); }
+.turn .markdown > p { margin: 0; white-space: pre-wrap; }
+.turn .markdown > p + p,
+.turn .markdown > * + p { margin-top: 0.85em; }
+.turn .markdown h3,
+.turn .markdown h4,
+.turn .markdown h5 { margin: 1.15em 0 0.45em; line-height: 1.25; font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); }
+.turn .markdown h3 { font-size: var(--fs-xl); }
+.turn .markdown h4 { font-size: var(--fs-lg); }
+.turn .markdown h5 { font-size: var(--fs-md); }
+.turn .markdown ul,
+.turn .markdown ol { margin: 0.65em 0; padding-left: 1.4em; display: grid; gap: 0.35em; }
+.turn .markdown li > ul,
+.turn .markdown li > ol { margin: 0.35em 0 0; }
+.turn .markdown blockquote { margin: 0.85em 0; padding-left: var(--u3); border-left: 2px solid var(--line); color: var(--ink2); }
+.turn .markdown blockquote p { margin: 0; }
+.turn .markdown a { color: var(--accent); text-underline-offset: 0.18em; }
+.turn .markdown hr { border: 0; border-top: var(--border) solid var(--line2); margin: 1em 0; }
+.md-table { width: min(100%, 78ch); margin: 0.9em 0; overflow: auto; }
+.md-table table { border-collapse: collapse; width: 100%; font-family: var(--font-body); font-size: var(--fs-sm); }
+.md-table th,
+.md-table td { padding: var(--u1) var(--u2); border-bottom: var(--border) solid var(--line2); text-align: left; vertical-align: top; }
+.md-table th { font-weight: var(--label-weight); letter-spacing: var(--label-tracking); color: var(--ink3); border-bottom-color: var(--line); }
+.md-table td code { font-family: var(--font-mono); font-size: 0.92em; color: var(--ink); }
+.md-task { display: inline-block; width: 0.8em; height: 0.8em; margin-right: 0.4em; vertical-align: -0.05em; border: 1.5px solid var(--ink3); border-radius: 2px; }
+.md-task.on { background: var(--ok); border-color: var(--ok); }
+.md-img { font-style: italic; color: var(--ink3); }
+.md-codeblock { width: min(100%, 78ch); margin: 0.9em 0; overflow: hidden; border: var(--border) solid var(--line); border-radius: var(--radius); background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.md-codebar { display: flex; align-items: center; gap: var(--u3); padding: 0 var(--u2) 0 var(--u3); border-bottom: var(--border) solid var(--line); color: var(--ink3); font-family: var(--font-mono); font-size: var(--fs-xs); }
+.md-codelines { flex: 1 1 auto; color: var(--ink3); }
+.md-codebar button {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.md-codebar button:hover,
+.md-codebar button:focus-visible { color: var(--ink); outline: none; }
+.md-codeblock pre { margin: 0; padding: var(--u3); overflow: auto; max-width: 100%; white-space: pre; }
+.md-codeblock pre code { color: var(--ink); font-size: var(--fs-sm); line-height: 1.55; font-family: var(--font-mono); }
+
+.thinking { display: inline-flex; align-items: center; gap: 0.28em; color: var(--ink3) !important; }
+.thinking span { font-family: var(--font-body); font-size: var(--fs-sm); }
+.thinking i { width: 0.3em; height: 0.3em; border-radius: 50%; background: currentColor; animation: ikarus-thinking calc(var(--dur-slow) * 2.6) var(--ease) infinite; opacity: 0.35; }
+.thinking i:nth-of-type(2) { animation-delay: calc(var(--dur-fast)); }
+.thinking i:nth-of-type(3) { animation-delay: calc(var(--dur-fast) * 2); }
+@keyframes ikarus-thinking { 50% { transform: translateY(-0.18em); opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .caret { animation: none; }
+  .thinking i { animation: none; opacity: 0.7; }
+  .ledger-glyph-pulse { animation: none; opacity: 0.8; }
+}
+
+@media (max-width: 760px) {
+  .convo { padding: var(--u2); }
+  .convo-bar { gap: var(--u2); }
+  .convo-thread code { display: none; }
+  .convo-suggestions { display: grid; width: 100%; }
+  .md-codeblock,
+  .md-table { max-width: calc(100vw - 2 * var(--u4)); }
+  .brain-menu { max-width: calc(100vw - 2 * var(--u3)); }
+  .ledger-row { grid-template-columns: 12px minmax(0, 1fr); grid-template-areas: 'glyph label' '. datum' '. detail'; }
+}

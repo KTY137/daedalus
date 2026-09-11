@@ -1,0 +1,454 @@
+import { useCallback, useRef, useState } from 'react';
+import { ApiError, getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts, type TaskDetail } from '@/shared/api';
+import type { OpenDispatch } from '@/features/conversation/model';
+import { relativeTime, taskStateLabel } from '@/features/conversation/model';
+import { boundExecutionLine, dispatchEvidenceLabel } from '@/features/conversation/dispatch';
+import {
+  APPLIED_WORD,
+  appliedReading,
+  appliedTone,
+  executionReading,
+  isTerminalState,
+  laneReading,
+  providerReading
+} from './outcome';
+import { ActivityLog } from './ActivityLog';
+import { Timeline } from './Timeline';
+import { liveExecutionStatus, watcherGuidance, type LiveState, type ReportBrief } from './live';
+
+/**
+ * ARBEIT — what waits on you, what is running, what just happened.
+ *
+ * The oversight literature calls this the overview panel, and its three
+ * questions are always the same: is the agent working, does anything need
+ * me, and what did it just do. Daedalus could answer all three from the
+ * first day — `/api/events` has carried the watcher state, the unread and
+ * quarantined counts and the last report brief all along, and every resumed
+ * conversation carries its open dispatches — and the cockpit threw every one
+ * of those away. This rail is the consumer they never had.
+ *
+ * THE RULE IS THE SAME AS THE PROTOKOLL'S. Every row is a fact the backend
+ * emitted. A count the backend did not send is not drawn; a state it could
+ * not measure says "unbekannt" rather than picking the friendly reading.
+ * Nothing here is a second source of truth: the drafts come from the card
+ * that already fetched them, the dispatches from the conversation that
+ * already resumed them, and the counters from the one event stream.
+ */
+
+export interface WorkRailProps {
+  project: string;
+  /** every pending draft of this project, from the decision card's own read */
+  drafts: DraftRow[];
+  /** whether that list is this project's, or could not be scoped */
+  draftsScoped: boolean;
+  live: LiveState;
+  openDispatches: OpenDispatch[];
+  unresolvedDispatches?: number;
+  dispatchReadState?: 'loading' | 'ready' | 'error';
+  /** the conversation is on another page; this jumps to it */
+  onGoDecision: () => void;
+}
+
+/**
+ * The watcher's own words where they are known, its identifier where they
+ * are not. Same rule as the runtime picker: a state nobody mapped is printed
+ * as the identifier it is, never rounded to a friendlier one.
+ */
+const WATCHER: Record<string, string> = {
+  alive: 'bereit',
+  busy: 'arbeitet',
+  wedged: 'möglicherweise festgefahren',
+  running: 'läuft',
+  idle: 'wartet',
+  stopped: 'gestoppt',
+  stale: 'veraltet',
+  none: 'nicht gestartet'
+};
+
+function watcherLabel(state: string | undefined): { text: string; verbatim: boolean } {
+  if (!state) return { text: 'unbekannt', verbatim: false };
+  const known = WATCHER[state.toLowerCase()];
+  return known ? { text: known, verbatim: false } : { text: state, verbatim: true };
+}
+
+/**
+ * ONE DISPATCH, OPENED.
+ *
+ * The rail knows a dispatch exists because the conversation spine recorded
+ * it; it knows nothing else until someone asks the bus. `GET /api/queue/<id>`
+ * and its `/artifacts` sibling have both existed since the bus did and had no
+ * caller in this frontend at all, so a task nobody happened to be streaming
+ * was a reference number and nothing more.
+ *
+ * Read on demand, never on mount: a rail that fetched every dispatch as it
+ * drew would turn a glance into a fan-out.
+ */
+type DetailState =
+  | { kind: 'shut' }
+  | { kind: 'reading' }
+  | { kind: 'read'; task: TaskDetail; artifacts?: TaskArtifacts }
+  /** the bus answered, and its answer is that it has no such id */
+  | { kind: 'gone'; reason: string }
+  | { kind: 'failed'; reason: string };
+
+function List({ label, items }: { label: string; items: string[] | undefined }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="work-detail-list">
+      <span>{label}</span>
+      <ul>
+        {items.slice(0, 6).map((item) => (
+          <li key={item}>
+            <code>{item}</code>
+          </li>
+        ))}
+      </ul>
+      {items.length > 6 && <span className="work-detail-more">und {items.length - 6} weitere</span>}
+    </div>
+  );
+}
+
+function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
+  const [state, setState] = useState<DetailState>({ kind: 'shut' });
+  /** Which read is still the one that matters: a second click while the
+   *  first is in flight must not reopen the row the reader just closed. */
+  const readId = useRef(0);
+
+  const toggle = useCallback(async () => {
+    if (state.kind !== 'shut') {
+      readId.current += 1;
+      setState({ kind: 'shut' });
+      return;
+    }
+    const id = ++readId.current;
+    setState({ kind: 'reading' });
+    try {
+      const payload = await getTask(dispatch.ref);
+      const task = payload.task;
+      // Artifacts exist only once the run finished; asking earlier answers
+      // `available: false` with a reason, which is worth showing but is not
+      // worth a second request while the task is plainly still running.
+      let artifacts: TaskArtifacts | undefined;
+      if (task.found && task.state !== 'queued' && task.state !== 'running') {
+        try {
+          artifacts = (await getTaskArtifacts(dispatch.ref)).artifacts;
+        } catch {
+          /* the snapshot is the answer; artifacts are the bonus */
+        }
+      }
+      if (readId.current !== id) return;
+      setState({ kind: 'read', task, artifacts });
+    } catch (reason) {
+      if (readId.current !== id) return;
+      // A 404 IS THE ANSWER. `read.py` returns 404 when `_task_snapshot` says
+      // `found: false` — the archive was cleared, or the id is wrong — and
+      // `request()` turns that into an ApiError. Reporting it as "the bus
+      // could not be read" would dress the single most likely real case as an
+      // outage; it is a fact, and the server's own sentence carries it.
+      if (reason instanceof ApiError && reason.kind === 'notfound') {
+        setState({ kind: 'gone', reason: reason.message });
+        return;
+      }
+      setState({ kind: 'failed', reason: reason instanceof Error ? reason.message : 'unbekannter Fehler' });
+    }
+  }, [dispatch.ref, state.kind]);
+
+  const open = state.kind !== 'shut';
+  const evidence = boundExecutionLine(dispatch);
+
+  return (
+    <li className="work-row live">
+      <button type="button" onClick={() => void toggle()} aria-expanded={open}>
+        <span className="work-row-what">{dispatch.summary || 'Aufgabe übergeben'}</span>
+        <span className="work-row-meta">
+          <code>{dispatch.ref}</code>
+          {dispatch.since && <span>seit {relativeTime(dispatch.since) || dispatch.since}</span>}
+          <span>noch kein Bericht</span>
+          {dispatch.lane && <span>Lane {dispatch.lane}</span>}
+          <span>{dispatchEvidenceLabel(dispatch.descriptionSource)}</span>
+        </span>
+        {evidence && <span className="work-row-meta" aria-label="Gebundene Ausführungsevidenz">{evidence}</span>}
+      </button>
+
+      {state.kind === 'reading' && <p className="work-detail-note">Zustand wird vom Bus gelesen …</p>}
+      {state.kind === 'gone' && (
+        <p className="work-detail-note">Auf dem Bus nicht auffindbar. {state.reason}</p>
+      )}
+      {state.kind === 'failed' && (
+        <p className="work-detail-note bad">Der Bus konnte nicht gelesen werden: {state.reason}</p>
+      )}
+      {state.kind === 'read' && (
+        <div className="work-detail">
+          {!state.task.found ? (
+            <p className="work-detail-note">
+              Auf dem Bus nicht auffindbar.
+              {state.task.applied_reason ? ` ${state.task.applied_reason}` : ''}
+            </p>
+          ) : (
+            <>
+              <TaskMeta task={state.task} />
+              {state.task.summary && <p className="work-detail-summary">{state.task.summary}</p>}
+              {state.task.error && <p className="work-detail-note bad">Fehler: {state.task.error}</p>}
+              {/* DID IT LAND, AND IF NOBODY KNOWS, WHY NOT.
+                  `_derive_applied` returns null rather than true when it cannot
+                  tell, and writes a sentence saying which signal it read or
+                  which was missing. That sentence was rendered only for a task
+                  the bus could not find — never for one it found, where it is
+                  the actual explanation. See ./outcome.ts. */}
+              <p className={`work-applied ${appliedTone(appliedReading(state.task.applied))}`}>
+                <span>Ergebnis <b>{APPLIED_WORD[appliedReading(state.task.applied)]}</b></span>
+                {state.task.applied_reason && (
+                  <span className="work-applied-why">{state.task.applied_reason}</span>
+                )}
+              </p>
+              {/* The recorded timeline of the run, when the bus could build
+                  one. It rode along with every snapshot and was dropped. */}
+              {state.task.progress && <Timeline progress={state.task.progress} />}
+              {state.artifacts && !state.artifacts.available && (
+                <p className="work-detail-note">
+                  Noch kein Ergebnis: {state.artifacts.reason || 'der Lauf ist nicht abgeschlossen'}
+                </p>
+              )}
+              {state.artifacts?.available && (
+                <>
+                  <List label="Geändert" items={state.artifacts.files_changed} />
+                  <List label="Zurückgerollt" items={state.artifacts.rolled_back} />
+                  <List label="Tests" items={state.artifacts.tests_run} />
+                  <List label="Entwürfe" items={state.artifacts.draft_ids} />
+                  <List label="Risiken" items={state.artifacts.risks} />
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The one-line facts about a run: its state, the lane it asked for AND the one
+ * it got, who actually ran it, how old the reading is, and where the reading
+ * came from. Extracted so each derivation is computed once rather than three
+ * times behind non-null assertions.
+ */
+function TaskMeta({ task }: { task: TaskDetail }) {
+  const lane = laneReading(task);
+  const providers = providerReading(task.actual_providers, isTerminalState(task.state));
+  return (
+    // Its own class as well as the shared one: `.work-row-meta` is used by the
+    // timeline and by every dispatch row, so it cannot address THIS line.
+    <span className="work-row-meta work-task-meta">
+      <span>
+        Zustand <b>{taskStateLabel(task)}</b>
+      </span>
+      {/* The lane, and the lane that ACTUALLY ran when they differ. This used
+          to render `requested_lane || lane` — one value, which hides a
+          divergence. `local_only` exists precisely to keep work off external
+          providers, so a divergence there is a containment question, not a
+          detail. */}
+      {lane && (
+        <span>
+          Lane <code>{lane.requested}</code>
+          {lane.diverged && (
+            <>
+              {' → gelaufen auf '}
+              <code className="work-lane-diverged">{lane.actual}</code>
+            </>
+          )}
+        </span>
+      )}
+      {/* Who ran it — including "nobody", which an empty list used to render as
+          silence. On a FINISHED task that is a fact; on an unfinished one it
+          means only "not yet", so it stays silent. */}
+      {providers && (
+        <span className={providers.none ? 'work-no-provider' : undefined}>
+          {providers.none ? providers.text : `über ${providers.text}`}
+        </span>
+      )}
+      {typeof task.age_s === 'number' && <span>{Math.round(task.age_s)} s alt</span>}
+      <span>Quelle {task.source}</span>
+    </span>
+  );
+}
+
+function ReportExecution({ report }: { report: ReportBrief }) {
+  const lines = executionReading(report);
+  if (lines.length === 0) return null;
+  return <div aria-label="Beobachtete Ausführungsevidenz">
+    {lines.map((line, index) => <span className="work-row-meta" key={index}>{line}</span>)}
+  </div>;
+}
+
+function Section({
+  title,
+  count,
+  tone,
+  children
+}: {
+  title: string;
+  count?: number;
+  tone: 'wait' | 'live' | 'past';
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`work-section ${tone}`}>
+      <h3 className="work-head">
+        <span className="work-title">{title}</span>
+        {count !== undefined && count > 0 && <span className="work-count">{count}</span>}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, unresolvedDispatches = 0, dispatchReadState, onGoDecision }: WorkRailProps) {
+  const watcher = watcherLabel(live.watcher);
+  const guidance = watcherGuidance(live.watcher, project, live.connected);
+  const execution = liveExecutionStatus({ streamLive: live.connected, inFlight: live.inFlight, queued: live.queued });
+  const quarantined = live.quarantined || 0;
+  const unread = live.unread || 0;
+  /**
+   * What genuinely waits on a person: a draft that is this project's, a
+   * quarantined task (a run that failed in a way nobody has looked at), and
+   * unread reports. `draftsScoped` is load-bearing — an unscoped draft pile
+   * is real data but it is not this project's decision, so it is not counted
+   * under this project's name.
+   */
+  const waiting = (draftsScoped ? drafts.length : 0) + quarantined + unread;
+  /**
+   * Dispatches only. `in_flight` is a FLAG the watcher raises about the one
+   * task it currently holds, so adding it here counted the same task twice
+   * whenever the watcher had picked up the dispatch above it.
+   */
+  const running = openDispatches.length;
+  /** Whether the counts above were reported at all, or merely defaulted. */
+  const countsRead = live.unread !== undefined && live.quarantined !== undefined;
+
+  return (
+    <div className="work" aria-label="Arbeit" data-live-project={project}>
+      <Section title="Wartet auf dich" count={waiting} tone="wait">
+        {!countsRead && <p className="work-detail-note">
+          Aufmerksamkeitsstatus unvollständig · {live.unread === undefined ? 'ungelesen unbekannt' : `${live.unread} ungelesen`}
+          {' · '}{live.quarantined === undefined ? 'Quarantäne unbekannt' : `${live.quarantined} Quarantäne`}
+        </p>}
+        {waiting === 0 ? (
+          <p className="work-none">
+            {!draftsScoped && project
+              ? 'Projekt wird ermittelt …'
+              : !countsRead
+                ? 'Keine Entwürfe. Zurückgestellte Läufe und ungelesene Berichte hat der Ereignisstrom noch nicht gemeldet.'
+                : 'Nichts. Entwürfe, zurückgestellte Läufe und ungelesene Berichte erscheinen hier.'}
+          </p>
+        ) : (
+          <ul className="work-list">
+            {draftsScoped &&
+              drafts.map((d) => (
+                <li key={d.id} className="work-row">
+                  <button type="button" onClick={onGoDecision} title={d.id}>
+                    <span className="work-row-what">{d.objective || d.id}</span>
+                    <span className="work-row-meta">
+                      <span>Entwurf</span>
+                      <span>{d.agent || 'unbekannt'}</span>
+                      {d.paths?.length ? <span>{d.paths.length} Pfade</span> : null}
+                      {d.created && <span>{relativeTime(d.created) || d.created}</span>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            {quarantined > 0 && (
+              <li className="work-row bad">
+                <span className="work-row-what">
+                  {quarantined} {quarantined === 1 ? 'Lauf zurückgestellt' : 'Läufe zurückgestellt'}
+                </span>
+                <span className="work-row-meta">
+                  <span>
+                    In Quarantäne, bis jemand hinsieht. <code>daedalus bridge status</code> zeigt sie.
+                  </span>
+                  <span>beim Verbinden gezählt</span>
+                </span>
+              </li>
+            )}
+            {unread > 0 && (
+              <li className="work-row">
+                <span className="work-row-what">
+                  {unread} {unread === 1 ? 'Bericht ungelesen' : 'Berichte ungelesen'}
+                </span>
+                <span className="work-row-meta">
+                  <span>Auf dem Datei-Bus eingetroffen, hier noch nicht geöffnet.</span>
+                  {/* The bus sends deltas for reports, the queue and the
+                      watcher — never for these two. They are the value at
+                      connect time and do not fall as you read them. */}
+                  <span>beim Verbinden gezählt</span>
+                </span>
+              </li>
+            )}
+          </ul>
+        )}
+      </Section>
+
+      <Section title="Läuft gerade" count={running} tone="live">
+        <ul className="work-list">
+          {openDispatches.map((d) => (
+            <DispatchRow key={d.ref} dispatch={d} />
+          ))}
+          {running === 0 && unresolvedDispatches === 0 && (
+            <li className="work-row">
+              <span className="work-row-what">{dispatchReadState === 'ready' ? 'Keine offenen Aufträge im aktuellen Verlauf' : 'Offene Aufträge noch nicht bestätigt'}</span>
+            </li>
+          )}
+          {unresolvedDispatches > 0 && <li className="work-row bad">
+            <span>{unresolvedDispatches} projektgebundene Dispatch-Evidenzen sind nicht sicher interpretierbar</span>
+          </li>}
+          {dispatchReadState === 'loading' && <li className="work-row quiet">Offene Aufträge werden mit dem kanonischen Verlauf abgeglichen.</li>}
+          {dispatchReadState === 'error' && <li className="work-row bad">Aktueller Verlauf nicht lesbar; letzter bestätigter Stand.</li>}
+          <li className="work-row quiet">
+            <span className="work-row-meta">
+              {/* Never a friendly zero: an unread stream reports what it last
+                  knew, and says that it is not current. */}
+              <span>
+                Wächter <b className={watcher.verbatim ? 'mono' : undefined}>{watcher.text}</b>
+              </span>
+              {live.queued !== undefined && <span>Warteschlange {live.queued}</span>}
+              {live.inFlight !== undefined && (
+                <span>{live.inFlight ? 'hat gerade eine Aufgabe' : 'hält gerade nichts'}</span>
+              )}
+              {!live.connected && <span className="work-stale">Strom unterbrochen — Stand von zuletzt</span>}
+            </span>
+            <span className="work-row-meta">{execution.text}</span>
+            {guidance && <span className="work-row-meta" aria-label="Empfohlene Wächter-Aktion">
+              {guidance.message}{guidance.command && <> · <code>{guidance.command}</code></>}
+            </span>}
+          </li>
+        </ul>
+      </Section>
+
+      <Section title="Zuletzt" tone="past">
+        {live.recent.length > 0 ? (
+          <ul className="work-list">
+            {/* Every report this session saw arrive, newest first. One slot
+                meant a second report overwrote the first before anyone had
+                read it; the ledger below is what remembers past the session. */}
+            {live.recent.filter((report) => report.project === project).map((report) => (
+              <li key={report.name} className="work-row">
+                <span className="work-row-what">{report.summary || 'Ohne Zusammenfassung'}</span>
+                <span className="work-row-meta">
+                  <span>{report.status}</span>
+                  {report.lane && <span>Lane {report.lane}</span>}
+                  {report.project && <span>{report.project}</span>}
+                  {report.agent && <span>Agent {report.agent}</span>}
+                  {report.createdAt && <time dateTime={report.createdAt}>{relativeTime(report.createdAt) || report.createdAt}</time>}
+                  <code>{report.name}</code>
+                </span>
+                <ReportExecution report={report} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="work-none">Noch kein Bericht auf diesem Bus.</p>
+        )}
+        <ActivityLog />
+      </Section>
+    </div>
+  );
+}

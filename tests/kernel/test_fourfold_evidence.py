@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
+import hashlib
+import json
 import shutil
 from pathlib import Path
 
@@ -9,9 +12,11 @@ from daedalus.kernel.fourfold_evidence import (
     FOURFOLD_EVALUATOR,
     FourfoldEvidenceExpectation,
     FourfoldEvidenceMismatch,
+    FourfoldEvidenceUnstorable,
     assemble_fourfold_evidence_packet,
     verify_fourfold_evidence_packet,
 )
+from daedalus.kernel.source_trees import SourceTreeStore
 from daedalus.schemas import (
     ContractProvenance,
     EvidenceItem,
@@ -19,6 +24,7 @@ from daedalus.schemas import (
     ResourceUsage,
 )
 from daedalus.spine.envelope import canonical_sha
+from daedalus.storage import ArtifactStore
 from daedalus.twin import compile_reference_project
 
 REVISION = "b" * 40
@@ -261,4 +267,309 @@ def test_expectation_rejects_candidate_locator_repackaging() -> None:
             candidate_artifact_locator=f"artifact-locator:sha256:{'e' * 64}",
             snapshot_sha256=result.snapshot.digest,
             source_revision=REVISION,
+        )
+
+
+@pytest.fixture(scope="module")
+def retention_source(tmp_path_factory):
+    """A real complete compilation bound to a separate source-tree CAS."""
+    source_store = SourceTreeStore(tmp_path_factory.mktemp("retention-source"))
+    source = source_store.capture_tree(
+        FIXTURE,
+        tree_id="retention-wiki-source",
+        source_revision=REVISION,
+        origin="tests.fourfold-retention",
+        created_at=NOW,
+    )
+    compiled = compile_reference_project(
+        FIXTURE,
+        source_revision=REVISION,
+        created_at=NOW,
+        source_tree_sha256=source.ref.sha256,
+    )
+    assert all(plane.status == "complete" for plane in compiled.snapshot.planes)
+    assert source.ref.sha256 in compiled.snapshot.provenance.input_digests
+    manifest_bytes = source.manifest.to_json().encode("ascii")
+    assert source_store.read_bytes(source.ref, max_bytes=len(manifest_bytes)) == manifest_bytes
+    return compiled, source
+
+
+def _retention_arguments(retention_source, store: ArtifactStore) -> dict:
+    compiled, source = retention_source
+    return {
+        "snapshot": compiled.snapshot,
+        "candidate_artifact_sha256": source.ref.sha256,
+        "candidate_artifact_locator": source.locator,
+        "packet_id": "retention-evidence",
+        "mission_id": "retention-mission",
+        "attempt_id": "retention-attempt",
+        "attempt_contract_sha256": ATTEMPT_SHA,
+        "policy_decision_sha256": POLICY_SHA,
+        "collected_at": NOW,
+        "usage": ResourceUsage(wall_time_ms=7),
+        "trace_id": "retention-test",
+        "store": store,
+    }
+
+
+def _stored_observation(
+    store: ArtifactStore,
+    *,
+    index: int = 0,
+    verdict: str = "failed",
+    assurance: str = "deterministic",
+) -> tuple[EvidenceItem, bytes]:
+    raw = f"observed check {index}: {verdict}\nraw diagnostic: \u00e4\x00\n".encode("utf-8")
+    output_sha = hashlib.sha256(raw).hexdigest()
+    provenance = ContractProvenance(
+        origin="tests.fourfold-retention-output",
+        source_revision=REVISION,
+        created_at=NOW,
+        input_digests=(output_sha,),
+    )
+    stored = store.put_bytes(
+        raw,
+        expected_sha256=output_sha,
+        metadata={"check": index},
+        provenance=provenance.to_dict(),
+    )
+    return EvidenceItem(
+        evidence_id=f"retention-check-{index}",
+        evaluator="tests.retained-observation",
+        assurance=assurance,
+        verdict=verdict,
+        output_sha256=output_sha,
+        evidence_locator=stored.locator_uri,
+        collected_at=NOW,
+        provenance=dataclasses.replace(
+            provenance,
+            input_digests=tuple(sorted({output_sha, stored.locator_sha256})),
+        ),
+        details={"observation": index, "raw_byte_length": len(raw)},
+    ), raw
+
+
+@pytest.mark.parametrize(
+    ("verdict", "assurance"),
+    [("failed", "deterministic"), ("error", "independent"),
+     ("cancelled", "deterministic"), ("passed", "unverified"),
+     ("failed", "unverified")],
+)
+def test_default_assembly_refuses_negative_and_unverified_items(
+    retention_source, tmp_path: Path, verdict: str, assurance: str,
+) -> None:
+    store = ArtifactStore(tmp_path / "evidence")
+    item, _ = _stored_observation(store, verdict=verdict, assurance=assurance)
+    arguments = _retention_arguments(retention_source, store)
+    with pytest.raises(ValueError, match="passed|unverified|conclusive"):
+        assemble_fourfold_evidence_packet(**arguments, extra_items=(item,))
+
+
+@pytest.mark.parametrize("verdict", ["failed", "error"])
+def test_explicit_item_status_assembly_preserves_verdict_assurance_and_bytes(
+    retention_source, tmp_path: Path, verdict: str,
+) -> None:
+    store = ArtifactStore(tmp_path / "evidence")
+    item, raw = _stored_observation(store, verdict=verdict)
+    packet = assemble_fourfold_evidence_packet(
+        **_retention_arguments(retention_source, store),
+        extra_items=(item,), status_mode="from_items",
+    )
+    assert packet.evaluation_status == "failed"
+    assert next(value for value in packet.items if value.evidence_id == item.evidence_id) == item
+    assert packet.usage == ResourceUsage(wall_time_ms=7)
+    structural = next(value for value in packet.items if value.evaluator == FOURFOLD_EVALUATOR)
+    assert (structural.verdict, structural.assurance) == ("passed", "deterministic")
+    assert structural.output_sha256 == retention_source[0].snapshot.digest
+    assert packet.candidate_artifact_sha256 == retention_source[1].ref.sha256
+    assert packet.candidate_artifact_locator == retention_source[1].locator
+    assert not store.locator_path(retention_source[1].ref.sha256).exists()
+    for value in packet.items:
+        stored = store.verify(store.load_locator(value.evidence_locator.rsplit(":", 1)[1]))
+        assert stored.artifact_sha256 == value.output_sha256
+    assert store.get_bytes(item.output_sha256) == raw
+    assert EvidencePacket.from_dict(packet.to_dict()) == packet
+
+
+@pytest.mark.parametrize(
+    ("observations", "expected"),
+    [
+        ((("passed", "deterministic"),), "passed"),
+        ((("passed", "independent"), ("passed", "deterministic")), "passed"),
+        ((("failed", "independent"),), "failed"),
+        ((("error", "deterministic"),), "failed"),
+        ((("cancelled", "independent"),), "inconclusive"),
+        ((("passed", "unverified"),), "inconclusive"),
+        ((("error", "unverified"),), "inconclusive"),
+        ((("failed", "deterministic"), ("cancelled", "independent")), "inconclusive"),
+        ((("failed", "independent"), ("passed", "unverified")), "inconclusive"),
+        ((("error", "unverified"), ("failed", "deterministic")), "inconclusive"),
+    ],
+)
+def test_explicit_item_status_precedence_is_conservative(
+    retention_source, tmp_path: Path, observations, expected: str,
+) -> None:
+    store = ArtifactStore(tmp_path / "evidence")
+    items = tuple(
+        _stored_observation(store, index=index, verdict=verdict, assurance=assurance)[0]
+        for index, (verdict, assurance) in enumerate(observations)
+    )
+    packet = assemble_fourfold_evidence_packet(
+        **_retention_arguments(retention_source, store),
+        extra_items=items, status_mode="from_items",
+    )
+    assert packet.evaluation_status == expected
+    assert tuple(value for value in packet.items if value.evaluator != FOURFOLD_EVALUATOR) == items
+
+
+def test_passed_assembly_modes_produce_identical_canonical_packet_bytes(
+    retention_source, tmp_path: Path,
+) -> None:
+    store = ArtifactStore(tmp_path / "evidence")
+    item, _ = _stored_observation(store, verdict="passed", assurance="independent")
+    arguments = {**_retention_arguments(retention_source, store), "extra_items": (item,)}
+    default = assemble_fourfold_evidence_packet(**arguments)
+    explicit = assemble_fourfold_evidence_packet(**arguments, status_mode="passed_only")
+    derived = assemble_fourfold_evidence_packet(**arguments, status_mode="from_items")
+    repeated = assemble_fourfold_evidence_packet(**arguments, status_mode="from_items")
+    assert default.to_json() == explicit.to_json() == derived.to_json() == repeated.to_json()
+    assert default.digest == derived.digest == repeated.digest
+
+
+@pytest.mark.parametrize("mode", ["unknown", None, False, True])
+def test_assembly_rejects_unknown_status_mode_before_storage(
+    retention_source, tmp_path: Path, monkeypatch, mode,
+) -> None:
+    store = ArtifactStore(tmp_path / "untouched")
+    writes: list[bytes] = []
+
+    def record_unexpected_write(data, **kwargs):
+        writes.append(bytes(data))
+        raise AssertionError("invalid status mode reached storage")
+
+    monkeypatch.setattr(store, "put_bytes", record_unexpected_write)
+    with pytest.raises(ValueError, match="status_mode"):
+        assemble_fourfold_evidence_packet(
+            **_retention_arguments(retention_source, store), status_mode=mode,
+        )
+    assert writes == []
+    assert not store.root.exists()
+
+
+@pytest.mark.parametrize("verdict", ["failed", "passed"])
+@pytest.mark.parametrize(
+    "fault",
+    ["missing_blob", "corrupt_blob", "missing_manifest", "corrupt_manifest",
+     "foreign_payload", "wrong_byte_length"],
+)
+def test_explicit_assembly_rereads_every_item_output(
+    retention_source, tmp_path: Path, verdict: str, fault: str,
+) -> None:
+    store = ArtifactStore(tmp_path / "evidence")
+    item, raw = _stored_observation(store, verdict=verdict)
+    locator = store.verify(store.load_locator(item.evidence_locator.rsplit(":", 1)[1]))
+    assert store.get_bytes(locator.artifact_sha256) == raw
+    if fault == "missing_blob":
+        locator.blob_path.unlink()
+    elif fault == "corrupt_blob":
+        locator.blob_path.write_bytes(b"X" * len(raw))
+    elif fault == "missing_manifest":
+        locator.locator_path.unlink()
+    elif fault == "corrupt_manifest":
+        locator.locator_path.write_bytes(b"{}")
+    else:
+        if fault == "foreign_payload":
+            foreign, _ = _stored_observation(store, index=99, verdict=verdict)
+            locator_sha = foreign.evidence_locator.rsplit(":", 1)[1]
+            assert store.verify(store.load_locator(locator_sha)).artifact_sha256 != item.output_sha256
+        else:
+            manifest = locator.to_dict()
+            manifest["artifact"]["byte_length"] += 1
+            encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+            locator_sha = hashlib.sha256(encoded).hexdigest()
+            target = store.locator_path(locator_sha)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(encoded)
+            assert store.load_locator(locator_sha).byte_length == len(raw) + 1
+        item = dataclasses.replace(
+            item,
+            evidence_locator=f"artifact-locator:sha256:{locator_sha}",
+            provenance=dataclasses.replace(
+                item.provenance,
+                input_digests=tuple(sorted({*item.provenance.input_digests, locator_sha})),
+            ),
+        )
+    with pytest.raises((FourfoldEvidenceMismatch, FourfoldEvidenceUnstorable)):
+        assemble_fourfold_evidence_packet(
+            **_retention_arguments(retention_source, store),
+            extra_items=(item,), status_mode="from_items",
+        )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["partial_plane", "unbound_candidate", "foreign_candidate", "foreign_locator",
+     "foreign_item_revision", "duplicate_fourfold", "duplicate_id",
+     "invalid_assurance", "invalid_verdict"],
+)
+def test_explicit_negative_assembly_refuses_partial_and_foreign_bindings(
+    retention_source, tmp_path: Path, fault: str,
+) -> None:
+    store = ArtifactStore(tmp_path / "evidence")
+    arguments = _retention_arguments(retention_source, store)
+    item, _ = _stored_observation(store)
+    snapshot = arguments["snapshot"]
+    if fault == "partial_plane":
+        planes = list(snapshot.planes)
+        planes[0] = dataclasses.replace(
+            planes[0], status="partial", reason="frozen incomplete-plane discriminator",
+        )
+        arguments["snapshot"] = dataclasses.replace(
+            snapshot,
+            planes=tuple(planes),
+            provenance=dataclasses.replace(
+                snapshot.provenance,
+                input_digests=tuple(sorted({
+                    *snapshot.provenance.input_digests,
+                    *(plane.digest for plane in planes),
+                })),
+            ),
+        )
+    elif fault == "unbound_candidate":
+        candidate_sha = arguments["candidate_artifact_sha256"]
+        arguments["snapshot"] = dataclasses.replace(
+            snapshot,
+            provenance=dataclasses.replace(
+                snapshot.provenance,
+                input_digests=tuple(
+                    digest for digest in snapshot.provenance.input_digests
+                    if digest != candidate_sha
+                ),
+            ),
+        )
+    elif fault == "foreign_candidate":
+        arguments["candidate_artifact_sha256"] = "f" * 64
+        arguments["candidate_artifact_locator"] = f"artifact-locator:sha256:{'f' * 64}"
+    elif fault == "foreign_locator":
+        arguments["candidate_artifact_locator"] = f"artifact-locator:sha256:{'f' * 64}"
+    elif fault == "foreign_item_revision":
+        item = dataclasses.replace(
+            item, provenance=dataclasses.replace(item.provenance, source_revision=OTHER_REVISION),
+        )
+    elif fault == "duplicate_fourfold":
+        item = dataclasses.replace(item, evaluator=FOURFOLD_EVALUATOR)
+    elif fault == "duplicate_id":
+        item = dataclasses.replace(item, evidence_id="retention-attempt:fourfold")
+    else:
+        # A caller can bypass a frozen dataclass; the consumer must rebuild it.
+        forged = object.__new__(EvidenceItem)
+        for field in dataclasses.fields(item):
+            object.__setattr__(forged, field.name, getattr(item, field.name))
+        object.__setattr__(
+            forged, "assurance" if fault == "invalid_assurance" else "verdict", "unknown",
+        )
+        item = forged
+    with pytest.raises(ValueError):
+        assemble_fourfold_evidence_packet(
+            **arguments, extra_items=(item,), status_mode="from_items",
         )

@@ -1,0 +1,75 @@
+{
+  "packet": "G1-IKARUS-30",
+  "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+  "measured_at": "2026-09-05",
+  "host": "Windows 11 Home 10.0.26200, session 1, dpi 240",
+  "privacy": "no image of any kind is retained or was ever written; OCR word lists filtered by lane10_redact.py; every spelling of the home directory replaced by <USERPROFILE> by lane10_scrub_paths.py; digests below match the corrected bytes",
+  "digest_basis": "sha256 over the committed LF bytes under the docs/evidence/G1-IKARUS-30_DESKTOP_VISION_LIVE/** -text pin; recomputed at integration 2026-09-05 because the lane worktree held CRLF for the entries listed in the integration commit",
+  "files": [
+    {
+      "name": "lane10_launch_probe.json",
+      "bytes": 818,
+      "sha256": "7352d87e675a38be1f96f0dd7aee1ac8988ad51949943a44664239fefce395b9"
+    },
+    {
+      "name": "lane10_launch_probe.py",
+      "bytes": 4003,
+      "sha256": "da9613205dc955d0ed0bb1e61352c7f089a9c7fb9c91b9c024e4918ad7287744"
+    },
+    {
+      "name": "lane10_measure.py",
+      "bytes": 19637,
+      "sha256": "248c0ae06d20fbdd6987dbc19f8c667aa43b078002e1f425f927e0570f1801b1"
+    },
+    {
+      "name": "lane10_measure_result.json",
+      "bytes": 59205,
+      "sha256": "f83e4f925fdc9b48278954cf598d1b7f10b081a15c1d920c27a4b1a12512a712"
+    },
+    {
+      "name": "lane10_measure_run1.log.txt",
+      "bytes": 459,
+      "sha256": "3b7498510fb8099391e5a5d7053b6ed9d984effddd73b0e93792196aca5f2edb"
+    },
+    {
+      "name": "lane10_measure_run2.log.txt",
+      "bytes": 367,
+      "sha256": "65c60cedf42e5b95f1eecd1bf6af4b015ecaca67721ddc97bf5363df3ea1cd94"
+    },
+    {
+      "name": "lane10_measure_run3.log.txt",
+      "bytes": 2326,
+      "sha256": "5878f0b9a4120112f29fe3a360f403a211d1ea13afff55f4bbd77b3cd2fc3c70"
+    },
+    {
+      "name": "lane10_redact.py",
+      "bytes": 3660,
+      "sha256": "d8c21f8fbecb228a5e7803fc9fae243de81d85c56bb3afa9d94ea94ed71f4323"
+    },
+    {
+      "name": "lane10_round1_system32_notepad.json",
+      "bytes": 1623,
+      "sha256": "d44c619b97e39e8a15845d116a55cb2d9191d29a9ea56b776b01e6130b015b0c"
+    },
+    {
+      "name": "lane10_round2_lease_identity_collision.json",
+      "bytes": 970,
+      "sha256": "70e53e18bd84d4b7d20c98893475de9cd8f27abe5b688a2a928121e98d185965"
+    },
+    {
+      "name": "lane10_scrub_paths.py",
+      "bytes": 2436,
+      "sha256": "4074af449421dc9e741618a3b2a72b67e24f803ca538d723384db1138c7c03b3"
+    },
+    {
+      "name": "lane10_setup.py",
+      "bytes": 3861,
+      "sha256": "90dbfb1f8e91e467b6675d00dd8df90ca20a9670ccf6682a838d09e36af909b3"
+    },
+    {
+      "name": "lane10_setup_round2.log.txt",
+      "bytes": 2109,
+      "sha256": "91d70015ea993f9b385bc947b596a302dd1dffe81b5e06c972cee641fe23e42a"
+    }
+  ]
+}

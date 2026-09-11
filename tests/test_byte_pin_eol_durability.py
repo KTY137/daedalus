@@ -34,8 +34,8 @@ GITATTRIBUTES = ROOT / ".gitattributes"
 # matching cannot make this file pass by finding nothing.
 KNOWN_SUBJECTS = {
     "daedalus/kairos/_gated_writes_legacy.py.src",
-    "daedalus/runtimes/provider_target_receipt_ledger.py",
-    "daedalus/runtimes/provider_observation.py",
+    "daedalus/runtimes/provider/target_receipt_ledger.py",
+    "daedalus/runtimes/provider/observation.py",
     "daedalus/runtimes/live_probe_drivers.py",
     "tests/fixtures/container_oom_fault_executor.py",
     "tests/fixtures/effect_ledger_contention_fault_executor.py",
@@ -47,7 +47,10 @@ KNOWN_SUBJECTS = {
     "tests/fixtures/unknown_outcome_reconciliation_fault_executor.py",
 }
 
-_SOURCE_PATH_RE = re.compile(r'^_SOURCE_PATH\s*=\s*["\']([^"\']+)["\']', re.M)
+_SOURCE_PATH_RE = re.compile(
+    r'^[A-Z_][A-Z0-9_]*SOURCE_PATH\s*=\s*["\']([^"\']+)["\']',
+    re.M,
+)
 _RETAINED_RE = re.compile(r'^_RETAINED_SOURCE_NAME\s*=\s*["\']([^"\']+)["\']', re.M)
 _SELF_HASH_MARKERS = (
     "Path(__file__).read_bytes()",
@@ -77,10 +80,11 @@ def _iter_sources():
 def _census() -> set[str]:
     """Files whose working-tree bytes become an identity.
 
-    Three detectors, matching the three shapes that exist today: a gate
-    inventory naming another module in ``_SOURCE_PATH``; a package resource
-    named in ``_RETAINED_SOURCE_NAME``; and a module or fixture that hashes its
-    own ``__file__``.
+    Three detectors, matching the three shapes that exist today: a neutral
+    contract or gate inventory naming another module in an uppercase
+    ``*SOURCE_PATH`` constant; a package resource named in
+    ``_RETAINED_SOURCE_NAME``; and a module or fixture that hashes its own
+    ``__file__``.
     """
     found: set[str] = set()
     for path in _iter_sources():
@@ -227,3 +231,38 @@ def test_gitattributes_records_why_the_lines_exist():
     text = GITATTRIBUTES.read_text(encoding="utf-8")
     assert "D7" in text
     assert "autocrlf" in text
+
+
+def test_evidence_digest_manifests_match_the_checked_out_bytes():
+    """Every docs/evidence/**/MANIFEST.json pins the sha256 of its sibling files.
+
+    The digests are over the committed LF bytes, so the directory needs a
+    ``-text`` pin or a translating checkout (Windows, ``core.autocrlf=true``)
+    makes every entry mismatch; the G1-IKARUS-26 adversarial review measured
+    19/19 mismatches on a fresh checkout (F1). The ``_census`` above only walks
+    ``*.py`` under daedalus/, tests/ and tools/, which is why it could not see
+    this. Checked on every platform: the on-disk bytes must hash to the manifest.
+    """
+    import hashlib
+    import json
+    import subprocess
+
+    manifests = sorted((ROOT / "docs" / "evidence").glob("*/MANIFEST.json"))
+    assert manifests, "no evidence manifest found; the glob or the layout changed"
+    for manifest in manifests:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        # Two manifest shapes exist: a flat {name: sha256} map (G1-IKARUS-26)
+        # and a {"files": [{"name", "bytes", "sha256"}, ...]} list (G1-IKARUS-30).
+        entries = ({row["name"]: row["sha256"] for row in payload["files"]}
+                   if isinstance(payload.get("files"), list) else
+                   {name: digest for name, digest in payload.items() if isinstance(digest, str) and len(digest) == 64})
+        assert entries, f"{manifest} names no digests"
+        directory = manifest.parent
+        attr = subprocess.run(
+            ["git", "check-attr", "text", "--", str(manifest.relative_to(ROOT)).replace("\\", "/")],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+        assert attr.rstrip().endswith("text: unset"), f"{directory.name} is not pinned -text: {attr.strip()}"
+        for name, digest in entries.items():
+            actual = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+            assert actual == digest, f"{directory.name}/{name} on disk does not match its manifest digest"

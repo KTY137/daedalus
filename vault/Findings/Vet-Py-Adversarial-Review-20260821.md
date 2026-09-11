@@ -1,7 +1,9 @@
 ---
-tags: [findings]
+tags:
+- findings
 created: 2026-08-21
 source: daedalus/tools/vet.py
+permalink: main/findings/vet-py-adversarial-review-20260821
 ---
 
 # vet.py — adversarische Review (Odysseus)

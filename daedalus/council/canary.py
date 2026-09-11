@@ -1194,8 +1194,17 @@ def append_history(run: CanaryRun, path: str | Path = DEFAULT_HISTORY_PATH) -> i
              for r in run.results]
     if not lines:
         return 0
-    with p.open("a", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n".join(lines) + "\n")
+    # One locked write for the whole batch. ``daedalus canary`` is an
+    # operator-invoked command, so two runs pointed at one history file is a
+    # configuration rather than an accident -- and a buffered append loses
+    # records silently under that (MEASURED 2026-09-02: four writers kept 50 of
+    # 64 results, the largest proportional loss of the five journals, which is
+    # what batching does when the batch is not atomic). Passing the whole run
+    # as one batch also keeps a run's results contiguous rather than
+    # interleaved with another's.
+    from ..journal_io import append_lines
+
+    append_lines(p, lines)
     return len(lines)
 
 

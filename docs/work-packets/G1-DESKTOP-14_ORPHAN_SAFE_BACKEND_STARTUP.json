@@ -1,0 +1,100 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-DESKTOP-14_ORPHAN_SAFE_BACKEND_STARTUP",
+  "title": "Make packaged desktop startup safe from orphaned provider descendants",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "base_revision": "52b4baa5f7b065c54779cafd6a35b2411eeb5e84",
+  "master_plan_sha256": "5e269de9857940cd1d6162eaf9236d4db8e77427d189122db178812b49b259dc",
+  "primary_claim": "A provider descendant left behind by a crashed desktop cannot block the next packaged Daedalus launch or silently survive an orderly desktop shutdown.",
+  "authority": {
+    "master_plan_revision": 10,
+    "invariants": [
+      "one kernel",
+      "bounded effects and explicit execution-limit exception",
+      "provenance"
+    ],
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false
+  },
+  "scope": {
+    "changed_paths": [
+      "apps/web/src-tauri/build.rs",
+      "apps/web/src-tauri/Cargo.lock",
+      "apps/web/src-tauri/Cargo.toml",
+      "apps/web/src-tauri/src/lib.rs",
+      "daedalus/desktop_runtime.py",
+      "scripts/daedalus_desktop_sidecar.py",
+      "tools/build_tauri_sidecar.py",
+      "tests/test_desktop_packaging.py",
+      "tests/test_desktop_runtime.py",
+      "tests/test_spine_cancel.py",
+      "docs/DESKTOP.md",
+      "docs/work-packets/G1-DESKTOP-14_ORPHAN_SAFE_BACKEND_STARTUP.json"
+    ],
+    "forbidden_paths": [
+      "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+      "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
+      "daedalus/kernel/promotion.py",
+      "daedalus/kernel/evidence.py"
+    ],
+    "new_runtime": false,
+    "new_server": false,
+    "new_event_store": false,
+    "new_promotion_path": false,
+    "new_effect_path": false
+  },
+  "baseline": {
+    "observed_at": "2026-08-31T09:41:53+02:00",
+    "desktop_version": "0.1.3",
+    "windows_failures": "four identical BEX64 failures, exception 0xc0000409, FAST_FAIL_FATAL_APP_EXIT, offset 0x34b5f5",
+    "orphan": "llama-server.exe PID 31256 had no live parent and loaded VCRUNTIME140.dll plus VCRUNTIME140_1.dll from the copied desktop backend",
+    "copy_failure": "the stable backend destination rejected exclusive write access while the orphan held both DLL image mappings",
+    "backend_log": "no new backend log entry was written by the failing launches",
+    "immediate_recovery": "the exact orphan was terminated after path, parent absence, and both module locks were revalidated; both DLLs then became exclusively writable"
+  },
+  "acceptance": [
+    "desktop-owned local Ollama starts from an explicit mutable service directory that contains no packaged runtime DLLs",
+    "Windows local Ollama is assigned to one kill-on-close Job Object before it can serve model work; assignment failure terminates the child and refuses managed startup",
+    "orderly close and the local Ollama stop route terminate the owned process tree, while a pre-existing reachable Ollama service remains unowned and untouched",
+    "the sidecar build emits one deterministic SHA-256 bundle identity and the native host is compiled against that exact identity",
+    "the sidecar emits a canonical exact-file manifest; unlisted files left by an overlay installer are neither trusted nor copied into a runtime generation",
+    "a bundle identity mismatch is refused before copying or spawning",
+    "each backend bundle is installed once through a private staging directory into an immutable identity-named generation; an existing generation is validated and never overwritten",
+    "only the allowlisted desktop state paths are copied from the previous active or legacy generation into a new generation, missing targets only, with links and type conflicts refused",
+    "the active-generation marker changes only after nonce-authenticated readiness succeeds and old generations are retained for rollback",
+    "desktop setup errors are written to a stable startup log and produce a non-zero exit without a Rust panic abort",
+    "release hashing keeps its one-megabyte I/O buffer off the Windows GUI thread stack and path policy follows Windows case-insensitive alias semantics",
+    "the frozen sidecar dispatches multiprocessing worker arguments before its Web API argument parser",
+    "focused Python contract/runtime tests, native Rust tests, and two packaged Windows starts with a resident Ollama model pass on this host"
+  ],
+  "budgets": {
+    "startup_timeout_seconds": 25,
+    "shutdown_timeout_seconds": 10,
+    "bundle_identity": "sha256",
+    "state_copy_policy": "allowlisted missing-only",
+    "network_scope": "loopback only"
+  },
+  "evidence": {
+    "bundle_id": "a008af5b582a1fdf962905acccc36578cd6a62768913d252a316b42df1af815a",
+    "bundle_manifest_files": 2547,
+    "installer": "apps/web/src-tauri/target/release/bundle/nsis/Daedalus_0.1.3_x64-setup.exe",
+    "installer_sha256": "6910C2F989017A41E91FAA85FFE7320A73913F8FA64EAA7ABA8CCA667735FFF8",
+    "python_tests": "142 passed, 12 platform-specific skips",
+    "rust_tests": "20 passed",
+    "frozen_sidecar_smoke": "passed",
+    "native_build": "Tauri 2.11.4 release and NSIS bundle passed",
+    "installed_upgrade": "NSIS overlay install exited 0; 63 observed stale resource files were not copied into the active generation",
+    "live_restart": "two nonce-ready starts returned HTTP 200 with the same active identity and no additional generation",
+    "provider_modules": "resident llama-server loaded zero modules from the install resource or app-data backend generation",
+    "orderly_shutdown": "native host, frozen backend, Ollama, and llama-server all exited; port 8765 was free",
+    "retained_negative_evidence": "startup log retains the pre-fix full-tree mismatch and CRLF-manifest parser failures"
+  },
+  "rollback": [
+    "revert the scoped source and tests together",
+    "retain this packet, WER identifiers, and the orphan-process finding as negative startup evidence",
+    "do not delete legacy or identity-named backend generations during rollback"
+  ],
+  "evidence_status": "implementation_verified_on_windows_x86_64"
+}

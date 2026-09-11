@@ -1,6 +1,10 @@
 ---
-tags: [findings, gate0, recovery]
+tags:
+- findings
+- gate0
+- recovery
 created: 2026-08-17
+permalink: main/findings/gate0-recovery-patches
 ---
 
 # Gate-0-Recovery-Patches (2026-08-17)

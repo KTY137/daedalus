@@ -1,0 +1,62 @@
+{
+  "/computer run Prüfe den Zustand von Daedalus: lies den Status, die Struktur und die kaputten Doku-Referenzen des Projekts und fasse in drei Sätzen zusammen, was als Nächstes verbessert werden sollte.": {
+    "ok": true,
+    "generated_at": "2026-09-10T10:22:40.007088+00:00",
+    "project": "agent_env",
+    "warnings": [],
+    "intent": "computer",
+    "shell": "hand",
+    "assistant": "ProviderStartRefused: ikarus_os.provider_call denied by budget.process_guard: the spend ceiling would be crossed by this anthropic_cli call: estimate $3.0000 (basis=worst_case), committed $2.1552 of $5.0000, 3 calls recorded; call ceiling enabled at 40 in period 2026-09-10\n\nPlanner: claude_code_cli · Kontext hat den Rechner verlassen: ja\n\nMission: `computer-de500733fd28446ca0c932dd96dff614`",
+    "provider_used": "computer-policy",
+    "computer": {
+      "ok": false,
+      "state": "blocked",
+      "mission_id": "computer-de500733fd28446ca0c932dd96dff614",
+      "mission_sha256": "5ff0d85700ab8a7f03f19f7183318660bca0b6a8f85ff4658d59920dc12c16c5",
+      "mission_artifact": {
+        "sha256": "02f3d658e75a18b18949f12dfac162bb0c9b6afa636b9bc3f40ca50cce6145c2",
+        "locator": "artifact-locator:sha256:02f3d658e75a18b18949f12dfac162bb0c9b6afa636b9bc3f40ca50cce6145c2"
+      },
+      "steps": [],
+      "summary": "ProviderStartRefused: ikarus_os.provider_call denied by budget.process_guard: the spend ceiling would be crossed by this anthropic_cli call: estimate $3.0000 (basis=worst_case), committed $2.1552 of $5.0000, 3 calls recorded; call ceiling enabled at 40 in period 2026-09-10",
+      "planner_summary": null,
+      "authority_root": "<worktree>",
+      "planner_calls": 1,
+      "tool_steps": 0,
+      "replans": 0,
+      "repair_calls": 0,
+      "plan": null,
+      "proposals": [],
+      "planner": {
+        "provider": "claude_code_cli",
+        "model": null,
+        "remote_context": true
+      },
+      "plan_progress": null,
+      "prompt_chars_max": 4236,
+      "planner_context_tokens": null,
+      "context_estimate": "chars/4",
+      "prompt_overflow_calls": null,
+      "compaction": {
+        "version": "v1",
+        "applied_calls": 0,
+        "unfit_calls": 0,
+        "elided_chars_max": 0,
+        "elided_steps": [],
+        "verbatim_window": 3,
+        "budget_chars_last": null,
+        "reason": "no known window"
+      },
+      "stall_after_elision": false,
+      "task_success_verified": false,
+      "elapsed_s": 0.0779999999977008,
+      "summary_tokens_absent_from_observations": null,
+      "report_artifact": {
+        "sha256": "52bfd11fbe938811667b28dcf554516d4bde048d424c83921654161b4d18a072",
+        "locator": "artifact-locator:sha256:52bfd11fbe938811667b28dcf554516d4bde048d424c83921654161b4d18a072"
+      }
+    },
+    "delivery_mode": "blocking",
+    "stream_interrupted": false
+  }
+}

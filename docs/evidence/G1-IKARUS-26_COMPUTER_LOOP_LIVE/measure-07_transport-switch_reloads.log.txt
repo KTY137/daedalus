@@ -1,0 +1,7 @@
+start 21:26:30 | ps: [('21:34:03', 6144, 5.25)] | native num_ctx 6144 keep_alive 30m
+chat /v1                 19.4 s | ps [('21:31:49', 4096, 5.12)] | RELOAD
+planner native           15.7 s | ps [('21:57:05', 6144, 5.25)] | RELOAD
+chat /v1                 16.7 s | ps [('21:32:22', 4096, 5.12)] | RELOAD
+planner native           14.0 s | ps [('21:57:36', 6144, 5.25)] | warm
+planner native again      0.6 s | ps [('21:57:36', 6144, 5.25)] | warm
+reloads over chat->planner->chat->planner: 3 | end 21:27:36

@@ -69,6 +69,22 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from ..kernel.attempt_execution import (
+    AttemptEvaluatorPort,
+    AttemptWorkspacePort,
+    OffloadPort,
+)
+from ..kernel.contracts.evaluation import EvaluationPorts
+# MEASURED, not assumed: hoisting this out of ``_default_attempt`` costs zero
+# new modules -- ``daedalus.kernel.contracts.resources`` is already resident
+# after a bare ``import daedalus.spine.picker`` via the two ports above -- and
+# creates no cycle in either import order. The function-scope placement was
+# never cycle-avoidance; it was the facade being convenient at the call site.
+# Keeping it deferred would have satisfied the static rule while leaving the
+# cold-import instrument reporting a clean layer, which is the defect this
+# packet exists to remove.
+from ..kernel.contracts.resources import ResourceBudget
+
 __all__ = [
     "ATTEMPT_INTENT_KIND",
     "ATTEMPT_MEMORY_PENALTY",
@@ -1618,14 +1634,16 @@ def eval_gate_candidates(gate_result: Mapping[str, Any]) -> tuple[
 def _load_baseline() -> tuple[Mapping[str, Any], str | None]:
     """Load the stored eval baseline, returning ``(baseline, error)``.
 
-    A named seam rather than an inline import: it is the one place the picker
-    reaches into ``daedalus.eval``, so it is the one place a test has to
-    displace to stay hermetic, and the one place to look when the cheap eval
-    source goes quiet.
+    This cheap source is just retained JSON. Reading it directly keeps the
+    canonical spine independent of the evaluator implementation while
+    preserving the historical missing-file behavior. A supplied
+    :class:`EvaluationPorts` instance may override it at composition time.
     """
     try:
-        from daedalus.eval.harness import load_baseline
-        return load_baseline(), None
+        path = ROOT / "daedalus" / "eval" / "baseline.json"
+        if not path.exists():
+            return {"schema": 1, "tasks": {}}, None
+        return json.loads(path.read_text(encoding="utf-8")), None
     except Exception as e:
         return {}, f"{type(e).__name__}: {e}"
 
@@ -1633,15 +1651,31 @@ def _load_baseline() -> tuple[Mapping[str, Any], str | None]:
 def _run_eval_gate() -> tuple[Mapping[str, Any] | None, str | None]:
     """Run the advisory eval gate, returning ``(result, error)``.
 
-    Isolated so the opt-in cost (a full Tier-1 replay, which builds a
-    structural index per repo) lives in exactly one place, and so a broken
-    eval cannot take the whole queue down with it.
+    Direct module starts have no outer-layer composition root. They therefore
+    fail closed instead of importing the evaluator through the canonical
+    spine. ``daedalus improve`` injects the production port explicitly.
     """
+    return None, (
+        "EvaluationPortUnavailable: fresh eval requires an injected "
+        "EvaluationGatePort")
+
+
+def _load_baseline_from_ports(
+        ports: EvaluationPorts,
+        ) -> tuple[Mapping[str, Any], str | None]:
     try:
-        from daedalus.eval.harness import run_gate
-        return run_gate(), None
-    except Exception as e:  # a broken eval must not empty the queue
-        return None, f"{type(e).__name__}: {e}"
+        return ports.load_baseline(), None
+    except Exception as exc:  # a broken evaluator must not empty the queue
+        return {}, f"{type(exc).__name__}: {exc}"
+
+
+def _run_eval_gate_from_ports(
+        ports: EvaluationPorts,
+        ) -> tuple[Mapping[str, Any] | None, str | None]:
+    try:
+        return ports.run_gate(), None
+    except Exception as exc:  # a broken evaluator must not empty the queue
+        return None, f"{type(exc).__name__}: {exc}"
 
 
 # --------------------------------------------------------------------------- #
@@ -1867,6 +1901,12 @@ OUTCOME_POLICY: dict[str, OutcomePolicy] = {
         meaning="the storage guard refused before anything ran",
         verdict="the furthest an outcome gets from evidence about the task: a "
                 "condition of the box that will clear on its own"),
+    "lease_refused": OutcomePolicy(
+        outcome="lease_refused", residual=0.95, severity=0.12,
+        meaning="the effect lease refused before a worktree or runner existed",
+        verdict="capability refusal is infrastructure evidence, not evidence "
+                "against the task; retain almost all of its band while "
+                "compounding repeated refusals"),
 }
 
 # The outcome is missing or is a string nobody has classified. FAIL CLOSED to
@@ -2222,9 +2262,11 @@ def build_queue(repo_root: str | Path | None = None, *,
                 include_eval: bool = False,
                 include_hotspots: bool = False,
                 include_spectral: bool = False,
+                include_docrefs: bool = True,
                 inventory: Mapping[str, Any] | None = None,
                 map_snapshot: Mapping[str, Any] | None = None,
                 baseline: Mapping[str, Any] | None = None,
+                evaluation_ports: EvaluationPorts | None = None,
                 use_attempt_memory: bool = True,
                 enforce_inventory_freshness: bool = True,
                 spine_db: str | Path | None = None) -> PickedQueue:
@@ -2236,7 +2278,10 @@ def build_queue(repo_root: str | Path | None = None, *,
     leave the loop picking by habit instead of by measurement.
     ``include_spectral`` is MEASURED at ~10s (``reach.analyse`` over this tree)
     and adds only evidence keys -- it cannot change the queue's contents or
-    order.
+    order. ``include_docrefs`` defaults to ON and therefore preserves the
+    canonical queue. Read-only interactive projections may switch it off to
+    avoid a whole-repository prose scan when they need only a quick status
+    snapshot; the disabled source remains explicit in ``sources``.
     """
     root = Path(repo_root).resolve() if repo_root else ROOT
     candidates: list[Candidate] = []
@@ -2339,7 +2384,12 @@ def build_queue(repo_root: str | Path | None = None, *,
     # Never raises (docrefs.scan promises that); a failure here must cost the
     # queue this one source, never the whole queue.
     docref_mode = _picker_source_mode(project_config, "docref")
-    if docref_mode == "disabled":
+    if not include_docrefs:
+        sources["docref"] = {
+            "state": "disabled", "read": False, "candidates": 0,
+            "reason": "disabled by caller (interactive read-only projection)",
+        }
+    elif docref_mode == "disabled":
         sources["docref"] = {
             "state": "disabled", "read": False, "candidates": 0,
             "reason": "disabled by repo-local picker_sources.docref",
@@ -2449,7 +2499,11 @@ def build_queue(repo_root: str | Path | None = None, *,
     else:
         base_error = None
         if baseline is None:
-            baseline, base_error = _load_baseline()
+            baseline, base_error = (
+                _load_baseline()
+                if evaluation_ports is None
+                else _load_baseline_from_ports(evaluation_ports)
+            )
             if base_error:
                 notes.append(f"eval baseline unavailable: {base_error}")
         base_candidates, base_notes = eval_baseline_candidates(baseline)
@@ -2474,7 +2528,11 @@ def build_queue(repo_root: str | Path | None = None, *,
             "error": "picker_sources.eval_gate must be enabled or disabled",
         }
     elif include_eval:
-        gate, err = _run_eval_gate()
+        gate, err = (
+            _run_eval_gate()
+            if evaluation_ports is None
+            else _run_eval_gate_from_ports(evaluation_ports)
+        )
         if gate is None:
             notes.append(f"eval gate did not run: {err}")
             sources["eval_gate"] = {
@@ -2773,7 +2831,16 @@ def _console_safe(text: str, encoding: str | None) -> str:
 # --------------------------------------------------------------------------- #
 # CLI                                                                          #
 # --------------------------------------------------------------------------- #
-def _default_attempt(candidate: Candidate, args: Any) -> Any:
+def _default_attempt(
+    candidate: Candidate,
+    args: Any,
+    *,
+    attempt_ports_factory: Callable[
+        [str | Path | None],
+        tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+    ] | None = None,
+    offload_port: OffloadPort | None = None,
+) -> Any:
     """Run one real :class:`daedalus.spine.attempt.TaskAttempt`.
 
     Split out as the single injection seam so ``--dry-run`` can be tested by
@@ -2783,8 +2850,29 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     It is also where one MissionContract per picked candidate is minted: the
     picker is the only live code that decides what to work on next, so it is
     the only place a mission can honestly be compiled from user-facing intent.
+
+    ``offload_port`` arrives the same way ``attempt_ports_factory`` already
+    does, and for the same reason: the spine may not import
+    ``daedalus.offload`` (the ``spine-no-outer-layers`` rule of
+    ``docs/architecture/import-boundaries.json`` names it explicitly), so the
+    workload is composed by ``daedalus.interfaces.cli.entry`` and handed down. This door
+    already refused without its ports, so requiring one more changes no
+    reachable behaviour: ``python -m daedalus.spine.picker`` could not run a
+    live attempt before this packet either.
     """
-    from daedalus.spine.attempt import offload_runner, run_attempt
+    from daedalus.spine.attempt import (
+        AttemptPortMissing,
+        offload_runner,
+        run_attempt,
+    )
+
+    if not callable(attempt_ports_factory):
+        raise AttemptPortMissing(
+            "picker attempt execution requires an injected "
+            "attempt_ports_factory; "
+            "use the daedalus CLI orchestration composition"
+        )
+    workspace_port, evaluator_port = attempt_ports_factory(args.repo_root)
 
     spec = candidate.to_task_spec()
     ledger_path, ledger_error = resolve_spine_db_path(args.repo_root)
@@ -2818,10 +2906,12 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     # by design.
     from datetime import datetime as _datetime, timezone as _timezone
 
-    from daedalus.schemas import ResourceBudget
     from daedalus.spine.receipts import mission_contract_for_candidate
 
     mission_id = None
+    mission_budget = None
+    mission_policy_sha256 = ""
+    mission_limit_policy = None
     head = _head_sha(args.repo_root)
     if head:
         try:
@@ -2832,15 +2922,23 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
                 budget=ResourceBudget(max_wall_time_s=int(candidate.gate_timeout_s)),
             )
             mission_id = mission.mission_id
+            mission_budget = mission.budget
+            mission_policy_sha256 = mission.policy_sha256
+            mission_limit_policy = mission.execution_limit_policy
         except Exception:                   # noqa: BLE001 - reported by absence
             mission_id = None
     return run_attempt(
         spec,
-        runner=offload_runner(live=bool(args.live)),
+        runner=offload_runner(offload_port=offload_port, live=bool(args.live)),
         repo_root=args.repo_root,
+        workspace_port=workspace_port,
+        evaluator_port=evaluator_port,
         ledger_path=ledger_path,
         artifact_dir=args.artifact_dir,
         mission_id=mission_id,
+        budget=mission_budget,
+        mission_policy_sha256=mission_policy_sha256,
+        execution_limit_policy=mission_limit_policy,
         keep_worktree=bool(args.keep_worktree))
 
 
@@ -2907,7 +3005,13 @@ def _build_parser():
 
 
 def main(argv: Sequence[str] | None = None, *,
-         attempt_fn: Callable[[Candidate, Any], Any] | None = None) -> int:
+         attempt_fn: Callable[[Candidate, Any], Any] | None = None,
+         evaluation_ports: EvaluationPorts | None = None,
+         attempt_ports_factory: Callable[
+             [str | Path | None],
+             tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+         ] | None = None,
+         offload_port: OffloadPort | None = None) -> int:
     """``daedalus improve``. Returns a process exit code; applies nothing.
 
     Default behaviour with no flags is the DRY RUN. An operator who types
@@ -2941,9 +3045,18 @@ def main(argv: Sequence[str] | None = None, *,
 
     args = _build_parser().parse_args(
         list(argv) if argv is not None else _sys.argv[1:])
-    queue = build_queue(args.repo_root, limit=args.limit,
+    from ..limit_policy import load_from_env
+
+    execution_limit_policy = load_from_env()
+    queue_limit = (
+        args.limit
+        if execution_limit_policy.enforces("work_scope")
+        else None
+    )
+    queue = build_queue(args.repo_root, limit=queue_limit,
                         include_eval=args.include_eval,
                         include_hotspots=args.include_hotspots,
+                        evaluation_ports=evaluation_ports,
                         use_attempt_memory=not args.forget,
                         enforce_inventory_freshness=not args.stale_inventory)
 
@@ -2984,7 +3097,14 @@ def main(argv: Sequence[str] | None = None, *,
         print("  runner is ADVISORY (no --live): the model is not invoked, so "
               "a 'no_change' result is the expected outcome.")
     print("")
-    run = attempt_fn or _default_attempt
+    run = attempt_fn or (
+        lambda candidate, parsed: _default_attempt(
+            candidate,
+            parsed,
+            attempt_ports_factory=attempt_ports_factory,
+            offload_port=offload_port,
+        )
+    )
     result = run(top, args)
     print(_console_safe(
         review_packet(top, result),

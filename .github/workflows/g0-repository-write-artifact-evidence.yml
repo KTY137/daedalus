@@ -5,7 +5,7 @@ on:
     branches:
       - g0/gate-report-repository-write-v3-linear
     paths:
-      - "daedalus/gates/repository_write_evidence.py"
+      - "daedalus/gates/repository/write_evidence.py"
       - "configs/schemas/repository-write-artifact-evidence-v1.schema.json"
       - "scripts/run_repository_write_evidence_mutations.py"
       - "tests/gates/test_repository_write_evidence*.py"
@@ -112,7 +112,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-repository-write-evidence-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_evidence import (
+          from daedalus.gates.repository.write_evidence import (
               RepositoryWriteArtifactEvidence,
               RepositoryWriteArtifactEvidenceError,
           )

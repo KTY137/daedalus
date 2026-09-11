@@ -323,8 +323,10 @@ def test_this_repository_counts_every_unreached_module(based):
     from daedalus.mapping import reach as reach_mod
     rep = reach_mod.analyse(root)
     state = drift.scan(root, reach_report=rep).state
+    # Compare the project ranking against the same declared population. Reach
+    # retains ignored modules as evidence; the ranking reports their omission.
     honest = sorted(m.module for m in rep.modules
-                    if m.classification in drift.UNREACHED_CLASSES)
+                    if m.classification in drift.UNREACHED_CLASSES and not m.shell)
     assert sorted(state["islands"] + state["unknown"] + state["shims"]) == honest
     assert state["counts"]["unreached"] == len(honest)
     assert state["counts"]["unreached"] > state["counts"]["islands"], (

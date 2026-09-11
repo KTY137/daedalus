@@ -1,8 +1,10 @@
 """Execute one runtime provider call behind persisted runtime and effect authority.
 
-The broker composes one exact ``RuntimeBoundEffectAuthorization`` with one
-``EffectExecutionRequest`` and a zero-argument provider callback. Lease grant
-and effect start are durable before external code runs. Exact replay is inert,
+The production broker composes one exact ``RuntimeBoundEffectAuthorization``
+and ``EffectExecutionRequest`` with the authenticated invocation ABI, canonical
+payload, and fixed executable objects admitted by the existing registry. Lease
+grant and effect start are durable before the sealed operation runs. No
+caller-supplied callable crosses the production seam. Exact replay is inert,
 and success, failure, cancellation, and runtime-trust loss receive terminal
 receipts.
 
@@ -39,7 +41,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Generic, Iterable, Mapping, Sequence, TypeVar
+from typing import Generic, Iterable, Mapping, Sequence, TypeVar
 
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
@@ -47,10 +49,27 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
 )
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.executable_object_registry import (
+    ProviderExecutableObjectRegistry,
+    ProviderExecutableObjectRegistryError,
+    ProviderSealedOutputEvidenceError,
+)
+from daedalus.runtimes.provider.executable_pre_admission import (
+    ProviderExecutablePreAdmissionReceipt,
+)
+from daedalus.runtimes.provider.invocation_abi import ProviderInvocationABIContract
+from daedalus.runtimes.provider.invocation_authority import (
+    ProviderInvocationObservationAuthority,
+)
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthority,
     ProviderObservationAuthorityError,
     ProviderObservationBindingLedger,
+)
+from daedalus.runtimes.provider.runtime_invocation_binding import (
+    ProviderRuntimeInvocationBindingError,
+    bind_provider_runtime_invocation,
 )
 from daedalus.spine.effect_boundary import EntrypointSpec, Wiring
 from daedalus.spine.envelope import canonical_sha
@@ -517,38 +536,131 @@ def run_runtime_provider(
     *,
     authorization: RuntimeBoundEffectAuthorization,
     execution: EffectExecutionRequest,
-    invoke: Callable[[], T],
-    output_digests: Callable[[T], Iterable[str]],
-    observation_authority: ProviderObservationAuthority | None = None,
-    observation_binding_ledger: ProviderObservationBindingLedger | None = None,
+    invocation_authority: ProviderInvocationObservationAuthority,
+    invocation_payload: ProviderInvocationPayload,
+    invocation_abi: ProviderInvocationABIContract,
+    observation_binding_ledger: ProviderObservationBindingLedger,
+    executable_registry: ProviderExecutableObjectRegistry,
+    pre_admission: ProviderExecutablePreAdmissionReceipt,
 ) -> RuntimeInvocationResult[T]:
-    """Run one exact provider effect after durable grant/start authorization."""
+    """Execute one authenticated fixed provider operation through the kernel."""
 
-    if not callable(invoke):
-        raise TypeError("invoke must be callable")
-    if not callable(output_digests):
-        raise TypeError("output_digests must be callable")
+    try:
+        ProviderExecutableObjectRegistry._verify_verifier_environment()
+    except ProviderExecutableObjectRegistryError as exc:
+        raise RuntimeProviderBindingMismatch(
+            "sealed provider verifier environment changed before effect start"
+        ) from exc
     if type(execution) is not EffectExecutionRequest:
         raise RuntimeProviderBindingMismatch(
             "execution must be an exact EffectExecutionRequest"
         )
-    observation_binding = _production_observation_binding(
-        authorization,
-        observation_authority,
-        observation_binding_ledger,
+    if type(authorization) is not RuntimeBoundEffectAuthorization:
+        raise RuntimeProviderBindingMismatch(
+            "authorization must be an exact RuntimeBoundEffectAuthorization"
+        )
+    exact_types = (
+        (
+            invocation_authority,
+            ProviderInvocationObservationAuthority,
+            "invocation_authority",
+        ),
+        (invocation_payload, ProviderInvocationPayload, "invocation_payload"),
+        (invocation_abi, ProviderInvocationABIContract, "invocation_abi"),
+        (
+            observation_binding_ledger,
+            ProviderObservationBindingLedger,
+            "observation_binding_ledger",
+        ),
+        (executable_registry, ProviderExecutableObjectRegistry, "executable_registry"),
+        (pre_admission, ProviderExecutablePreAdmissionReceipt, "pre_admission"),
     )
+    for value, expected, label in exact_types:
+        if type(value) is not expected:
+            raise RuntimeProviderBindingMismatch(
+                f"{label} must be exact {expected.__name__}"
+            )
+    # Replay is identified without touching the executable namespace.  For a
+    # fresh execution, dependency integrity is the first semantic check so a
+    # substituted json/hashlib primitive cannot redirect the surrounding
+    # subject verifiers before the registry detects it.
+    prior_state = authorization.effect_ledger.execution_state(execution.execution_id)
+    if prior_state is None:
+        try:
+            ProviderExecutableObjectRegistry._verify_sealed_operation(
+                executable_registry,
+                pre_admission,
+                invocation_payload,
+            )
+        except ProviderExecutableObjectRegistryError as exc:
+            raise RuntimeProviderBindingMismatch(
+                "sealed provider invocation did not authenticate before effect start"
+            ) from exc
     spec = _validate_binding(entrypoint_id, authorization)
+    subject = invocation_authority.invocation_subject
+    mismatches = sorted(
+        name
+        for name, (actual, expected) in {
+            "entrypoint_id": (subject.entrypoint_id, spec.id),
+            "runtime_id": (subject.runtime_id, spec.runtime_id),
+            "execution_id": (subject.execution_id, execution.execution_id),
+            "idempotency_key": (subject.idempotency_key, execution.idempotency_key),
+            "execution_request_sha256": (
+                subject.execution_request_sha256,
+                execution.digest,
+            ),
+            "lease_sha256": (
+                subject.lease_sha256,
+                authorization.capability.lease.digest,
+            ),
+            "source_revision": (
+                subject.source_revision,
+                authorization.capability.source_revision,
+            ),
+        }.items()
+        if actual != expected
+    )
+    if mismatches:
+        raise RuntimeProviderBindingMismatch(
+            "provider invocation subject mismatch: " + ", ".join(mismatches)
+        )
+
+    # Sequential exact replay is intentionally identified before executable
+    # verification/resolution. begin_effect remains the atomic replay authority;
+    # a concurrent first-start race may still turn the preflight into replay,
+    # but can never cause a second provider execution.
+    if prior_state is None:
+        instant = _utc_now()
+        try:
+            bind_provider_runtime_invocation(
+                entrypoint_id,
+                authorization=authorization,
+                execution=execution,
+                invocation_authority=invocation_authority,
+                invocation_payload=invocation_payload,
+                invocation_abi=invocation_abi,
+                observation_binding_ledger=observation_binding_ledger,
+                executable_registry=executable_registry,
+                pre_admission=pre_admission,
+                at=instant,
+            )
+        except (
+            ProviderRuntimeInvocationBindingError,
+            ProviderExecutableObjectRegistryError,
+        ) as exc:
+            raise RuntimeProviderBindingMismatch(
+                "sealed provider invocation did not authenticate before effect start"
+            ) from exc
 
     authorization.grant()
     start = authorization.begin_effect(execution)
-    authority, binding_ledger = observation_binding
     _prepare_observation_authority_after_start(
         spec=spec,
         authorization=authorization,
         execution=execution,
         start_receipt=start.receipt,
-        authority=authority,
-        ledger=binding_ledger,
+        authority=invocation_authority.observation_authority,
+        ledger=observation_binding_ledger,
         replay=not start.execute,
         at=_utc_now(),
     )
@@ -563,7 +675,22 @@ def run_runtime_provider(
         )
 
     try:
-        value = invoke()
+        value, raw_digests = ProviderExecutableObjectRegistry._execute_sealed_operation(
+            executable_registry,
+            pre_admission,
+            invocation_payload,
+            authorization=authorization,
+            execution=execution,
+            start_receipt=start.receipt,
+        )
+    except ProviderSealedOutputEvidenceError as exc:
+        raise RuntimeProviderReconciliationRequired(
+            entrypoint_id=spec.id,
+            runtime_id=spec.runtime_id,
+            start_receipt=start.receipt,
+            phase="output-evidence",
+            cause_sha256=_exception_detail("output-evidence", exc),
+        ) from exc
     except BaseException as exc:
         outcome = "cancelled" if isinstance(exc, _CANCEL_EXCEPTIONS) else "failed"
         _finish_or_raise_state(
@@ -586,7 +713,7 @@ def run_runtime_provider(
         raise
 
     try:
-        digests = _normalize_output_digests(output_digests(value))
+        digests = _normalize_output_digests(raw_digests)
     except BaseException as exc:
         raise RuntimeProviderReconciliationRequired(
             entrypoint_id=spec.id,

@@ -31,6 +31,7 @@ import pytest
 
 from daedalus.kernel.offload_lease import (
     ENTRYPOINT_ID,
+    _evidence_path,
     WaveLeaseDenied,
     WaveLeaseKillSwitchEngaged,
     WaveOffloadLease,
@@ -43,6 +44,8 @@ from daedalus.kernel.offload_lease import (
     wave_containment_roots,
 )
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[2])
 REVISION = "e" * 40
@@ -85,6 +88,8 @@ def _acquire(sw, **overrides):
         contained=True,
         containment_evidence=MECHANISM,
         switch=sw,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     kwargs.update(overrides)
     return acquire_effect_lease(REPO_ROOT, **kwargs)
@@ -156,7 +161,24 @@ def test_containment_is_measured_over_the_callers_planned_worktree_root(
 ):
     """A caller with an injected manager writes under a root the default
     manager never names. Measuring the default was a measurement wearing the
-    wrong name, and its allow rode into the disjointness record."""
+    wrong name, and its allow rode into the disjointness record.
+
+    COMPARED THROUGH ``_evidence_path`` (fixed 2026-09-02, was RED at eb5228ac).
+    G1-CHIP-01 bounded every path interpolated into a receipt evidence field at
+    ``_EVIDENCE_PATH_MAX_CHARS`` = 90, dropping the MIDDLE, because an
+    unbounded ``containment.attempt`` reason hit the 1000-character
+    ``PolicyDecision.reasons`` limit and destroyed a structured refusal. It did
+    not update this assertion, so the test asked evidence for a literal it had
+    stopped being allowed to contain: under this box's pytest tmp paths (124
+    and 128 characters) both roots elide, and the test failed for the
+    truncation rather than for the root. Rendering the EXPECTED value through
+    the same helper compares like with like -- and it stays exact on short
+    paths, where ``_elide_middle`` returns the string unchanged.
+
+    Not weakened to a leaf or a prefix: the default manager's root is also a
+    ``wt-N`` under a shared head, so any assertion that dropped the middle of
+    the comparison ITSELF would stop telling the two roots apart, which is the
+    one thing this test exists to do."""
 
     candidate = _candidate(tmp_path)
     planned = _planned(tmp_path)
@@ -169,8 +191,8 @@ def test_containment_is_measured_over_the_callers_planned_worktree_root(
         for d in granted.authorization.guard_decisions
         if d.contract == "containment.attempt"
     )
-    assert str(planned) in evidence
-    assert str(candidate) in evidence
+    assert _evidence_path(planned.resolve()) in evidence
+    assert _evidence_path(candidate.resolve()) in evidence
 
 
 def test_the_roots_helper_returns_the_callers_pair(tmp_path):
@@ -270,9 +292,16 @@ def test_the_worktree_contract_is_the_sole_check_for_the_rows_that_declare_it_al
         if "containment.worktree" in row.guard_contracts
         and "containment.attempt" in row.guard_contracts
     }
-    # The subsumption is confined to exactly one row; everywhere else the
-    # worktree contract is doing work nothing else does.
-    assert both == {"python.attempt"}
+    # The subsumption is confined to the canonical Attempt door and the two
+    # Gate-1 aggregate campaign doors that create/execute Attempt workspaces.
+    # Everywhere else the worktree contract is doing work no attempt contract
+    # does.  Keep this exact: a fourth overlapping row is another deliberate
+    # registry decision, not something a broad subset assertion may hide.
+    assert both == {
+        "python.ariadne_campaign",
+        "python.attempt",
+        "python.genesis",
+    }
 
 
 # --------------------------------------------------------------------------- #

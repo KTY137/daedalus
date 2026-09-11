@@ -72,6 +72,20 @@ def _python(path: str, text: str):
     return code, types, edges, fields
 
 
+def _javascript(path: str, text: str):
+    """Inventory exact JS bytes without claiming parser-backed JS semantics."""
+
+    if "\x00" in text:
+        raise ReferenceCompileError(f"JavaScript source contains NUL: {path}")
+    return [
+        ForestNode(
+            f"code:file:{path}",
+            "source_file",
+            {"language": "javascript", "path": path},
+        )
+    ]
+
+
 def _csv(path: str, text: str):
     reader = csv.reader(text.splitlines())
     try:
@@ -157,8 +171,14 @@ def build_inventory(
 ) -> Inventory:
     inv = Inventory([], [], {p: set() for p in ("code", "type", "data", "knowledge")}, {}, {}, {}, {})
     for path in code_files:
-        code, types, edges, fields = _python(path, decode_text(file_bytes[path], path))
-        inv.dataclass_fields[path] = fields
+        text = decode_text(file_bytes[path], path)
+        if path.endswith(".js"):
+            code = _javascript(path, text)
+            types = []
+            edges = []
+        else:
+            code, types, edges, fields = _python(path, text)
+            inv.dataclass_fields[path] = fields
         inv.nodes.extend(code + types)
         inv.edges.extend(edges)
         inv.plane_nodes["code"].update(n.id for n in code)

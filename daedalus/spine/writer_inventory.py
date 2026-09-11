@@ -23,12 +23,14 @@ _DIRECT_CALLEES = frozenset(
     {
         "daedalus.spine.SpineLedger",
         "daedalus.spine.ledger.SpineLedger",
+        "daedalus.kernel.events.ledger.SpineLedger",
     }
 )
 _FACTORY_CALLEES = frozenset(
     {
         "daedalus.spine.open_gate0_spine_writer",
         "daedalus.spine.durability.open_gate0_spine_writer",
+        "daedalus.kernel.events.durability.open_gate0_spine_writer",
     }
 )
 _TRACKED_TERMINALS = frozenset({"SpineLedger", "open_gate0_spine_writer"})

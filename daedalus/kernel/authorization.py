@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Callable, Iterable, Mapping, Sequence
 
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.contracts.policy import PolicyDecision
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
@@ -25,7 +26,7 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
     verify_effect_lease,
 )
-from daedalus.schemas import PolicyDecision
+from daedalus.limit_policy import ExecutionLimitPolicy
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     EntrypointSpec,
@@ -66,9 +67,12 @@ class NonRuntimeEffectAuthorization:
     guard_decisions: tuple[GuardDecision, ...]
     kill_switch_generation_reader: Callable[[], int] = field(repr=False)
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = field(
-        default=REGISTRY_BY_ID,
+        default_factory=lambda: REGISTRY_BY_ID,
         repr=False,
     )
+    # Frozen at lease issuance. Consumers use this typed snapshot instead of
+    # re-reading ambient environment after authority has already been granted.
+    execution_limit_policy: ExecutionLimitPolicy | None = None
 
     def __post_init__(self) -> None:
         if self.lease.runtime_id:
@@ -95,6 +99,12 @@ class NonRuntimeEffectAuthorization:
             )
         if not callable(self.kill_switch_generation_reader):
             raise TypeError("kill_switch_generation_reader must be callable")
+        if self.execution_limit_policy is not None and not isinstance(
+            self.execution_limit_policy, ExecutionLimitPolicy
+        ):
+            raise TypeError(
+                "execution_limit_policy must be ExecutionLimitPolicy or None"
+            )
         object.__setattr__(self, "guard_decisions", tuple(self.guard_decisions))
         object.__setattr__(
             self,

@@ -18,7 +18,7 @@
           "daedalus/lanes/__init__.py",
           "daedalus/lanes/checks.py",
           "daedalus/lanes/grounding.py",
-          "daedalus/loop.py",
+          "daedalus/orchestration/loop.py",
           "daedalus/schemas.py",
           "daedalus/sensitivity.py",
           "daedalus/spine/attempt.py",

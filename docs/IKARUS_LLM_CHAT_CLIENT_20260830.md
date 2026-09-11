@@ -4,7 +4,7 @@
 
 ## Decision
 
-Free-form Ikarus chat now resolves through `daedalus.llm_client.IkarusLLMClient`. `auto` means **an available language model**, not the deterministic help layer. The default preference order is Claude Code CLI → Ollama HTTP → Codex CLI → Ollama CLI → DeepSeek and is configurable with `DAEDALUS_IKARUS_PROVIDER_ORDER`; `DAEDALUS_IKARUS_PROVIDER` pins a default. The local deterministic index remains explicitly selectable and continues to own measured `status`, `distill`, and other deterministic routes.
+Free-form Ikarus chat now resolves through `daedalus.orchestration.llm_client.IkarusLLMClient`. `auto` means **an available language model**, not the deterministic help layer. The default preference order is Claude Code CLI → Ollama HTTP → Codex CLI → Ollama CLI → DeepSeek and is configurable with `DAEDALUS_IKARUS_PROVIDER_ORDER`; `DAEDALUS_IKARUS_PROVIDER` pins a default. The local deterministic index remains explicitly selectable and continues to own measured `status`, `distill`, and other deterministic routes.
 
 The client owns provider normalization, automatic selection, model-call timeout (`DAEDALUS_IKARUS_TIMEOUT_S`, 150 s default), and bounded retry policy (`DAEDALUS_IKARUS_RETRIES`, zero by default, maximum two retries). It also defines provider-neutral request/response/tool-call shapes. Voice tool calls are **descriptions only**: Ikarus Voice is still text-only, while effectful work remains on the Hand/supervisor path behind policy, confirmation, budget, and evidence boundaries.
 

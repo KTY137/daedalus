@@ -109,6 +109,31 @@ def test_adapter_maps_only_evidence_backed_cross_plane_relations():
     assert snapshot.plane_map["type"].relation_sha256s
 
 
+def test_snapshot_computes_each_binding_digest_once_during_canonicalization(monkeypatch):
+    snapshot = adapted()
+    original_digest = CrossPlaneBinding.digest.fget
+    assert original_digest is not None
+    calls = 0
+
+    def counted_digest(binding: CrossPlaneBinding) -> str:
+        nonlocal calls
+        calls += 1
+        return original_digest(binding)
+
+    monkeypatch.setattr(CrossPlaneBinding, "digest", property(counted_digest))
+    rebuilt = FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=snapshot.source_forest_sha256,
+        planes=snapshot.planes,
+        bindings=snapshot.bindings,
+        provenance=snapshot.provenance,
+    )
+
+    assert rebuilt == snapshot
+    assert calls == len(snapshot.bindings)
+
+
 def test_snapshot_round_trips_strictly_and_rejects_unknown_fields():
     snapshot = adapted()
     parsed = parse_fourfold_snapshot(json.loads(snapshot.to_json()))
@@ -252,3 +277,66 @@ def test_adapter_refuses_unknown_node_kinds_instead_of_guessing_a_plane():
             source_revision=REVISION,
             created_at=NOW,
         )
+
+
+def test_adapter_refuses_undirected_cross_plane_edge_before_binding_upgrade():
+    forest = KnowledgeForest(
+        root="/repo",
+        nodes=(
+            ForestNode("src/app.py", "source_file", {}),
+            ForestNode("type:src/app.py#Config", "type", {}),
+        ),
+        edges=(
+            ForestEdge(
+                "src/app.py",
+                "type:src/app.py#Config",
+                "produces",
+                False,
+                evidence=("fixture-undirected-cross-plane",),
+            ),
+        ),
+        hyperedges=(),
+        provenance={"source_schema": "test"},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="undirected cross-plane edge 'produces'.*directed verified binding",
+    ):
+        fourfold_from_knowledge_forest(
+            forest,
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            created_at=NOW,
+        )
+
+
+def test_adapter_retains_undirected_same_plane_relation_without_minting_binding():
+    forest = KnowledgeForest(
+        root="/repo",
+        nodes=(
+            ForestNode("src/a.py", "source_file", {}),
+            ForestNode("src/b.py", "source_file", {}),
+        ),
+        edges=(
+            ForestEdge(
+                "src/a.py",
+                "src/b.py",
+                "related",
+                False,
+                evidence=("fixture-undirected-same-plane",),
+            ),
+        ),
+        hyperedges=(),
+        provenance={"source_schema": "test"},
+    )
+
+    snapshot = fourfold_from_knowledge_forest(
+        forest,
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        created_at=NOW,
+    )
+
+    assert snapshot.bindings == ()
+    assert len(snapshot.plane_map["code"].relation_sha256s) == 1

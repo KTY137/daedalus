@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.gates.repository_head_revision as subject
-from daedalus.gates.repository_head_revision import (
+import daedalus.gates.repository.head_revision as subject
+from daedalus.gates.repository.head_revision import (
     RepositoryHeadRevisionBindingError,
     RepositoryHeadRevisionRaceError,
     RepositoryHeadRevisionReceipt,

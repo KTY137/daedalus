@@ -2,7 +2,7 @@
 
 THE REACHABLE PATH, not a hypothetical one::
 
-    python -m daedalus.loop --repo-root <repo> --arm      # no --project
+    python -m daedalus.orchestration.loop --repo-root <repo> --arm      # no --project
       -> KairosScheduler(project=None)
       -> policy=None
       -> path_write_blocked(path, None) -> DEFAULT_POLICY

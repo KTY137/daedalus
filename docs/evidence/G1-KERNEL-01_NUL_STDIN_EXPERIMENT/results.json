@@ -1,0 +1,92 @@
+[
+  {
+    "arm": "A_stub_nullstdin",
+    "argv": [
+      "<USERPROFILE>\\Desktop\\PROJECTS\\daedalus\\.venv\\Scripts\\python.exe",
+      "-I",
+      "-S",
+      "-c",
+      "print('x')"
+    ],
+    "stdin": "NULL",
+    "nul_granted_access": null,
+    "inherited_handle_count": 1,
+    "mechanism": "mic-low+job+bounded-inherit",
+    "exit_code": 0,
+    "job_accounting": {
+      "total_processes": 2,
+      "active_processes": 0,
+      "total_terminated_processes": 0
+    },
+    "in_job": true,
+    "leaked_python_pids": [],
+    "merged_log_bytes": "b'warning: Making stdin inheritable failed\\nx\\r\\n'"
+  },
+  {
+    "arm": "B_stub_nulstdin",
+    "argv": [
+      "<USERPROFILE>\\Desktop\\PROJECTS\\daedalus\\.venv\\Scripts\\python.exe",
+      "-I",
+      "-S",
+      "-c",
+      "print('x')"
+    ],
+    "stdin": "NUL-device handle",
+    "nul_granted_access": "0x00120089",
+    "inherited_handle_count": 2,
+    "mechanism": "mic-low+job+bounded-inherit",
+    "exit_code": 0,
+    "job_accounting": {
+      "total_processes": 2,
+      "active_processes": 0,
+      "total_terminated_processes": 0
+    },
+    "in_job": true,
+    "leaked_python_pids": [],
+    "merged_log_bytes": "b'x\\r\\n'"
+  },
+  {
+    "arm": "C_base_nullstdin",
+    "argv": [
+      "<USERPROFILE>\\AppData\\Roaming\\uv\\python\\cpython-3.13-windows-x86_64-none\\python.exe",
+      "-I",
+      "-S",
+      "-c",
+      "print('x')"
+    ],
+    "stdin": "NULL",
+    "nul_granted_access": null,
+    "inherited_handle_count": 1,
+    "mechanism": "mic-low+job+bounded-inherit",
+    "exit_code": 0,
+    "job_accounting": {
+      "total_processes": 1,
+      "active_processes": 0,
+      "total_terminated_processes": 0
+    },
+    "in_job": true,
+    "leaked_python_pids": [],
+    "merged_log_bytes": "b'x\\r\\n'"
+  },
+  {
+    "arm": "D_base_opens_nul",
+    "argv": [
+      "<USERPROFILE>\\AppData\\Roaming\\uv\\python\\cpython-3.13-windows-x86_64-none\\python.exe",
+      "-c",
+      "open('NUL','rb').close(); print('nul-ok')"
+    ],
+    "stdin": "NULL",
+    "nul_granted_access": null,
+    "inherited_handle_count": 1,
+    "mechanism": "mic-low+job+bounded-inherit",
+    "exit_code": 0,
+    "job_accounting": {
+      "total_processes": 1,
+      "active_processes": 0,
+      "total_terminated_processes": 0
+    },
+    "in_job": true,
+    "leaked_python_pids": [],
+    "merged_log_bytes": "b'nul-ok\\r\\n'"
+  }
+]

@@ -32,10 +32,18 @@ class ContractViolation(RuntimeError):
 
 @dataclass(frozen=True)
 class Candidate:
-    """One searchable file in the pre-image tree of a case.
+    """One searchable unit in the pre-image tree of a case.
 
     ``raw`` holds the bytes as stored; ``text`` decodes and truncates to the
     budget so no retriever can quietly buy accuracy with more input.
+
+    A candidate is a **file** when ``qualname`` is empty and a **symbol** when
+    it is not. There is deliberately one class rather than two: everything
+    downstream -- ``validate_ranking`` below, and the whole of ``metrics`` --
+    compares opaque strings, so the only thing a symbol needs is a different
+    identity, not a different type. ``key`` is that identity, and for a file
+    candidate it is exactly the path, which is what every existing corpus,
+    result set and ``s10`` input already holds.
     """
 
     path: str
@@ -43,6 +51,23 @@ class Candidate:
     size: int
     raw: bytes = field(repr=False, default=b"")
     content_budget: int = 65536
+    qualname: str = ""
+
+    @property
+    def key(self) -> str:
+        return f"{self.path}#{self.qualname}" if self.qualname else self.path
+
+    @property
+    def cache_key(self) -> str:
+        """Content address for token caches.
+
+        The blob alone is wrong for a symbol: every symbol in a file shares its
+        blob, so a blob-keyed cache would hand each of them the whole file's
+        token counts.  Qualifying by name keeps the cache content-addressed --
+        the same symbol at two revisions of an unchanged file still hits once --
+        without letting siblings collide.
+        """
+        return f"{self.blob}#{self.qualname}" if self.qualname else self.blob
 
     def text(self) -> str:
         return self.raw[: self.content_budget].decode("utf-8", "replace")
@@ -128,11 +153,15 @@ def validate_ranking(
 ) -> List[str]:
     """Truncate and check a ranking before it is allowed to score.
 
-    Rejects (loudly, never silently) a ranking that invents paths outside the
+    Rejects (loudly, never silently) a ranking that invents keys outside the
     universe or repeats one to buy extra draws.  A retriever that returns
-    fewer than ``max_k`` paths is fine -- it just scores worse.
+    fewer than ``max_k`` keys is fine -- it just scores worse.
+
+    Keyed on ``Candidate.key`` rather than ``.path`` so a symbol-level universe
+    validates on ``path#qualname``.  For a file universe every key *is* the
+    path, so this is identical to the previous behaviour.
     """
-    known = {cand.path for cand in universe}
+    known = {cand.key for cand in universe}
     seen = set()
     out: List[str] = []
     for path in ranking:

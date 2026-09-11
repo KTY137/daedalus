@@ -1,0 +1,6 @@
+# measured on the development host; the only EDA-adjacent tool present
+which tclsh: C:\Program Files\Git\mingw64\bin\tclsh.EXE
+info patchlevel / platform / machine:
+8.6.12
+windows
+amd64

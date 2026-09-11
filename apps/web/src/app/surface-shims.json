@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "registry_id": "G1-UI-01-surface-shims",
+  "entries": [
+    {
+      "id": "classic-query-surface",
+      "query_values": [
+        "classic",
+        "legacy"
+      ],
+      "owner": "apps/web/src/app/surface.ts",
+      "target": "apps/web/src/cockpit/Cockpit.tsx",
+      "kind": "same_implementation_query_alias",
+      "removal_criteria": "Tracked source, runtime-string, documentation and external caller audits find no consumer that still emits surface=classic or surface=legacy."
+    }
+  ]
+}

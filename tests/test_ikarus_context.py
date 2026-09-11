@@ -16,11 +16,12 @@ prompt assembly is asserted directly.
 from __future__ import annotations
 
 import tempfile
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus import ikarus_os
+from daedalus.orchestration.ikarus import shell as ikarus_os
 
 
 FAKE_PEM = (
@@ -68,11 +69,14 @@ class PromptAssemblyTest(unittest.TestCase):
     def test_claude_prompt_no_context_is_neutral(self):
         self.assertEqual(
             ikarus_os._claude_prompt("hi", "low", ""),
-            f"{ikarus_os.SYSTEM}\nBe concise.\n\nUser: hi")
+            f"{ikarus_os.SYSTEM}{ikarus_os._LOW_EFFORT_STYLE}\n\nUser: hi")
 
     def test_claude_prompt_injects_context_between_system_and_user(self):
         p = ikarus_os._claude_prompt("hi", "low", "CTX-BLOCK")
-        self.assertEqual(p, f"{ikarus_os.SYSTEM}\nBe concise.\n\nCTX-BLOCK\n\nUser: hi")
+        self.assertEqual(
+            p,
+            f"{ikarus_os.SYSTEM}{ikarus_os._LOW_EFFORT_STYLE}\n\nCTX-BLOCK\n\nUser: hi",
+        )
 
     def test_ollama_with_context_prepends_to_user_turn(self):
         self.assertEqual(ikarus_os._with_context("hi", ""), "hi")
@@ -169,6 +173,19 @@ class ProjectContextTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # Both lanes get the context; the metadata reaches the chat envelope.         #
 # --------------------------------------------------------------------------- #
+#: One well-formed `claude -p --output-format json` result body (the shape
+#: measured 2026-09-08, docs/evidence/G1-IKARUS-36/probe1_sonnet.json).
+_CLAUDE_RESULT_OK = json.dumps({
+    "type": "result", "subtype": "success", "is_error": False,
+    "result": "ok", "num_turns": 1, "stop_reason": "end_turn",
+    "terminal_reason": "completed", "duration_ms": 12,
+    "total_cost_usd": 0.01, "permission_denials": [],
+    "modelUsage": {"claude-sonnet-5": {"inputTokens": 1, "outputTokens": 1,
+                                       "cacheReadInputTokens": 0,
+                                       "cacheCreationInputTokens": 0}},
+})
+
+
 class BrainLaneContextTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -194,10 +211,17 @@ class BrainLaneContextTest(unittest.TestCase):
         def fake_run(args, **kw):
             captured["input"] = kw.get("input")
             m = mock.MagicMock()
-            m.stdout = "ok"
+            # G1-IKARUS-36: the chat spawn now carries `--output-format json`
+            # and the parser refuses to speak a non-result body as an answer.
+            # The subject of this test is the PROMPT, so the double emits the
+            # smallest well-formed result body.
+            m.stdout = _CLAUDE_RESULT_OK
+            m.stderr = ""
+            m.returncode = 0
             return m
 
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
+                        return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "explain widget.py", None, "low", "p")
 
@@ -218,7 +242,7 @@ class BrainLaneContextTest(unittest.TestCase):
             return
 
         with mock.patch("daedalus.providers.ollama.warm_model_async", side_effect=fake_warm), \
-             mock.patch("daedalus.ikarus_os.chat_completion", side_effect=fake_chat):
+             mock.patch("daedalus.orchestration.ikarus.shell.chat_completion", side_effect=fake_chat):
             reply, mdl, ctx = ikarus_os._llm("ollama", "explain widget.py", None, "low", "p")
 
         self.assertEqual(reply, "ok")
@@ -232,17 +256,25 @@ class BrainLaneContextTest(unittest.TestCase):
         def fake_run(args, **kw):
             captured["input"] = kw.get("input")
             m = mock.MagicMock()
-            m.stdout = "ok"
+            # G1-IKARUS-36: the chat spawn now carries `--output-format json`
+            # and the parser refuses to speak a non-result body as an answer.
+            # The subject of this test is the PROMPT, so the double emits the
+            # smallest well-formed result body.
+            m.stdout = _CLAUDE_RESULT_OK
+            m.stderr = ""
+            m.returncode = 0
             return m
 
         # "hello there" has no dotted token -> _project_context short-circuits.
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
+                        return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "hello there", None, "low", "p")
 
         self.assertEqual(ctx.text, "")
-        self.assertEqual(captured["input"],
-                         f"{ikarus_os.SYSTEM}\nBe concise.\n\nUser: hello there")
+        # Since G1-IKARUS-36 the SYSTEM travels as --system-prompt-file; stdin
+        # is the user turn only (plus the distilled context when there is one).
+        self.assertEqual(captured["input"], "User: hello there")
         self.assertNotIn("FOCUS", captured["input"])
 
 
