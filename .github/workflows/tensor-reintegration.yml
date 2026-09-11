@@ -1,0 +1,96 @@
+name: Owner-requested Tensor reintegration
+
+# Temporary integration aid. Remove before merging PR #363 into main.
+# Never writes main, changes approvals, or publishes candidate projects.
+on:
+  push:
+    branches: [exp/tensor-kernel-contract-01]
+    paths: [.github/workflows/tensor-reintegration.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: owner-tensor-reintegration
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reconcile exact main and Tensor histories
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse origin/main)" = 217d5edc2b5e59441051b9cb0df60a5fbca93fe2
+          git config user.name 'Daedalus integration'
+          git config user.email 'integration@users.noreply.github.com'
+          git config core.hooksPath /dev/null
+          git switch -C exp/tensor-kernel-contract-01 "$GITHUB_SHA"
+          git merge --no-ff --no-commit origin/main || {
+            python - <<'PY'
+          import subprocess
+          allowed = {'docs/work-packets/index.json', 'tests/contracts/test_work_packet_index.py'}
+          conflicted = set(subprocess.check_output(['git', 'diff', '--name-only', '--diff-filter=U'], text=True).splitlines())
+          if not conflicted or not conflicted <= allowed:
+              raise SystemExit(f'Unexpected merge conflicts: {sorted(conflicted)}')
+          for path in sorted(conflicted):
+              subprocess.run(['git', 'checkout', '--ours', '--', path], check=True)
+              subprocess.run(['git', 'add', '--', path], check=True)
+          PY
+          }
+          python tools/index_work_packets.py --render > "$RUNNER_TEMP/work-packet-index.json"
+          cp "$RUNNER_TEMP/work-packet-index.json" docs/work-packets/index.json
+          git add docs/work-packets/index.json
+          python tools/index_work_packets.py --check
+          git diff --cached --check
+          git commit -m 'merge: reconcile current main into canonical Tensor lane; regenerate packet index'
+          mkdir -p "$RUNNER_TEMP/reintegration-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/reintegration-evidence/commit.txt"
+          git rev-parse HEAD^{tree} > "$RUNNER_TEMP/reintegration-evidence/tree.txt"
+          git show -s --format='%H%n%P%n%T%n%B' HEAD > "$RUNNER_TEMP/reintegration-evidence/identity.txt"
+          git ls-files -z | tar --null --verbatim-files-from -T - -czf "$RUNNER_TEMP/reintegration-evidence/source.tar.gz"
+          cp docs/work-packets/index.json "$RUNNER_TEMP/reintegration-evidence/index.json"
+      - name: Install declared test dependencies
+        run: python -m pip install '.[test,polyglot,root]'
+      - name: Test combined Tensor, registry, Ikarus and Ariadne contracts
+        env:
+          PYTHONHASHSEED: '0'
+        run: |
+          python -m pytest -q \
+            tests/twin \
+            tests/contracts/test_work_packet_index.py \
+            tests/test_kernel_contracts.py \
+            tests/test_ikarus_computer_loop_ariadne.py \
+            tests/test_ariadne_test_evaluator.py \
+            tests/runtimes/test_computer_ariadne.py \
+            --junitxml="$RUNNER_TEMP/reintegration-evidence/junit.xml"
+      - name: Retain exact combined source and actual test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensor-reintegration-${{ github.sha }}
+          path: ${{ runner.temp }}/reintegration-evidence/
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Publish verified merge only to existing Tensor lane
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=no)"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          remote_main=$(git -c http.extraheader="AUTHORIZATION: basic $auth" ls-remote origin refs/heads/main | cut -f1)
+          test "$remote_main" = 217d5edc2b5e59441051b9cb0df60a5fbca93fe2
+          remote_tensor=$(git -c http.extraheader="AUTHORIZATION: basic $auth" ls-remote origin refs/heads/exp/tensor-kernel-contract-01 | cut -f1)
+          test "$remote_tensor" = "$GITHUB_SHA"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/exp/tensor-kernel-contract-01
