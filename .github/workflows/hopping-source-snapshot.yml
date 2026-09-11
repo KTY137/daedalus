@@ -9,9 +9,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: hopping-integration
+  group: hopping-integration-${{ github.sha }}
   cancel-in-progress: false
 env:
+  CORRECTION_BLOB: 5c823d59e844fe426eb5ab8fd1ea14f95a14193e
+  CORRECTION_SHA256: c5a98955053c93aec5cf7eac3066f061d785a1c795cdf0f54e5210aa2ace75c1
   PATCH_SHA256: 554ed95db384dbc40a9a28127abf64649db74e60fc9082753be747c139bd69a7
   PATCH_BLOBS: '["cec6629a32ba54a3f75abd2aca68284573557067","08baf84623157942dbf0ae72a7d627fe215dc5ec","c4cf865711e693d48d5fabf27864abf5a31f5dc3","75dedcb7549d2187a540baaa153f652a6a7d0bd0"]'
 jobs:
@@ -57,6 +59,15 @@ jobs:
           path.write_bytes(patch)
           subprocess.run(['git', 'apply', '--check', '--index', '--unidiff-zero', str(path)], check=True)
           subprocess.run(['git', 'apply', '--index', '--unidiff-zero', str(path)], check=True)
+          request = urllib.request.Request(
+              'https://api.github.com/repos/KTY137/daedalus/git/blobs/' + os.environ['CORRECTION_BLOB'],
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              correction = base64.b64decode(json.loads(response.read(100000))['content'])
+          assert hashlib.sha256(correction).hexdigest() == os.environ['CORRECTION_SHA256']
+          path.write_bytes(correction)
+          subprocess.run(['git', 'apply', '--check', '--index', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(path)], check=True)
       - run: python -m pip install -e ".[test]"
       - name: Portable contracts and existing regressions
         shell: python
@@ -71,7 +82,8 @@ jobs:
             'tests/test_ikarus_computer_dispatch.py', 'tests/test_ikarus_computer_loop.py',
             'tests/test_ikarus_computer_loop_adversarial.py', 'tests/interfaces/test_computer_configuration.py',
             'tests/contracts/test_import_scc_hierarchy.py', 'tests/kernel/test_genesis_contracts.py',
-            'tests/kernel/test_genesis_effect_lease.py', 'tests/orchestration/test_genesis_materializer.py']
+            'tests/kernel/test_genesis_effect_lease.py', 'tests/orchestration/test_genesis_materializer.py',
+            'tests/orchestration/test_genesis_service.py::test_legacy_item_collection_identity_and_evaluator_remain_frozen']
           args = [sys.executable, '-m', 'pytest', '-q', *paths, '--tb=short', '--junitxml=portable.xml']
           if os.name != 'nt':
               args += ['-k', 'not real_campaign_through']
@@ -134,6 +146,15 @@ jobs:
           path.write_bytes(patch)
           subprocess.run(['git', 'apply', '--check', '--index', '--unidiff-zero', str(path)], check=True)
           subprocess.run(['git', 'apply', '--index', '--unidiff-zero', str(path)], check=True)
+          request = urllib.request.Request(
+              'https://api.github.com/repos/KTY137/daedalus/git/blobs/' + os.environ['CORRECTION_BLOB'],
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              correction = base64.b64decode(json.loads(response.read(100000))['content'])
+          assert hashlib.sha256(correction).hexdigest() == os.environ['CORRECTION_SHA256']
+          path.write_bytes(correction)
+          subprocess.run(['git', 'apply', '--check', '--index', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(path)], check=True)
           subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
           subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
           subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
