@@ -41,6 +41,8 @@ jobs:
       - name: Install declared test dependencies and preparation tools
         run: python -m pip install '.[test,polyglot,root]' pyyaml tzdata
       - name: Prepare the reviewed mainline acceptance change
+        env:
+          PREPARE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/project-acceptance"
@@ -79,7 +81,11 @@ jobs:
           script = script.replace(old_binding, new_binding)
           Path(os.environ['RUNNER_TEMP'], 'acceptance-prepare.sh').write_text(script, encoding='utf-8', newline='\n')
           PY
-          bash "$RUNNER_TEMP/acceptance-prepare.sh"
+          # The immutable preparation script was written for a main push and
+          # intentionally treats GITHUB_SHA as the immutable main/base subject.
+          # On pull_request GitHub instead sets GITHUB_SHA to a synthetic merge
+          # ref, so bind only this child process to the PR's exact base SHA.
+          GITHUB_SHA="$PREPARE_BASE_SHA" bash "$RUNNER_TEMP/acceptance-prepare.sh"
       - name: Validate permanent workflow and Python sources
         run: |
           python - <<'PY'
