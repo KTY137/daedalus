@@ -30,28 +30,23 @@ MAX_PROFILED_COMPOSABLE_PAIRS = MAX_COMPILED_RELATIONS
 MAX_PROFILE_REFERENCE_OPERATIONS = MAX_REFERENCE_OPERATIONS
 
 
-def _nearest_rank(values: Sequence[int], percentile: int) -> int:
-    """Return a deterministic nearest-rank percentile for non-negative integers."""
+def _nearest_rank_from_sorted(values: Sequence[int], percentile: int) -> int:
+    """Return nearest-rank percentile from an already sorted integer sequence."""
 
     if not values:
         return 0
     if type(percentile) is not int or not 1 <= percentile <= 100:
         raise ValueError("percentile must be an integer from 1 to 100")
-    ordered = sorted(values)
-    rank = (percentile * len(ordered) + 99) // 100
-    return ordered[rank - 1]
-
-
-def _row_degrees(block: TypedRelationBlock[Any]) -> tuple[int, ...]:
-    return tuple(
-        block.row_offsets[row + 1] - block.row_offsets[row]
-        for row in range(len(block.row_axis.labels))
-    )
+    rank = (percentile * len(values) + 99) // 100
+    return values[rank - 1]
 
 
 def _profile_block(name: str, block: TypedRelationBlock[Any]) -> dict[str, Any]:
-    degrees = _row_degrees(block)
     rows = len(block.row_axis.labels)
+    ordered_degrees = sorted(
+        block.row_offsets[row + 1] - block.row_offsets[row]
+        for row in range(rows)
+    )
     columns = len(block.column_axis.labels)
     cells = rows * columns
     return {
@@ -61,12 +56,12 @@ def _profile_block(name: str, block: TypedRelationBlock[Any]) -> dict[str, Any]:
         "columns": columns,
         "entries": block.entry_count,
         "density": (block.entry_count / cells) if cells else 0.0,
-        "nonempty_rows": sum(degree > 0 for degree in degrees),
+        "nonempty_rows": sum(degree > 0 for degree in ordered_degrees),
         "out_degree": {
-            "mean": (sum(degrees) / rows) if rows else 0.0,
-            "p50": _nearest_rank(degrees, 50),
-            "p95": _nearest_rank(degrees, 95),
-            "max": max(degrees, default=0),
+            "mean": (sum(ordered_degrees) / rows) if rows else 0.0,
+            "p50": _nearest_rank_from_sorted(ordered_degrees, 50),
+            "p95": _nearest_rank_from_sorted(ordered_degrees, 95),
+            "max": ordered_degrees[-1] if ordered_degrees else 0,
         },
     }
 
