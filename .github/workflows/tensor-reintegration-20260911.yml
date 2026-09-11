@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 35
     env:
       MAIN_SHA: 217d5edc2b5e59441051b9cb0df60a5fbca93fe2
-      TENSOR_BASE: 327b11fd43bab6fefb6007bdb427504d4fb56a2c
+      TENSOR_BASE: 9548a991d7ac08dc59d3adaf61e5c9236ea954c5
       PYTHONHASHSEED: '0'
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p /tmp/integration-evidence
           test "$(git rev-parse HEAD^)" = "$TENSOR_BASE"
           test "$(git rev-parse origin/main)" = "$MAIN_SHA"
           test "$(git rev-parse origin/archive/legacy-20260830)" = 6d70b6d3788ca327ac778bbbcd06be04a4d6a398
@@ -50,13 +51,65 @@ jobs:
               subprocess.run(['git', 'add', '--', path], check=True)
           PY
           }
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md')
+          original = path.read_text(encoding='utf-8')
+          assert 'Packet ID:' not in original
+          header = '''Packet ID: G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908
+          Artifact role: primary
+          Active gate: 1
+          Classification: ALIGNED
+          Owner: repository owner
+          Base revision: 24e229c0f34e5404bc219637b646386529f82035
+          Dependencies: Master Plan Revision 13; canonical desktop build and smoke entrypoints
+
+          '''
+          sections = '''
+          ## Registry projection added during integration (2026-09-11)
+
+          The original dated account above is retained verbatim. These headings
+          project its existing scope and evidence into the canonical registry;
+          they do not claim a new desktop build or change the historical result.
+
+          ## Primary acceptance claim
+
+          Repair the owner-selected local desktop build driver, as scoped above.
+
+          ## Scope
+
+          See Scope and acceptance frozen before implementation above.
+
+          ## Contracts and behavior
+
+          Preserve application identity, policy admission, version mirrors and
+          unrelated work; see the frozen scope and verification account above.
+
+          ## Acceptance matrix
+
+          See Actual final build and Independent and adversarial review above.
+
+          ## Migration and rollback
+
+          Restore only this task's script backup and scoped edits; do not reset
+          the shared checkout. The original backup path is retained above.
+
+          ## Evidence expected failures and review
+
+          See Baseline, Actual final build, Independent and adversarial review,
+          retained failure logs and the original host-only claim limits above.
+          '''
+          first, rest = original.split('\n', 1)
+          path.write_text(first + '\n\n' + header + rest + sections, encoding='utf-8')
+          PY
+          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md
+          git archive --format=tar.gz --output=/tmp/integration-evidence/source.tar.gz "$(git write-tree)"
           python tools/index_work_packets.py --render > /tmp/work-packet-index.json
           mv /tmp/work-packet-index.json docs/work-packets/index.json
           git add docs/work-packets/index.json
           git diff --cached --check
-          git commit -m 'Merge current main into canonical Tensor line for owner-requested integration' -m 'Owner explicitly requested Tensor reintegration and subsequent mainline work on 2026-09-11. Preserve both histories, all mainline Ikarus/Ariadne changes, and frozen archive. Resolve only generated packet registry and retain gardener-owned invariant tests. No candidate promotion or release approval.'
+          git commit -m 'Merge current main into canonical Tensor line for owner-requested integration' -m 'Owner explicitly requested Tensor reintegration and subsequent mainline work on 2026-09-11. Preserve both histories, all mainline Ikarus/Ariadne changes, and frozen archive. Resolve generated packet registry, retain gardener-owned invariant tests, and add missing registry projection to the existing desktop evidence. No candidate promotion or release approval.'
           python tools/index_work_packets.py --check
-          mkdir -p /tmp/integration-evidence
           git rev-parse HEAD HEAD^{tree} HEAD^ HEAD^2 > /tmp/integration-evidence/identity.txt
           git diff --stat "$MAIN_SHA" HEAD > /tmp/integration-evidence/diff-stat.txt
           git archive --format=tar.gz --output=/tmp/integration-evidence/source.tar.gz HEAD
@@ -74,6 +127,9 @@ jobs:
             tests/test_ikarus_computer_loop_ariadne.py \
             tests/runtimes/test_computer_ariadne.py \
             tests/runtimes/test_computer_daedalus.py \
+            tests/orchestration/test_genesis_service.py \
+            tests/orchestration/test_genesis_materializer.py \
+            tests/orchestration/test_genesis_source_archive.py \
             --junitxml=/tmp/integration-evidence/junit.xml \
             2>&1 | tee /tmp/integration-evidence/pytest.log
       - name: Retain actual combined-source and test evidence
