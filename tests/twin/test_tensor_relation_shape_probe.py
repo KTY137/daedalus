@@ -72,6 +72,7 @@ def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None
             assert 0 <= relation["nonempty_rows"] <= relation["rows"]
         for pair in project["composable_pairs"]:
             assert pair["reference_operations"] >= 0
+            assert 0 <= pair["reference_peak_accumulator_entries"] <= pair["right_entries"]
 
     assert report["gardener_boundary"] == {
         "production_backend_added": False,
@@ -82,7 +83,7 @@ def test_real_reference_projects_expose_revision_bound_relation_shapes() -> None
     assert not any(report["claim_boundaries"].values())
 
 
-def test_reference_matmul_operation_count_matches_csr_nested_loop() -> None:
+def test_reference_matmul_shape_matches_csr_nested_loop() -> None:
     project = _PROBE.profile_reference_project(
         _WIKI,
         source_revision=_REVISION,
@@ -106,11 +107,27 @@ def test_reference_matmul_operation_count_matches_csr_nested_loop() -> None:
     for pair in project["composable_pairs"]:
         left = block_map[pair["left"]]
         right = block_map[pair["right"]]
-        manual = 0
-        for position in range(left.entry_count):
-            middle = left.column_indices[position]
-            manual += right.row_offsets[middle + 1] - right.row_offsets[middle]
-        assert pair["reference_operations"] == manual
+        manual_operations = 0
+        manual_peak_accumulator_entries = 0
+        for row in range(len(left.row_axis.labels)):
+            accumulator_columns: set[int] = set()
+            for position in range(left.row_offsets[row], left.row_offsets[row + 1]):
+                middle = left.column_indices[position]
+                for right_position in range(
+                    right.row_offsets[middle],
+                    right.row_offsets[middle + 1],
+                ):
+                    manual_operations += 1
+                    accumulator_columns.add(right.column_indices[right_position])
+            manual_peak_accumulator_entries = max(
+                manual_peak_accumulator_entries,
+                len(accumulator_columns),
+            )
+        assert pair["reference_operations"] == manual_operations
+        assert (
+            pair["reference_peak_accumulator_entries"]
+            == manual_peak_accumulator_entries
+        )
 
 
 def test_probe_rejects_duplicate_or_unbounded_project_sets() -> None:
