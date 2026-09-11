@@ -23,15 +23,15 @@ permalink: main/home
 - [[SETUP]] — was der Owner einmalig einrichten muss
 - [[ENVIRONMENT_REPORT]] — was gebaut wurde, mit Quellen
 
-## Status-Snapshot (manuell gepflegt, Stand 2026-09-08)
+## Status-Snapshot (manuell gepflegt, Stand 2026-09-10)
 
 | Feld | Wert | Provenienz |
 | --- | --- | --- |
 | Aktives Gate | **Gate 1 — Renovation, owner-directed Genesis, general computer assistance, Hardware-Targets, Self-Renovation** | INHERITED (Plan-Text Revision 13) |
 | Plan-Revision | 13 (Version 2.4.0, 2026-09-06; Amendment 013 angenommen) | INHERITED (Plan-Metadaten, Kette Sequenz 12/13) |
-| Nächster Produktbeweis | Chat-Zündung: „verbessere Daedalus“ → gebundene, nominierende Self-Renovation-Kampagne (Lanes Voice/Intent/Self-Renovation/Cockpit, [[Sessions/2026-09-08]]); Renovation Ignition Slice bleibt offen (Codex-Lane, PRs #319/#321 gemerged) | Plan §8.1/§11/§12 |
+| Nächster Produktbeweis | Chat-Zündung: Imperative Arbeitsaufträge („verbessere Daedalus”, improve/extend/develop) werden als `computer_task` angeboten (G1-IKARUS-46, MEASURED 2026-09-10, Worktree-Lauf 3 mit Claude-Planner); Loop kann Projekt über fünf read-only daedalus.*-Werkzeuge beobachten (daedalus.status, structure, slice, docrefs, tasks); `/computer run`, `/computer enable|disable daedalus` verfügbar. Renovation Ignition Slice bleibt offen (Codex-Lane, PRs #319/#321 gemerged) | Plan §8.1/§11/§12; MEASURED [[Sessions/2026-09-10]] |
 | Offene Amendment-Vorschläge | 002, 003, 004 (alt) | MEASURED (`docs/`-Listing 2026-09-05, 013 seit 2026-09-06 angenommen) |
-| Offene Gate-3-Vorarbeit | PR #320 (G3-BASE-01), Draft-PR #322 (Tokenizer); Usage/Corpus WIP; Seal wartet auf Owner-Entscheidung | MEASURED [[Sessions/2026-09-08]] |
+| Offene Gate-3-Vorarbeit | PR #320 (G3-BASE-01), Draft-PR #322 (Tokenizer); Usage/Corpus WIP; Seal wartet auf Owner-Entscheidung | INHERITED [[Sessions/2026-09-08]] |
 
 Frühere Snapshots: 2026-09-05 (Amendment 012, G1-IKARUS-24), 2026-08-26 (Gate 0 besiegelt, Revision 8) — siehe [[Gates/Gate-Status]].
 
