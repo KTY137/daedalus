@@ -654,9 +654,19 @@ def _env_int_opt(name: str) -> int | None:
 #     the environment stops being an unconfirmed widening path (section 4.1);
 #   * a deliberately narrower variable still wins, so every shell, CI job and
 #     test that LOWERS a cap keeps working exactly as it did;
-#   * composing can only ever narrow, so making the kernel read the document
-#     cannot itself become a way to widen authority without the transient
-#     confirmation the desktop path already demands before it writes one.
+#   * the composed result is NEVER WIDER THAN WHAT WAS ADMITTED, so making the
+#     kernel read the document cannot itself become a way to widen authority
+#     without the transient confirmation the desktop path already demands
+#     before it writes one.
+#
+# THAT IS NOT THE SAME AS "can only narrow", and the difference is real. An
+# admitted ``unbounded_execution`` disables the period USD axis, and then a
+# narrower ``DAEDALUS_BUDGET_USD=1.0`` no longer bounds anything: the composed
+# authority is wider than that one input. It is not wider than the DOCUMENT,
+# which is the only comparison section 4.1 makes, because disabling that axis
+# was itself an admitted, confirmed decision. The direction is reported rather
+# than left silent -- see ``nullified_environment_value`` in
+# :meth:`Ledger.limit_provenance`.
 #
 # THE DOCUMENT IS FOUND IN CODE, NEVER THROUGH THE ENVIRONMENT. If a variable
 # could name the file, then that variable plus a crafted file would be exactly
@@ -969,10 +979,12 @@ class _ResolvedLimits:
     ceiling_source: str
     refused_ceiling_usd: float | None
     ceiling_unadmitted_widening: bool
+    environment_ceiling_usd: float | None
     max_calls: int
     max_calls_source: str
     refused_max_calls: int | None
     max_calls_unadmitted_widening: bool
+    environment_max_calls: int | None
     policy: ExecutionLimitPolicy
     policy_source: str
     refused_policy_axes: tuple[str, ...]
@@ -1037,6 +1049,7 @@ class Ledger:
 
         admitted = load_admitted_settings(self._runtime_root)
 
+        environment_ceiling = _env_float_opt(ENV_CEILING)
         if self._ceiling_override is not None:
             ceiling = _num(self._ceiling_override, ENV_CEILING, allow_zero=False)
             ceiling_source: str = SOURCE_ISSUED_CONTRACT
@@ -1044,10 +1057,11 @@ class Ledger:
         else:
             ceiling, ceiling_source, refused_ceiling = strictest_number(
                 document=None if admitted is None else admitted.period_ceiling_usd,
-                environment=_env_float_opt(ENV_CEILING),
+                environment=environment_ceiling,
                 default=DEFAULT_CEILING_USD,
             )
 
+        environment_calls = _env_int_opt(ENV_MAX_CALLS)
         if self._max_calls_override is not None:
             if isinstance(self._max_calls_override, bool) or int(self._max_calls_override) <= 0:
                 raise BudgetUnavailable(f"max_calls={self._max_calls_override!r} is not usable")
@@ -1057,7 +1071,7 @@ class Ledger:
         else:
             calls, calls_source, refused_calls = strictest_number(
                 document=None if admitted is None else admitted.max_calls,
-                environment=_env_int_opt(ENV_MAX_CALLS),
+                environment=environment_calls,
                 default=DEFAULT_MAX_CALLS,
             )
 
@@ -1080,6 +1094,7 @@ class Ledger:
                 and (admitted is None or admitted.period_ceiling_usd is None)
                 and ceiling > DEFAULT_CEILING_USD
             ),
+            environment_ceiling_usd=environment_ceiling,
             max_calls=calls,
             max_calls_source=calls_source,
             refused_max_calls=refused_calls,
@@ -1088,6 +1103,7 @@ class Ledger:
                 and (admitted is None or admitted.max_calls is None)
                 and calls > DEFAULT_MAX_CALLS
             ),
+            environment_max_calls=environment_calls,
             policy=policy,
             policy_source=policy_source,
             refused_policy_axes=refused_axes,
@@ -1171,20 +1187,26 @@ class Ledger:
             "admitted_document_unreadable": "",
             "unresolved_reason": "",
             "unadmitted_widening": resolved.unadmitted_widening,
-            "period_ceiling_usd": {
-                "effective": resolved.ceiling_usd,
-                "source": resolved.ceiling_source,
-                "refused_environment_value": resolved.refused_ceiling_usd,
-                "unadmitted_widening": resolved.ceiling_unadmitted_widening,
-                "environment_variable": ENV_CEILING,
-            },
-            "max_calls": {
-                "effective": resolved.max_calls,
-                "source": resolved.max_calls_source,
-                "refused_environment_value": resolved.refused_max_calls,
-                "unadmitted_widening": resolved.max_calls_unadmitted_widening,
-                "environment_variable": ENV_MAX_CALLS,
-            },
+            "period_ceiling_usd": self._axis_report(
+                axis="period_usd",
+                resolved=resolved,
+                configured=resolved.ceiling_usd,
+                source=resolved.ceiling_source,
+                refused=resolved.refused_ceiling_usd,
+                environment_value=resolved.environment_ceiling_usd,
+                unadmitted_widening=resolved.ceiling_unadmitted_widening,
+                variable=ENV_CEILING,
+            ),
+            "max_calls": self._axis_report(
+                axis="billable_calls",
+                resolved=resolved,
+                configured=resolved.max_calls,
+                source=resolved.max_calls_source,
+                refused=resolved.refused_max_calls,
+                environment_value=resolved.environment_max_calls,
+                unadmitted_widening=resolved.max_calls_unadmitted_widening,
+                variable=ENV_MAX_CALLS,
+            ),
             "execution_limit_policy": {
                 "mode": resolved.policy.mode,
                 "effective_axes": resolved.policy.effective.as_dict(),
@@ -1193,6 +1215,55 @@ class Ledger:
                 "unadmitted_disabled_axes": list(resolved.unadmitted_disabled_axes),
                 "environment_variable": ENV_EXECUTION_LIMIT_POLICY,
             },
+        }
+
+    @staticmethod
+    def _axis_report(
+        *,
+        axis: str,
+        resolved: "_ResolvedLimits",
+        configured: Any,
+        source: str,
+        refused: Any,
+        environment_value: Any,
+        unadmitted_widening: bool,
+        variable: str,
+    ) -> dict[str, Any]:
+        """One numeric axis, encoded the way master plan section 4.1 requires.
+
+        "Disabled caps use an explicit enforcement flag and nullable effective/
+        remaining values. They are never represented by ``Infinity``,
+        ``MAX_INT``, zero or an omitted field. Stored positive fallback values
+        remain available when a cap is re-enabled."
+
+        So ``effective`` is ``None`` when the axis is not enforced -- the same
+        meaning ``BudgetState.effective_period_ceiling_usd`` already has, and
+        deliberately NOT the meaning "the number we resolved", which is what a
+        reader of the first draft of this report would have taken from a live
+        ``1.0`` sitting beside ``period_usd: false``. The resolved number stays
+        under ``configured``, because it is the retained fallback that comes
+        back if the axis is re-enabled.
+
+        ``nullified_environment_value`` closes the asymmetry the review found:
+        an environment value that asked for MORE and lost is reported as
+        ``refused_environment_value``, so an environment value that asked for
+        LESS and was made moot by an admitted disabled axis must be reported
+        too. That is the direction that costs money, and it was silent.
+        """
+
+        enforced = resolved.policy.enforces(axis)
+        return {
+            "effective": configured if enforced else None,
+            "configured": configured,
+            "enforced": enforced,
+            "source": source,
+            "refused_environment_value": refused,
+            "nullified_environment_value": (
+                environment_value if not enforced and environment_value is not None
+                else None
+            ),
+            "unadmitted_widening": unadmitted_widening,
+            "environment_variable": variable,
         }
 
     def _unresolved_provenance(self, exc: BudgetUnavailable) -> dict[str, Any]:
@@ -1207,8 +1278,14 @@ class Ledger:
         unreadable = isinstance(exc, AdmittedSettingsUnreadable)
         unknown = {
             "effective": None,
+            "configured": None,
+            # Not False: with the document unreadable we do not KNOW whether
+            # the axis is enforced, and section 4.1 forbids representing an
+            # unknown as a value that reads like a decision.
+            "enforced": None,
             "source": None,
             "refused_environment_value": None,
+            "nullified_environment_value": None,
             "unadmitted_widening": False,
         }
         return {

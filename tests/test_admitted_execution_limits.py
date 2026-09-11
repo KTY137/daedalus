@@ -302,6 +302,122 @@ def test_an_unadmitted_narrowing_is_not_reported_as_a_widening(
 
 
 # --------------------------------------------------------------------------- #
+# Section 4.1 encoding: a disabled cap has no live-looking number             #
+# --------------------------------------------------------------------------- #
+
+
+def test_a_disabled_axis_reports_a_null_effective_value(tmp_path, monkeypatch):
+    """MEASURED 2026-09-11 before the fix: ``effective: 1.0`` sat beside
+    ``period_usd: false``, i.e. a live-looking ceiling on an axis with no
+    ceiling at all, using the word ``effective`` with the opposite meaning
+    from ``BudgetState`` in the same module."""
+
+    _admit(tmp_path, caps=UNBOUNDED.as_dict())
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "1.0")
+    monkeypatch.setenv("DAEDALUS_BUDGET_MAX_CALLS", "2")
+    report = Ledger(runtime_root=tmp_path).limit_provenance()
+
+    for key in ("period_ceiling_usd", "max_calls"):
+        row = report[key]
+        assert row["enforced"] is False, key
+        assert row["effective"] is None, key
+        assert row["configured"] is not None, "the retained fallback stays"
+    assert report["period_ceiling_usd"]["configured"] == 1.0
+    assert report["max_calls"]["configured"] == 2
+    assert report["execution_limit_policy"]["effective_axes"]["period_usd"] is False
+
+
+def test_the_report_agrees_with_budget_state_on_a_disabled_axis(tmp_path):
+    """One module, one meaning for the word ``effective``."""
+
+    _admit(tmp_path, period_ceiling_usd=3.0, caps=UNBOUNDED.as_dict())
+    ledger = Ledger(tmp_path / "ledger.json", runtime_root=tmp_path)
+    report = ledger.limit_provenance()["period_ceiling_usd"]
+    state = ledger.state()
+
+    assert report["effective"] == state.effective_period_ceiling_usd is None
+    assert report["configured"] == state.ceiling_usd == 3.0
+    assert report["enforced"] == state.period_ceiling_enabled is False
+
+
+def test_an_enforced_axis_still_reports_its_number(tmp_path, monkeypatch):
+    _admit(tmp_path, period_ceiling_usd=200.0)
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "7")
+    row = Ledger(runtime_root=tmp_path).limit_provenance()["period_ceiling_usd"]
+
+    assert row["enforced"] is True
+    assert row["effective"] == 7.0 == row["configured"]
+    assert row["nullified_environment_value"] is None
+
+
+def test_a_narrower_bound_nullified_by_an_admitted_disabled_axis_is_reported(
+    tmp_path, monkeypatch
+):
+    """The direction the review found silent, and it is the one that costs.
+
+    A WIDER variable is refused and named. A NARROWER variable made moot by an
+    axis the admitted document disabled used to produce nothing at all.
+    """
+
+    _admit(tmp_path, caps=UNBOUNDED.as_dict())
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "1.0")
+    row = Ledger(runtime_root=tmp_path).limit_provenance()["period_ceiling_usd"]
+
+    assert row["nullified_environment_value"] == 1.0
+    assert row["refused_environment_value"] is None, "it asked for less, not more"
+
+
+def test_the_rendered_line_does_not_name_a_source_for_a_disabled_axis(
+    tmp_path, monkeypatch
+):
+    from daedalus import budget as budget_kernel
+    from daedalus.interfaces.cli import token_monitor
+
+    _admit(tmp_path, caps=UNBOUNDED.as_dict())
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "1.0")
+    monkeypatch.setattr(
+        budget_kernel,
+        "Ledger",
+        lambda **kwargs: Ledger(tmp_path / "ledger.json", runtime_root=tmp_path),
+    )
+    rendered = token_monitor._render_budget_view(token_monitor._budget_view())
+
+    assert "ceiling from environment" not in rendered
+    assert "period USD ceiling disabled" in rendered
+    assert "DAEDALUS_BUDGET_USD=1.0" in rendered
+    assert "no longer bounds anything" in rendered
+
+
+def test_the_reporting_surface_is_guarded_at_its_call_site(tmp_path, monkeypatch):
+    """The 'never raises' contract is structural here, not documentary.
+
+    ``limit_provenance`` catches ``BudgetUnavailable``. A future branch that
+    raised something else would break the promise silently, and a monitor is
+    the worst place to find that out.
+    """
+
+    from daedalus import budget as budget_kernel
+    from daedalus.interfaces.cli import token_monitor
+
+    class _Exploding(Ledger):
+        def limit_provenance(self):
+            raise OSError("a stat this surface never expected")
+
+    monkeypatch.setattr(
+        budget_kernel,
+        "Ledger",
+        lambda **kwargs: _Exploding(tmp_path / "ledger.json", runtime_root=tmp_path),
+    )
+    view = token_monitor._budget_view()
+
+    assert view["limit_provenance"]["resolved"] is False
+    assert "OSError" in view["limit_provenance"]["unresolved_reason"]
+    assert "defect in the reporting surface" in (
+        view["limit_provenance"]["unresolved_reason"]
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Refusals and fault injection                                                #
 # --------------------------------------------------------------------------- #
 

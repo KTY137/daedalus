@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 LEDGER = Path("daedalus/kernel/policy/ledger.py")
 INVENTORY = Path("daedalus/interfaces/desktop/settings_inventory.py")
 SENSITIVITY = Path("daedalus/sensitivity.py")
+TOKEN_MONITOR = Path("daedalus/interfaces/cli/token_monitor.py")
 
 MUTATIONS = [
     (
@@ -109,9 +110,36 @@ MUTATIONS = [
         "M11 the report treats an unreadable document as an absent one",
         LEDGER,
         "        unknown = {\n"
-        "            \"effective\": None,\n",
+        "            \"effective\": None,\n"
+        "            \"configured\": None,\n",
         "        unknown = {\n"
-        "            \"effective\": _env_float_opt(ENV_CEILING),  # MUTATION\n",
+        "            \"effective\": _env_float_opt(ENV_CEILING),  # MUTATION\n"
+        "            \"configured\": None,\n",
+    ),
+    (
+        "M12 a disabled axis reports a live-looking number again",
+        LEDGER,
+        '            "effective": configured if enforced else None,\n',
+        '            "effective": configured,  # MUTATION\n',
+    ),
+    (
+        "M13 a nullified environment bound goes silent again",
+        LEDGER,
+        '            "nullified_environment_value": (\n'
+        "                environment_value if not enforced and environment_value is not None\n"
+        "                else None\n"
+        "            ),\n",
+        '            "nullified_environment_value": None,  # MUTATION\n',
+    ),
+    (
+        "M14 the reporting call site trusts the docstring",
+        TOKEN_MONITOR,
+        "    try:\n"
+        "        provenance = ledger.limit_provenance()\n"
+        "    except Exception as exc:  # noqa: BLE001 - a reporting surface decides nothing\n",
+        "    if True:  # MUTATION\n"
+        "        provenance = ledger.limit_provenance()\n"
+        "    elif False:\n",
     ),
     (
         "M9 the trust parse is re-derived instead of reused",

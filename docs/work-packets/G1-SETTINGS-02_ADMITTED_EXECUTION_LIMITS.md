@@ -20,8 +20,17 @@ settings document and the process environment, per axis, and reports which of
 the two decided.
 
 Nothing here introduces a second store or a second validator, and nothing here
-can widen authority: composing two inputs by taking the strictest can only ever
-narrow, so reading the document never becomes an unconfirmed widening path.
+can widen authority **past what was admitted**, so reading the document never
+becomes an unconfirmed widening path.
+
+That is deliberately not the stronger claim "composing can only narrow", which
+is false and was corrected after independent review on 2026-09-11. An admitted
+`unbounded_execution` disables the period USD axis, and a narrower
+`DAEDALUS_BUDGET_USD=1.0` then bounds nothing: the composed authority is wider
+than *that input*. It is never wider than the *document*, which is the only
+comparison section 4.1 makes, because disabling the axis was itself an
+admitted, confirmed decision. The conclusion -- no new confirmation surface is
+owed -- rests on the second statement, not the first.
 
 ## The problem
 
@@ -61,12 +70,20 @@ it".
 The argument is from the invariants, not from convenience:
 
 - **Invariant 8 / section 4.1.** The confirmation exists so that a *GUI or API
-  transition* cannot widen authority silently. A composition that can only
-  narrow cannot widen authority at all, so making the kernel read the document
-  needs no new confirmation surface and cannot become the defect it closes. A
-  rule where "the document wins outright" would need one, because a hand-edited
-  document would then raise a cap with nothing verifying anything — the same
-  hole moved, not closed.
+  transition* cannot widen authority silently. A composition whose result is
+  never wider than the admitted document cannot widen authority beyond what was
+  confirmed, so making the kernel read the document needs no new confirmation
+  surface and cannot become the defect it closes. A rule where "the document
+  wins outright" would need one, because a hand-edited document would then
+  raise a cap with nothing verifying anything — the same hole moved, not
+  closed.
+
+  The precise statement matters and was corrected on review: the composed
+  result *can* be wider than the environment input, when the admitted document
+  disabled the axis that input was bounding. It cannot be wider than the
+  document. Section 4.1 compares against what was admitted, so the conclusion
+  holds — but "can only narrow" would have been an overclaim, and the one
+  direction it hid is now reported as `nullified_environment_value`.
 - **Invariant 4, evidence boundary.** An environment variable is a claim about
   what this process may spend. An admitted document is a claim that passed
   `prepare_settings` → `_authorize_settings` → `EffectLease` → receipt. Where
@@ -124,6 +141,35 @@ Ledger.limit_provenance()                -> JSON-serializable report
 
 `source ∈ {admitted_document, environment, composed, default, issued_contract}`.
 
+**A disabled axis carries no live-looking number** (section 4.1: "Disabled caps
+use an explicit enforcement flag and nullable effective/remaining values. They
+are never represented by `Infinity`, `MAX_INT`, zero or an omitted field.
+Stored positive fallback values remain available when a cap is re-enabled").
+Each numeric axis in the report therefore carries three fields, and they mean
+what the same words mean on `BudgetState` in the same module:
+
+| field | meaning |
+| --- | --- |
+| `enforced` | the explicit enforcement flag for that axis |
+| `effective` | the number in force, or `None` when the axis is disabled |
+| `configured` | the resolved number, retained for when the axis is re-enabled |
+
+Measured 2026-09-11 before this was corrected: with an admitted
+`unbounded_execution` and `DAEDALUS_BUDGET_USD=1.0` the report said
+`{"effective": 1.0, "source": "environment"}` beside
+`effective_axes.period_usd: false` -- a live-looking $1.00 ceiling on an axis
+with no ceiling at all, using `effective` with the opposite meaning from
+`BudgetState.effective_period_ceiling_usd` five hundred lines away, and
+`token-monitor` printed "ceiling from environment" next to it. It now reads
+`{"effective": null, "configured": 1.0, "enforced": false}` and the renderer
+prints "period USD ceiling disabled".
+
+**Both directions of an overruled environment value are reported.** A variable
+that asked for MORE and lost appears as `refused_environment_value`. A variable
+that asked for LESS and was made moot by an admitted disabled axis appears as
+`nullified_environment_value` -- the direction that costs money, and the one
+that was silent until review found it.
+
 **Where the document lives, and why not through the environment.** The anchor is
 `ROOT / "config" / "connections.json"`, where `ROOT` is the same
 `Path(__file__).resolve().parents[3]` that already anchors
@@ -152,9 +198,9 @@ on all eight regardless of whether the tighter value is also the cheaper one.
 The failure it can cause -- a mission dying halfway because the cap was lower
 than it needed -- is a liveness cost, and section 4.1 already chose that trade
 by making `bounded` the default for every unconfigured process. A per-axis
-exception would mean the composition rule is no longer "can only narrow", and
-the one axis that could widen would then owe a confirmation surface: the hole
-this packet closes, reopened for convenience.
+exception would mean the composed result for that one axis could exceed what
+the admitted document allows, and that axis would then owe a confirmation
+surface of its own: the hole this packet closes, reopened for convenience.
 
 **A present, unusable document is a refusal, and the refusal is narrow.**
 `AdmittedSettingsUnreadable` is a `BudgetUnavailable`, so every existing handler
@@ -178,14 +224,34 @@ nowhere else:
 | `token-monitor`, desktop status, the loop's spend probe | still run, report unavailable, name the file to repair |
 
 The boundary was **not** built for this. It already existed and was measured
-before anything was written: `shell.py::process_guard_boundary_decision`
-already returns a refusing `GuardDecision` on any exception ("an unknown
-ceiling is not an absent ceiling"), `loop.read_spend` already never raises and
-signals `readable=False` which the caller treats as a reason to stop, and both
-`token_monitor._budget_view` and `projection.budget_status` already catch
-`BudgetError`. The only surface that raised where it should report was
-`limit_provenance`, which this packet introduced; it is now the one thing that
-can still name the broken file when everything else says "unavailable".
+before anything was written:
+
+- `daedalus/orchestration/ikarus/shell.py:2420 _spend_decision` wraps both the
+  guard installation and the ledger read in `try`/`except` and returns a
+  refusing `GuardDecision` on any exception. Its own docstring says so: "FAILS
+  CLOSED. An unreadable ledger, an unpriceable vendor, or any other error is a
+  denial, never a pass."
+- `daedalus/budget.py:170 process_guard_boundary_decision` has **no**
+  `try`/`except` at all and returns an unconditional *allowing* decision from
+  its 121 call sites. It is safe anyway, for a different reason than the first
+  draft of this packet claimed: all it does is `install_process_guard()`, which
+  only monkeypatches `subprocess.run`/`Popen`/`urlopen` and resolves no cap, so
+  an unreadable document cannot raise there. The refusal lands later, inside
+  the interposed wrapper at the priced call.
+- `daedalus/orchestration/loop.py:804 read_spend` never raises and signals
+  `readable=False`, which its caller treats as a reason to stop.
+- `token_monitor._budget_view` and `projection.budget_status` already catch
+  `BudgetError`.
+
+The first draft of this section attributed the second bullet's name to the
+first bullet's behaviour and put both in the wrong file. Corrected 2026-09-11
+after independent review; `AGENTS.md` classes an unverifiable claim as a
+release-blocking defect, and a citation that does not say what the cited code
+says is one.
+
+The only surface that raised where it should report was `limit_provenance`,
+which this packet introduced; it is now the one thing that can still name the
+broken file when everything else says "unavailable".
 
 **Unreadable is not absent, on either path.** Admission refuses; reporting says
 `None`. Neither falls through to the branch where the environment decides
@@ -297,6 +363,16 @@ stated:
 16f. The three read-only surfaces the tree actually has -- `token-monitor`
     (view and rendering), `loop.read_spend`, `projection.budget_status` --
     still run with a corrupt document and each names the file to repair.
+16g. **Section 4.1 encoding.** A disabled axis reports `enforced: false`,
+    `effective: null` and a retained `configured` value, for both numeric axes.
+16h. The report and `BudgetState` agree field for field on a disabled axis.
+16i. An enforced axis still reports its number and no nullified value.
+16j. A narrower environment bound nullified by an admitted disabled axis is
+    reported rather than dropped.
+16k. The rendered line names no source for a disabled axis and says the axis is
+    disabled instead.
+16l. The `limit_provenance` call site survives an exception the surface does
+    not promise to catch, so the "never raises" contract is structural.
 17. **Section 4.1, end to end.** A widening `save_settings` raises naming
     `confirm_widening` and `period_ceiling_usd` and leaves **no** document
     behind; the confirmed save writes one; the kernel then reads `500.0`.
@@ -329,19 +405,22 @@ run with `-x`. Command: `docs/evidence/G1-SETTINGS-02/mutations.py`.
 
 | mutation | file | result |
 | --- | --- | --- |
-| M1 the document is never read | ledger.py | 1 failed in 0.84s |
-| M2 the environment wins outright again | ledger.py | 1 failed, 3 passed in 0.75s |
-| M3 caps compose by AND instead of OR | ledger.py | 1 failed, 4 passed in 0.93s |
-| M4 a corrupt document falls back to the environment | ledger.py | 1 failed, 11 passed in 0.74s |
-| M5 an issued contract is re-resolved from the document | ledger.py | 1 failed, 35 passed in 1.63s |
-| M6 an absent variable asserts bounded over the document | ledger.py | 1 failed, 1 passed in 0.71s |
-| M7 the retired boolean is invisible to the projection again | settings_inventory.py | 1 failed, 65 passed in 1.77s |
-| M8 env-only rows report raw text again | settings_inventory.py | 1 failed, 87 passed in 1.85s |
-| M10 the reporting surface raises like an admission path | ledger.py | 1 failed, 13 passed in 0.75s |
-| M11 the report treats an unreadable document as an absent one | ledger.py | 1 failed, 14 passed in 0.78s |
-| M9 the trust parse is re-derived instead of reused | sensitivity.py | 1 failed, 97 passed in 1.96s |
+| M1 the document is never read | ledger.py | 1 failed in 1.29s |
+| M2 the environment wins outright again | ledger.py | 1 failed, 3 passed in 1.47s |
+| M3 caps compose by AND instead of OR | ledger.py | 1 failed, 4 passed in 0.74s |
+| M4 a corrupt document falls back to the environment | ledger.py | 1 failed, 17 passed in 0.83s |
+| M5 an issued contract is re-resolved from the document | ledger.py | 1 failed, 41 passed in 1.70s |
+| M6 an absent variable asserts bounded over the document | ledger.py | 1 failed, 1 passed in 0.72s |
+| M7 the retired boolean is invisible to the projection again | settings_inventory.py | 1 failed, 71 passed in 1.86s |
+| M8 env-only rows report raw text again | settings_inventory.py | 1 failed, 93 passed in 1.97s |
+| M10 the reporting surface raises like an admission path | ledger.py | 1 failed, 19 passed in 0.83s |
+| M11 the report treats an unreadable document as an absent one | ledger.py | 1 failed, 20 passed in 0.98s |
+| M12 a disabled axis reports a live-looking number again | ledger.py | 1 failed, 11 passed in 0.81s |
+| M13 a nullified environment bound goes silent again | ledger.py | 1 failed, 14 passed in 0.80s |
+| M14 the reporting call site trusts the docstring | token_monitor.py | 1 failed, 16 passed in 0.83s |
+| M9 the trust parse is re-derived instead of reused | sensitivity.py | 1 failed, 103 passed in 2.00s |
 
-Eleven of eleven turn red. No guard here is decorative.
+Fourteen of fourteen turn red. No guard here is decorative.
 
 ## Cost, measured 2026-09-11
 
@@ -416,12 +495,30 @@ cannot strand a document.
   path.
 - **D3 through D7** of G1-SETTINGS-01, all unchanged.
 - **F4's residue** and **F5's missing rows**, as recorded above.
-- **The CLI/sidecar anchor divergence.** `sidecar` chdirs to
-  `bundled_root() == ROOT`; `interfaces/cli/entry.py::_web` uses `Path.cwd()`.
-  They coincide for a dev running from the repo root and for the packaged app.
-  Running `daedalus web` from an unrelated directory writes a document the
-  kernel will not find. Named, not fixed: that entrypoint belongs to another
-  lane.
+- **The CLI/sidecar anchor divergence, which this packet made worse in one
+  respect.** `sidecar` chdirs to `bundled_root() == ROOT`;
+  `interfaces/cli/entry.py:1125 _web` uses `Path.cwd()`. They coincide for a
+  dev running from the repo root and for the packaged app. Running
+  `daedalus web` from an unrelated directory writes a document the kernel will
+  not find.
+
+  Note what changed: **before this packet the admitted document reached nothing
+  anywhere, so the divergence was invisible. Now it reaches everything except
+  that entrypoint**, where a narrowing the owner saved silently does not apply.
+  "Never works" became "works except here", which is the worse of the two
+  failure modes, because it is the one an operator will not think to check.
+  Named and not fixed: that entrypoint belongs to another lane, and the fix is
+  one line there, not a second anchor here.
+
+- **Two section-4.1 axes outside the modelled surface.** "Pinned at five" is
+  five *within this module's surface*, not five in the tree. Found by
+  independent review 2026-09-11 and left to their lanes:
+  `DAEDALUS_FANOUT_CONCURRENCY` (`daedalus/lanes/fanout.py:84`) raises
+  read-only fan-out concurrency, a canonical axis, with no admission and
+  without consulting `ExecutionLimitPolicy.enforces("concurrency")`; and
+  `OFFLOAD_SLICE_TOKENS` (`daedalus/offload.py:230`) sets a token budget the
+  same way. The qualification is in `unconfirmed_widening_settings`'s docstring
+  so the pin cannot be misread as a tree-wide count.
 
 ## Evidence, expected failures and review
 
@@ -459,14 +556,31 @@ both answers are implemented and recorded above, not left open:
   reporting surface never raises. See "A present, unusable document is a
   refusal, and the refusal is narrow".
 
-Open, for the independent reviewer:
+Three more were answered by the independent review on 2026-09-11:
 
-- Does `document_present` belong on `describe_settings`, or should the
-  projection take the resolved provenance from a `Ledger` instead and stop
-  reproducing the composition at all?
-- Is `token_monitor` the right first reporting surface, or should
-  `GET /api/desktop/settings` carry `limit_provenance` now?
-- `limit_provenance` catches `BudgetUnavailable` and reports it. Is there a
-  `BudgetUnavailable` a *reporting* caller should still see raised -- a
-  corrupt ledger file, say -- or is "report everything, decide nothing" the
-  right contract for a surface that admits nothing?
+- *Should the projection take a `Ledger` instead of `document_present`?* **No.**
+  Acceptance items 23 and 24 compare the projection against a real `Ledger`
+  across a 16-pair and a 12-pair grid. If the projection consumed one, those
+  tests would compare the thing to itself and the anti-drift guard would
+  evaporate -- the same self-asserting shape this packet criticised as F6 in
+  `inert_settings`. A pure function of `(config, environ, document_present)` is
+  what makes an independent oracle possible. F4's residue is closable only by
+  writing provenance into the document at save time: a different packet.
+- *Should `GET /api/desktop/settings` carry `limit_provenance`?* **Yes, and it
+  matters more than `token-monitor`** -- the desktop is where the owner sets
+  the ceiling and therefore where the false belief forms, and it is the only
+  surface that can say "you saved $200, the kernel is using $1 from an
+  inherited variable" while the owner is looking at the $200. Deliberately a
+  follow-up packet, and deliberately *after* the section-4.1 encoding fix
+  above: wiring it first would have put a row reading
+  `period_ceiling_usd.effective = 1.0` for a disabled axis onto the primary
+  owner-facing surface.
+- *Should any `BudgetUnavailable` reach a reporting caller?* **No** -- "report
+  everything, decide nothing" is the right contract, and the corrupt-ledger
+  case proves it. The guarantee is now **structural rather than documentary**:
+  `limit_provenance` catches `BudgetUnavailable`, and its `token_monitor` call
+  site catches everything anyway, with a comment saying that one future
+  `OSError` from a `stat` would otherwise break the promise silently. Mutation
+  M14 removes that guard and turns the suite red.
+
+Open, for the next reviewer: nothing from this round remains open.

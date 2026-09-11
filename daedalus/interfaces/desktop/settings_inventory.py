@@ -1013,6 +1013,24 @@ def unconfirmed_widening_settings(
     the known set and go red when a new one is added.  Closing the gap means
     giving these settings an admission path, which is write-side work and is
     deliberately not done here.
+
+    WHAT "PINNED AT FIVE" MEANS, AND WHAT IT DOES NOT.  Five is the count
+    *within this module's modelled surface* -- the desktop settings document
+    plus the budget and trust environment axes.  It is NOT a count of every
+    unconfirmed section-4.1 widening in the tree, and reading it that way would
+    be exactly the false comfort this module exists to remove.  Two are known
+    to be outside it, found by independent review 2026-09-11 and left to their
+    own lanes:
+
+    * ``DAEDALUS_FANOUT_CONCURRENCY`` (``daedalus/lanes/fanout.py:84``) raises
+      read-only fan-out concurrency, a canonical section-4.1 axis, with no
+      admission path and without consulting
+      ``ExecutionLimitPolicy.enforces("concurrency")`` at all;
+    * ``OFFLOAD_SLICE_TOKENS`` (``daedalus/offload.py:230``) sets a token
+      budget, another canonical axis, the same way.
+
+    Modelling them means describing subsystems this module does not otherwise
+    touch, which is a different packet and a different axis.
     """
 
     return tuple(

@@ -256,12 +256,30 @@ def _budget_view(lock_timeout_s: float = BUDGET_READ_LOCK_TIMEOUT_S) -> dict[str
     # two produced it -- and an ambient variable that widened past the code
     # default with nothing admitted behind it would otherwise be invisible.
     #
-    # Read FIRST and unguarded, because it never raises: when the resolution
-    # itself refuses -- an unreadable admitted document is the case that
-    # matters -- this is the only thing that can still name the file to repair.
-    # A monitor that printed "unavailable" without saying which file broke is
-    # how a fail-closed guard becomes an outage nobody can end.
-    provenance = ledger.limit_provenance()
+    # Read FIRST, because when the resolution itself refuses -- an unreadable
+    # admitted document is the case that matters -- this is the only thing that
+    # can still name the file to repair. A monitor that printed "unavailable"
+    # without saying which file broke is how a fail-closed guard becomes an
+    # outage nobody can end.
+    #
+    # GUARDED ANYWAY, on purpose. ``limit_provenance`` promises never to raise,
+    # and it keeps that promise by catching ``BudgetUnavailable``. That promise
+    # is one future ``OSError`` from a ``stat`` -- or one ``LimitPolicyError``
+    # escaping a new branch -- away from being false, and a monitor is the
+    # worst place to discover it. This site does not rely on the docstring.
+    try:
+        provenance = ledger.limit_provenance()
+    except Exception as exc:  # noqa: BLE001 - a reporting surface decides nothing
+        provenance = {
+            "resolved": False,
+            "admitted_document": None,
+            "admitted_document_unreadable": "",
+            "unresolved_reason": (
+                f"limit provenance could not be reported ({type(exc).__name__}: "
+                f"{exc}); this is a defect in the reporting surface, not a "
+                "budget decision"
+            ),
+        }
     try:
         state = ledger.state()
     except BudgetError as exc:
@@ -322,10 +340,42 @@ def _render_limit_provenance(provenance: Any) -> str:
     calls = provenance.get("max_calls") or {}
     policy = provenance.get("execution_limit_policy") or {}
     if provenance.get("admitted_document"):
+        # "from X" only where an X still decides something. Printing "ceiling
+        # from environment" beside a period_usd axis the owner disabled names a
+        # source for a number that bounds nothing.
         clauses.append(
-            f"ceiling from {ceiling.get('source')}, "
-            f"calls from {calls.get('source')}, "
-            f"caps from {policy.get('source')}"
+            ", ".join(
+                [
+                    (
+                        f"ceiling from {ceiling.get('source')}"
+                        if ceiling.get("enforced")
+                        else "period USD ceiling disabled"
+                    ),
+                    (
+                        f"calls from {calls.get('source')}"
+                        if calls.get("enforced")
+                        else "call ceiling disabled"
+                    ),
+                    f"caps from {policy.get('source')}",
+                ]
+            )
+        )
+    nullified: list[str] = []
+    if ceiling.get("nullified_environment_value") is not None:
+        nullified.append(
+            f"DAEDALUS_BUDGET_USD={ceiling['nullified_environment_value']}"
+        )
+    if calls.get("nullified_environment_value") is not None:
+        nullified.append(
+            f"DAEDALUS_BUDGET_MAX_CALLS={calls['nullified_environment_value']}"
+        )
+    if nullified:
+        # The direction the review found silent: a NARROWER variable made moot
+        # by an axis the admitted document disabled. It costs money and it used
+        # to print nothing at all.
+        clauses.append(
+            "no longer bounds anything, the admitted document disabled the "
+            "axis: " + "; ".join(nullified)
         )
     refused: list[str] = []
     if ceiling.get("refused_environment_value") is not None:
