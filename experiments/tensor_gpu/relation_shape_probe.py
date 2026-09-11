@@ -14,12 +14,20 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from daedalus.twin.reference_compiler import compile_reference_project
-from daedalus.twin.relation_blocks import TypedRelationBlock
-from daedalus.twin.relation_compiler import compile_relation_blocks
+from daedalus.twin.relation_blocks import (
+    MAX_REFERENCE_OPERATIONS,
+    TypedRelationBlock,
+)
+from daedalus.twin.relation_compiler import (
+    MAX_COMPILED_RELATIONS,
+    compile_relation_blocks,
+)
 from daedalus.twin.semiring import BooleanSemiring
 
 SCHEMA = "daedalus-tensor-relation-shape/1"
 MAX_PROJECTS = 8
+MAX_PROFILED_COMPOSABLE_PAIRS = MAX_COMPILED_RELATIONS
+MAX_PROFILE_REFERENCE_OPERATIONS = MAX_REFERENCE_OPERATIONS
 
 
 def _nearest_rank(values: Sequence[int], percentile: int) -> int:
@@ -66,11 +74,17 @@ def _profile_block(name: str, block: TypedRelationBlock[Any]) -> dict[str, Any]:
 def _reference_matmul_shape(
     left: TypedRelationBlock[Any],
     right: TypedRelationBlock[Any],
+    *,
+    max_operations: int,
 ) -> tuple[int, int]:
-    """Measure current Boolean CSR nested work and peak row-accumulator width."""
+    """Measure bounded Boolean CSR nested work and peak row-accumulator width."""
 
     if left.subject != right.subject or left.column_axis != right.row_axis:
         raise ValueError("relation blocks are not exactly composable")
+    if type(max_operations) is not int or not 0 <= max_operations <= MAX_REFERENCE_OPERATIONS:
+        raise ValueError(
+            f"max_operations must be an integer from 0 to {MAX_REFERENCE_OPERATIONS}"
+        )
 
     operations = 0
     peak_accumulator_entries = 0
@@ -83,6 +97,10 @@ def _reference_matmul_shape(
                 right.row_offsets[middle + 1],
             ):
                 operations += 1
+                if operations > max_operations:
+                    raise ValueError(
+                        "relation-shape probe exceeds bounded reference-operation limit"
+                    )
                 accumulator_columns.add(right.column_indices[right_position])
         peak_accumulator_entries = max(
             peak_accumulator_entries,
@@ -94,12 +112,38 @@ def _reference_matmul_shape(
 def _profile_compiled(compiled: Any) -> dict[str, Any]:
     blocks = tuple(compiled.blocks)
     relation_profiles = tuple(_profile_block(name, block) for name, block in blocks)
+
+    # ``CompiledRelationBlocks`` is already canonical by block name. Index the
+    # exact shared middle axis once so the diagnostic does not rescan every
+    # non-composable relation pair. The output remains in canonical left/right
+    # name order because both the blocks and each indexed bucket retain it.
+    right_blocks_by_row_axis: dict[
+        Any,
+        list[tuple[str, TypedRelationBlock[Any]]],
+    ] = {}
+    for right_name, right in blocks:
+        right_blocks_by_row_axis.setdefault(right.row_axis, []).append(
+            (right_name, right)
+        )
+
     composable_pairs: list[dict[str, Any]] = []
+    reference_operations_total = 0
     for left_name, left in blocks:
-        for right_name, right in blocks:
-            if left.column_axis != right.row_axis:
-                continue
-            operations, peak_accumulator_entries = _reference_matmul_shape(left, right)
+        for right_name, right in right_blocks_by_row_axis.get(left.column_axis, ()):
+            if len(composable_pairs) >= MAX_PROFILED_COMPOSABLE_PAIRS:
+                raise ValueError(
+                    "relation-shape probe exceeds bounded composable pair limit "
+                    f"{MAX_PROFILED_COMPOSABLE_PAIRS}"
+                )
+            remaining_operations = (
+                MAX_PROFILE_REFERENCE_OPERATIONS - reference_operations_total
+            )
+            operations, peak_accumulator_entries = _reference_matmul_shape(
+                left,
+                right,
+                max_operations=remaining_operations,
+            )
+            reference_operations_total += operations
             composable_pairs.append(
                 {
                     "left": left_name,
@@ -111,7 +155,6 @@ def _profile_compiled(compiled: Any) -> dict[str, Any]:
                     "right_entries": right.entry_count,
                 }
             )
-    composable_pairs.sort(key=lambda item: (item["left"], item["right"]))
     max_out_degree = max(
         (profile["out_degree"]["max"] for profile in relation_profiles),
         default=0,
