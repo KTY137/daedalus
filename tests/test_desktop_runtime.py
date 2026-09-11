@@ -793,7 +793,7 @@ def test_source_web_cli_wires_settings_get_put_and_closes_manager(
         ("PUT", 200),
     ]
     assert observed["responses"][0][2]["desktop"]["config_path"] == str(
-        tmp_path / "config" / "connections.json"
+        tmp_path.resolve() / "config" / "connections.json"
     )
     assert observed["responses"][1][2]["desktop"]["config"]["ollama"][
         "model"

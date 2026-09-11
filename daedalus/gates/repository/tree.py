@@ -182,6 +182,24 @@ def read_repository_source(
             raise RepositoryTreeRaceError(
                 f"repository file changed before open: {path}"
             )
+        if getattr(before, "st_nlink", 1) > 1:
+            # A HARD LINK is a second name for one inode. The path checks above
+            # all pass for it -- `os.path.realpath` returns the requested
+            # spelling and `O_NOFOLLOW` does not apply -- so a file inside a
+            # protected prefix can be read through a name outside it. The check
+            # belongs HERE, on the open descriptor, because a caller that
+            # checked before opening loses the race: measured 2026-09-10, a
+            # writer needed 0.39 ms against a 12.2 ms window and won every
+            # attempt (G1-IKARUS-47, Odysseus round 3, D13).
+            # Measured 2026-09-10: no tracked source in this repository has a
+            # second name, but 3810 of 4951 sampled `.venv` files do (uv links
+            # them from its cache), so a subject with a virtual environment or
+            # a pnpm-style node_modules inside it refuses reads THERE. That is
+            # the right answer for a repair campaign, which has no business
+            # rewriting a package cache.
+            raise RepositoryTreePathError(
+                f"repository file has more than one name (hard link): {path}"
+            )
         if before.st_size > _MAX_SOURCE_BYTES:
             raise RepositoryTreePathError(
                 f"repository file exceeds the bounded source size: {path}"

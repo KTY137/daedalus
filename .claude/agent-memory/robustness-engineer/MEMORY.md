@@ -1,0 +1,4 @@
+- [CRLF `-text` pin trap](project_crlf_text_pin_trap.md) — editing a `-text`-pinned `daedalus/*.py` commits a whole-file EOL flip; no test catches it, check `git ls-files --eol`
+- [Pin-failure attribution](project_pin_failure_attribution.md) — prove a red s02/byte-pin test predates the branch with `git archive` into $TEMP, no worktree, no git state touched
+- [Health surface contract](project_health_surface_contract.md) — assess() fans 20 probes onto daemon threads: what `seconds` means, the GUARDS mutation table, what still has no test
+- [Accelerator probe disk residual](project_accelerator_probe_residual.md) — measured 1.94 GiB/1.17 s unbounded temp writes, accepted at merge; don't re-raise, the fix is one fstat poll

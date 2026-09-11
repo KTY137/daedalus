@@ -9,13 +9,13 @@
     "master_plan_sha256": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
   },
   "counts": {
-    "assigned_artifacts": 525,
+    "assigned_artifacts": 532,
     "legacy_artifacts": 204,
-    "packet_artifacts": 527,
-    "packet_ids": 462,
-    "post_index_artifacts": 323,
+    "packet_artifacts": 534,
+    "packet_ids": 469,
+    "post_index_artifacts": 330,
     "registry_artifacts": 1,
-    "tracked_files": 528,
+    "tracked_files": 535,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2115,6 +2115,22 @@
       "origin": "post_index",
       "packet_id": "G1-DESKTOP-15",
       "primary_artifact": "docs/work-packets/G1-DESKTOP-15_STARTUP_INSTANCE_OWNERSHIP.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24e229c0f34e5404bc219637b646386529f82035",
+        "classification": "ALIGNED",
+        "dependencies": "none (standalone local build-driver repair)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908",
+      "primary_artifact": "docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md"
     },
     {
       "artifacts": [
@@ -6374,6 +6390,70 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "aae675f463d8334d09fa0f1fbd74fb30979280fc",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-36 (bounded voice), G1-IKARUS-43 (owner-chosen planner), G1-IKARUS-24/25 (handle-anchored workspace files), G1-ARIADNE-10 (leakage boundary as code)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-46",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-47_ARIADNE_CAMPAIGN_TOOL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b29105affb32fdc1f20624e20de1bf4074488786",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-46 (act verbs, computer_task offer, daedalus.* observations, egress gate per lane), G1-ARIADNE-05/06/10 (working-tree base binding, unsupported worktree layout, leakage boundary as code), G1-SELF-00/01 (the campaign as evidence)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-47",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-47_ARIADNE_CAMPAIGN_TOOL.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-48_TEST_RUNNING_EVALUATOR.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "a05f4b266471e09fbfcafd3302ee18e146c8d720",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-47 (the campaign door), G1-ARIADNE-10 (the leakage boundary)",
+        "owner": "repository owner (standing merge authorization of 2026-09-10, `CLAUDE.md`)"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-48",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-48_TEST_RUNNING_EVALUATOR.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-49_VACUITY_AND_WORKSPACE_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "6fecb1340b88076b7c20bc4fc2583652bc3a9c5a",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-48 (the test-running evaluator, merged)",
+        "owner": "repository owner (standing merge authorization of 2026-09-10, `CLAUDE.md`)"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-49",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-49_VACUITY_AND_WORKSPACE_BINDING.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -7012,6 +7092,38 @@
       "origin": "post_index",
       "packet_id": "G1-SELF-01",
       "primary_artifact": "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-SETTINGS-01_SETTINGS_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "a05f4b266471e09fbfcafd3302ee18e146c8d720",
+        "classification": "ALIGNED",
+        "dependencies": "G1-CAPS-13, G1-BUDGET-12",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SETTINGS-01",
+      "primary_artifact": "docs/work-packets/G1-SETTINGS-01_SETTINGS_CONTRACT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-SETTINGS-02_ADMITTED_EXECUTION_LIMITS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "77c9a672791a9a8c6dfc39e7ed32bc50902b9a99",
+        "classification": "ALIGNED",
+        "dependencies": "G1-SETTINGS-01, G1-CAPS-13, G1-BUDGET-12",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SETTINGS-02",
+      "primary_artifact": "docs/work-packets/G1-SETTINGS-02_ADMITTED_EXECUTION_LIMITS.md"
     },
     {
       "artifacts": [
@@ -7860,6 +7972,20 @@
       "format": "markdown",
       "packet_id": "G1-DESKTOP-15",
       "path": "docs/work-packets/G1-DESKTOP-15_STARTUP_INSTANCE_OWNERSHIP.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908",
+      "path": "docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -11162,6 +11288,62 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-IKARUS-46",
+      "path": "docs/work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-47",
+      "path": "docs/work-packets/G1-IKARUS-47_ARIADNE_CAMPAIGN_TOOL.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-48",
+      "path": "docs/work-packets/G1-IKARUS-48_TEST_RUNNING_EVALUATOR.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-49",
+      "path": "docs/work-packets/G1-IKARUS-49_VACUITY_AND_WORKSPACE_BINDING.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-IKARUS-COMPUTER-01",
       "path": "docs/work-packets/G1-IKARUS-COMPUTER-01.md",
       "sections": [
@@ -11647,6 +11829,34 @@
       "format": "markdown",
       "packet_id": "G1-SELF-01",
       "path": "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SETTINGS-01",
+      "path": "docs/work-packets/G1-SETTINGS-01_SETTINGS_CONTRACT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SETTINGS-02",
+      "path": "docs/work-packets/G1-SETTINGS-02_ADMITTED_EXECUTION_LIMITS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

@@ -66,7 +66,8 @@
   .talk-side { max-height: 28vh; }
   .composer-rail { gap: var(--u1); }
   .ctxplan-toggle { margin-left: 0; }
-  .cockpit-body.talk .composer textarea { min-height: 44px; padding: 11px var(--u2); font-size: var(--fs-md); }
+  .cockpit-body.talk .composer textarea,
+  .cockpit-body.talk .composer-grow::after { min-height: 44px; padding: 11px var(--u2); font-size: var(--fs-md); }
   .cockpit-body.talk .composer .composer-send { min-width: 44px; min-height: 44px; }
   .composer-stage { overflow: hidden; }
   .composer-stage > code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

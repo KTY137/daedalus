@@ -211,7 +211,13 @@ CURRENT_COMPONENTS_SHA256 = (
 # The component count (14), the maximum component size (19) and the component
 # digest asserted below are all unchanged, which is the claim that matters:
 # the four are a layered chain hanging off the supervisor, not a new cycle.
-CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain staged
+# G1-SETTINGS-01, 2026-09-10: 521 -> 522, exactly one added module and no
+# deletion -- ``daedalus.interfaces.desktop.settings_inventory``, a read-only
+# projection that imports only ``kernel.policy.limits`` and its sibling
+# ``configuration``. It joins no non-trivial SCC: the component count, the
+# maximum component size and the component digest asserted below are all
+# unchanged, which is the claim that matters.
+CENSUS_MODULES = 522  # re-measured 2026-09-10 (G1-SETTINGS-01)
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -520,7 +526,24 @@ CENSUS_MODULES = 519  # re-measured 2026-09-09 with the ikarus Claude chain stag
 # the one new supervisor edge to ``...claude_attempt_handoff``, which is
 # function-local inside ``run()`` but counted because the graph is built from
 # the AST.
-CENSUS_EDGES = 2081  # re-measured 2026-09-09 with the ikarus Claude chain staged
+# G1-SETTINGS-02, 2026-09-11: 2107 -> 2110, exactly three added edges and no
+# deletion, all of them leaving the same read-only projection so that it
+# REUSES a rule instead of reproducing it:
+#
+#   interfaces.desktop.settings_inventory -> kernel.policy.ledger      +1
+#       (the strictest-wins composition and the source vocabulary)
+#   interfaces.desktop.settings_inventory -> kernel.policy.pricing     +1
+#       (BudgetError, and the vendor table subscription_vendors filters on)
+#   interfaces.desktop.settings_inventory -> sensitivity               +1
+#       (parse_declared_trusted_hosts, so the panel cannot claim a name is
+#        inside the egress trust boundary when the rule drops every name)
+#
+# Module count is unchanged at 522: no module was added or removed. The
+# fourteen components, the maximum of nineteen and CURRENT_COMPONENTS_SHA256
+# are all unchanged, which is the claim that matters -- the projection is a
+# leaf that imports downward and is imported by nothing in production, so
+# none of the three edges can close a cycle.
+CENSUS_EDGES = 2110  # re-measured 2026-09-11 (G1-SETTINGS-02)
 
 
 def _module_name(path: str) -> str:

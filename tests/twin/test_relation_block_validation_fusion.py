@@ -327,11 +327,28 @@ def test_from_indexed_sorts_out_of_order_exact_dict_once(
     assert block.values == (True, True, True)
 
 
-def test_from_indexed_reuses_validated_key_order_without_item_pair_copy() -> None:
-    source = inspect.getsource(TypedRelationBlock._from_indexed)
-    assert "list(entries.items())" not in source
-    assert "for row, column in entries:" in source
-    assert "keys_are_canonical = type(entries) is dict" in source
-    assert "ordered_keys = entries if keys_are_canonical else sorted(entries)" in source
-    assert "ordered = sorted(entries)" not in source
-    assert "values.append(entries[key])" in source
+@pytest.mark.parametrize("coordinates", ((), ((1, 1),), ((0, 0), (0, 2), (1, 1))))
+def test_from_indexed_reuses_values_without_rehashing_validated_keys(coordinates) -> None:
+    """Observe behavior, not the spelling of the compiler implementation."""
+    forbid_hash = False
+
+    class Key(tuple):
+        def __hash__(self):
+            if forbid_hash:
+                raise AssertionError("validated exact-dict keys must not be rehashed")
+            return super().__hash__()
+
+    entries = {Key(coordinate): True for coordinate in coordinates}
+    forbid_hash = True
+    rows, columns = _axes()
+    block = TypedRelationBlock._from_indexed(
+        _subject(), RelationSignature("code", "declares", "type"),
+        rows, columns, entries, BooleanSemiring(),
+    )
+    assert tuple(block.iter_entries()) == tuple(
+        (rows.labels[row], columns.labels[column], True)
+        for row, column in coordinates
+    )
+    assert block.row_offsets == (
+        0, sum(row == 0 for row, _ in coordinates), len(coordinates)
+    )

@@ -1,4 +1,4 @@
-import { costText, readMode, scopeNote, shallow, totalCost, type HealthAsked } from './healthread';
+import { costText, readMode, scopeNote, shallow, totalCost, waitText, type HealthAsked } from './healthread';
 
 /**
  * What the health read asked, and what it cost — pinned.
@@ -68,8 +68,9 @@ export function runHealthReadSpec(): Result[] {
   check('an unreported scope is not asserted to be shallow', shallow(undefined) === false);
 
   // ---- 3. what it cost ----------------------------------------------------
-  // Measured: rows ran 0.00s..2.06s and summed to 10.62s -- the whole of the
-  // ~10.6s a health read takes.
+  // Measured 2026-09-03: rows ran 0.00s..2.06s. The sum was also the wait back
+  // then, because the backend ran the probes one after another. It no longer
+  // is -- see section 4.
   check('a probe cost is shown to hundredths', costText(2.06) === '2,06 s', costText(2.06));
   check('a free probe is stated as free, not hidden', costText(0) === '0,00 s');
   check('a German decimal comma is used', costText(10.62) === '10,62 s', costText(10.62));
@@ -91,6 +92,23 @@ export function runHealthReadSpec(): Result[] {
   check('rows with no cost do not corrupt the sum',
     Math.abs(totalCost([...live, { seconds: null }, {}]) - 9.13) < 0.005);
   check('an empty board costs nothing rather than NaN', totalCost([]) === 0);
+
+  // ---- 4. the work and the wait are different numbers ---------------------
+  // MEASURED 2026-09-10 against the live endpoint, after the probes stopped
+  // running serially: 8.28s of summed probe cost inside a 2.17s request. A
+  // surface that prints the sum as the latency now overstates it by ~4x, so
+  // the two must not be derivable from one another.
+  check('the wait is rendered from the backend measurement',
+    waitText(2.17) === '2,17 s', waitText(2.17));
+  check('an untimed read shows no wait rather than an invented one',
+    waitText(null) === '' && waitText(undefined) === '');
+  check('a nonsense wait is not rendered',
+    waitText(Number.NaN) === '' && waitText(-1) === '');
+  check(
+    'the wait is never the sum of the rows',
+    Math.abs(totalCost(live) - 9.13) < 0.005 && waitText(undefined) === '',
+    `sum=${totalCost(live)} wait=${waitText(undefined)}`
+  );
 
   return results;
 }

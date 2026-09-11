@@ -219,6 +219,33 @@ def _run_ariadne_campaign(**kwargs: Any) -> dict[str, Any]:
     return run_campaign(**kwargs)
 
 
+def _campaign_runner():
+    """The computer loop's ``daedalus.ariadne_campaign`` runner (G1-IKARUS-47).
+
+    Built HERE, in the composition root that already reaches the Ariadne
+    package lazily for ``POST /api/ariadne``, and registered with the loop:
+    the loop must not import ``daedalus.ariadne`` (census pin). Same
+    ``run_campaign`` as the HTTP door; the leakage boundary as code.
+    """
+
+    from ...ariadne import run_campaign
+    from ...ariadne.campaign import protected_prefix_for
+    from ...orchestration.ikarus.computer_loop import head_revision
+    from ...runtimes.computer_ariadne import CampaignRunner
+
+    return CampaignRunner(run_campaign=run_campaign, head_revision=head_revision,
+                          protected_prefix_for=protected_prefix_for)
+
+
+def _register_campaign_runner() -> None:
+    from ...orchestration.ikarus import computer_loop
+
+    computer_loop.register_campaign_runner(_campaign_runner)
+
+
+_register_campaign_runner()
+
+
 def _project_list() -> dict[str, Any]:
     rows = []
     for name in list_projects():

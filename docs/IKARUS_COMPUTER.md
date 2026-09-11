@@ -73,7 +73,7 @@ dieselben freigegebenen Aufruf- und Zeitbudgets wie die eigentliche Aufgabe.
 Bei wiederholt unveränderten Beobachtungen meldet er Stillstand. Ein abgelehntes
 Werkzeug oder eine unklare Wirkung wird nicht automatisch wiederholt.
 
-Der Bericht jeder Mission nennt den Planner, der die Schritte vorgeschlagen hat, und ob die Beobachtungen den Rechner verlassen haben (`Planner: … · Kontext hat den Rechner verlassen: ja|nein`); dieselben Angaben stehen in `/computer task` und `/computer tasks`. Ein entfernter Planner (`planner_provider` mit `allow_remote_context: true`) ist eine ausdrückliche Owner-Konfiguration; die Zeile macht sie nachträglich sichtbar und ersetzt keine Freigabe.
+Der Bericht jeder Mission nennt den Planner, der die Schritte vorgeschlagen hat, und ob die Beobachtungen den Rechner verlassen haben (`Planner: … · Kontext hat den Rechner verlassen: ja|nein|unbekannt`); dieselben Angaben stehen in `/computer status`, `/computer task` und `/computer tasks`, und das Chat-Angebot trägt denselben Zusatz. „Verlassen“ ist eine Frage der Physik — der Host des Planners ist dieser Rechner oder nicht (`leaves_machine`, aus `OLLAMA_HOST` für ein lokales Ollama, immer *ja* für einen Anbieter-Planner) — und wird nicht aus dem Konsens-Flag `allow_remote_context` abgeleitet; das Flag steht als `remote_context` daneben. Ein Bericht, der vor diesem Feld entstand, sagt *unbekannt*. Ein entfernter Planner (`planner_provider` mit `allow_remote_context: true`) ist eine ausdrückliche Owner-Konfiguration; die Zeile macht sie nachträglich sichtbar und ersetzt keine Freigabe.
 
 Der Planner wird mit `/computer planner <ollama_http|codex_cli|claude_code_cli|deepseek> [Modell]`
 gewählt. Ein entfernter Anbieter wird erst nach einer sichtbaren Warnung und der
@@ -84,6 +84,115 @@ endet die Mission als `blocked`, bevor ein Planner die Beobachtung sieht; die
 Beobachtung selbst bleibt lokal als Evidenz erhalten. Das lokale Modell braucht keine
 Bestätigung. Gemessen am 2026-09-06: Codex als Planner beendete die Messmission als
 erste mit `finish`, das lokale 7B-Modell liest, schließt aber nicht ab.
+
+### Aufträge in natürlicher Sprache und die Daedalus-Werkzeuge (G1-IKARUS-46)
+
+Sobald eine Computer-Policy konfiguriert ist, ist der Loop die Hand des Chats:
+Ein Arbeitsauftrag im Imperativ („verbessere Daedalus“, „erweitere den
+Parser“, „build a settings dialog“) wird als **Computer-Auftrag** angeboten.
+Das Angebot nennt den konfigurierten Planner, ob Beobachtungen den Rechner
+verlassen, die freigegebenen Werkzeuge und die exakte Nachricht, die der Lauf
+sendet (`/computer run <Auftrag>`). Erst ein Klick oder ein „ja“ im nächsten
+Turn startet ihn; der Chat streamt dann jeden Schritt mit Beleg. Eine Frage
+(„kannst du das verbessern?“) startet weiterhin nichts. Ohne Computer-Policy
+bleibt das bisherige Queue-Angebot unverändert.
+
+`/computer run <Auftrag>` führt den Auftrag wörtlich aus, auch wenn sein erstes
+Wort ein Unterbefehl ist. `/computer enable daedalus` gibt fünf **lesende**
+Werkzeuge auf das registrierte Projekt der Unterhaltung frei, `/computer
+disable daedalus` nimmt sie wieder heraus; beides läuft über dieselbe
+Vergleich-und-Ersetzen-Konfiguration wie `/computer planner`, und ein frisches
+`/computer setup` gibt weiterhin nichts frei:
+
+| Werkzeug | beobachtet | schreibt |
+| --- | --- | --- |
+| `daedalus.status` | Git-Zähler des Projekts, Queue und Watcher | nichts |
+| `daedalus.structure` | Struktur-Zusammenfassung: Dateien, Sprachen, Hotspots, Clone-Cluster, Fan-in | nichts |
+| `daedalus.slice` | die destillierte semantische Scheibe eines indizierten Moduls, durch die Egress-Policy des Projekts | nichts |
+| `daedalus.docrefs` | Doku-Verweise auf Code-Symbole, die der eigene Resolver als kaputt meldet | nichts |
+| `daedalus.tasks` | jüngste Aufgabenberichte des Projekts aus der File-Bridge (Missionshistorie weiterhin über `/computer tasks`) | nichts |
+
+### `daedalus.ariadne_campaign` — eine Ariadne-Kampagne aus dem Loop (G1-IKARUS-47)
+
+Mit `/computer enable ariadne confirm-campaigns` bekommt der Loop ein sechstes,
+effektvolles Werkzeug: `daedalus.ariadne_campaign` übergibt eine vom Planner
+vorgeschlagene, begrenzte Reparatur (`target_path`, exakter `before`-Text,
+`after`-Text) an die kanonische Kampagne `daedalus.ariadne.run_campaign` —
+dieselbe Funktion wie die CLI-Tür `daedalus ariadne` und `POST /api/ariadne`.
+Die Kampagne materialisiert drei Arme (Baseline, Negativkontrolle, Reparatur)
+aus dem CAS in einen Arbeitsbereich unter dem Control-Root des Projekts,
+fährt den eingefrorenen Evaluator pro Arm mit gleichem Budget und schreibt
+eine `CampaignReceipt`; der Projektbaum wird nie beschrieben (die Kampagne
+trägt sich nur in die kanonische Spine des Projekts unter `runs/spine/` ein,
+Invariante 1), und die Nominierung wird nie angewendet — anwenden bleibt die
+versiegelte Owner-Entscheidung (Invariante 5). Der Planner sieht eine
+Projektion der Quittung (Ergebnis, Kampagnen-ID, Arm-Verdikte mit Laufzeit,
+Budgetgleichheit, Hashes von Kandidat, Nominierung und Quittung), nie einen
+Locator oder Host-Pfad; der Zielpfad wird auf der Lane des Planners gegated.
+
+Vor jeder Wirkung verweigert das Werkzeug selbst: Pfade innerhalb der
+Leakage-Grenze der Selbst-Renovation (Spine, Kernel-Policy, Plan,
+Amendment-Kette, `AGENTS.md`, `CLAUDE.md`, `.agentenv/`, die Kampagne und
+ihre Tests — `SELF_RENOVATION_PROTECTED_PREFIXES`, dieselbe Liste wie in der
+Kampagne), Pflicht-Ignorierwurzeln, `before == after`, unzulässige
+Zeitbudgets (1–120 s), ein nicht registriertes Projekt, ein unlesbarer HEAD.
+Was die Kampagne danach verweigert (HEAD-Konflikt, ein verlinkter
+Git-Worktree als Subjekt — G1-ARIADNE-06 —, ein `before`, das nicht genau
+einmal vorkommt), wird mit ihrer eigenen Fehlerklasse wörtlich gemeldet; die
+Lease des Werkzeugs bleibt dann zur Abstimmung offen, weil das Werkzeug
+„keine Wirkung“ nicht mehr beweisen kann.
+
+**Ehrlich gesagt:** der Evaluator der Kampagne ist der eingefrorene
+Exakt-Vergleich aus G1-SELF-01. Eine Nominierung beweist Isolation,
+Provenienz, Budgetgleichheit und Nichtanwendung — nicht, dass die Änderung
+besser ist. Ein Evaluator, der die Tests des Projekts in jedem Arm fährt, ist
+ein eigenes Paket (G1-IKARUS-48). Das Werkzeug steht nur in einem Prozess zur
+Verfügung, der die Web-API geladen hat (dort wird der Runner registriert,
+weil der Loop das Ariadne-Paket nicht importieren darf); ein anderer Prozess
+meldet es als nicht verfügbar.
+
+Diese Beobachtungen **sind** der Planner-Prompt: mit jedem Planner, der nicht
+auf diesem Rechner läuft, verlassen sie ihn. Ob sie ihn verlassen, ist eine
+Frage der Physik (`OLLAMA_HOST` ist eine Loopback-Adresse oder nicht; ein
+Anbieter-Planner verlässt ihn immer) und wird getrennt von der Lane
+beantwortet: ein Host, den du in `DAEDALUS_TRUSTED_HOSTS` als vertraut erklärt
+hast, bekommt die vertraute Lane (nur die Secret-Floor filtert) und verlässt
+den Rechner trotzdem — die Freigabe sagt beides. Deshalb verlangt `/computer
+enable daedalus` bei jedem Planner, der den Rechner verlässt, dieselbe
+einmalige Bestätigung wie die Planner-Wahl (`/computer enable daedalus
+confirm-remote`), und jede der fünf Beobachtungen — nicht nur die Scheibe —
+geht Zeile für Zeile durch die Egress-Regel der Voice
+(`sensitivity.slice_egress_rule`): die Secret-Floor in jeder Lane (eine
+`?? .env`-Zeile fällt überall heraus), auf der untrusted Lane zusätzlich die
+Default-Deny-Allow-Liste und die `deny_content`-Wörter aus
+`projects/<name>.json`. Die Lane folgt dem Planner und wird pro Aufruf
+bestimmt: lokales Ollama (Loopback oder erklärter Host) und die Claude-CLI sind
+`trusted`, Codex, DeepSeek und ein Ollama auf einer fremden Adresse
+`untrusted`. Zurückgehaltene Zeilen werden gezählt (`git_status_withheld`,
+`hotspots_withheld`, `broken_withheld`, …) und gekürzte Listen ebenfalls
+(`hotspots_elided`, …), nie stumm verworfen; eine zurückgehaltene Datei der
+Scheibe erscheint nur als Rolle plus Regel-Klasse (`denylisted_path`,
+`default_deny`, `secret_path`, `secret_content`, `deny_content`) — weder ihr
+Pfad noch das Deny-Fragment noch das Marker-Wort, auch nicht in den
+Breadcrumb-Zeilen der Scheibe, in einer mehrdeutigen Modulauflösung oder in
+`focus_file`; jeder Wert einer Beobachtung wird genau einmal gerendert, über
+alle Strings dieses Renderings geprüft (Listen, Dicts, Sets, Pfadobjekte,
+Fehlertexte) und in genau dieser Form weitergegeben; Zähler werden wie jeder
+andere Wert geprüft; ein absoluter Host-Pfad in einem Quelltext-Literal der
+Scheibe wird zu `<host-path>` geschwärzt und gezählt
+(`text_host_paths_redacted`); Fehlertexte des Doku-Scanners werden nur
+gezählt; ein Reader- oder Producer-Fehler wird nur mit seinem Klassennamen
+gemeldet, nie mit seiner Meldung (die trüge den Pfad); ein Modulname wird nur
+innerhalb des Index aufgelöst, und ein Treffer, den die Gate zurückhält,
+antwortet wie ein Fehltreffer; der Index wird ohne Cache-Schreibzugriff,
+Prozess-Pool und `git log` gebaut (`effect_free`). Eine Sitzung ohne registriertes Projekt
+(etwa ein geplanter Auftrag) meldet die Familie als nicht verfügbar und
+verweigert sie vor jeder Lease; ein Projekt, dessen Policy-Zeile nicht lesbar
+ist, wird verweigert statt mit der generischen Policy bedient. Der Loop kann
+damit beobachten und vorschlagen; **verändern** kann er den Projektbaum
+weiterhin nicht — das ist der Gegenstand der Folgepakete (Ariadne-Kampagne als
+Werkzeug, `terminal.run`), siehe
+[G1-IKARUS-46](work-packets/G1-IKARUS-46_SUPERAGENT_DISPATCH_AND_DAEDALUS_TOOLS.md).
 
 ```text
 /computer queue Öffne die freigegebene Statusseite und lies den aktuellen Status.

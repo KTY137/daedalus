@@ -1,3 +1,7 @@
+# Owner-local scratch: machine-bound build drivers and their logs. Nothing in
+# here is canonical -- the reviewed packager is tools/package_desktop_local.ps1.
+.local/
+
 __pycache__/
 *.py[cod]
 .pytest_cache/

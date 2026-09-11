@@ -1,0 +1,270 @@
+"""Mutation table for G1-IKARUS-46: disable one guard, run the packet suites, restore.
+
+Each mutation is an exact-string replacement in one production file. The file is
+restored from memory afterwards (never via git, which would discard the packet's
+own edits). Output: one line per mutation with the test names that caught it.
+"""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PY = ROOT / ".venv" / "Scripts" / "python.exe"
+SUITES = ["tests/runtimes/test_computer_daedalus.py", "tests/test_ikarus_computer_dispatch.py",
+          "tests/test_ikarus_act.py", "tests/runtimes/test_computer_evidence_terminal.py",
+          "tests/test_ikarus_computer_loop.py"]
+
+MUTATIONS = [
+    ("M1 daedalus tool becomes a host mutation", "daedalus/runtimes/computer.py",
+     '_HOST_MUTATION_TOOLS = frozenset({"file.write",',
+     '_HOST_MUTATION_TOOLS = frozenset({"daedalus.status", "file.write",'),
+    ("M2 the offer ignores an available loop", "daedalus/orchestration/ikarus/shell.py",
+     "    computer = _computer_hand(project)\n    if computer is not None:",
+     "    computer = None\n    if computer is not None:"),
+    ("M3 a confirmation never runs the loop", "daedalus/orchestration/ikarus/shell.py",
+     "    if act is None or not act.allowed or not act.confirmation_of:\n        return None",
+     "    if act is None or not act.allowed or not act.confirmation_of:\n        return None\n    return None"),
+    ("M4 the offer's message drifts from run_command", "daedalus/orchestration/ikarus/shell.py",
+     "    message = run_command(objective)\n    planner = computer[\"planner\"]",
+     "    message = \"/computer \" + objective\n    planner = computer[\"planner\"]"),
+    ("M5 Codex planner trusted", "daedalus/runtimes/computer_daedalus.py",
+     '    if policy.planner_provider in _TRUSTED_PLANNERS:\n        return "trusted"\n    return "untrusted"',
+     '    if policy.planner_provider in _TRUSTED_PLANNERS:\n        return "trusted"\n    return "trusted"'),
+    ("M6 module resolution accepts any path", "daedalus/runtimes/computer_daedalus.py",
+     '        raise ComputerRefused(_MODULE_UNAVAILABLE)\n\n    def _slice',
+     '        return token\n\n    def _slice'),
+    ("M7 a refused read is filed as reconciliation", "daedalus/runtimes/computer.py",
+     "            provably_no_effect = (external_started and not dispatched and tool in DAEDALUS_TOOLS\n                                  and isinstance(exc, ComputerRefused))",
+     "            provably_no_effect = False"),
+    ("M8 the family is offered without a project", "daedalus/runtimes/computer.py",
+     "            if not reason and tool in DAEDALUS_TOOLS and (self._project is None or self._project_readers is None):\n                reason = _NO_PROJECT_REFUSAL if self._project is None else _NO_READERS_REFUSAL",
+     "            pass"),
+    ("M9 /computer run parses subcommands again", "daedalus/orchestration/ikarus/computer_loop.py",
+     "        explicit_run = verb.casefold() == RUN_VERB",
+     "        explicit_run = False"),
+    ("M10 enable ignores the current policy digest", "daedalus/orchestration/ikarus/computer_loop.py",
+     "            configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=digest)\n            granted",
+     "            configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=None)\n            granted"),
+    ("M11 'verbessere' dropped from the act verbs", "daedalus/orchestration/ikarus/act.py",
+     '    "verbesser", "verbessere", "erweiter",', '    "verbesser", "erweiter",'),
+    ("M12 slice text unbounded", "daedalus/runtimes/computer_daedalus.py",
+     "        text, elided = _bounded_text(result.get(\"slice_text\", \"\"))",
+     "        text, elided = str(result.get(\"slice_text\", \"\")), False"),
+    ("M13 no act_offer on the computer offer (a typed ja stops confirming)", "daedalus/orchestration/ikarus/shell.py",
+     '        act_offer={"objective": objective, "reason": "computer task offered",\n                   "signal": "computer_task", "policy_sha256": computer.get("policy_sha256")},\n        **extra)',
+     '        **extra)'),
+    ("M14 stream path queues instead of running", "daedalus/orchestration/ikarus/shell.py",
+     "            yield from conversation_events(project, run, cancelled=computer_cancelled)\n            return\n\n    # Deterministic lanes",
+     "            pass\n\n    # Deterministic lanes"),
+    # Cerberus 2026-09-10 repairs
+    ("M15 the path gate admits everything", "daedalus/runtimes/computer_daedalus.py",
+     "        return slice_egress_rule(path, f\"{path} {text}\".strip(), lane=self.lane,\n                                 policy=self._project_policy()) is None",
+     "        return True"),
+    ("M16 the text gate ignores deny_content", "daedalus/runtimes/computer_daedalus.py",
+     "            if any(pattern.search(text) for pattern in policy.deny_content):\n                return False",
+     "            pass"),
+    ("M17 the index is built with effects", "daedalus/runtimes/computer_daedalus.py",
+     '            self._index = self._produce("index", lambda: cached_index(repo_root, effect_free=True))',
+     '            self._index = self._produce("index", lambda: cached_index(repo_root))'),
+    ("M18 docrefs errors returned verbatim", "daedalus/runtimes/computer_daedalus.py",
+     '                "errors_count": (len(errors) if isinstance(errors, (list, tuple, set, frozenset, Mapping))',
+     '                "errors": errors, "errors_count": (len(errors) if isinstance(errors, (list, tuple, set, frozenset, Mapping))'),
+    ("M19 enable with a remote planner needs no confirmation", "daedalus/orchestration/ikarus/computer_loop.py",
+     "            if enabling and leaves and not confirm:",
+     "            if False:"),
+    ("M33 slice gate rules travel verbatim (path, fragment, marker)", "daedalus/runtimes/computer_daedalus.py",
+     '    text = str(rule)\n    for needle, label in _RULE_CLASSES:',
+     '    return str(rule)\n    for needle, label in _RULE_CLASSES:'),
+    ("M34 status gates str values only", "daedalus/runtimes/computer_daedalus.py",
+     '        admitted = all(not _looks_like_host_path(text) and self._admit(f"{key}.txt", text)\n                       for text in _rendered_strings(rendered))',
+     '        admitted = all(not _looks_like_host_path(text) and self._admit(f"{key}.txt", text)\n                       for text in ([rendered] if isinstance(rendered, str) else []))'),
+    ("M35 the ambiguity refusal lists raw indexed paths", "daedalus/runtimes/computer_daedalus.py",
+     '            admitted = [hit for hit in hits if self._admit(hit, "")]',
+     '            admitted = list(hits)'),
+    ("M36 leaving the machine decided by the lane again", "daedalus/runtimes/computer_daedalus.py",
+     '    from daedalus.sensitivity import is_loopback_host\n    return not is_loopback_host(host)',
+     '    from daedalus.sensitivity import lane_for_host\n    return lane_for_host(host) != "trusted"'),
+    ("M37 focus_file ungated", "daedalus/runtimes/computer_daedalus.py",
+     '        focus = target if self._admit(target, "") else "<withheld>"',
+     '        focus = target'),
+    ("M38 the flattener drops sets, keys and objects", "daedalus/runtimes/computer_daedalus.py",
+     '    return _rendered_strings(_render_value(value))\n\n\ndef _render_value',
+     '    rendered = _render_value(value)\n    return [rendered] if isinstance(rendered, str) else []\n\n\ndef _render_value'),
+    ("M39 the TOP bound truncates silently", "daedalus/runtimes/computer_daedalus.py",
+     '                "hotspots_elided": max(0, len(hotspots) - TOP),',
+     '                "hotspots_elided": 0,'),
+    ("M40 the withheld block keeps the slicer's breadcrumbs", "daedalus/runtimes/computer_daedalus.py",
+     '        elif rows and _WITHHELD_HEADER in text:',
+     '        elif False:'),
+    ("M20 a project whose policy row fails gets the generic policy", "daedalus/runtimes/computer_daedalus.py",
+     '            raise ComputerRefused(f"project policy is unavailable: {type(exc).__name__}") from exc\n        try:\n            return load_policy(config)',
+     '            config = None\n        try:\n            return load_policy(config)'),
+    ("M27 deny_content no longer sees the path itself", "daedalus/runtimes/computer_daedalus.py",
+     '        return slice_egress_rule(path, f"{path} {text}".strip(), lane=self.lane,',
+     '        return slice_egress_rule(path, text, lane=self.lane,'),
+    ("M28 kept fields outside the text keys are not gated", "daedalus/runtimes/computer_daedalus.py",
+     "            text = \" \".join(dict.fromkeys(named + handed_on))",
+     "            text = \" \".join(dict.fromkeys(named))"),
+    ("M29 only a drive letter counts as a host path (UNC, URL, ~, POSIX undetected)", "daedalus/runtimes/computer_daedalus.py",
+     '    return bool(_EMBEDDED_HOST_PATH.search(text or ""))',
+     '    return bool(re.search("[A-Za-z]:", text or ""))'),
+    ("M22 a question's offer confirms into a run", "daedalus/orchestration/ikarus/shell.py",
+     '    if offer is None or offer.get("signal") != "computer_task":\n        return None, "offer_not_computer"',
+     '    if offer is None:\n        return None, "offer_not_computer"'),
+    ("M23 the offer's policy digest is not bound to the run", "daedalus/orchestration/ikarus/shell.py",
+     '    if offer.get("policy_sha256") != computer.get("policy_sha256"):\n        return None, "policy_changed"',
+     '    pass'),
+    ("M24 embedded host paths pass the text gate", "daedalus/runtimes/computer_daedalus.py",
+     '    return bool(_EMBEDDED_HOST_PATH.search(text or ""))',
+     '    return False'),
+    ("M25 a row without path or text passes ungated", "daedalus/runtimes/computer_daedalus.py",
+     "            if not paths and not text:\n                withheld += 1\n                continue\n",
+     ""),
+    ("M26 the grant sentence claims the deny list on the trusted lane", "daedalus/orchestration/ikarus/computer_loop.py",
+     "    if trusted:\n        return (\"Auf dieser vertrauten Lane",
+     "    if False:\n        return (\"Auf dieser vertrauten Lane"),
+    ("M30 egress decided by provider name, not host", "daedalus/orchestration/ikarus/computer_loop.py",
+     '            lane, host, leaves = _planner_egress_of(current)\n            trusted = lane == "trusted"',
+     '            lane, host, leaves = _planner_egress_of(current)\n            leaves = planner_name not in _LOCAL_PLANNERS\n            trusted = lane == "trusted"'),
+    ("M31 ignore patterns ungated", "daedalus/runtimes/computer_daedalus.py",
+     "        admitted_patterns = [p for p in patterns if self._admit_text(p)]",
+     "        admitted_patterns = list(patterns)"),
+    ("M32 slice withheld rows name the file", "daedalus/runtimes/computer_daedalus.py",
+     '        rows = [{"role": str(row.get("role", "")), "rule": _rule_class(row.get("rule", ""))}',
+     '        rows = [dict(row)'),
+    ("M41 the report line follows the consent flag again", "daedalus/orchestration/ikarus/computer_loop.py",
+     '    left = {True: "ja", False: "nein"}.get(planner.get("leaves_machine"), "unbekannt")',
+     '    left = "ja" if planner.get("remote_context") is True else "nein"'),
+    ("M42 a local planner never leaves, whatever its host", "daedalus/runtimes/computer_daedalus.py",
+     '    host = planner_host_for(provider)\n    if host is None:\n        return True\n    from daedalus.sensitivity import is_loopback_host\n    return not is_loopback_host(host)',
+     '    host = planner_host_for(provider)\n    return host is None'),
+    ("M43 the offer sentence follows the consent flag again", "daedalus/orchestration/ikarus/shell.py",
+     "            f\"{' (Beobachtungen verlassen den Rechner)' if planner.get('leaves_machine') is True else ''}. \"",
+     "            f\"{' (Beobachtungen verlassen den Rechner)' if planner.get('remote_context') is True else ''}. \""),
+    ("M44 an exact withheld path confirms its existence", "daedalus/runtimes/computer_daedalus.py",
+     '            if not self._admit(token, ""):\n                raise ComputerRefused(_MODULE_UNAVAILABLE)\n            return token',
+     '            return token'),
+    ("M45 tasks are bounded before the gate", "daedalus/runtimes/computer_daedalus.py",
+     '        briefs = self._produce("report briefs", lambda: list(self._readers.report_briefs(self._project)))\n        reports, withheld',
+     '        briefs = self._produce("report briefs", lambda: list(self._readers.report_briefs(self._project)))[-TOP:]\n        reports, withheld'),
+    ("M46 the rebuild splits at the first header", "daedalus/runtimes/computer_daedalus.py",
+     '            head, tail = text.rsplit(_WITHHELD_HEADER, 1)',
+     '            head, tail = text.split(_WITHHELD_HEADER, 1)'),
+    ("M47 an unrenderable value is admitted", "daedalus/runtimes/computer_daedalus.py",
+     '        except _Unrenderable:\n            return False, None',
+     '        except _Unrenderable:\n            return True, None'),
+    ("M48 the raw value is emitted instead of the gated rendering", "daedalus/runtimes/computer_daedalus.py",
+     '            admitted, rendered = self._gate_value(key, value)\n            if admitted:\n                observed[key] = rendered',
+     '            admitted, rendered = self._gate_value(key, value)\n            if admitted:\n                observed[key] = value'),
+    ("M49 a producer failure passes its message through", "daedalus/runtimes/computer_daedalus.py",
+     '            raise ComputerRefused(f"observation producer failed ({label}): {type(exc).__name__}") from exc',
+     '            raise ComputerRefused(f"observation producer failed ({label}): {type(exc).__name__}: {exc}") from exc'),
+    ("M50 the ambiguity refusal counts the withheld again", "daedalus/runtimes/computer_daedalus.py",
+     '            if admitted:\n                raise ComputerRefused("module is ambiguous; name one of: " + ", ".join(admitted[:TOP]))\n            raise ComputerRefused(_MODULE_UNAVAILABLE)',
+     '            if admitted:\n                raise ComputerRefused("module is ambiguous; name one of: " + ", ".join(admitted[:TOP]))\n            raise ComputerRefused(f"module is ambiguous ({len(hits)} indexed candidates, all withheld)")'),
+    ("M51 the structure counters bypass the gate", "daedalus/runtimes/computer_daedalus.py",
+     '        counters, counters_withheld = self._gated_fields(summary, ("n_files", "languages", "totals"))',
+     '        counters, counters_withheld = {key: summary.get(key) for key in ("n_files", "languages", "totals")}, 0'),
+    ("M52 clone rows copied raw again", "daedalus/runtimes/computer_daedalus.py",
+     '            if not all(self._admit_text(text) for text in _rendered_strings(head)) or not head.get("name"):',
+     '            if not head.get("name"):'),
+    ("M53 the registry refusal carries the message", "daedalus/runtimes/computer_daedalus.py",
+     '            raise ComputerRefused(f"project is not registered or unreadable: {type(exc).__name__}") from exc',
+     '            raise ComputerRefused(f"project is not registered or unreadable: {type(exc).__name__}: {exc}") from exc'),
+    ("M54 host paths inside the slice text pass", "daedalus/runtimes/computer_daedalus.py",
+     '        text, redacted = _redact_host_paths(text)',
+     '        redacted = 0'),
+    ("M55 one admitted candidate is announced as ambiguous", "daedalus/runtimes/computer_daedalus.py",
+     '            if len(admitted) == 1:\n                # One admitted candidate resolves as if it were unique: saying\n                # "ambiguous" with one name would reveal that a withheld\n                # second exists (Odysseus round 7, D27).\n                return admitted[0]',
+     '            if False:\n                return admitted[0]'),
+    ("M56 producer-chosen row keys pass ungated", "daedalus/runtimes/computer_daedalus.py",
+     '                         for text in _rendered_strings(value) + ([] if keep_keys else [key])]',
+     '                         for text in _rendered_strings(value)]'),
+    ("M57 a slash after a brace is not a host path", "daedalus/runtimes/computer_daedalus.py",
+     '    return bool(_EMBEDDED_HOST_PATH.search(text or ""))',
+     '    return bool(_EMBEDDED_HOST_PATH.search((text or "").split("{")[0]))'),
+    ("M58 a quoted path with spaces is cut at the first space", "daedalus/runtimes/computer_daedalus.py",
+     '        quote = text[start - 1] if start > 0 and text[start - 1] in _QUOTES else None',
+     '        quote = None'),
+    ("M59 a non-list producer field is iterated", "daedalus/runtimes/computer_daedalus.py",
+     '        if not isinstance(rows, (list, tuple)):\n            # A producer field that is not a list is withheld as one row, never\n            # iterated into a crash (Odysseus round 8, D30: ``sites=None``).\n            return kept, 1',
+     '        if False:\n            return kept, 1'),
+    ("M60 an unquoted path with spaces stops at the first space", "daedalus/runtimes/computer_daedalus.py",
+     '    while end < len(text) and text[end] == " ":',
+     '    while False:'),
+    ("M61 a withheld field of an unknown shape is trusted", "daedalus/runtimes/computer_daedalus.py",
+     '        else:\n            # A shape the slicer never produces is not trusted either way: ONE',
+     '        elif False:\n            # A shape the slicer never produces is not trusted either way: ONE'),
+    ("M62 a consumption failure escapes execute with its message", "daedalus/runtimes/computer_daedalus.py",
+     '        except Exception as exc:  # noqa: BLE001 - consuming a foreign payload can raise; class only (D33)\n            raise ComputerRefused(f"observation failed ({tool}): {type(exc).__name__}") from exc',
+     '        except Exception as exc:  # noqa: BLE001\n            raise ComputerRefused(f"observation failed ({tool}): {type(exc).__name__}: {exc}") from exc'),
+    ("M21 the lane is frozen at construction", "daedalus/runtimes/computer_daedalus.py",
+     "        return planner_lane(self._policy)\n\n    def _repo_root",
+     "        return getattr(self, '_frozen_lane', None) or object.__setattr__(self, '_frozen_lane', planner_lane(self._policy)) or self._frozen_lane\n\n    def _repo_root"),
+    ("M63 a backtick ends a path token again (the round-9 spelling)", "daedalus/runtimes/computer_daedalus.py",
+     '_QUOTES = frozenset("\'\\"`")',
+     '_QUOTES = frozenset("\'\\"")\n_PATH_TOKEN_END = _PATH_TOKEN_END | frozenset("`")'),
+    ("M64 the space bridging never looks past the first run", "daedalus/runtimes/computer_daedalus.py",
+     "_SPACE_LOOKAHEAD = 2",
+     "_SPACE_LOOKAHEAD = 1"),
+    ("M65 an unclosed quote falls back to no walk at all", "daedalus/runtimes/computer_daedalus.py",
+     "            end = close if close != -1 and (newline == -1 or close < newline) else _walk_token(text, end)",
+     "            end = close if close != -1 and (newline == -1 or close < newline) else end"),
+    ("M66 a withheld block that cannot be rebuilt passes raw", "daedalus/runtimes/computer_daedalus.py",
+     "        elif rows:\n            # Files were withheld and this adapter's own bound cut the end off",
+     "        elif rows and False:\n            # Files were withheld and this adapter's own bound cut the end off"),
+    ("M67 rendering the result escapes execute with its message", "daedalus/runtimes/computer_daedalus.py",
+     '        try:\n            result.setdefault("kind", "observation")',
+     '        if True:\n            result.setdefault("kind", "observation")'),
+    ("M68 an unreadable withheld element is dropped instead of counted", "daedalus/runtimes/computer_daedalus.py",
+     '                    if isinstance(row, Mapping) else {"role": "unknown", "rule": "egress_rule"}\n                    for row in withheld]',
+     '                    for row in withheld if isinstance(row, Mapping)]'),
+    ("M69 a diverged withheld block is not filtered out of a bounded text", "daedalus/runtimes/computer_daedalus.py",
+     "                if _WITHHELD_BANNER.match(line):",
+     "                if False and _WITHHELD_BANNER.match(line):"),
+    ("M70 an unbounded diverged text is not fail-closed", "daedalus/runtimes/computer_daedalus.py",
+     "        elif rows and not elided:",
+     "        elif rows and False:"),
+    ("M71 a breadcrumb without a banner travels", "daedalus/runtimes/computer_daedalus.py",
+     "                if _BREADCRUMB.match(line):",
+     "                if False:"),
+]
+
+
+def run_suites() -> tuple[int, str]:
+    proc = subprocess.run([str(PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *SUITES, "--no-header", "-rf"],
+                          cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def main() -> int:
+    rows = []
+    for label, rel, old, new in MUTATIONS:
+        path = ROOT / rel
+        # BYTES, not text: ``write_text`` on Windows rewrites LF as CRLF and
+        # would move the byte-pinned modules (Odysseus 2026-09-10, defect 6).
+        original_bytes = path.read_bytes()
+        original = original_bytes.decode("utf-8")
+        if original.count(old) != 1:
+            rows.append((label, "NOT APPLIED (anchor not unique)", ""))
+            continue
+        path.write_bytes(original.replace(old, new, 1).encode("utf-8"))
+        try:
+            code, out = run_suites()
+        finally:
+            path.write_bytes(original_bytes)
+        failed = sorted({line.split(" - ")[0].replace("FAILED ", "").strip()
+                         for line in out.splitlines() if line.startswith("FAILED ") or line.startswith("ERROR ")})
+        summary = [line for line in out.splitlines() if " passed" in line or " failed" in line or " error" in line]
+        rows.append((label, "CAUGHT" if code != 0 else "SURVIVED", "; ".join(failed[:6]) + (" | " + summary[-1] if summary else "")))
+    code, out = run_suites()
+    rows.append(("restored tree", "GREEN" if code == 0 else "RED", [l for l in out.splitlines() if " passed" in l][-1:] and out.splitlines()[-1]))
+    for label, verdict, detail in rows:
+        print(f"{verdict:9} | {label} | {detail}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

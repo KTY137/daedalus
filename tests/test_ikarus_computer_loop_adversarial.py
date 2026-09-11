@@ -101,7 +101,7 @@ def test_three_padded_plans_do_stall_so_the_rule_is_literal_not_absent(isolated)
 
 def _status_summary(monkeypatch, capabilities):
     from daedalus.runtimes import computer as runtimes_computer
-    monkeypatch.setattr(runtimes_computer, "computer_status", lambda root: capabilities)
+    monkeypatch.setattr(runtimes_computer, "computer_status", lambda root, project=None, project_readers=None, campaign_runner=None: capabilities)
     events = [payload for event, payload in loop.conversation_events(None, "/computer status")
               if event == "final"]
     return events[-1]["assistant"]

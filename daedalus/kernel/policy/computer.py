@@ -24,7 +24,27 @@ FILE_TOOLS = ("file.list", "file.read", "file.write", "file.mkdir", "file.move")
 VISION_TOOLS = ("vision.inspect", "vision.match", "vision.changes", "vision.ocr")
 DESKTOP_TOOLS = ("desktop.observe", "desktop.click", "desktop.type", "desktop.key", "app.launch")
 BROWSER_TOOLS = ("browser.navigate", "browser.read", "browser.click", "browser.fill")
-ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS)
+# G1-IKARUS-46: read-only observations of the REGISTERED PROJECT the chat is
+# bound to (git counters, queue, structure summary, one distilled slice, broken
+# doc references, recent tasks). No host mutation, no process, no network; the
+# adapter is ``daedalus.runtimes.computer_daedalus``. A policy grants them like
+# any other family; a fresh setup still grants nothing.
+DAEDALUS_TOOLS = ("daedalus.status", "daedalus.structure", "daedalus.slice",
+                  "daedalus.docrefs", "daedalus.tasks")
+# G1-IKARUS-47: one Ariadne controlled-repair campaign on the REGISTERED
+# PROJECT through the canonical ``daedalus.ariadne.run_campaign`` -- three arms
+# in a checkout-external workspace under the subject's control root, the
+# frozen exact-match evaluator, a nomination receipt. It writes under the
+# control root and runs the evaluator, so it is a host mutation; it never
+# writes into the subject and never applies a candidate. The adapter is
+# ``daedalus.runtimes.computer_ariadne``; the grant needs its own one-use
+# confirmation (``/computer enable ariadne confirm-campaigns``).
+ARIADNE_TOOLS = ("daedalus.ariadne_campaign",)
+#: Which arguments the lexical path rule of ``ComputerPolicy.admit`` applies to.
+_DEFAULT_PATH_ARGUMENT_KEYS = ("path", "source", "destination", "template", "before", "after")
+_PATH_ARGUMENT_KEYS = {"daedalus.ariadne_campaign": ("target_path",)}
+ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS
+                               + ARIADNE_TOOLS)
 # v0.1.6 release fence.  ``Path.resolve`` plus a later pathname operation is
 # not a write-root boundary: another process can replace a checked ancestor
 # with a symlink/junction between those two operations.  G1-IKARUS-24/25
@@ -237,7 +257,14 @@ class ComputerPolicy:
         if type(arguments) is not dict or len(json.dumps(arguments, allow_nan=False)) > 2 * self.max_file_bytes:
             raise ComputerRefused("tool arguments must be a bounded JSON object")
         enforce_release_tool_fence(tool, arguments)
-        for key in ("path", "source", "destination", "template", "before", "after"):
+        # The path rule applies to the tool's PATH arguments. ``before``/``after``
+        # are image paths for vision.changes but TEXT fragments for the campaign
+        # tool (G1-IKARUS-47, MEASURED: the by-name rule refused a docstring
+        # sentence with a colon as "not relative to the workspace"); the
+        # campaign's path argument is ``target_path``, repository-relative and
+        # held to the same lexical rule.
+        path_keys = _PATH_ARGUMENT_KEYS.get(tool, _DEFAULT_PATH_ARGUMENT_KEYS)
+        for key in path_keys:
             if key in arguments:
                 self.path(arguments[key])
         if tool == "browser.navigate" and origin(arguments.get("url")) not in self.origins:

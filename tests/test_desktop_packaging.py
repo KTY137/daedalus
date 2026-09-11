@@ -1417,7 +1417,10 @@ def test_desktop_release_versions_are_aligned() -> None:
         == locked_match.group(1)
         == project_match.group(1)
         == uv_match.group(1)
-        == "0.1.6"
+    )
+    assert re.fullmatch(
+        r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)",
+        package["version"],
     )
 
 

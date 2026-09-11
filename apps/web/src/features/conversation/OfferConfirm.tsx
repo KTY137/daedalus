@@ -41,6 +41,24 @@ export function OfferConfirm({
           <dd>{subject.lane}</dd>
           <dt>Ziel</dt>
           <dd>{subject.objective || 'ohne Ziel'}</dd>
+          {subject.message && (
+            <>
+              <dt>Ausführung</dt>
+              <dd><code>{subject.message}</code></dd>
+            </>
+          )}
+          {subject.planner && (
+            <>
+              <dt>Planner</dt>
+              <dd>{subject.planner}</dd>
+            </>
+          )}
+          {subject.tools && (
+            <>
+              <dt>Werkzeuge</dt>
+              <dd>{subject.tools.length ? subject.tools.join(', ') : 'keine'}</dd>
+            </>
+          )}
           <dt>Revision</dt>
           {subject.revisionState === 'valid' ? (
             <dd title={subject.sourceRevision}>{subject.sourceRevision!.slice(0, 12)}</dd>

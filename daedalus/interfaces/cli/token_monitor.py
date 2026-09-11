@@ -249,18 +249,60 @@ def _budget_view(lock_timeout_s: float = BUDGET_READ_LOCK_TIMEOUT_S) -> dict[str
     """
     from ...budget import BudgetError, Ledger
 
+    ledger = Ledger(lock_timeout_s=lock_timeout_s)
+    # WHERE the ceiling came from, beside WHAT it is. Since 2026-09-11 the
+    # ledger composes the admitted desktop settings document with the process
+    # environment, strictest-wins, so "ceiling: $5" no longer says which of the
+    # two produced it -- and an ambient variable that widened past the code
+    # default with nothing admitted behind it would otherwise be invisible.
+    #
+    # Read FIRST, because when the resolution itself refuses -- an unreadable
+    # admitted document is the case that matters -- this is the only thing that
+    # can still name the file to repair. A monitor that printed "unavailable"
+    # without saying which file broke is how a fail-closed guard becomes an
+    # outage nobody can end.
+    #
+    # GUARDED ANYWAY, on purpose. ``limit_provenance`` promises never to raise,
+    # and it keeps that promise by catching ``BudgetUnavailable``. That promise
+    # is one future ``OSError`` from a ``stat`` -- or one ``LimitPolicyError``
+    # escaping a new branch -- away from being false, and a monitor is the
+    # worst place to discover it. This site does not rely on the docstring.
     try:
-        state = Ledger(lock_timeout_s=lock_timeout_s).state()
+        provenance = ledger.limit_provenance()
+    except Exception as exc:  # noqa: BLE001 - a reporting surface decides nothing
+        provenance = {
+            "resolved": False,
+            "admitted_document": None,
+            "admitted_document_unreadable": "",
+            "unresolved_reason": (
+                f"limit provenance could not be reported ({type(exc).__name__}: "
+                f"{exc}); this is a defect in the reporting surface, not a "
+                "budget decision"
+            ),
+        }
+    try:
+        state = ledger.state()
     except BudgetError as exc:
-        return {"available": False, "reason": str(exc)}
+        return {
+            "available": False,
+            "reason": str(exc),
+            "limit_provenance": provenance,
+        }
     except OSError as exc:  # unreadable path, permissions, full disk
-        return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
-    return {"available": True, **state.as_dict()}
+        return {
+            "available": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+            "limit_provenance": provenance,
+        }
+    return {"available": True, **state.as_dict(), "limit_provenance": provenance}
 
 
 def _render_budget_view(budget: dict[str, Any]) -> str:
     if not budget.get("available"):
-        return f"budget: unavailable -- {budget['reason']}"
+        return (
+            f"budget: unavailable -- {budget['reason']}"
+            + _render_limit_provenance(budget.get("limit_provenance"))
+        )
     period_limit = (
         f"${budget['ceiling_usd']:.2f} ceiling"
         if budget["period_ceiling_enabled"]
@@ -271,11 +313,105 @@ def _render_budget_view(budget: dict[str, Any]) -> str:
         if budget["billable_call_ceiling_enabled"]
         else f"{budget['calls']} calls recorded; call ceiling disabled"
     )
-    return (
+    line = (
         f"budget: ${budget['spent_usd']:.4f} spent + "
         f"${budget['reserved_usd']:.4f} reserved of {period_limit} "
         f"({call_limit}, period {budget['period_key']})"
     )
+    return line + _render_limit_provenance(budget.get("limit_provenance"))
+
+
+def _render_limit_provenance(provenance: Any) -> str:
+    """Say which input decided the ceiling, but only when it is not obvious.
+
+    Silent in the only case that needs no explanation -- no admitted document
+    and nothing widened -- so the historical one-line rendering is unchanged
+    for a plain checkout and a plain shell.
+    """
+
+    if not isinstance(provenance, dict):
+        return ""
+    clauses: list[str] = []
+    if provenance.get("admitted_document_unreadable"):
+        # The one case a reader must never be left guessing about: the file
+        # that has to be repaired, and what stays refused until it is.
+        return " [" + str(provenance["admitted_document_unreadable"]) + "]"
+    ceiling = provenance.get("period_ceiling_usd") or {}
+    calls = provenance.get("max_calls") or {}
+    policy = provenance.get("execution_limit_policy") or {}
+    if provenance.get("admitted_document"):
+        # "from X" only where an X still decides something. Printing "ceiling
+        # from environment" beside a period_usd axis the owner disabled names a
+        # source for a number that bounds nothing.
+        clauses.append(
+            ", ".join(
+                [
+                    (
+                        f"ceiling from {ceiling.get('source')}"
+                        if ceiling.get("enforced")
+                        else "period USD ceiling disabled"
+                    ),
+                    (
+                        f"calls from {calls.get('source')}"
+                        if calls.get("enforced")
+                        else "call ceiling disabled"
+                    ),
+                    f"caps from {policy.get('source')}",
+                ]
+            )
+        )
+    nullified: list[str] = []
+    if ceiling.get("nullified_environment_value") is not None:
+        nullified.append(
+            f"DAEDALUS_BUDGET_USD={ceiling['nullified_environment_value']}"
+        )
+    if calls.get("nullified_environment_value") is not None:
+        nullified.append(
+            f"DAEDALUS_BUDGET_MAX_CALLS={calls['nullified_environment_value']}"
+        )
+    if nullified:
+        # The direction the review found silent: a NARROWER variable made moot
+        # by a disabled axis. It costs money and it used to print nothing.
+        #
+        # WHO disabled the axis is only sayable when a document was admitted.
+        # Measured 2026-09-11: emitted unguarded, this clause said "the
+        # admitted document disabled the axis" with admitted_document=None --
+        # announcing a confirmation that never happened, and telling an
+        # operator to stop hunting the rogue variable. The adjacent WARNING
+        # contradicted it in the same bracket, which was the only thing
+        # limiting it.
+        who = (
+            "the admitted document disabled the axis"
+            if provenance.get("admitted_document")
+            else "the axis is disabled"
+        )
+        clauses.append("no longer bounds anything, " + who + ": " + "; ".join(nullified))
+    refused: list[str] = []
+    if ceiling.get("refused_environment_value") is not None:
+        refused.append(
+            f"DAEDALUS_BUDGET_USD={ceiling['refused_environment_value']}"
+        )
+    if calls.get("refused_environment_value") is not None:
+        refused.append(
+            f"DAEDALUS_BUDGET_MAX_CALLS={calls['refused_environment_value']}"
+        )
+    if policy.get("refused_environment_axes"):
+        refused.append(
+            "DAEDALUS_EXECUTION_LIMIT_POLICY would disable "
+            + ",".join(policy["refused_environment_axes"])
+        )
+    if refused:
+        clauses.append(
+            "refused unadmitted widening: " + "; ".join(refused)
+        )
+    if provenance.get("unadmitted_widening"):
+        clauses.append(
+            "WARNING: widened by an environment variable with no admitted "
+            "settings document behind it"
+        )
+    if not clauses:
+        return ""
+    return " [" + " | ".join(clauses) + "]"
 
 
 def _spine_view(recent: int = 3) -> dict[str, Any]:
