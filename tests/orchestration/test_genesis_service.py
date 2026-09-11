@@ -127,6 +127,7 @@ def test_web_genesis_runs_end_to_end_and_replays_exactly(
     assert all(result["roundtrip"]["checks"].values())
     assert result["roundtrip"]["checks"]["containment"] is True
     assert result["roundtrip"]["checks"]["package"] is True
+    assert result["roundtrip"]["checks"]["tensor_kernel"] is True
     assert result["request_key"] == "genesis:test-web"
     assert result["roundtrip"]["checks"]["certified_template_conformance"] is True
     assert result["roundtrip"]["feature_assurance"] == {
@@ -1666,6 +1667,9 @@ def test_legacy_item_collection_identity_and_evaluator_remain_frozen() -> None:
     assert service_module._genesis_operation_sha(request, bound, files) == (
         "8a2209481e31282f724d625ed7e543519a7d7d118d9fd5c973d8f36510f8c46a"
     )
+    assert service_module._genesis_operation_sha(request, bound, files, tensor_kernel=True) == (
+        "e6d37c5046c11a8226dac10a093fb0a2400bdf0c696b2cf688ab9c9c372ca6be"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1854,7 +1858,13 @@ def test_kanban_runs_replays_and_previews_with_its_persisted_profile(
         service_module.RoundTripReport,
         label="RoundTripReport",
     )
-    assert roundtrip.evaluator_sha256 == service_module._KANBAN_EVALUATOR_SHA256
+    assert roundtrip.checks["tensor_kernel"] is True
+    # New round trips bind both the frozen base evaluator and tensor projection.
+    # Historical reports continue to verify against the unchanged base digest.
+    assert roundtrip.evaluator_sha256 == (
+        "4bce7a41d5a6d41c2642cff964a2b590c38d32f72e84621ff7b378e17004edb7"
+    )
+    assert service_module._evaluator_sha256("kanban-board-v1", tensor_kernel=False) == service_module._KANBAN_EVALUATOR_SHA256
 
 
 def test_same_request_key_cannot_fork_between_legacy_and_kanban_profiles(
@@ -1981,3 +1991,17 @@ def test_kanban_independent_evaluator_turns_mutations_red(
         "kanban_template_conformance check failed" in blocker
         for blocker in result["blockers"]
     )
+
+
+@pytest.mark.skipif(__import__("os").name != "nt", reason="native candidate runtime acceptance runs on Windows CI")
+def test_tensor_failure_is_retained_and_failed_roundtrip_replays(authority, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise ValueError("injected invalid tensor revision")
+    monkeypatch.setattr(service_module, "compile_runtime_projection", refuse)
+    kwargs = {"repo_root": authority, "target": "web", "request_key": "genesis:tensor-refusal"}
+    result = run_genesis("Build a local task board with search", **kwargs)
+    assert result["status"] == "failed", result
+    assert result["roundtrip"]["checks"]["tensor_kernel"] is False
+    assert result["roundtrip"]["checks"]["build"] is True
+    assert any("tensor_kernel" in name for name in result["evidence"]["checks"])
+    assert run_genesis("Build a local task board with search", **kwargs) == result

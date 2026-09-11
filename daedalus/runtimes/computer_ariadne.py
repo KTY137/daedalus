@@ -170,6 +170,7 @@ class CampaignRunner:
     run_campaign: Callable[..., dict[str, Any]]
     head_revision: Callable[[str], str]
     protected_prefix_for: Callable[[str], str | None]
+    load_test_profile: Callable[[str], Any] | None = None
 
 
 class AriadneCampaignTool:
@@ -318,6 +319,11 @@ class AriadneCampaignTool:
     def execute(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         if type(arguments) is not dict:
             raise _PreRunRefusal("tool arguments must be an object")
+        if set(arguments) - {"target_path", "before", "after", "campaign_id", "timeout_s", "evaluation"}:
+            raise _PreRunRefusal("unknown campaign arguments")
+        evaluation_mode = arguments.get("evaluation", "exact-match")
+        if evaluation_mode not in ("exact-match", "owner-tests"):
+            raise _PreRunRefusal("evaluation must be exact-match or owner-tests")
         self._checkpoint()
         relative = self._admit_target_path(arguments.get("target_path"))
         before = self._fragment(arguments.get("before"), "before", allow_empty=False)
@@ -328,8 +334,25 @@ class AriadneCampaignTool:
         operation = {"target_path": relative, "before_sha256": hashlib.sha256(before.encode("utf-8")).hexdigest(),
                      "after_sha256": hashlib.sha256(after.encode("utf-8")).hexdigest(), "timeout_s": timeout_s,
                      "project": self._project}
-        campaign_id = self._campaign_id(arguments.get("campaign_id"), operation)
         repo_root = self._repo_root()
+        evaluator_kwargs: dict[str, Any] = {}
+        evaluator_sha256 = None
+        owner_profile_sha256 = None
+        if evaluation_mode == "owner-tests":
+            if self._runner.load_test_profile is None:
+                raise _PreRunRefusal("owner test profile loader is unavailable")
+            try:
+                profile = self._runner.load_test_profile(repo_root)
+                evaluator_sha256 = profile.evaluator.digest
+                if not _is_sha256(profile.profile_sha256) or not _is_sha256(evaluator_sha256):
+                    raise ValueError("owner test profile has invalid digest bindings")
+            except Exception as exc:
+                raise _PreRunRefusal(f"owner test profile unavailable: {type(exc).__name__}") from exc
+            owner_profile_sha256 = profile.profile_sha256
+            operation.update(evaluation_mode=evaluation_mode, evaluator_sha256=evaluator_sha256,
+                             owner_profile_sha256=profile.profile_sha256)
+            evaluator_kwargs["evaluator"] = profile.evaluator
+        campaign_id = self._campaign_id(arguments.get("campaign_id"), operation)
         # The evidence check below must prove THIS run wrote evidence: the
         # default campaign ID is derived from the operation, so a receipt
         # forged for an operation that already ran once would otherwise inherit
@@ -351,7 +374,8 @@ class AriadneCampaignTool:
         try:
             receipt = self._runner.run_campaign(
                 repo_root=repo_root, source_revision=source_revision, campaign_id=campaign_id,
-                target_path=relative, before=before, after=after, timeout_s=timeout_s)
+                target_path=relative, before=before, after=after, timeout_s=timeout_s,
+                caller_checkpoint=self._checkpoint, **evaluator_kwargs)
         except Exception as exc:  # noqa: BLE001 - classified by name, surfaced, never swallowed
             raise _CampaignFailure(_safe_failure_text(exc)) from exc
         if not isinstance(receipt, Mapping):
@@ -362,7 +386,25 @@ class AriadneCampaignTool:
         # of this packet, NEW-1: a second registry read inside the projection
         # raised ``_PreRunRefusal`` after the runner and the lease was settled
         # as if nothing had happened).
-        return self._project_receipt(receipt, relative, campaign_id, source_revision, repo_root, started_at)
+        result = self._project_receipt(receipt, relative, campaign_id, source_revision, repo_root, started_at)
+        result["evaluation_mode"] = evaluation_mode
+        result["evaluator_sha256"] = evaluator_sha256
+        result["owner_profile_sha256"] = owner_profile_sha256
+        if evaluation_mode == "owner-tests":
+            result["evaluator"] = "owner-frozen pytest command (self-reported verdict)"
+            result["verdict_is_self_reported"] = True
+            result["child_environment"] = "inherited-except-denylist"
+            result["child_network"] = "unrestricted"
+            result["note"] = ("owner-frozen tests compare baseline, negative control and repair; "
+                              "the child verdict is self-reported, not independent improvement evidence; "
+                              "nothing was applied to any checkout")
+        try:
+            live_revision = self._runner.head_revision(repo_root)
+        except Exception:
+            live_revision = None
+        from daedalus.kernel.policy.hopping import assess_hopping_candidate
+        result["hopping"] = assess_hopping_candidate(result, live_revision=live_revision)
+        return result
 
     # ------------------------------------------------------------------ projection
     def _project_receipt(self, receipt: Mapping[str, Any], relative: str, campaign_id: str,
