@@ -2,8 +2,13 @@ name: Owner-requested mainline project acceptance bootstrap
 
 # One-shot: prepare from a content-verified reviewed script, test, remove this
 # helper, and publish only a descendant of the exact owner-requested main HEAD.
+# Pull requests may execute the same preparation/tests as exact-head evidence,
+# but never receive the publish step.
 on:
   push:
+    branches: [main]
+    paths: [.github/workflows/tensor-reintegration-20260911.yml]
+  pull_request:
     branches: [main]
     paths: [.github/workflows/tensor-reintegration-20260911.yml]
 permissions:
@@ -23,8 +28,13 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact tested head
+        env:
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$TESTED_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -94,11 +104,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: owner-project-acceptance-${{ github.sha }}
+          name: owner-project-acceptance-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/project-acceptance/
           if-no-files-found: warn
           retention-days: 14
       - name: Publish only tested main descendant without racing another writer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
