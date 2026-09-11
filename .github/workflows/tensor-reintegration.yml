@@ -6,19 +6,21 @@ on:
   push:
     branches: [exp/tensor-kernel-contract-01]
     paths: [.github/workflows/tensor-reintegration.yml]
-
 permissions:
   contents: write
-
 concurrency:
   group: owner-tensor-reintegration
   cancel-in-progress: false
-
 jobs:
   reconcile:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Preserve exact source bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -27,7 +29,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: Reconcile exact main and Tensor histories
-        shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse origin/main)" = 217d5edc2b5e59441051b9cb0df60a5fbca93fe2
@@ -89,16 +90,50 @@ jobs:
 
           '''
           path.write_bytes(header.encode() + original)
+          path = Path('tests/twin/test_relation_block_validation_fusion.py')
+          original = path.read_bytes()
+          blob = hashlib.sha1(b'blob ' + str(len(original)).encode() + b'\0' + original).hexdigest()
+          if blob != '08055f21706eb1138b2d74a6efd2434c75ab30d5':
+              raise SystemExit('Tensor test changed; refusing an unreviewed repair')
+          text = original.decode()
+          anchor = 'def test_from_indexed_reuses_validated_key_order_without_item_pair_copy()'
+          assert text.count(anchor) == 1
+          replacement = '''@pytest.mark.parametrize("coordinates", ((), ((1, 1),), ((0, 0), (0, 2), (1, 1))))
+          def test_from_indexed_reuses_values_without_rehashing_validated_keys(coordinates) -> None:
+              """Observe behavior, not the spelling of the compiler implementation."""
+              forbid_hash = False
+
+              class Key(tuple):
+                  def __hash__(self):
+                      if forbid_hash:
+                          raise AssertionError("validated exact-dict keys must not be rehashed")
+                      return super().__hash__()
+
+              entries = {Key(coordinate): True for coordinate in coordinates}
+              forbid_hash = True
+              rows, columns = _axes()
+              block = TypedRelationBlock._from_indexed(
+                  _subject(), RelationSignature("code", "declares", "type"),
+                  rows, columns, entries, BooleanSemiring(),
+              )
+              assert tuple(block.iter_entries()) == tuple(
+                  (rows.labels[row], columns.labels[column], True)
+                  for row, column in coordinates
+              )
+              assert block.row_offsets == (
+                  0, sum(row == 0 for row, _ in coordinates), len(coordinates)
+              )
+          '''
+          path.write_bytes((text[:text.index(anchor)] + replacement).encode())
           PY
-          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md
+          git add docs/work-packets/G1-DESKTOP-LOCAL-BUILD-REPAIR-20260908.md tests/twin/test_relation_block_validation_fusion.py
           mkdir -p "$RUNNER_TEMP/reintegration-evidence"
           python tools/index_work_packets.py --render > "$RUNNER_TEMP/work-packet-index.json"
           cp "$RUNNER_TEMP/work-packet-index.json" docs/work-packets/index.json
           git add docs/work-packets/index.json
           python tools/index_work_packets.py --check
-          # Check our integration delta, not historical CRLF/raw evidence imported from main.
           git -c core.whitespace=cr-at-eol diff --cached --check origin/main
-          git commit -m 'merge: reconcile main into Tensor; regenerate registry and preserve desktop evidence'
+          git commit -m 'merge: reconcile main and Tensor; regenerate registry; verify CSR behavior'
           git rev-parse HEAD > "$RUNNER_TEMP/reintegration-evidence/commit.txt"
           git rev-parse HEAD^{tree} > "$RUNNER_TEMP/reintegration-evidence/tree.txt"
           git show -s --format='%H%n%P%n%T%n%B' HEAD > "$RUNNER_TEMP/reintegration-evidence/identity.txt"
@@ -128,7 +163,6 @@ jobs:
       - name: Publish verified merge only to existing Tensor lane
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
           set -euo pipefail
           test -z "$(git status --porcelain --untracked-files=no)"
