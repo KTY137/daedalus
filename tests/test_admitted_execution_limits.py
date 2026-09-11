@@ -388,6 +388,52 @@ def test_the_rendered_line_does_not_name_a_source_for_a_disabled_axis(
     assert "no longer bounds anything" in rendered
 
 
+def test_the_nullified_clause_never_claims_an_admission_that_did_not_happen(
+    tmp_path, monkeypatch
+):
+    """MEASURED 2026-09-11 before the guard: with ``admitted_document: None``
+    the line still read "the admitted document disabled the axis", announcing
+    a confirmation nobody gave and telling an operator to stop hunting the
+    rogue variable."""
+
+    from daedalus import budget as budget_kernel
+    from daedalus.interfaces.cli import token_monitor
+
+    monkeypatch.setenv("DAEDALUS_EXECUTION_LIMIT_POLICY", _policy_env(UNBOUNDED))
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "1.0")
+    monkeypatch.setattr(
+        budget_kernel,
+        "Ledger",
+        lambda **kwargs: Ledger(tmp_path / "ledger.json", runtime_root=tmp_path),
+    )
+    view = token_monitor._budget_view()
+    assert view["limit_provenance"]["admitted_document"] is None
+    rendered = token_monitor._render_budget_view(view)
+
+    assert "the admitted document disabled the axis" not in rendered
+    assert "the axis is disabled" in rendered
+    assert "DAEDALUS_BUDGET_USD=1.0" in rendered
+
+
+def test_one_number_never_carries_two_contradictory_explanations(
+    tmp_path, monkeypatch
+):
+    """MEASURED 2026-09-11 before the ``refused is None`` clause: a $5 document
+    with every axis disabled and DAEDALUS_BUDGET_USD=5000.0 reported 5000.0
+    under BOTH refused_environment_value and nullified_environment_value."""
+
+    _admit(tmp_path, period_ceiling_usd=5.0, caps=UNBOUNDED.as_dict())
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "5000.0")
+    row = Ledger(runtime_root=tmp_path).limit_provenance()["period_ceiling_usd"]
+
+    assert row["refused_environment_value"] == 5000.0, "it asked for more"
+    assert row["nullified_environment_value"] is None
+    assert not (
+        row["refused_environment_value"] is not None
+        and row["nullified_environment_value"] is not None
+    ), "the two keys are mutually exclusive"
+
+
 def test_the_reporting_surface_is_guarded_at_its_call_site(tmp_path, monkeypatch):
     """The 'never raises' contract is structural here, not documentary.
 

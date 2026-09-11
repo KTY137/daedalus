@@ -1258,8 +1258,19 @@ class Ledger:
             "enforced": enforced,
             "source": source,
             "refused_environment_value": refused,
+            # MUTUALLY EXCLUSIVE WITH ``refused``, on purpose. A value that
+            # asked for MORE and lost is refused; a value that asked for LESS
+            # and was made moot by a disabled axis is nullified. Measured
+            # 2026-09-11 before the ``refused is None`` clause: a $5 document
+            # with every axis disabled and ``DAEDALUS_BUDGET_USD=5000.0``
+            # reported the SAME number under both keys, so one number carried
+            # two contradictory explanations. No money moves either way here --
+            # a disabled axis bounds nothing whichever name it is given -- but
+            # two inconsistent sentences about one value is the exact class of
+            # defect this packet exists to remove.
             "nullified_environment_value": (
-                environment_value if not enforced and environment_value is not None
+                environment_value
+                if not enforced and environment_value is not None and refused is None
                 else None
             ),
             "unadmitted_widening": unadmitted_widening,

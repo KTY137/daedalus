@@ -126,10 +126,27 @@ MUTATIONS = [
         "M13 a nullified environment bound goes silent again",
         LEDGER,
         '            "nullified_environment_value": (\n'
-        "                environment_value if not enforced and environment_value is not None\n"
+        "                environment_value\n"
+        "                if not enforced and environment_value is not None and refused is None\n"
         "                else None\n"
         "            ),\n",
         '            "nullified_environment_value": None,  # MUTATION\n',
+    ),
+    (
+        "M15 one number carries two contradictory explanations again",
+        LEDGER,
+        "                if not enforced and environment_value is not None and refused is None\n",
+        "                if not enforced and environment_value is not None  # MUTATION\n",
+    ),
+    (
+        "M16 the nullified clause claims an admission that did not happen",
+        TOKEN_MONITOR,
+        '        who = (\n'
+        '            "the admitted document disabled the axis"\n'
+        '            if provenance.get("admitted_document")\n'
+        '            else "the axis is disabled"\n'
+        "        )\n",
+        '        who = "the admitted document disabled the axis"  # MUTATION\n',
     ),
     (
         "M14 the reporting call site trusts the docstring",

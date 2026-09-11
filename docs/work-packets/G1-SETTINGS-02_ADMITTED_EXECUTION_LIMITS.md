@@ -237,7 +237,10 @@ before anything was written:
   draft of this packet claimed: all it does is `install_process_guard()`, which
   only monkeypatches `subprocess.run`/`Popen`/`urlopen` and resolves no cap, so
   an unreadable document cannot raise there. The refusal lands later, inside
-  the interposed wrapper at the priced call.
+  the interposed wrapper, **for the three interposed callables**. That
+  qualification is not decoration: a paid call that does not travel through one
+  of those three attributes is not refused by this path at all, which is the
+  pre-existing gap recorded under "Deliberately not closed" below.
 - `daedalus/orchestration/loop.py:804 read_spend` never raises and signals
   `readable=False`, which its caller treats as a reason to stop.
 - `token_monitor._budget_view` and `projection.budget_status` already catch
@@ -373,6 +376,11 @@ stated:
     disabled instead.
 16l. The `limit_provenance` call site survives an exception the surface does
     not promise to catch, so the "never raises" contract is structural.
+16m. The nullified clause never claims an admission that did not happen: with
+    `admitted_document: None` it says "the axis is disabled", not "the admitted
+    document disabled the axis".
+16n. `refused_environment_value` and `nullified_environment_value` are mutually
+    exclusive, so one number never carries two contradictory explanations.
 17. **Section 4.1, end to end.** A widening `save_settings` raises naming
     `confirm_widening` and `period_ceiling_usd` and leaves **no** document
     behind; the confirmed save writes one; the kernel then reads `500.0`.
@@ -405,22 +413,24 @@ run with `-x`. Command: `docs/evidence/G1-SETTINGS-02/mutations.py`.
 
 | mutation | file | result |
 | --- | --- | --- |
-| M1 the document is never read | ledger.py | 1 failed in 1.29s |
-| M2 the environment wins outright again | ledger.py | 1 failed, 3 passed in 1.47s |
-| M3 caps compose by AND instead of OR | ledger.py | 1 failed, 4 passed in 0.74s |
-| M4 a corrupt document falls back to the environment | ledger.py | 1 failed, 17 passed in 0.83s |
-| M5 an issued contract is re-resolved from the document | ledger.py | 1 failed, 41 passed in 1.70s |
-| M6 an absent variable asserts bounded over the document | ledger.py | 1 failed, 1 passed in 0.72s |
-| M7 the retired boolean is invisible to the projection again | settings_inventory.py | 1 failed, 71 passed in 1.86s |
-| M8 env-only rows report raw text again | settings_inventory.py | 1 failed, 93 passed in 1.97s |
-| M10 the reporting surface raises like an admission path | ledger.py | 1 failed, 19 passed in 0.83s |
-| M11 the report treats an unreadable document as an absent one | ledger.py | 1 failed, 20 passed in 0.98s |
-| M12 a disabled axis reports a live-looking number again | ledger.py | 1 failed, 11 passed in 0.81s |
+| M1 the document is never read | ledger.py | 1 failed in 3.13s |
+| M2 the environment wins outright again | ledger.py | 1 failed, 3 passed in 0.99s |
+| M3 caps compose by AND instead of OR | ledger.py | 1 failed, 4 passed in 0.80s |
+| M4 a corrupt document falls back to the environment | ledger.py | 1 failed, 19 passed in 0.87s |
+| M5 an issued contract is re-resolved from the document | ledger.py | 1 failed, 43 passed in 1.71s |
+| M6 an absent variable asserts bounded over the document | ledger.py | 1 failed, 1 passed in 0.73s |
+| M7 the retired boolean is invisible to the projection again | settings_inventory.py | 1 failed, 73 passed in 1.90s |
+| M8 env-only rows report raw text again | settings_inventory.py | 1 failed, 95 passed in 1.98s |
+| M10 the reporting surface raises like an admission path | ledger.py | 1 failed, 21 passed in 0.87s |
+| M11 the report treats an unreadable document as an absent one | ledger.py | 1 failed, 22 passed in 0.91s |
+| M12 a disabled axis reports a live-looking number again | ledger.py | 1 failed, 11 passed in 1.06s |
 | M13 a nullified environment bound goes silent again | ledger.py | 1 failed, 14 passed in 0.80s |
-| M14 the reporting call site trusts the docstring | token_monitor.py | 1 failed, 16 passed in 0.83s |
-| M9 the trust parse is re-derived instead of reused | sensitivity.py | 1 failed, 103 passed in 2.00s |
+| M15 one number carries two contradictory explanations again | ledger.py | 1 failed, 17 passed in 0.82s |
+| M16 the nullified clause claims an admission that did not happen | token_monitor.py | 1 failed, 16 passed in 0.85s |
+| M14 the reporting call site trusts the docstring | token_monitor.py | 1 failed, 18 passed in 0.82s |
+| M9 the trust parse is re-derived instead of reused | sensitivity.py | 1 failed, 105 passed in 2.08s |
 
-Fourteen of fourteen turn red. No guard here is decorative.
+Sixteen of sixteen turn red. No guard here is decorative.
 
 ## Cost, measured 2026-09-11
 
@@ -483,6 +493,42 @@ cannot strand a document.
 
 ## Deliberately not closed
 
+- **A pre-existing spend-fence gap, inherited rather than introduced.** Found
+  by the independent delta review 2026-09-11 and reproduced in this worktree
+  (`docs/evidence/G1-SETTINGS-02/probe_asyncio_gap.py`). Nothing in this packet
+  touches it; it is recorded here so the packet that owns it inherits the
+  evidence instead of rediscovering it.
+
+  `install_process_guard`
+  (`daedalus/runtimes/execution/budget_process.py:539`) patches exactly three
+  attributes: `subprocess.run`, `subprocess.Popen`, `urllib.request.urlopen`.
+  `daedalus/adapters/subprocess_adapter.py:247` spawns the two **paid** vendor
+  CLIs -- `command="claude"` at `:72` and `command="codex"` at `:88` -- through
+  `asyncio.create_subprocess_exec`, which on Windows routes through
+  `asyncio.windows_utils.Popen`, a subclass whose base was bound at
+  asyncio-import time and is therefore not the patched class. `web_api.py` has
+  `asyncio.windows_utils` in `sys.modules` before its `install_process_guard()`,
+  so that is the live import order. Measured:
+
+  ```
+  asyncio.windows_utils in sys.modules before install: True
+  subprocess.run patched   : True
+  subprocess.Popen patched : True
+  wu.Popen base is the patched Popen: False
+  rc: 0   <- spawned through create_subprocess_exec
+  ledger calls recorded    : 0
+  budget/reserve mentions under daedalus/adapters/: NONE
+  ```
+
+  The site is absent from `BILLABLE_SITES`
+  (`budget_process.py:641`; zero `adapters` entries), and
+  `daedalus/budget.py:181-187` calls `install_process_guard()`, **discards what
+  it returned**, and builds its `GuardDecision` with a hardcoded `True` whose
+  message names only the three interposed callables.
+
+  Not fixed here: it is pre-existing, no part of this packet's delta touches
+  it, and blocking on it would neither repair it nor land on the right author.
+
 - **D1 for `DAEDALUS_BUDGET_LEDGER`.** Repointing the ledger still presents zero
   recorded spend to the same ceiling. It is ledger *location*, not budget or cap
   resolution, and the document has no field for it. Still a row in
@@ -522,27 +568,43 @@ cannot strand a document.
 
 ## Evidence, expected failures and review
 
-- Baseline: `docs/evidence/G1-SETTINGS-02/baseline_d1.py`, executed 2026-09-11.
-- After: `docs/evidence/G1-SETTINGS-02/after_d1.py`, executed 2026-09-11.
-- Mutations: `docs/evidence/G1-SETTINGS-02/mutations.py`, executed 2026-09-11.
-- `tests/test_admitted_execution_limits.py` + `tests/test_settings_inventory.py`:
-  `105 passed in 1.09s`.
-- `tests/test_budget.py`, `test_budget_is_installed.py`,
-  `test_canonical_execution_limit_policy.py`, `test_execution_limit_consumers.py`,
-  `test_limit_policy.py`, `test_uncapped_budget_consumers.py`,
-  `test_gui_check_budget.py`, `test_provider_execution_limit_policy.py`,
-  `test_loop_cap_policy.py`, `test_loop_lease_policy.py`:
-  `311 passed in 22.96s`.
-- `tests/test_desktop_runtime.py`, `tests/interfaces/`,
-  `test_sensitivity_default_policy_pins.py`, `test_sensitivity_write_intent.py`,
-  `test_token_monitor_write_roots.py`, `test_dctx_policy_egress.py`:
-  `1 failed, 557 passed, 7 skipped, 78 subtests passed in 61.25s`.
+**Every count below names the exact file list that produced it.** The lists are
+in `docs/evidence/G1-SETTINGS-02/suites.txt`, machine-readable, with the command
+to re-run them. This exists because two consecutive rounds of this packet
+reported totals nobody else could reproduce, each reviewer landing on a
+different close superset; a count without its file list is not evidence.
 
-Expected failure, named rather than hidden:
-`test_source_web_cli_wires_settings_get_put_and_closes_manager` is the
-pre-existing Windows tmpdir case artifact (`pytest-of-Administra` versus
-`pytest-of-administra`) that G1-SETTINGS-01 already reproduced on the pristine
-tree. Not caused by this work and not fixed by it.
+Executed 2026-09-11 on this host, worktree `.claude/worktrees/settings-write`:
+
+| run | file list | result |
+| --- | --- | --- |
+| packet suite | `tests/test_admitted_execution_limits.py` | `77 passed in 1.95s` |
+| set A (16 entries) | `suites.txt`, lines prefixed `A ` | `1 failed, 1091 passed, 57 skipped, 28 subtests passed in 135.60s` |
+| set B (21 entries) | `suites.txt`, lines prefixed `B ` | ``3424 passed, 124 skipped, 22 xfailed, 127 subtests passed in 196.43s`` |
+| mutations | `mutations.py`, 16 rows | 16 of 16 red |
+
+Set A is the packet's own suites plus every suite that reads what it wrote;
+set B is the wider blast radius of the four edited modules. `tests/contracts/`,
+`tests/interfaces/`, `tests/kernel/` and `tests/runtimes/` are whole
+directories and are listed as such, so these totals move when those directories
+gain files -- which is why the list, not the number, is the pin.
+
+Reproduction scripts, all under `docs/evidence/G1-SETTINGS-02/`:
+
+- `baseline_d1.py` -- D1 in both directions, before the change.
+- `after_d1.py` -- the same matrix after, plus the per-call cost.
+- `mutations.py` -- the 16-row mutation matrix.
+- `probe_asyncio_gap.py` -- the pre-existing spend-fence gap recorded above.
+  It measures; it changes nothing.
+
+**Expected failure, named rather than hidden.**
+`tests/test_desktop_runtime.py::test_source_web_cli_wires_settings_get_put_and_closes_manager`
+is a pre-existing Windows tmpdir case artifact (`pytest-of-Administra` versus
+`pytest-of-administra`). Reproduced identically on the base commit
+`77c9a672791a9a8c6dfc39e7ed32bc50902b9a99` in a throwaway detached worktree:
+`1 failed in 6.11s`, same assertion, same line. It is committed on `main`; the
+primary checkout passes it only because another lane holds an uncommitted
+`tmp_path.resolve()` fix. Not caused by this work and not fixed by it.
 
 ## Review questions
 

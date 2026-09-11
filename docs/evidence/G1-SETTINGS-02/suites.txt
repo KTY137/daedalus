@@ -1,0 +1,52 @@
+# The exact file lists behind every count in the packet's evidence section.
+# Reproduce with:
+#   uv run --directory <worktree> --frozen --extra test python -m pytest \
+#       $(grep -v '^#' docs/evidence/G1-SETTINGS-02/suites.txt | grep '^A ' | cut -c3-) \
+#       -q -p no:cacheprovider
+# ...and the same with '^B ' for the second set. Nothing is a superset of a
+# directory that is not named here: `tests/contracts/`, `tests/interfaces/`,
+# `tests/kernel/` and `tests/runtimes/` are whole directories and are listed as
+# such. Counts move when those directories gain files; the point of this file
+# is that the next round can reproduce the exact number rather than a close
+# superset.
+
+# --- SET A: the packet's own suites plus everything that reads what it wrote
+A tests/test_admitted_execution_limits.py
+A tests/test_settings_inventory.py
+A tests/contracts/
+A tests/interfaces/
+A tests/test_desktop_runtime.py
+A tests/test_budget.py
+A tests/test_budget_is_installed.py
+A tests/test_canonical_execution_limit_policy.py
+A tests/test_execution_limit_consumers.py
+A tests/test_uncapped_budget_consumers.py
+A tests/test_limit_policy.py
+A tests/test_gui_check_budget.py
+A tests/test_cli_token_verb.py
+A tests/test_token_monitor_write_roots.py
+A tests/test_registry_new_doors.py
+A tests/test_prose_gate.py
+
+# --- SET B: the wider blast radius of the four edited modules
+B tests/kernel/
+B tests/runtimes/
+B tests/test_provider_execution_limit_policy.py
+B tests/test_loop_cap_policy.py
+B tests/test_loop_lease_policy.py
+B tests/test_sensitivity_default_policy_pins.py
+B tests/test_sensitivity_write_intent.py
+B tests/test_egress_coverage.py
+B tests/test_host_predicate.py
+B tests/test_hardening.py
+B tests/test_self_policy_confinement.py
+B tests/test_agent_env.py
+B tests/test_cli_effect_boundary.py
+B tests/test_council_vendors.py
+B tests/test_funnel_truth.py
+B tests/test_primary_tree_fence.py
+B tests/test_registry_shadowing.py
+B tests/test_uncapped_scope_usage.py
+B tests/test_inlined_context_enforcement.py
+B tests/test_markdown_nodes.py
+B tests/test_skills.py

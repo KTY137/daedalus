@@ -371,12 +371,21 @@ def _render_limit_provenance(provenance: Any) -> str:
         )
     if nullified:
         # The direction the review found silent: a NARROWER variable made moot
-        # by an axis the admitted document disabled. It costs money and it used
-        # to print nothing at all.
-        clauses.append(
-            "no longer bounds anything, the admitted document disabled the "
-            "axis: " + "; ".join(nullified)
+        # by a disabled axis. It costs money and it used to print nothing.
+        #
+        # WHO disabled the axis is only sayable when a document was admitted.
+        # Measured 2026-09-11: emitted unguarded, this clause said "the
+        # admitted document disabled the axis" with admitted_document=None --
+        # announcing a confirmation that never happened, and telling an
+        # operator to stop hunting the rogue variable. The adjacent WARNING
+        # contradicted it in the same bracket, which was the only thing
+        # limiting it.
+        who = (
+            "the admitted document disabled the axis"
+            if provenance.get("admitted_document")
+            else "the axis is disabled"
         )
+        clauses.append("no longer bounds anything, " + who + ": " + "; ".join(nullified))
     refused: list[str] = []
     if ceiling.get("refused_environment_value") is not None:
         refused.append(
