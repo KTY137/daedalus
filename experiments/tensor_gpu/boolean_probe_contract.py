@@ -193,8 +193,9 @@ def exact_reference_operation_count(
     left: TypedRelationBlock[bool],
     right: TypedRelationBlock[bool],
 ) -> int:
-    if left.column_axis != right.row_axis:
-        raise ValueError("operation count requires an exactly shared middle axis")
+    """Count reference CSR scalar operations after canonical operand admission."""
+
+    validate_boolean_operands(left, right)
     return sum(
         right.row_offsets[middle + 1] - right.row_offsets[middle]
         for middle in left.column_indices
