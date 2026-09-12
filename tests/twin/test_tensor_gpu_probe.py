@@ -50,6 +50,7 @@ def test_probe_module_keeps_torch_optional_at_import_time() -> None:
 
 def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
     cpu = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline")
+    profile = importlib.import_module("experiments.tensor_gpu.typed_block_validation_profile")
     assert _PROBE.ProbeCase is _CONTRACT.ProbeCase
     assert cpu.ProbeCase is _CONTRACT.ProbeCase
     assert _PROBE.build_boolean_case is _CONTRACT.build_boolean_case
@@ -62,6 +63,7 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
     assert cpu.validate_boolean_operands is _CONTRACT.validate_boolean_operands
     assert _PROBE.validate_probe_cases is _CONTRACT.validate_probe_cases
     assert cpu.validate_probe_cases is _CONTRACT.validate_probe_cases
+    assert profile.validate_probe_cases is _CONTRACT.validate_probe_cases
     assert _CONTRACT.validate_boolean_operands.__globals__["validate_boolean_block"] is (
         _CONTRACT.validate_boolean_block
     )
@@ -69,6 +71,9 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
         _CONTRACT.validate_probe_cases
     )
     assert cpu.run_probe.__globals__["validate_probe_cases"] is (
+        _CONTRACT.validate_probe_cases
+    )
+    assert profile.run_probe.__globals__["validate_probe_cases"] is (
         _CONTRACT.validate_probe_cases
     )
     assert _PROBE.write_report is _CONTRACT.write_report
@@ -102,6 +107,31 @@ def test_shared_probe_case_collection_admission_is_bounded_and_immutable() -> No
     for invalid in invalid_collections:
         with pytest.raises(ValueError):
             validate_probe_cases(invalid)
+
+
+def test_typed_block_profiler_routes_collection_admission_through_shared_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile = importlib.import_module("experiments.tensor_gpu.typed_block_validation_profile")
+    case = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        max_device_mib=64,
+    )
+    seen: list[object] = []
+
+    assert profile.validate_probe_cases is _CONTRACT.validate_probe_cases
+
+    def fake_validate(cases: object) -> tuple[ProbeCase, ...]:
+        seen.append(cases)
+        return ()
+
+    monkeypatch.setattr(profile, "validate_probe_cases", fake_validate)
+    report = profile.run_probe([case], profile_repeats=1)
+    assert seen == [[case]]
+    assert report["cases"] == []
 
 
 def test_cuda_single_dtype_rule_remains_local_after_shared_collection_admission(
