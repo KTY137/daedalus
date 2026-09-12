@@ -1,0 +1,122 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-GARDEN-TENSOR-TOPOLOGY-13",
+  "artifact_role": "primary",
+  "title": "Classify contained Fourfold research refs and quarantine divergent knowledge-correlation legacy",
+  "gate": 1,
+  "classification": "GOVERNANCE_RESEARCH",
+  "owner": "repository owner",
+  "date": "2026-09-12",
+  "campaign_issue": 239,
+  "housekeeping_issue": 42,
+  "branch": "g1/gardener-post-release-containment-03",
+  "base_head": "e6ac678440e782ab3b7354eda17f6e32c1b87ea6",
+  "main_revision": "7a0ca520ebeeacd604b1e72f59bec2f24f040c2b",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "scope": "Continue evidence-aware branch containment without deleting refs for cosmetic topology reduction. Classify a bounded Fourfold/Gate-2/Gate-3 research cluster by exact commit ancestry, then inspect one materially divergent knowledge-plane branch for selective-port safety.",
+  "inventory": {
+    "observed_remote_refs": 70,
+    "owner_declared_canonical_topology": 11,
+    "noncanonical_refs_observed": 59,
+    "deletion_by_count_forbidden": true
+  },
+  "contained_refs": [
+    {
+      "branch": "assess/gate14-kill-criteria",
+      "head": "95566d05c0fe7cc86f6ec3fefabd3d5f0936d48a",
+      "ahead_of_main": 0,
+      "behind_main": 201,
+      "classification": "contained evidence",
+      "action": "retain until normal evidence-aware retirement; no reintegration needed"
+    },
+    {
+      "branch": "packet/g2-xplane-confirm-03",
+      "head": "c1c9034c3ed47865c0807c8235e6741fa267fff7",
+      "ahead_of_main": 0,
+      "behind_main": 213,
+      "classification": "contained evidence",
+      "action": "retain until normal evidence-aware retirement; no reintegration needed"
+    },
+    {
+      "branch": "packet/g2-symarm-01",
+      "head": "7ec1cceac3494a79ed867e4bff2f08404f3ddadc",
+      "ahead_of_main": 0,
+      "behind_main": 190,
+      "classification": "contained evidence",
+      "action": "retain until normal evidence-aware retirement; no reintegration needed"
+    },
+    {
+      "branch": "packet/g2-symtask-01",
+      "head": "c55ba5ee52b9455c5c29f26195ecf9a9f7b5148b",
+      "ahead_of_main": 0,
+      "behind_main": 193,
+      "classification": "contained evidence",
+      "action": "retain until normal evidence-aware retirement; no reintegration needed"
+    },
+    {
+      "branch": "integrate/gate3-review",
+      "head": "f2493787a3ecdc27a759fc4b47ed5547ba46de29",
+      "ahead_of_main": 0,
+      "behind_main": 149,
+      "classification": "contained evidence",
+      "action": "retain until normal evidence-aware retirement; no reintegration needed"
+    },
+    {
+      "branch": "packet/g3-base-01",
+      "head": "d99e275061f9044c946185449ec3b4ee7831dcee",
+      "ahead_of_main": 0,
+      "behind_main": 364,
+      "classification": "contained evidence",
+      "action": "retain until normal evidence-aware retirement; no reintegration needed"
+    }
+  ],
+  "divergent_ref": {
+    "branch": "g2/knowledge-correlation-bootstrap",
+    "head": "6e8264be25dac91606e962a070ba786e79bf48fa",
+    "merge_base": "7b30817de885c4eda9981c6786a37645093703c6",
+    "ahead_of_main": 122,
+    "behind_main": 3397,
+    "classification": "unique historical experiment; selective-port candidate; not safe to retire",
+    "evidence": {
+      "motif_provenance_path": "daedalus/twin/motifs.py",
+      "motif_provenance_blob": "53d5414d5504927feacad68498512fb6077a4d00",
+      "finding": "The branch contains substantive cross-repository motif provenance and knowledge-plane work that is not contained by current main. The motif contract is conceptually aligned with the adopted plan, but the legacy implementation owns local canonical JSON/SHA logic, imports the old daedalus.schemas surface, lives under daedalus.twin although the current execution plan assigns corpus/motif contracts to daedalus.evolution, and the branch also changes old kernel/OwnerApproval surfaces. Wholesale merge or cherry-pick would therefore reintroduce parallel/stale authorities."
+    },
+    "action": "preserve the branch and its commit/blob/PR evidence; audit one responsibility at a time against current main and port only missing semantics into the current canonical owner"
+  },
+  "gardener_result": {
+    "production_files_changed": 0,
+    "test_files_changed": 0,
+    "documentation_files_added": 1,
+    "parallel_abstraction_added": false,
+    "new_store_or_registry": false,
+    "new_graph_authority": false,
+    "new_remote_branch": false,
+    "branch_deleted": false,
+    "force_update": false,
+    "history_rewrite": false,
+    "archive_branch_touched": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "method": "GitHub exact compare main...branch for every classified ref plus direct inspection of the divergent motif-provenance blob",
+    "suite_claim": false,
+    "benchmark_claim": false,
+    "reason": "No executable product or test code changed in this packet; commit-containment and source-ownership inspection are the relevant evidence."
+  },
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "promotion": false,
+    "automatic_merge": false,
+    "gate_transition": false,
+    "crewai_superiority_claim": false,
+    "alphaevolve_superiority_claim": false
+  },
+  "bounded_next_step": "Audit the legacy MotifProvenance responsibility against current main and current canonical daedalus.evolution/twin contracts. Port only missing provenance invariants, using current canonical serialization/digest/provenance owners and without importing the old Gate-2 closure stack or creating a second motif registry."
+}

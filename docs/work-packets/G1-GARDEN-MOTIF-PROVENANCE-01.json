@@ -1,0 +1,98 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-GARDEN-MOTIF-PROVENANCE-01",
+  "artifact_role": "primary",
+  "title": "Selectively port legacy cross-repository motif provenance into the canonical evolution boundary",
+  "gate": 1,
+  "classification": "GOVERNANCE_RESEARCH_IMPLEMENTATION",
+  "owner": "repository owner",
+  "date": "2026-09-12",
+  "campaign_issue": 239,
+  "housekeeping_issue": 42,
+  "branch": "g1/gardener-post-release-containment-03",
+  "base_head": "771ffc8e25514432fa65a83014960e87ea8b8eb1",
+  "main_revision": "7a0ca520ebeeacd604b1e72f59bec2f24f040c2b",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "scope": "Port one missing legacy responsibility only: revision-exact, license-audited cross-repository motif support/alignment provenance. Use current canonical contract, serialization, digest, and provenance owners; do not import the historical Gate-2 closure stack, registry, store, evaluator, graph authority, or OwnerApproval surfaces.",
+  "legacy_evidence": {
+    "branch": "g2/knowledge-correlation-bootstrap",
+    "head": "6e8264be25dac91606e962a070ba786e79bf48fa",
+    "path": "daedalus/twin/motifs.py",
+    "blob": "53d5414d5504927feacad68498512fb6077a4d00",
+    "preservation": "The legacy ref/blob remains untouched and independently reachable; this packet is a semantic selective port, not a wholesale merge or history rewrite."
+  },
+  "audit": {
+    "current_main_missing_symbols": [
+      "CrossRepositoryAlignment",
+      "project_twin_manifest_sha256",
+      "negative_example_sha256s"
+    ],
+    "canonical_destination": "daedalus.evolution",
+    "destination_authority": "docs/FOURFOLD_V2_EXECUTION_PLAN.md assigns corpus and motif contracts to daedalus.evolution",
+    "canonical_owners_reused": {
+      "contract_and_validation": "daedalus.kernel.contracts.base.CanonicalContract plus current _revision/_sha256/_sorted_strings/_utc_timestamp validators",
+      "serialization_and_digest": "daedalus.spine.envelope through CanonicalContract",
+      "provenance": "daedalus.kernel.contracts.base.ContractProvenance and _require_provenance_inputs",
+      "graph_truth": "unchanged; Project Twin/Forest remains authoritative"
+    }
+  },
+  "implementation": {
+    "created": [
+      "daedalus/evolution/__init__.py",
+      "daedalus/evolution/motifs.py",
+      "tests/twin/test_evolution_motif_provenance.py"
+    ],
+    "contracts": {
+      "MotifSupport": "pins repository id, exact source revision, Project-Twin manifest, subgraph, SPDX license, extractor contract, evidence digest, and temporal cutoff",
+      "CrossRepositoryAlignment": "records verified or rejected cross-repository alignment; rejected alignments retain a limitation and cannot carry success evidence",
+      "MotifProvenance": "requires at least two distinct sorted supports, validates alignment membership, retains invariant/negative/evaluator evidence digests, and requires ContractProvenance to bind every referenced digest"
+    },
+    "deliberately_not_ported": [
+      "closed_for_gate2",
+      "legacy daedalus.schemas dependency",
+      "local canonical JSON/SHA implementation",
+      "motif registry",
+      "motif store",
+      "evaluator authority",
+      "promotion/OwnerApproval/Gate transition logic"
+    ],
+    "authority_note": "MotifProvenance.evidence_gaps reports evidence completeness only. An empty tuple grants no trust, promotion, OwnerApproval, or Gate transition."
+  },
+  "gardener_result": {
+    "parallel_abstraction_added": false,
+    "new_store_or_registry": false,
+    "new_graph_authority": false,
+    "new_scheduler_or_evolution_loop": false,
+    "new_receipt_family": false,
+    "legacy_branch_touched": false,
+    "archive_branch_touched": false,
+    "new_remote_branch": false,
+    "branch_deleted": false,
+    "force_update": false,
+    "history_rewrite": false,
+    "archive_legacy_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "verification": {
+    "focused_test_file": "tests/twin/test_evolution_motif_provenance.py",
+    "focused_cases": 7,
+    "authoring_harness": "7 passed against a local mirror of the current canonical helper semantics before repository mutation; this is syntax/logic assistance only, not hosted repository evidence.",
+    "hosted_exact_head_required": true,
+    "full_suite_claim": false,
+    "benchmark_claim": false
+  },
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "promotion": false,
+    "automatic_merge": false,
+    "gate_transition": false,
+    "crewai_superiority_claim": false,
+    "alphaevolve_superiority_claim": false
+  },
+  "bounded_next_step": "Use hosted exact-head CI to verify the focused motif contract together with the existing Fourfold/Tensor contract surface. If green, retain the draft PR as review/evidence only; do not auto-promote or merge."
+}

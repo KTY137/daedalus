@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-GARDEN-MOTIF-PROVENANCE-02",
+  "artifact_role": "primary",
+  "title": "Require connected verified alignment evidence across multi-repository motif supports",
+  "gate": 1,
+  "classification": "GOVERNANCE_RESEARCH_IMPLEMENTATION",
+  "owner": "repository owner",
+  "date": "2026-09-12",
+  "campaign_issue": 239,
+  "housekeeping_issue": 42,
+  "branch": "g1/gardener-post-release-containment-03",
+  "base_head": "f962ee5660a0499adccc4fd40ff59326abcbeadc",
+  "main_revision": "d967ad02ba88dd14d5c0156111d6ac2afd01971d",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "scope": "Tighten the existing evolution motif evidence surface only. A motif with four or more supports must not report an empty evidence-gap set merely because every support participates in some verified pair; the verified alignment graph must connect all declared supports. Preserve Project Twin/Forest authority and do not add a registry, store, evaluator, promotion path, or Gate closure.",
+  "finding": {
+    "legacy_origin": "g2/knowledge-correlation-bootstrap:daedalus/twin/motifs.py",
+    "inherited_gap": "The historical blockers calculation and the first selective port only checked whether each support participated in at least one verified alignment. Disconnected verified components such as A-B and C-D therefore produced no evidence gap even though no verified path related the two support clusters.",
+    "risk": "Downstream research code could mistake a disconnected set of pairwise supports for one cross-repository motif. evidence_gaps grants no authority, but an empty result should still mean the declared support set is coherently connected by verified alignment evidence."
+  },
+  "changes": [
+    "Keep the existing alignment/support contracts and provenance binding unchanged.",
+    "After all supports participate in verified alignments, traverse the verified alignment graph deterministically.",
+    "Emit verified-alignment-graph-disconnected when verified evidence splits the declared supports into multiple components.",
+    "Retain existing per-support unaligned gaps and no-verified-alignment gap without adding redundant connectivity noise.",
+    "Refactor the focused tests through one generic motif builder and cover both disconnected and connected four-support cases."
+  ],
+  "non_goals": [
+    "No motif registry or store.",
+    "No new graph authority or tensor plane.",
+    "No evaluator or promotion authority.",
+    "No closed_for_gate2 or automatic Gate transition.",
+    "No OwnerApproval or automatic merge."
+  ],
+  "verification": {
+    "local_static": [
+      "Updated Python source strings were syntax-compiled before commit construction."
+    ],
+    "hosted_required_for_exact_head_claim": [
+      "Fourfold, Tensor and integration contracts",
+      "Ikarus tensor, Genesis and hopping contracts",
+      "Tauri Desktop"
+    ],
+    "claim_boundary": "Implementation is bounded and fail-closed. Do not claim exact-head green CI until hosted runs for the resulting commit execute real steps successfully; the manual complete suite is separate."
+  },
+  "evidence_preservation": {
+    "archive_branch": "archive/legacy-20260830",
+    "archive_mutated": false,
+    "legacy_branch_mutated": false,
+    "legacy_blob_retained": "53d5414d5504927feacad68498512fb6077a4d00"
+  },
+  "status": "closed-implementation"
+}
