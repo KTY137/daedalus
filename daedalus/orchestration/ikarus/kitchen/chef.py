@@ -112,6 +112,17 @@ def _git(args: list[str], cwd: Path, timeout: int = 300) -> subprocess.Completed
                           errors="replace", timeout=timeout, check=False)
 
 
+def _git_bytes(args: list[str], cwd: Path, timeout: int = 300) -> bytes:
+    completed = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, timeout=timeout, check=False)
+    return completed.stdout if completed.returncode == 0 else b""
+
+
+def _git_z(args: list[str], cwd: Path, timeout: int = 120) -> list[str]:
+    """NUL-separated git output decoded as UTF-8 paths; never C-quoted."""
+    raw = _git_bytes(args, cwd, timeout)
+    return [part.decode("utf-8", errors="surrogateescape") for part in raw.split(b"\0") if part]
+
+
 def _head(repo: Path) -> str | None:
     result = _git(["rev-parse", "HEAD"], repo, 30)
     return result.stdout.strip() if result.returncode == 0 else None
@@ -276,33 +287,52 @@ class Chef:
             log(f"non-git project copied into {workspace.name}")
         motifs = self.kitchen.grey.motif_context(order.text)
         reports = [self._run_builder(workspace, improve_prompt(order, workspace, motifs, self_mode=self_mode), log, order=order, mode="improve")]
-        changed = self._changed_paths(workspace, base)
-        leak = [p for p in changed if p.startswith(PROTECTED_PREFIXES)] if self_mode else []
+        leak = self._leak(workspace, base) if self_mode else []
         if leak:
             log(f"leakage boundary violated by {len(leak)} path(s); candidate rejected", "error")
             return self._reject(order, workspace, reports, leak, base)
         plan, observations, green = self._check_and_repair(order, workspace, reports, log)
+        # Repair rounds are builder passes too: the boundary holds for the tree
+        # that is nominated, not for the first draft only.
+        leak = self._leak(workspace, base) if self_mode else []
+        if leak:
+            log(f"leakage boundary violated during repair by {len(leak)} path(s); candidate rejected", "error")
+            return self._reject(order, workspace, reports, leak, base)
+        changed = self._changed_paths(workspace, base)
         patch = None
         if base:
-            untracked = [p for p in _git(["ls-files", "--others", "--exclude-standard"], workspace, 120).stdout.split()
+            untracked = [p for p in _git_z(["ls-files", "-z", "--others", "--exclude-standard"], workspace)
                          if not p.startswith(".kitchen-") and "__pycache__" not in p]
             if untracked:
-                _git(["add", "-N", *untracked], workspace, 120)
-            diff = _git(["diff", "--binary", "HEAD", "--", ".", ":(exclude).kitchen-plan.json", ":(exclude)**/__pycache__/**"], workspace, 300)
+                _git(["add", "-N", "--", *untracked], workspace, 120)
+            diff = _git_bytes(["diff", "--binary", "HEAD", "--", ".", ":(exclude).kitchen-plan.json", ":(exclude)**/__pycache__/**"], workspace, 300)
             patch = self.kitchen.root / "orders" / f"{order.order_id}.patch"
-            patch.write_text(diff.stdout, encoding="utf-8")
-            log(f"candidate patch written ({len(diff.stdout)} chars, {len(changed)} paths)")
+            patch.write_bytes(diff)  # bytes end to end: CRLF context lines must round-trip through `git apply`
+            log(f"candidate patch written ({len(diff)} bytes, {len(changed)} paths)")
         return self._nominate(order, workspace, reports, plan, observations, green, log, base_revision=base, patch=patch)
 
     def _changed_paths(self, workspace: Path, base: str | None) -> list[str]:
+        """Every modified or untracked path, NUL-separated so git never C-quotes it."""
         if not base:
             return []
-        status = _git(["status", "--porcelain", "--untracked-files=all"], workspace, 120).stdout
-        paths = []
-        for line in status.splitlines():
-            if len(line) > 3:
-                paths.append(line[3:].strip().split(" -> ")[-1].replace("\\", "/"))
-        return sorted(paths)
+        entries = _git_z(["status", "--porcelain=v1", "-z", "--untracked-files=all"], workspace)
+        paths: list[str] = []
+        skip_next = False
+        for entry in entries:
+            if skip_next:  # the original path of a rename follows as its own NUL entry
+                skip_next = False
+                continue
+            if len(entry) < 4:
+                continue
+            code, path = entry[:2], entry[3:].replace("\\", "/")
+            skip_next = "R" in code or "C" in code
+            if path.startswith(".kitchen-") or "__pycache__" in path:
+                continue  # kitchen bookkeeping and compiled caches are not candidate content
+            paths.append(path)
+        return sorted(set(paths))
+
+    def _leak(self, workspace: Path, base: str | None) -> list[str]:
+        return [p for p in self._changed_paths(workspace, base) if p.startswith(PROTECTED_PREFIXES)]
 
     def _reject(self, order: Order, workspace: Path, reports: list[BuilderReport], leak: list[str],
                 base: str | None) -> dict[str, Any]:
@@ -318,11 +348,13 @@ class Chef:
     # -- feed ----------------------------------------------------------------
     def _feed(self, order: Order, repo_root: str | None, log: _LOG) -> dict[str, Any]:
         sources = list(order.sources)
-        if not sources and repo_root:
-            sources = [repo_root]
-            log("no source named; feeding the registered project itself")
         if not sources:
-            raise ValueError("feed order names no repository URL or path")
+            # Ingestion is an effect on the corpus; it happens only for a source
+            # the owner named, never for a project inferred from the chat.
+            log("feed order names no repository URL or path; nothing ingested", "warn")
+            return {"status": STATUS_BLOCKED,
+                    "blocker": "name the repository to feed (a URL or an existing path), e.g. "
+                               "'füttere Ariadne mit https://github.com/org/repo'"}
         allowed = tuple(s.strip().upper() for s in os.environ.get("DAEDALUS_KITCHEN_LICENSE_ALLOW", "").split(",") if s.strip())
         ingested: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []

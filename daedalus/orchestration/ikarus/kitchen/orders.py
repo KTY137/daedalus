@@ -74,18 +74,24 @@ _IMPROVE_TARGET_RE = re.compile(
     r"(?:app|apps|anwendung|applikation|application|projekt|project|repo|repository|programm|program|tool|website|webseite|web\s*app)\b",
     re.IGNORECASE,
 )
+# A feed order names the kitchen's corpus explicitly (Ariadne / Grey Matter /
+# Korpus). "read the README and tell me about the repo" is a question, not a
+# feed; a feed without a named source is blocked by the Chef, never inferred.
+_FEED_OBJECT = r"(?:ariadne|corpus|korpus|grey\s*matter|graue\s+masse)"
 _FEED_RE = re.compile(
-    r"(?:f(?:ü|ue)tter(?:e)?|feed|lern(?:e)?|learn|ingest(?:iere)?|indexier(?:e)?|index|"
-    r"trainier(?:e)?|train|lies|lese|read|studier(?:e)?|study|absorb(?:iere)?)\b.{0,80}?"
-    r"\b(?:ariadne|corpus|korpus|grey\s*matter|graue\s+masse|repo(?:s|sitor(?:y|ies|ien))?)\b"
-    r"|\b(?:ariadne|grey\s*matter)\b.{0,40}?\b(?:f(?:ü|ue)ttern|feed|lernen|learn)\b",
+    r"\b(?:f(?:ü|ue)tter(?:e)?|feed|ingest(?:iere)?|indexier(?:e)?|trainier(?:e)?|train|absorb(?:iere)?|"
+    r"lern(?:e)?|learn|studier(?:e)?|study)\b.{0,60}?\b" + _FEED_OBJECT + r"\b"
+    r"|\b" + _FEED_OBJECT + r"\b.{0,40}?\b(?:f(?:ü|ue)ttern|feed|lernen|learn|ingest|indexieren)\b",
     re.IGNORECASE,
 )
+# Status questions name the kitchen itself; the English words "order" and
+# "build" are too common in ordinary questions to carry this meaning.
+_KITCHEN_NOUN = r"(?:küche|kueche|kitchen|bestellung(?:en)?|chefkoch|kellner|waiter|sous-?chef|grey\s*matter)"
 _STATUS_RE = re.compile(
     r"^\W*(?:/kitchen|/küche|/kueche)\b|"
-    r"\b(?:küche|kueche|kitchen|bestellung(?:en)?|orders?|chefkoch|chef|kellner|waiter)\b.{0,60}?"
-    r"\b(?:status|stand|wie\s+weit|fortschritt|progress|läuft|laeuft|fertig|done|ready|gerade|macht|tut|los|doing|up\s+to)\b|"
-    r"\b(?:status|stand|wie\s+weit|fortschritt|progress|was\s+macht|what\s+is|what's)\b.{0,60}?\b(?:küche|kueche|kitchen|bestellung|order|chefkoch|bau|build)\b",
+    r"\b" + _KITCHEN_NOUN + r"\b.{0,60}?"
+    r"\b(?:status|stand|wie\s+weit|fortschritt|progress|läuft|laeuft|fertig|done|ready|gerade|macht|tut|los|doing|up\s+to|zeig|show)\b|"
+    r"\b(?:status|stand|wie\s+weit|fortschritt|progress|was\s+macht|what\s+is|what's|zeig|show)\b.{0,60}?\b" + _KITCHEN_NOUN + r"\b",
     re.IGNORECASE,
 )
 _URL_RE = re.compile(r"(?:https?://|git@)[^\s'\"<>]+")

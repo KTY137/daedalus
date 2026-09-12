@@ -66,6 +66,13 @@ def test_orders_are_recognised(text: str, kind: str) -> None:
     "entwickle ein CLI-Tool",
     "programmiere einen Parser",
     "korrigiere die Doku",
+    # review round 1: ordinary questions that must never become kitchen orders
+    "In order to make this ready, what do I need?",
+    "What is the build command for this project?",
+    "What is the order of evaluation in Python?",
+    "Explain the orders table and what status means",
+    "Please read the README and tell me about the repo",
+    "lies die Datei README.md im Repo",
 ])
 def test_ordinary_chat_is_not_an_order(text: str) -> None:
     assert parse_order(text) is None
@@ -384,3 +391,108 @@ def test_waiter_serves_orders_and_status_through_the_chat_door(tmp_path: Path, m
     envelope = shell._ask_inner(None, "Küche Status")
     assert envelope["intent"] == "kitchen"
     waiter._KITCHENS.clear()
+
+
+# --------------------------------------------------------------------------- #
+# Review round 1 regressions                                                   #
+# --------------------------------------------------------------------------- #
+def test_grey_matter_serves_other_threads(tmp_path: Path) -> None:
+    import threading
+    grey = GreyMatter(tmp_path / "gm.db")
+    try:
+        grey.ingest_repo(_corpus(tmp_path / "repo"), name="billing")
+        outcome: dict[str, object] = {}
+
+        def worker() -> None:
+            try:
+                outcome["stats"] = grey.stats()
+                outcome["hits"] = grey.search("invoice", k=2)
+            except Exception as exc:  # pragma: no cover - the assertion below reports it
+                outcome["error"] = repr(exc)
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join(30)
+        assert "error" not in outcome, outcome
+        assert outcome["stats"]["repos"] == 1 and outcome["hits"]
+    finally:
+        grey.close()
+
+
+def test_feed_without_a_named_source_is_blocked(tmp_path: Path) -> None:
+    kitchen = Kitchen(tmp_path / "kitchen")
+    try:
+        chef = Chef(kitchen, builder=_fake_builder({}))
+        order = orders.Order(orders.KIND_FEED, "füttere ariadne", "de")
+        kitchen.ledger.open_order(order.order_id, order.kind, "proj", order.text)
+        result = chef.cook(order, project="proj", repo_root=str(tmp_path))
+        assert result["status"] == "blocked" and "name the repository" in result["blocker"]
+        assert kitchen.grey.stats()["repos"] == 0
+    finally:
+        kitchen.close()
+
+
+def test_self_improvement_rejects_leakage_hidden_by_git_quoting(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "daedalus")
+    kitchen = Kitchen(tmp_path / "kitchen")
+    try:
+        # a space and an umlaut make `git status --porcelain` C-quote the path
+        chef = Chef(kitchen, builder=_fake_builder({"daedalus/spine/led ger ä.py": "X = 2\n"}), max_repairs=0)
+        order = parse_order("verbessere dich selbst")
+        kitchen.ledger.open_order(order.order_id, order.kind, None, order.text)
+        result = chef._improve(order, str(repo), lambda *a, **k: None, self_mode=True)
+        assert result["status"] == "failed" and result["rejection"] == "leakage_boundary"
+        assert result["protected_paths_touched"] == ["daedalus/spine/led ger ä.py"]
+    finally:
+        kitchen.close()
+
+
+def test_self_improvement_rejects_leakage_introduced_by_a_repair_round(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "daedalus")
+    kitchen = Kitchen(tmp_path / "kitchen")
+    try:
+        calls: list[str] = []
+
+        def builder(workspace: Path, prompt: str, timeout_s: int) -> BuilderReport:
+            calls.append(prompt)
+            if len(calls) == 1:  # first draft: harmless but red
+                (workspace / "tests" / "test_main.py").write_text("def test_red():\n    assert False\n", encoding="utf-8")
+                return BuilderReport("fake", True, 0, 0.01, "draft", ["tests/test_main.py"])
+            (workspace / "tests" / "test_main.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+            (workspace / "daedalus" / "spine").mkdir(parents=True, exist_ok=True)
+            (workspace / "daedalus" / "spine" / "ledger.py").write_text("X = 3\n", encoding="utf-8")
+            return BuilderReport("fake", True, 0, 0.01, "repair", ["tests/test_main.py", "daedalus/spine/ledger.py"])
+
+        chef = Chef(kitchen, builder=builder, max_repairs=1)
+        order = parse_order("verbessere dich selbst")
+        kitchen.ledger.open_order(order.order_id, order.kind, None, order.text)
+        result = chef._improve(order, str(repo), lambda *a, **k: None, self_mode=True)
+        assert len(calls) == 2
+        assert result["status"] == "failed" and result["rejection"] == "leakage_boundary"
+        assert result["protected_paths_touched"] == ["daedalus/spine/ledger.py"]
+    finally:
+        kitchen.close()
+
+
+def test_nominated_patch_is_written_as_exact_bytes(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "proj")
+    (repo / "crlf.txt").write_bytes(b"one\r\ntwo\r\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "-c", "user.email=k@t", "-c", "user.name=k", "commit", "-q", "-m", "crlf"], cwd=repo, check=True)
+    kitchen = Kitchen(tmp_path / "kitchen")
+    try:
+        def builder(workspace: Path, prompt: str, timeout_s: int) -> BuilderReport:
+            (workspace / "crlf.txt").write_bytes(b"one\r\ntwo\r\nthree\r\n")
+            return BuilderReport("fake", True, 0, 0.01, "ok", ["crlf.txt"])
+
+        chef = Chef(kitchen, builder=builder, max_repairs=0)
+        order = parse_order("improve this app: add a line")
+        kitchen.ledger.open_order(order.order_id, order.kind, "proj", order.text)
+        result = chef.cook(order, project="proj", repo_root=str(repo))
+        assert result["status"] == "nominated", result
+        patch = Path(result["patch"]).read_bytes()
+        assert b"+three" in patch and b"\r\r" not in patch
+        applied = subprocess.run(["git", "apply", "--check", str(result["patch"])], cwd=repo, capture_output=True, text=True)
+        assert applied.returncode == 0, applied.stderr
+    finally:
+        kitchen.close()

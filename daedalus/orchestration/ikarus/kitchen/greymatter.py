@@ -29,6 +29,7 @@ import math
 import re
 import sqlite3
 import struct
+import threading
 import time
 import warnings
 from dataclasses import dataclass, field
@@ -472,12 +473,36 @@ class GreyMatter:
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(self.path), timeout=30)
+        if str(self.path) != ":memory:":
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        # One connection per thread: the Chef cooks in a background thread and
+        # the HTTP server answers from handler threads, while sqlite3 binds a
+        # connection to the thread that opened it. SQLite's busy timeout
+        # serialises the writers; transactions stay per call.
+        self._local = threading.local()
+        self._connections: list[sqlite3.Connection] = []
+        self._lock = threading.Lock()
         self.db.executescript(_DDL)
 
+    @property
+    def db(self) -> sqlite3.Connection:
+        connection = getattr(self._local, "connection", None)
+        if connection is None:
+            connection = sqlite3.connect(str(self.path), timeout=30)
+            self._local.connection = connection
+            with self._lock:
+                self._connections.append(connection)
+        return connection
+
     def close(self) -> None:
-        self.db.close()
+        with self._lock:
+            connections, self._connections = self._connections, []
+        for connection in connections:
+            try:
+                connection.close()
+            except sqlite3.ProgrammingError:
+                pass  # opened by another thread; it closes with that thread
+        self._local = threading.local()
 
     # -- ingestion ----------------------------------------------------------
     def ingest_repo(self, root: Path, *, name: str | None = None, origin: str | None = None,
