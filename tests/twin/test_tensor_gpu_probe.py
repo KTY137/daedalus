@@ -18,11 +18,13 @@ _PROBE = importlib.import_module("experiments.tensor_gpu.cuda_boolean_probe")
 _CONTRACT = importlib.import_module("experiments.tensor_gpu.boolean_probe_contract")
 ProbeCase = _PROBE.ProbeCase
 _cuda_oom_result = _PROBE._cuda_oom_result
+_dense_from_block = _PROBE._dense_from_block
 _resident_mm = _PROBE._resident_mm
 build_boolean_case = _PROBE.build_boolean_case
 blocked_report = _PROBE.blocked_report
 estimate_dense_device_bytes = _PROBE.estimate_dense_device_bytes
 exact_reference_operation_count = _PROBE.exact_reference_operation_count
+validate_boolean_block = _CONTRACT.validate_boolean_block
 validate_boolean_operands = _CONTRACT.validate_boolean_operands
 write_report = _PROBE.write_report
 BooleanSemiring = _PROBE.BooleanSemiring
@@ -53,8 +55,13 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
     assert cpu.build_boolean_case is _CONTRACT.build_boolean_case
     assert _PROBE.exact_reference_operation_count is _CONTRACT.exact_reference_operation_count
     assert cpu.exact_reference_operation_count is _CONTRACT.exact_reference_operation_count
+    assert _PROBE.validate_boolean_block is _CONTRACT.validate_boolean_block
+    assert cpu.validate_boolean_block is _CONTRACT.validate_boolean_block
     assert _PROBE.validate_boolean_operands is _CONTRACT.validate_boolean_operands
     assert cpu.validate_boolean_operands is _CONTRACT.validate_boolean_operands
+    assert _CONTRACT.validate_boolean_operands.__globals__["validate_boolean_block"] is (
+        _CONTRACT.validate_boolean_block
+    )
     assert _PROBE.write_report is _CONTRACT.write_report
     assert cpu.write_report is _CONTRACT.write_report
 
@@ -62,6 +69,21 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
         source = path.read_text(encoding="utf-8")
         assert "import runpy" not in source
         assert "runpy.run_path" not in source
+
+
+def test_physical_packers_fail_closed_through_shared_single_block_admission() -> None:
+    cpu = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline")
+
+    with pytest.raises(ValueError, match="TypedRelationBlock"):
+        cpu.pack_rows(object())
+    with pytest.raises(ValueError, match="TypedRelationBlock"):
+        _dense_from_block(
+            object(),
+            object(),
+            device="cuda:0",
+            dtype=object(),
+            padded_size=8,
+        )
 
 
 def test_probe_case_bounds_dense_input_and_execution() -> None:
