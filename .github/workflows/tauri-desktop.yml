@@ -134,6 +134,15 @@ jobs:
             exit 1
           fi
 
+      - name: Retain generated cockpit bundle on drift
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cockpit-dist-drift-${{ github.sha }}
+          path: apps/web/dist
+          if-no-files-found: ignore
+          retention-days: 3
+
       # 6.22.1 fixes GHSA-9fxf-4qw3-ghmr (2026-08-15). Keep this exact:
       # packaging must not bake a known unsafe bootloader into a release.
       - name: Install Python build/test dependencies
