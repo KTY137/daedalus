@@ -13,7 +13,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from daedalus.twin.relation_blocks import (
     MAX_BLOCK_ENTRIES,
@@ -81,6 +81,19 @@ class ProbeCase:
                 "input relation exceeds TypedRelationBlock entry limit; "
                 f"size={self.size}, row_width={width}, entries={self.size * width}"
             )
+
+
+def validate_probe_cases(cases: Sequence[ProbeCase]) -> tuple[ProbeCase, ...]:
+    """Normalize and bound the shared case collection before physical execution."""
+
+    if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
+        raise ValueError("cases must be a bounded sequence")
+    admitted = tuple(cases)
+    if not admitted or len(admitted) > MAX_CASES:
+        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
+    if any(not isinstance(case, ProbeCase) for case in admitted):
+        raise ValueError("cases must contain ProbeCase values")
+    return admitted
 
 
 def row_width(size: int, density: float) -> int:
@@ -274,5 +287,6 @@ __all__ = [
     "same_support",
     "validate_boolean_block",
     "validate_boolean_operands",
+    "validate_probe_cases",
     "write_report",
 ]
