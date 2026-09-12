@@ -117,6 +117,25 @@ def test_rejected_alignment_retains_negative_evidence_without_gate_claim() -> No
     assert motif.alignments[0].limitation
 
 
+def test_conflicting_alignment_statuses_remain_visible_as_evidence_gap() -> None:
+    supports = (
+        _support("alpha-repo", "1", "1"),
+        _support("beta-repo", "2", "5"),
+    )
+    motif = _motif_from_parts(
+        supports,
+        (
+            _alignment(supports, status="verified"),
+            _alignment(supports, status="rejected"),
+        ),
+    )
+
+    assert motif.evidence_gaps == (
+        "conflicting-alignment-status-alpha-repo-beta-repo",
+    )
+    assert {item.status for item in motif.alignments} == {"verified", "rejected"}
+
+
 def test_verified_alignment_graph_must_connect_all_supports() -> None:
     supports = (
         _support("alpha-repo", "1", "1"),

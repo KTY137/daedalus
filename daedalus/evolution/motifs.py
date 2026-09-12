@@ -204,6 +204,27 @@ class MotifProvenance(CanonicalContract):
         gaps: set[str] = set()
         if not verified:
             gaps.add("no-verified-cross-repository-alignment")
+
+        repository_by_digest = {
+            support.digest: support.repository_id for support in self.supports
+        }
+        statuses_by_pair: dict[tuple[str, str], set[str]] = {}
+        for alignment in self.alignments:
+            pair = (alignment.left_support_sha256, alignment.right_support_sha256)
+            statuses_by_pair.setdefault(pair, set()).add(alignment.status)
+        for (left_digest, right_digest), statuses in statuses_by_pair.items():
+            if len(statuses) > 1:
+                left_repository, right_repository = sorted(
+                    (
+                        repository_by_digest[left_digest],
+                        repository_by_digest[right_digest],
+                    )
+                )
+                gaps.add(
+                    "conflicting-alignment-status-"
+                    f"{left_repository}-{right_repository}"
+                )
+
         participating = {
             digest
             for item in verified

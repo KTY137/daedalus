@@ -1,0 +1,71 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-GARDEN-MOTIF-PROVENANCE-03",
+  "artifact_role": "primary",
+  "title": "Retain contradictory alignment outcomes as explicit motif evidence gaps",
+  "gate": 1,
+  "classification": "GOVERNANCE_RESEARCH_IMPLEMENTATION",
+  "owner": "repository owner",
+  "date": "2026-09-12",
+  "campaign_issue": 239,
+  "housekeeping_issue": 42,
+  "branch": "g1/gardener-post-release-containment-03",
+  "base_head": "755dd802732b09acf847f4ff0e14d0ccb1681110",
+  "main_revision": "6dbf6053b0df6ce26717da1f15c555e102f8bec3",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance"
+  },
+  "scope": "Tighten only the existing evolution motif evidence surface. If the same declared support pair carries both verified and rejected alignment records, preserve both records but expose the contradiction through evidence_gaps rather than allowing the verified edge to silently hide retained negative evidence. Do not add a second registry, graph authority, evaluator, promotion path, or Gate closure mechanism.",
+  "finding": {
+    "legacy_origin": "g2/knowledge-correlation-bootstrap:daedalus/twin/motifs.py@53d5414d5504927feacad68498512fb6077a4d00",
+    "inherited_gap": "The historical blockers calculation and the first two selective ports used verified alignments for participation/connectivity but never surfaced a contradictory rejected result for the same support pair. A motif could therefore report an empty evidence-gap set while retaining both a verified and rejected claim over one pair.",
+    "risk": "Retained negative evidence would remain serialized but operationally invisible to consumers that correctly use evidence_gaps as the incompleteness/conflict summary. That weakens the Masterplan requirement to retain negative evidence and can make a disputed cross-repository relation look uncontested."
+  },
+  "changes": [
+    "Keep CrossRepositoryAlignment records and canonical serialization unchanged; conflicting evidence is retained, not rejected or overwritten.",
+    "Group alignment statuses by canonical support-digest pair inside the existing evidence_gaps calculation.",
+    "Emit one deterministic conflicting-alignment-status-<repository>-<repository> gap when a support pair has both verified and rejected outcomes.",
+    "Continue using verified edges for participation/connectivity while carrying the contradiction gap, so negative evidence does not erase independently verified paths.",
+    "Add a focused two-repository regression that proves verified and rejected records coexist and still produce a non-empty evidence gap."
+  ],
+  "gardener_notes": [
+    "No new public concept, subsystem, store, registry, graph plane, receipt family, or evaluator was introduced.",
+    "The implementation stays inside daedalus.evolution, the existing Masterplan owner for corpus/motif contracts and retained negative evidence.",
+    "The branch was first synchronized with main@6dbf6053b0df6ce26717da1f15c555e102f8bec3 by a normal two-parent merge commit; no force update or history rewrite was used."
+  ],
+  "prior_exact_head_evidence": {
+    "head": "d0447486a1a1df31a970dd02393df52157388797",
+    "runs": {
+      "Fourfold, Tensor and integration contracts": 34677278837,
+      "Ikarus tensor, Genesis and hopping contracts": 34677278833,
+      "Tauri Desktop": 34677278840
+    },
+    "conclusion": "All three recorded hosted workflows completed successfully for the previous exact candidate head. This is baseline evidence only and is not reused as exact-head evidence for this packet."
+  },
+  "non_goals": [
+    "No automatic choice between conflicting verified and rejected evidence.",
+    "No motif registry or store.",
+    "No new graph authority or tensor plane.",
+    "No evaluator or promotion authority.",
+    "No closed_for_gate2, OwnerApproval, automatic merge, or Gate transition."
+  ],
+  "verification": {
+    "hosted_required_for_exact_head_claim": [
+      "Fourfold, Tensor and integration contracts",
+      "Ikarus tensor, Genesis and hopping contracts",
+      "Tauri Desktop"
+    ],
+    "claim_boundary": "Do not claim exact-head green CI until hosted runs for the resulting commit execute real steps successfully. The manual complete suite remains separate, so passing PR workflows do not imply a full-repository-suite claim."
+  },
+  "evidence_preservation": {
+    "archive_branch": "archive/legacy-20260830",
+    "archive_mutated": false,
+    "legacy_branch_mutated": false,
+    "legacy_blob_retained": "53d5414d5504927feacad68498512fb6077a4d00"
+  },
+  "status": "closed-implementation"
+}
