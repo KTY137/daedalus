@@ -1,0 +1,181 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-179",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "db9da8d1dabb538b06f6b0f57e90832717d4889b",
+    "dependencies": "G1-EXP-TENSOR-GPU-178 single-block Boolean admission consolidation",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": ["title", "question", "finding"]
+      },
+      "scope": {
+        "source_fields": ["scope", "domain"]
+      },
+      "contracts_and_behavior": {
+        "source_fields": ["audit", "next_bounded_implementation", "preserved_boundaries"]
+      },
+      "acceptance_matrix": {
+        "source_fields": ["verification"]
+      },
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "gardener_boundary"],
+        "projection_note": "This packet is research/evidence only. Rollback removes only this record; no executable source or authority changes."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundary", "finding"]
+      }
+    }
+  },
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-179",
+  "title": "Audit duplicated probe-case collection admission across CPU and CUDA Tensor diagnostics",
+  "date": "2026-09-12",
+  "status": "closed-research",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "blob_sha": "49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "bac411306c0e53f41d11602d8b65f99ced76fe58",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "db9da8d1dabb538b06f6b0f57e90832717d4889b",
+  "scope": {
+    "examined": [
+      "experiments/tensor_gpu/boolean_probe_contract.py",
+      "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "tests/twin/test_tensor_gpu_probe.py"
+    ],
+    "added": ["docs/work-packets/G1-EXP-TENSOR-GPU-179.json"],
+    "executable_source_changed": false,
+    "forbidden": [
+      "daedalus/twin/** production semantics",
+      "daedalus/kernel/**",
+      "daedalus/runtimes/**",
+      "daedalus/orchestration/**",
+      "archive/legacy-20260830",
+      "automatic promotion or merge paths"
+    ]
+  },
+  "question": "After GPU-178 centralized Boolean block and pair admission, what is the next exact duplicated contract that can be removed without inventing another Tensor abstraction or moving backend-specific policy into shared Fourfold semantics?",
+  "audit": {
+    "confirmed_duplicate": {
+      "owner_candidates": [
+        "cpu_bitset_baseline.run_probe",
+        "cuda_boolean_probe.run_probe"
+      ],
+      "duplicated_rules": [
+        "reject str/bytes and non-Sequence case collections",
+        "require between 1 and MAX_CASES cases",
+        "require every member to be a ProbeCase"
+      ],
+      "existing_shared_inputs": [
+        "boolean_probe_contract.ProbeCase",
+        "boolean_probe_contract.MAX_CASES"
+      ],
+      "why_duplicate": "Both physical arms repeat the same collection-admission checks verbatim immediately before executing cases, even though the case type and bound already come from the shared contract."
+    },
+    "kept_local": {
+      "cuda_single_dtype_rule": "CUDA run_probe additionally requires one dtype per run so device evidence remains unambiguous; this is a CUDA measurement boundary and should remain local after shared collection admission.",
+      "cpu_sampling_rule": "CPU _validate_sampling accepts raw repeats/warmup for execute_bitset and repeated measurement independent of ProbeCase construction. It overlaps ProbeCase bounds but is not selected in this packet because collapsing it safely requires a separate call-surface audit."
+    },
+    "parallel_abstraction_check": "No second case schema, registry, runner, backend or semantic authority is needed. The smallest owner is one helper inside the already-existing boolean_probe_contract module."
+  },
+  "next_bounded_implementation": {
+    "proposal": "Add validate_probe_cases to boolean_probe_contract and make both CPU and CUDA run_probe compose that exact helper before their arm-specific work.",
+    "return_contract": "Prefer returning an immutable tuple of admitted ProbeCase values so both arms iterate one normalized bounded collection without adding state.",
+    "cpu_boundary": "CPU keeps result construction, runtime metadata and measurement policy local.",
+    "cuda_boundary": "CUDA keeps single-dtype, device discovery, blocked evidence, OOM handling and device-memory policy local.",
+    "tests": [
+      "pin CPU and CUDA imports to the same validate_probe_cases function object",
+      "prove str/bytes, empty, over-bound and non-ProbeCase collections fail through the shared owner",
+      "prove CUDA single-dtype rejection remains local and unchanged"
+    ],
+    "not_implemented_here": true
+  },
+  "preserved_boundaries": {
+    "semantic_authority": "Fourfold/Forest and TypedRelationBlock remain authoritative; diagnostic collection admission does not create a semantic plane or production Tensor authority.",
+    "physical_arms": "CPU and CUDA retain their different execution, timing, memory and environment constraints.",
+    "evidence": "Negative/blocked CUDA outcomes remain first-class evidence; no admission helper may convert blocked execution into success."
+  },
+  "gardener_boundary": {
+    "production_runtime_changed": false,
+    "new_module_added": false,
+    "parallel_abstraction_added": false,
+    "public_product_concept_added": false,
+    "wire_schema_changed": false,
+    "semantic_plane_added": false,
+    "graph_authority_added": false,
+    "backend_added": false,
+    "cache_added": false,
+    "registry_added": false,
+    "store_added": false,
+    "scheduler_added": false,
+    "runtime_dependency_added": false,
+    "workflow_changed": false,
+    "duplicate_contract_identified": true
+  },
+  "verification": {
+    "pre_head_exact_runs": [
+      {
+        "workflow": "Fourfold, Tensor and integration contracts",
+        "run_id": 34695612997,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "workflow": "Ikarus tensor, Genesis and hopping contracts",
+        "run_id": 34695613088,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "workflow": "Tauri Desktop",
+        "run_id": 34695613131,
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "research_method": [
+      "read the adopted Masterplan before selecting work",
+      "compared current CPU and CUDA run_probe admission surfaces at the exact branch head",
+      "separated exact shared admission from CUDA-only measurement policy",
+      "confirmed no code change is required to close the audit itself"
+    ],
+    "full_repository_execution": "Complete suite remains workflow_dispatch-only and is not claimed by this research packet."
+  },
+  "finding": {
+    "summary": "The next safe gardener seam is the verbatim probe-case collection admission duplicated by CPU and CUDA run_probe. It belongs in the existing shared Boolean probe contract; CUDA's one-dtype-per-run rule must remain local.",
+    "negative_result": "This packet establishes no speedup, Tensor-Core use, production Tensor adoption, Tensor-vs-Forest superiority, benchmark superiority, Gate progress, OwnerApproval or promotion."
+  },
+  "branch_hygiene": {
+    "canonical_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "history_rewritten": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false
+  },
+  "claim_boundary": {
+    "full_suite_green_claim": false,
+    "gpu_or_tensor_core_speedup": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}
