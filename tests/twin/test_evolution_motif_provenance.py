@@ -121,8 +121,8 @@ def test_verified_alignment_graph_must_connect_all_supports() -> None:
     supports = (
         _support("alpha-repo", "1", "1"),
         _support("beta-repo", "2", "5"),
-        _support("gamma-repo", "3", "9"),
-        _support("theta-repo", "4", "a"),
+        _support("gamma-repo", "3", "a"),
+        _support("theta-repo", "4", "b"),
     )
     motif = _motif_from_parts(
         supports,
@@ -139,8 +139,8 @@ def test_verified_alignment_chain_connects_all_supports() -> None:
     supports = (
         _support("alpha-repo", "1", "1"),
         _support("beta-repo", "2", "5"),
-        _support("gamma-repo", "3", "9"),
-        _support("theta-repo", "4", "a"),
+        _support("gamma-repo", "3", "a"),
+        _support("theta-repo", "4", "b"),
     )
     motif = _motif_from_parts(
         supports,
