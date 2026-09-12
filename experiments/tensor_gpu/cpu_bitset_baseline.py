@@ -41,6 +41,7 @@ if __package__:
         exact_reference_operation_count,
         ratio,
         same_support,
+        validate_boolean_block,
         validate_boolean_operands,
         write_report,
     )
@@ -55,6 +56,7 @@ else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
         exact_reference_operation_count,
         ratio,
         same_support,
+        validate_boolean_block,
         validate_boolean_operands,
         write_report,
     )
@@ -120,14 +122,11 @@ def _measure_repeated(
 def pack_rows(block: TypedRelationBlock[bool]) -> tuple[int, ...]:
     """Pack every sorted CSR row into one non-negative Python integer."""
 
-    if not isinstance(block, TypedRelationBlock) or block.semiring_name != "boolean":
-        raise ValueError("pack_rows requires one Boolean TypedRelationBlock")
+    validate_boolean_block(block)
     rows: list[int] = []
     for row in range(len(block.row_axis.labels)):
         mask = 0
         for position in range(block.row_offsets[row], block.row_offsets[row + 1]):
-            if block.values[position] is not True:
-                raise ValueError("bitset baseline requires canonical stored Boolean support")
             mask |= 1 << block.column_indices[position]
         rows.append(mask)
     return tuple(rows)
