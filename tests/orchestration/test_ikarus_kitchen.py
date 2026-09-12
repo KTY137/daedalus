@@ -386,7 +386,7 @@ def test_waiter_serves_orders_and_status_through_the_chat_door(tmp_path: Path, m
     status = waiter.maybe_serve(None, "Küche Status")
     assert status is not None and served["order_id"] in status["assistant"]
     again = waiter.maybe_serve(None, "bau mir nh app für notizen")
-    assert again["status"] == "nominated"  # terminal orders may be re-placed
+    assert again["status"] == "nominated" and again["replayed"] is True
     from daedalus.orchestration.ikarus import shell
     envelope = shell._ask_inner(None, "Küche Status")
     assert envelope["intent"] == "kitchen"
@@ -455,13 +455,13 @@ def test_self_improvement_rejects_leakage_introduced_by_a_repair_round(tmp_path:
 
         def builder(workspace: Path, prompt: str, timeout_s: int) -> BuilderReport:
             calls.append(prompt)
-            if len(calls) == 1:  # first draft: harmless but red
-                (workspace / "tests" / "test_main.py").write_text("def test_red():\n    assert False\n", encoding="utf-8")
-                return BuilderReport("fake", True, 0, 0.01, "draft", ["tests/test_main.py"])
-            (workspace / "tests" / "test_main.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+            if len(calls) == 1:  # source regression against the unchanged evaluator
+                (workspace / "main.py").write_text("def main():\n    return 'wrong'\n", encoding="utf-8")
+                return BuilderReport("fake", True, 0, 0.01, "draft", ["main.py"])
+            (workspace / "main.py").write_text(_GREEN_APP["main.py"], encoding="utf-8")
             (workspace / "daedalus" / "spine").mkdir(parents=True, exist_ok=True)
             (workspace / "daedalus" / "spine" / "ledger.py").write_text("X = 3\n", encoding="utf-8")
-            return BuilderReport("fake", True, 0, 0.01, "repair", ["tests/test_main.py", "daedalus/spine/ledger.py"])
+            return BuilderReport("fake", True, 0, 0.01, "repair", ["main.py", "daedalus/spine/ledger.py"])
 
         chef = Chef(kitchen, builder=builder, max_repairs=1)
         order = parse_order("verbessere dich selbst")

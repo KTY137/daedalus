@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .report import BuilderReport, BuilderUnavailable
-from .toolchain import MANIFEST
+from .toolchain import MANIFEST, _EVALUATOR_DIRS, _VERIFICATION_CONFIGS, detect, freeze_verification
 
 DEFAULT_HOST = "http://127.0.0.1:11434"
 DEFAULT_MODEL = "qwen2.5-coder:7b"
@@ -109,6 +109,29 @@ def _safe_path(value: Any) -> str | None:
         return None
     value = value.strip().replace("\\", "/").lstrip("./")
     return value if _SAFE_PATH.match(value) else None
+
+
+def _frozen_verification_paths(workspace: Path) -> set[str]:
+    frozen = freeze_verification(detect(workspace), workspace)
+    if frozen.error:
+        raise ValueError(frozen.error)
+    return {name.casefold() for name, _ in frozen.files}
+
+
+def _is_verification_path(relative: str, frozen_paths: set[str]) -> bool:
+    """Apply the kitchen's evaluator selection to existing and proposed files.
+
+    Existing custom command inputs come from the frozen snapshot. Conventional
+    tests/configs also stay protected when a model proposes creating them.
+    The Chef's full integrity check remains authoritative after these writes.
+    """
+    path = Path(relative)
+    name = path.name.casefold()
+    return (relative.casefold() in frozen_paths
+            or name in {config.casefold() for config in _VERIFICATION_CONFIGS}
+            or name.startswith(("vitest.config.", "vite.config.", "jest.config.", "webpack.config.", "tsconfig"))
+            or bool({part.casefold() for part in path.parts[:-1]} & _EVALUATOR_DIRS)
+            or name.startswith("test_") or name.endswith("_test.py") or ".test." in name or ".spec." in name)
 
 
 def _order_text(prompt: str) -> str:
@@ -234,8 +257,14 @@ class SousChef:
         self.grey = grey
         self.log = log or (lambda text: None)
         self.steps: list[dict[str, Any]] = []
+        self.deferred_verification_proposals: list[dict[str, str]] = []
 
     # -- helpers -------------------------------------------------------------------
+    def _defer_verification(self, path: str, purpose: str = "") -> None:
+        self.deferred_verification_proposals.append({"path": path, "purpose": purpose[:400],
+            "reason": "frozen verification input; proposal retained without writing or executing it"})
+        self.log(f"sous-chef: evaluator proposal {path} deferred; this packet does not write or execute it")
+
     def _motifs(self, query: str, k: int = 4) -> str:
         if self.grey is None:
             return ""
@@ -366,6 +395,7 @@ PURPOSE: {target['purpose']}
 
     # -- repair -----------------------------------------------------------------------
     def repair(self, workspace: Path, order: str, failures: str, timeout_s: float) -> list[str]:
+        frozen_paths = _frozen_verification_paths(workspace)
         plan_path = workspace / ".kitchen-plan.json"
         try:
             plan = json.loads(plan_path.read_text(encoding="utf-8"))
@@ -374,18 +404,23 @@ PURPOSE: {target['purpose']}
                     "files": [{"path": p.relative_to(workspace).as_posix(), "purpose": ""} for p in sorted(workspace.rglob("*"))
                               if p.is_file() and not p.name.startswith(".") and p.name != MANIFEST][:MAX_FILES], "shared_contract": ""}
         known = [f["path"] for f in plan["files"]]
-        editable = [p for p in known if not (p.startswith("tests/") and (plan.get("stack") == "static-web" or plan.get("stack") == "existing"))]
+        editable = [p for p in known if _safe_path(p) == p and not _is_verification_path(p, frozen_paths)]
         system = "You triage failing checks for a small project. Output strict JSON only."
         user = f"""FILES: {', '.join(editable)}
 
 FAILING CHECK OUTPUT:
 {failures[-4000:]}
 
-The tests under tests/ are the kitchen's evaluator and cannot be changed; fix the application files so the evaluator passes.
+Build/test commands, manifests, configuration and evaluator files are frozen for every stack. Fix application source only.
+Do not create or change tests, conftest files or configuration. New verification proposals are deferred and are not executed by this packet.
 Which files (at most {MAX_REPAIR_FILES}, from FILES only) must change to fix this? Return JSON: {{"files": ["path", ...], "diagnosis": "one sentence"}}"""
         payload = _json(self._ask("triage", [{"role": "system", "content": system}, {"role": "user", "content": user}],
                                   json_mode=True, timeout_s=min(300, timeout_s), num_predict=600))
-        picked = [p for p in (payload.get("files") or []) if isinstance(p, str) and p in editable][:MAX_REPAIR_FILES]
+        proposals = [p for p in (payload.get("files") or []) if isinstance(p, str)]
+        for path in proposals:
+            if _is_verification_path(path, frozen_paths):
+                self._defer_verification(path)
+        picked = [p for p in proposals if p in editable][:MAX_REPAIR_FILES]
         if not picked:
             picked = [p for p in editable if p.endswith((".js", ".py")) and not p.startswith("tests/")][:1] or editable[:1]
         self.log(f"sous-chef triage: {payload.get('diagnosis', '')[:200]} → {picked}")
@@ -403,6 +438,7 @@ Which files (at most {MAX_REPAIR_FILES}, from FILES only) must change to fix thi
     # -- improve -------------------------------------------------------------------------
     def improve(self, workspace: Path, order: str, timeout_s: float) -> tuple[list[str], dict[str, Any]]:
         from .greymatter import GreyMatter
+        frozen_paths = _frozen_verification_paths(workspace)
         scratch = GreyMatter(workspace.parent / f".{workspace.name}.greymatter.db")
         try:
             report = scratch.ingest_repo(workspace, name=f"worktree:{workspace.name}")
@@ -425,7 +461,9 @@ Most relevant files (Grey Matter retrieval over the worktree):
 
 Repository files (bounded listing): {', '.join(listing)}
 
-Choose at most 6 files to rewrite or create (whole files; prefer small ones; you may add a test file). Return JSON:
+Choose at most 6 application source files to rewrite or create (whole files; prefer small ones).
+Build/test commands, manifests, configuration and all evaluator files are frozen. Do not add or edit tests or conftest files.
+New verification proposals are deferred and are not executed by this packet. Return JSON:
 {{"summary": "what changes and why", "files": [{{"path": "...", "purpose": "what this file must do after the change"}}], "shared_contract": "names other files rely on"}}"""
         payload = _json(self._ask("improve-plan", [{"role": "system", "content": system}, {"role": "user", "content": user[:PLAN_CHARS]}],
                                   json_mode=True, timeout_s=min(600, timeout_s), num_predict=2000))
@@ -434,15 +472,15 @@ Choose at most 6 files to rewrite or create (whole files; prefer small ones; you
             path = _safe_path(row.get("path") if isinstance(row, dict) else None)
             if not path or path in {f["path"] for f in files}:
                 continue
-            if path.startswith("tests/") and (workspace / path).is_file():
-                # Renovation keeps the existing tests as the frozen evaluator: a
-                # candidate may add tests, never rewrite the ones that judge it.
-                self.log(f"sous-chef: existing evaluator {path} is not rewritable; skipped")
+            if _is_verification_path(path, frozen_paths):
+                self._defer_verification(path, str(row.get("purpose") or ""))
                 continue
             files.append({"path": path, "purpose": str(row.get("purpose") or "")[:400]})
-        files = files[:6] or [{"path": rel, "purpose": order[:200]} for rel in candidates if not rel.startswith("tests/")][:2]
+        files = files[:6] or [{"path": rel, "purpose": order[:200]} for rel in candidates
+                             if not _is_verification_path(rel, frozen_paths)][:2]
         plan = {"summary": str(payload.get("summary") or order)[:1200], "stack": "existing", "files": files,
-                "shared_contract": str(payload.get("shared_contract") or "")[:1500]}
+                "shared_contract": str(payload.get("shared_contract") or "")[:1500],
+                "deferred_verification_proposals": list(self.deferred_verification_proposals)}
         changed = []
         deadline = time.time() + timeout_s
         for target in files:
@@ -487,10 +525,12 @@ def ollama_builder(workspace: Path, prompt: str, timeout_s: int = 1800, context:
             plan_summary = plan["summary"]
     except Exception as exc:
         return BuilderReport("ollama", False, None, time.time() - started, f"{type(exc).__name__}: {exc}", [], model=model,
-                             details={"steps": sous.steps, "mode": mode})
+                             details={"steps": sous.steps, "mode": mode,
+                                      "deferred_verification_proposals": sous.deferred_verification_proposals})
     details = {"mode": mode, "steps": sous.steps, "step_count": len(sous.steps),
                "max_context_chars": max((s["context_chars"] for s in sous.steps), default=0),
-               "total_context_chars": sum(s["context_chars"] for s in sous.steps), "decomposition": "grey-matter-task-division/1"}
+               "total_context_chars": sum(s["context_chars"] for s in sous.steps), "decomposition": "grey-matter-task-division/1",
+               "deferred_verification_proposals": sous.deferred_verification_proposals}
     return BuilderReport("ollama", bool(changed), 0 if changed else 1, time.time() - started,
                          f"{plan_summary[:600]} | files: {', '.join(changed)}", changed, model=model, details=details)
 

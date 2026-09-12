@@ -34,8 +34,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .builders import BuilderFn, BuilderReport, BuilderUnavailable, DEFAULT_TIMEOUT_S, run_builder
-from .toolchain import DEFAULT_STEP_TIMEOUT_S, MANIFEST, Observation, Plan, detect, failure_digest, run_plan, verdict
-from .greymatter import GreyMatter, SKIP_DIRS
+from .toolchain import (DEFAULT_STEP_TIMEOUT_S, MANIFEST, Observation, Plan, detect, failure_digest,
+                        freeze_verification, verification_integrity, run_plan, verdict)
+from .greymatter import GreyMatter, SKIP_DIRS, source_tree_digest
 from .ledger import (OrderLedger, STATUS_BLOCKED, STATUS_COOKING, STATUS_DONE, STATUS_FAILED, STATUS_NOMINATED)
 from .orders import KIND_BUILD, KIND_FEED, KIND_IMPROVE, KIND_SELF, Order
 
@@ -92,19 +93,7 @@ def default_kitchen_root(repo_root: str | Path | None = None) -> Path:
 # --------------------------------------------------------------------------- #
 def tree_digest(root: Path) -> tuple[str, int]:
     """Content-addressed identity of a candidate tree (paths + bytes)."""
-    hasher = hashlib.sha256()
-    count = 0
-    for path in sorted(p for p in root.rglob("*") if p.is_file()):
-        rel = path.relative_to(root).as_posix()
-        if any(part in SKIP_DIRS or part == "node_modules" for part in Path(rel).parts):
-            continue
-        try:
-            data = path.read_bytes()
-        except OSError:
-            continue
-        hasher.update(rel.encode("utf-8") + b"\0" + hashlib.sha256(data).digest())
-        count += 1
-    return hasher.hexdigest(), count
+    return source_tree_digest(root)
 
 
 def _git(args: list[str], cwd: Path, timeout: int = 300) -> subprocess.CompletedProcess:
@@ -114,7 +103,9 @@ def _git(args: list[str], cwd: Path, timeout: int = 300) -> subprocess.Completed
 
 def _git_bytes(args: list[str], cwd: Path, timeout: int = 300) -> bytes:
     completed = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, timeout=timeout, check=False)
-    return completed.stdout if completed.returncode == 0 else b""
+    if completed.returncode != 0:
+        raise RuntimeError(f"git inspection failed (exit {completed.returncode}): {args[0]}")
+    return completed.stdout
 
 
 def _git_z(args: list[str], cwd: Path, timeout: int = 120) -> list[str]:
@@ -135,7 +126,10 @@ def _slug(text: str, limit: int = 40) -> str:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> str:
     data = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    path.write_bytes(data)
+    if path.exists() and path.read_bytes() == data:
+        return hashlib.sha256(data).hexdigest()
+    with path.open("xb") as stream:
+        stream.write(data)
     return hashlib.sha256(data).hexdigest()
 
 
@@ -188,9 +182,9 @@ ORDER (verbatim from the owner):
 RULES
 - You are in a detached worktree of the project ({workspace.name}). Edit only inside it. Do not commit, push, merge, or change branches.
 - First understand the project (README, tests, structure). Then implement the improvement with focused, complete changes.
-- Keep or extend the automated tests so they prove the improvement; run the project's existing test command before you finish and fix what fails.
-- If the repository has no test command, add a minimal one and document it in README.md.
-- Write `{MANIFEST}` at the root ONLY if no build/test command can be detected from the repository (package.json scripts, pyproject, Cargo.toml, go.mod). Otherwise leave the toolchain as it is.
+- Existing test files, evaluator scripts, test configuration and build/test commands are frozen. Do not add, remove or edit them; repair application source against these unchanged checks.
+- If the repository has no usable check command, report that blocker. New evaluator/test proposals require independent admission before execution.
+- Do not create or change `{MANIFEST}` or package/toolchain configuration in this repair packet.
 - Finish with a short summary: what changed, why, and how it was verified.{boundary}
 
 {motifs}
@@ -223,6 +217,12 @@ class Chef:
     def cook(self, order: Order, *, project: str | None, repo_root: str | None) -> dict[str, Any]:
         ledger = self.kitchen.ledger
         order_id = order.order_id
+        existing = ledger.order(order_id)
+        if existing and existing.get("project") != project:
+            return {"status": STATUS_BLOCKED, "order_id": order_id,
+                    "blocker": "order context conflict; existing evidence retained"}
+        if existing and existing.get("result") is not None:
+            return existing["result"]
         log = lambda text, level="info": ledger.event(order_id, text, level)  # noqa: E731
         ledger.set_status(order_id, STATUS_COOKING)
         started = time.time()
@@ -255,15 +255,14 @@ class Chef:
     # -- build --------------------------------------------------------------
     def _build(self, order: Order, log: _LOG) -> dict[str, Any]:
         workspace = self.kitchen.root / "candidates" / f"{_slug(order.text)}-{order.order_id[-8:]}"
-        if workspace.exists():
-            shutil.rmtree(workspace, ignore_errors=True)
-        workspace.mkdir(parents=True)
+        workspace.mkdir(parents=True, exist_ok=False)
         log(f"candidate workspace created: {workspace.name}")
         motifs = self.kitchen.grey.motif_context(order.text)
         log("grey matter retrieval: " + (f"{motifs.count(chr(10))} motifs" if motifs else "corpus empty, no motifs"))
         reports = [self._run_builder(workspace, build_prompt(order, workspace, motifs), log, order=order, mode="build")]
-        plan, observations, green = self._check_and_repair(order, workspace, reports, log)
-        return self._nominate(order, workspace, reports, plan, observations, green, log, base_revision=None, patch=None)
+        plan, observations, green, rounds = self._check_and_repair(order, workspace, reports, log)
+        return self._nominate(order, workspace, reports, plan, observations, green, log,
+                              base_revision=None, patch=None, verification_rounds=rounds)
 
     # -- improve ------------------------------------------------------------
     def _improve(self, order: Order, repo_root: str | None, log: _LOG, *, self_mode: bool) -> dict[str, Any]:
@@ -275,8 +274,7 @@ class Chef:
         base = _head(repo)
         workspace = self.kitchen.root / "worktrees" / f"{_slug(repo.name)}-{order.order_id[-8:]}"
         if workspace.exists():
-            _git(["worktree", "remove", "--force", str(workspace)], repo, 120)
-            shutil.rmtree(workspace, ignore_errors=True)
+            raise FileExistsError(f"existing candidate retained: {workspace}")
         if base:
             added = _git(["worktree", "add", "--detach", str(workspace), "HEAD"], repo, 300)
             if added.returncode != 0:
@@ -285,13 +283,16 @@ class Chef:
         else:
             shutil.copytree(repo, workspace, ignore=shutil.ignore_patterns(*SKIP_DIRS, ".git"))
             log(f"non-git project copied into {workspace.name}")
+        base_plan = detect(workspace)
+        frozen = freeze_verification(base_plan, workspace)
         motifs = self.kitchen.grey.motif_context(order.text)
         reports = [self._run_builder(workspace, improve_prompt(order, workspace, motifs, self_mode=self_mode), log, order=order, mode="improve")]
         leak = self._leak(workspace, base) if self_mode else []
         if leak:
             log(f"leakage boundary violated by {len(leak)} path(s); candidate rejected", "error")
             return self._reject(order, workspace, reports, leak, base)
-        plan, observations, green = self._check_and_repair(order, workspace, reports, log)
+        plan, observations, green, rounds = self._check_and_repair(
+            order, workspace, reports, log, plan=base_plan, frozen=frozen)
         # Repair rounds are builder passes too: the boundary holds for the tree
         # that is nominated, not for the first draft only.
         leak = self._leak(workspace, base) if self_mode else []
@@ -307,9 +308,11 @@ class Chef:
                 _git(["add", "-N", "--", *untracked], workspace, 120)
             diff = _git_bytes(["diff", "--binary", "HEAD", "--", ".", ":(exclude).kitchen-plan.json", ":(exclude)**/__pycache__/**"], workspace, 300)
             patch = self.kitchen.root / "orders" / f"{order.order_id}.patch"
-            patch.write_bytes(diff)  # bytes end to end: CRLF context lines must round-trip through `git apply`
+            with patch.open("xb") as stream:
+                stream.write(diff)  # preserve CRLF and previous candidate evidence
             log(f"candidate patch written ({len(diff)} bytes, {len(changed)} paths)")
-        return self._nominate(order, workspace, reports, plan, observations, green, log, base_revision=base, patch=patch)
+        return self._nominate(order, workspace, reports, plan, observations, green, log,
+                              base_revision=base, patch=patch, verification_rounds=rounds)
 
     def _changed_paths(self, workspace: Path, base: str | None) -> list[str]:
         """Every modified or untracked path, NUL-separated so git never C-quotes it."""
@@ -319,7 +322,8 @@ class Chef:
         paths: list[str] = []
         skip_next = False
         for entry in entries:
-            if skip_next:  # the original path of a rename follows as its own NUL entry
+            if skip_next:  # removal of the original path is part of the candidate too
+                paths.append(entry.replace("\\", "/"))
                 skip_next = False
                 continue
             if len(entry) < 4:
@@ -416,34 +420,51 @@ class Chef:
         log(f"builder summary: {report.summary[:600]}")
         return report
 
-    def _check_and_repair(self, order: Order, workspace: Path, reports: list[BuilderReport], log: _LOG):
-        plan = detect(workspace)
+    def _check_and_repair(self, order: Order, workspace: Path, reports: list[BuilderReport], log: _LOG,
+                          *, plan: Plan | None = None, frozen=None):
+        plan = plan or detect(workspace)
+        frozen = frozen or freeze_verification(plan, workspace)
         log(f"toolchain detected: {plan.stack} via {plan.source}; steps={[s.name for s in plan.steps]}")
-        observations = run_plan(plan, workspace, timeout_s=STEP_TIMEOUT_S)
-        green, failures = verdict(observations)
-        for o in observations:
-            log(f"check {o.name}: {'passed' if o.passed else 'FAILED'} (exit {o.exit_code}, {o.seconds:.1f}s)")
-        attempt = 0
-        while not green and attempt < self.max_repairs:
-            attempt += 1
-            log(f"repair round {attempt}/{self.max_repairs} for {failures}")
-            reports.append(self._run_builder(workspace, repair_prompt(order, failure_digest(observations), attempt), log, order=order, mode="repair"))
-            plan = detect(workspace)
-            observations = run_plan(plan, workspace, timeout_s=STEP_TIMEOUT_S)
+        rounds: list[dict[str, Any]] = []
+        for attempt in range(self.max_repairs + 1):
+            integrity = verification_integrity(frozen, detect(workspace), workspace)
+            observations = [integrity] if integrity else run_plan(plan, workspace, timeout_s=STEP_TIMEOUT_S)
+            if integrity is None:
+                integrity = verification_integrity(frozen, detect(workspace), workspace)
+                if integrity is not None:
+                    observations.append(integrity)
             green, failures = verdict(observations)
+            rounds.append({"round": attempt, "toolchain": plan.to_dict(), "passed": green,
+                           "failures": failures, "observations": [o.to_dict() for o in observations]})
+            _write_json(self.kitchen.root / "orders" / f"{order.order_id}.round-{attempt:04d}.json", rounds[-1])
             for o in observations:
                 log(f"check {o.name}: {'passed' if o.passed else 'FAILED'} (exit {o.exit_code}, {o.seconds:.1f}s)")
-        if not plan.steps:
-            green = False
-            log("no build or test step could be detected; a candidate without checks is not green", "warn")
-        return plan, observations, green
+            if green or integrity is not None or attempt == self.max_repairs:
+                break
+            log(f"repair round {attempt + 1}/{self.max_repairs} for {failures}")
+            try:
+                report = self._run_builder(workspace, repair_prompt(order, failure_digest(observations), attempt + 1),
+                                            log, order=order, mode="repair")
+            except Exception as exc:
+                reason = f"{type(exc).__name__}: {exc}"
+                report = BuilderReport("unavailable", False, None, 0.0, reason)
+                reports.append(report)
+                observations = [Observation("repair_builder", [], None, 0.0, False, reason)]
+                green = False
+                rounds.append({"round": attempt + 1, "toolchain": plan.to_dict(), "passed": False,
+                               "failures": ["repair_builder"], "observations": [o.to_dict() for o in observations]})
+                _write_json(self.kitchen.root / "orders" / f"{order.order_id}.round-{attempt + 1:04d}.json", rounds[-1])
+                break
+            reports.append(report)
+        return plan, observations, green, rounds
 
     def _nominate(self, order: Order, workspace: Path, reports: list[BuilderReport], plan: Plan,
                   observations: list[Observation], green: bool, log: _LOG, *, base_revision: str | None,
-                  patch: Path | None) -> dict[str, Any]:
+                  patch: Path | None, verification_rounds: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         digest, files = tree_digest(workspace)
         try:
             ingest = self.kitchen.grey.ingest_repo(workspace, name=f"candidate:{workspace.name}",
+                                                   source_digest=digest,
                                                    provenance={"order_id": order.order_id, "candidate": True})
             tensor = self.kitchen.grey.relation_tensor(ingest["repo_id"])
             twin = {"repo_id": ingest["repo_id"], "cards": ingest["cards"], "edges": ingest["edges"],
@@ -452,11 +473,20 @@ class Chef:
             log(f"candidate twin compiled: {ingest['cards']} cards / {ingest['edges']} edges / tensor {tensor['sha256'][:12]}")
         except Exception as exc:  # the twin is a projection; its failure never hides the candidate
             twin = {"error": f"{type(exc).__name__}: {exc}"}
+            green = False
+            observations.append(Observation("candidate_twin", [], None, 0.0, False, twin["error"]))
+            log("candidate twin failed; candidate retained without nomination", "error")
+        if reports and not reports[-1].ok:
+            green = False
+            observations.append(Observation("builder", [], reports[-1].exit_code, 0.0, False,
+                                            "the final builder attempt failed"))
         status = STATUS_NOMINATED if green else STATUS_FAILED
         packet = {"schema": EVIDENCE_SCHEMA, "order": order.to_dict(), "status": status,
                   "candidate": {"workspace": str(workspace), "tree_sha256": digest, "files": files,
+                                "digest_algorithm": "sha256-path-content-posix-sort/1",
                                 "base_revision": base_revision, "patch": str(patch) if patch else None},
                   "toolchain": plan.to_dict(), "observations": [o.to_dict() for o in observations],
+                  "verification_rounds": verification_rounds or [],
                   "builder_reports": [r.to_dict() for r in reports], "candidate_twin": twin,
                   "containment": "deferred (owner decision 2026-09-12): builder agents ran on the host without a candidate sandbox",
                   "automatic_promotion": False, "owner_approval_required": green,

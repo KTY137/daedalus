@@ -8,6 +8,7 @@ evidence, not promotion.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -15,13 +16,23 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 MANIFEST = "daedalus-candidate.json"
 MAX_OUTPUT = 12_000
 DEFAULT_STEP_TIMEOUT_S = 900
+_VERIFICATION_CONFIGS = {
+    MANIFEST, "package.json", "pyproject.toml", "requirements.txt", "Cargo.toml", "go.mod",
+    "pytest.ini", "tox.ini", "setup.cfg", "setup.py", "conftest.py", "Makefile", "makefile",
+    "justfile", ".npmrc", ".yarnrc", ".yarnrc.yml", ".mocharc.json", ".mocharc.js",
+}
+_IGNORED_VERIFICATION_DIRS = {
+    ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache", ".mypy_cache",
+    ".ruff_cache", "dist", "build", "target", ".next", "coverage",
+}
+_EVALUATOR_DIRS = {"test", "tests", "__tests__", "__mocks__", "spec", "specs"}
 
 
 @dataclass
@@ -57,6 +68,130 @@ class Observation:
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "argv": self.argv, "exit_code": self.exit_code, "seconds": round(self.seconds, 2),
                 "passed": self.passed, "required": self.required, "output_tail": self.output_tail[-MAX_OUTPUT:]}
+
+
+@dataclass(frozen=True)
+class FrozenVerification:
+    """Selected check contract and evaluator bytes retained outside the candidate.
+
+    This detects drift in declared commands, conventional evaluator/config files
+    and local command targets. It is not process containment or proof that a
+    generated evaluator independently establishes product correctness.
+    """
+
+    plan_json: str
+    files: tuple[tuple[str, str], ...]
+    error: str | None = None
+
+
+def _plan_json(plan: Plan) -> str:
+    return json.dumps(plan.to_dict(), sort_keys=True, separators=(",", ":"))
+
+
+def _local_command_targets(plan: Plan, workspace: Path) -> set[Path]:
+    """Resolve local scripts/config arguments, including Python module commands."""
+    targets: set[Path] = set()
+    commands = [step.argv for step in plan.steps]
+    # npm's argv names the script; package.json contains its local entrypoint.
+    # Follow only selected checks: a start script may name repairable app code.
+    scripts = _package_scripts(workspace)
+    selected_scripts: set[str] = set()
+    for command in commands:
+        for index, arg in enumerate(command):
+            if Path(arg).name.lower() in {"npm", "npm.cmd", "pnpm", "pnpm.cmd", "yarn", "yarn.cmd"}:
+                script_index = index + 1
+                if script_index < len(command) and command[script_index] == "run":
+                    script_index += 1
+                script = command[script_index] if script_index < len(command) else ""
+                body = scripts.get(script)
+                if script not in selected_scripts and isinstance(body, str):
+                    selected_scripts.add(script)
+                    try:
+                        commands.append(shlex.split(body, posix=os.name != "nt"))
+                    except ValueError:
+                        pass
+            values = [arg.strip("\"'")]
+            if index and command[index - 1] == "-m":
+                values = [arg.replace(".", "/") + ".py", arg.replace(".", "/")]
+            for value in values:
+                # Options such as --config=checks.json also select evaluator input.
+                value = value.partition("=")[2] if value.startswith("-") and "=" in value else value
+                path = workspace / value
+                try:
+                    lexical = Path(os.path.abspath(path))
+                    local = lexical.is_relative_to(workspace)
+                    resolved = path.resolve()
+                except (OSError, ValueError):
+                    continue
+                if local and lexical.is_symlink():
+                    raise ValueError(f"verification command target is a symlink: {lexical.relative_to(workspace).as_posix()}")
+                if not resolved.is_relative_to(workspace):
+                    continue
+                if resolved.is_file() or (resolved.is_dir() and index and command[index - 1] == "-m"):
+                    targets.add(resolved)
+    return targets
+
+
+def _verification_files(plan: Plan, workspace: Path) -> tuple[tuple[str, str], ...]:
+    workspace = workspace.resolve()
+    targets = _local_command_targets(plan, workspace)
+    files: list[tuple[str, str]] = []
+
+    def fail_walk(error: OSError) -> None:
+        raise error
+
+    for directory, dirs, names in os.walk(workspace, onerror=fail_walk, followlinks=False):
+        dirs[:] = [name for name in dirs if name not in _IGNORED_VERIFICATION_DIRS
+                   or any(target.is_relative_to(Path(directory) / name) for target in targets)]
+        relative_dir = Path(directory).relative_to(workspace)
+        for name in names:
+            path = Path(directory) / name
+            relative = relative_dir / name
+            lowered = name.lower()
+            config = name in _VERIFICATION_CONFIGS or lowered.startswith((
+                "vitest.config.", "vite.config.", "jest.config.", "webpack.config.", "tsconfig",
+            ))
+            evaluator = bool(set(relative.parts[:-1]) & _EVALUATOR_DIRS) or (
+                lowered.startswith("test_") or lowered.endswith("_test.py")
+                or ".test." in lowered or ".spec." in lowered
+            )
+            command_target = path.resolve() in targets or any(parent in targets for parent in path.resolve().parents)
+            if config or evaluator or command_target:
+                if path.is_symlink():
+                    raise ValueError(f"verification file is a symlink: {relative.as_posix()}")
+                files.append((relative.as_posix(), hashlib.sha256(path.read_bytes()).hexdigest()))
+        for name in dirs:
+            path = Path(directory) / name
+            if path.is_symlink() and (set((relative_dir / name).parts) & _EVALUATOR_DIRS or path.resolve() in targets):
+                raise ValueError(f"verification directory is a symlink: {path.relative_to(workspace).as_posix()}")
+    return tuple(sorted(files))
+
+
+def freeze_verification(plan: Plan, workspace: Path) -> FrozenVerification:
+    """Freeze before the first check; keep the returned object outside repairs."""
+    try:
+        return FrozenVerification(_plan_json(plan), _verification_files(plan, workspace))
+    except (OSError, ValueError) as exc:
+        return FrozenVerification(_plan_json(plan), (), f"cannot freeze verification: {exc}")
+
+
+def verification_integrity(frozen: FrozenVerification, plan: Plan, workspace: Path) -> Observation | None:
+    """Return a required failure on drift; check before and after every run."""
+    reason = frozen.error
+    if not reason:
+        try:
+            if _plan_json(plan) != frozen.plan_json or _plan_json(detect(workspace)) != frozen.plan_json:
+                reason = "selected verification plan changed"
+            current = dict(_verification_files(plan, workspace))
+            original = dict(frozen.files)
+            changed = sorted(name for name in original.keys() | current.keys() if original.get(name) != current.get(name))
+            if changed:
+                reason = "verification inputs changed: " + ", ".join(changed)
+        except (OSError, ValueError) as exc:
+            reason = f"cannot verify frozen verification inputs: {exc}"
+    if reason:
+        return Observation("verification_integrity", [], None, 0.0, False, reason, True)
+    return None
 
 
 def _npm() -> str | None:
@@ -201,7 +336,9 @@ def run_plan(plan: Plan, workspace: Path, *, timeout_s: int = DEFAULT_STEP_TIMEO
 
 
 def verdict(observations: list[Observation]) -> tuple[bool, list[str]]:
-    failures = [o.name for o in observations if o.required and not o.passed]
+    failures = [o.name for o in observations if o.required and (not o.passed or o.exit_code != 0)]
+    if not any(o.required and o.name in ("build", "test") and o.argv for o in observations):
+        failures.append("required_verification_missing")
     return not failures, failures
 
 
@@ -213,4 +350,5 @@ def failure_digest(observations: list[Observation]) -> str:
     return "\n\n".join(parts)
 
 
-__all__ = ["Plan", "Step", "Observation", "detect", "run_plan", "verdict", "failure_digest", "MANIFEST"]
+__all__ = ["Plan", "Step", "Observation", "FrozenVerification", "detect", "run_plan", "verdict",
+           "freeze_verification", "verification_integrity", "failure_digest", "MANIFEST"]

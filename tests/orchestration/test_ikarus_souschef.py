@@ -42,7 +42,7 @@ def _fake_chat_factory(record: list[dict], *, repair_pick: str = "app.js"):
             return json.dumps(_PLAN)
         if json_mode and "FAILING CHECK OUTPUT" in user:
             return json.dumps({"files": [repair_pick, "tests/test_app.py"], "diagnosis": "app.js lacks a function"})
-        if json_mode and "Choose at most 6 files" in user:
+        if json_mode and "Choose at most 6" in user:
             return json.dumps({"summary": "add clear", "files": [{"path": "app.js", "purpose": "add clearList()"},
                                                                  {"path": "tests/test_app.py", "purpose": "rewrite tests"},
                                                                  {"path": "tests/test_clear.py", "purpose": "new test"}]})
@@ -109,9 +109,94 @@ def test_improve_keeps_existing_tests_frozen(tmp_path: Path, monkeypatch: pytest
     (workspace / "tests" / "test_app.py").write_text("def test_x():\n    assert True\n", encoding="utf-8")
     report = souschef.ollama_builder(workspace, "unused", 600, {"order_text": "add a clear button", "mode": "improve", "log": lambda t: None})
     assert report.ok
-    assert "app.js" in report.changed_files and "tests/test_clear.py" in report.changed_files
+    assert report.changed_files == ["app.js"]
     assert "tests/test_app.py" not in report.changed_files
     assert (workspace / "tests" / "test_app.py").read_text(encoding="utf-8") == "def test_x():\n    assert True\n"
+    assert not (workspace / "tests" / "test_clear.py").exists()
+    assert {row["path"] for row in report.details["deferred_verification_proposals"]} == {"tests/test_app.py", "tests/test_clear.py"}
+
+
+def test_improve_defers_model_tests_and_config_before_writing_or_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    workspace = tmp_path / "ws"
+    (workspace / "tests").mkdir(parents=True)
+    (workspace / "main.py").write_text("value = 1\n", encoding="utf-8")
+    existing = {
+        "tests/test_existing.py": "from main import value\nfrom pathlib import Path\n\ndef test_value():\n    assert value == 2\n    assert not Path('proposal-executed').exists()\n",
+        "verify.py": "from main import value\nassert value == 2\n",
+        toolchain.MANIFEST: json.dumps({"build": ["python", "verify.py"], "test": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]}),
+    }
+    for path, content in existing.items():
+        (workspace / path).write_text(content, encoding="utf-8")
+    proposed_verification = ["tests/test_proposal.py", "tests/test_existing.py", toolchain.MANIFEST,
+                             "pytest.ini", "src/conftest.py", "src/item.spec.ts", "verify.py"]
+    writes: list[str] = []
+
+    def fake_chat(messages, *, json_mode, **kwargs):
+        user = messages[-1]["content"]
+        if json_mode:
+            assert "New verification proposals are deferred" in user
+            return json.dumps({"summary": "repair main", "files": [
+                {"path": path, "purpose": "change source or evaluator"} for path in ["main.py", *proposed_verification]
+            ]})
+        target = user.split("TARGET FILE: ", 1)[1].split("\n", 1)[0].strip()
+        writes.append(target)
+        if target != "main.py":
+            return "from pathlib import Path\nPath('proposal-executed').write_text('executed')\n"
+        return "value = 2  # repaired source\n"
+
+    monkeypatch.setattr(souschef, "_chat", fake_chat)
+    monkeypatch.setattr(souschef, "ollama_available", lambda *args: True)
+    plan = toolchain.detect(workspace)
+    frozen = toolchain.freeze_verification(plan, workspace)
+    report = souschef.ollama_builder(workspace, "unused", 600, {"order_text": "repair main", "mode": "improve"})
+    assert report.ok and report.changed_files == writes == ["main.py"]
+    assert {row["path"] for row in report.details["deferred_verification_proposals"]} == set(proposed_verification)
+    saved_plan = json.loads((workspace / ".kitchen-plan.json").read_text(encoding="utf-8"))
+    assert saved_plan["deferred_verification_proposals"] == report.details["deferred_verification_proposals"]
+    for path, content in existing.items():
+        assert (workspace / path).read_text(encoding="utf-8") == content
+    assert all(not (workspace / path).exists() for path in proposed_verification if path not in existing)
+    assert toolchain.verification_integrity(frozen, plan, workspace) is None
+    observations = toolchain.run_plan(plan, workspace, timeout_s=30)
+    assert toolchain.verdict(observations) == (True, []), toolchain.failure_digest(observations)
+    assert not (workspace / "proposal-executed").exists()
+
+
+@pytest.mark.parametrize("stack", ["python", "static-web", "existing"])
+def test_repair_filters_tests_manifest_config_and_custom_evaluator_for_every_stack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stack: str,
+) -> None:
+    (tmp_path / "tests").mkdir()
+    frozen_files = {
+        "tests/test_main.py": "def test_main():\n    assert True\n",
+        "pytest.ini": "[pytest]\n",
+        "verify.py": "raise SystemExit(1)\n",
+        toolchain.MANIFEST: json.dumps({"test": ["python", "verify.py"]}),
+    }
+    for path, content in frozen_files.items():
+        (tmp_path / path).write_text(content, encoding="utf-8")
+    (tmp_path / "main.py").write_text("value = 1\n", encoding="utf-8")
+    (tmp_path / ".kitchen-plan.json").write_text(json.dumps({"summary": "repair", "stack": stack,
+        "files": [{"path": path, "purpose": "fixture"} for path in [*frozen_files, "main.py"]],
+        "shared_contract": ""}), encoding="utf-8")
+    writes: list[str] = []
+
+    def fake_chat(messages, *, json_mode, **kwargs):
+        user = messages[-1]["content"]
+        if json_mode:
+            return json.dumps({"files": [*frozen_files, "tests/test_new.py", "main.py"], "diagnosis": "repair source"})
+        target = user.split("TARGET FILE: ", 1)[1].split("\n", 1)[0].strip()
+        writes.append(target)
+        return "value = 2\n"
+
+    monkeypatch.setattr(souschef, "_chat", fake_chat)
+    monkeypatch.setattr(souschef, "ollama_available", lambda *args: True)
+    report = souschef.ollama_builder(tmp_path, "FAILURES:\nverification failed", 600, {"mode": "repair"})
+    assert report.ok and report.changed_files == writes == ["main.py"]
+    assert {row["path"] for row in report.details["deferred_verification_proposals"]} == {*frozen_files, "tests/test_new.py"}
+    assert not (tmp_path / "tests/test_new.py").exists()
+    for path, content in frozen_files.items():
+        assert (tmp_path / path).read_text(encoding="utf-8") == content
 
 
 def test_unavailable_ollama_raises_builder_unavailable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

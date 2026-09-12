@@ -11,7 +11,9 @@ serves the table and reports what the kitchen recorded.
 from __future__ import annotations
 
 import os
+import json
 import threading
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -159,12 +161,23 @@ def _envelope(project: str | None, assistant: str, **payload: Any) -> dict[str, 
 def place_order(project: str | None, order: Order, *, sync: bool | None = None,
                 chef: Chef | None = None) -> dict[str, Any]:
     repo_root = _repo_root(project)
+    if project is not None or repo_root is not None:
+        order = replace(order, context=json.dumps({"project": project, "repo_root": repo_root}, sort_keys=True))
     kitchen = kitchen_for(repo_root)
     order_id = order.order_id
     german = order.language == "de"
     if not kitchen.ledger.open_order(order_id, order.kind, project, order.text):
+        existing = kitchen.ledger.order(order_id) or {}
+        if existing.get("project") != project:
+            return _envelope(project, "Order context conflict; existing evidence retained.",
+                             order_id=order_id, status=STATUS_BLOCKED)
+        result = existing.get("result")
+        if result is not None:
+            return _envelope(project, _result_text(order, result, german), order=order.to_dict(),
+                             order_id=order_id, status=existing["status"], result=result, replayed=True)
         return _envelope(project, ("Diese Bestellung läuft bereits." if german else "That order is already cooking.") +
-                         f" (`{order_id}`)", order=order.to_dict(), order_id=order_id, status="cooking")
+                         f" (`{order_id}`)", order=order.to_dict(), order_id=order_id,
+                         status=existing.get("status", "cooking"), replayed=True)
     chef = chef or Chef(kitchen)
     run_sync = sync if sync is not None else os.environ.get("DAEDALUS_KITCHEN_SYNC") == "1"
     if run_sync:

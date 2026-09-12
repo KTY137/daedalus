@@ -107,12 +107,17 @@ class Order:
     target: str | None = None
     sources: tuple[str, ...] = field(default_factory=tuple)
     stack: str | None = None
+    context: str | None = None
+    request_id: str | None = None
 
     @property
     def order_id(self) -> str:
-        return "order-" + hashlib.sha256(
-            f"{self.kind}\n{self.text}\n{self.target}\n{','.join(self.sources)}".encode("utf-8")
-        ).hexdigest()[:16]
+        identity = f"{self.kind}\n{self.text}\n{self.target}\n{','.join(self.sources)}"
+        if self.context is not None:
+            identity += f"\ncontext:{self.context}"
+        if self.request_id is not None:
+            identity += f"\nrequest:{self.request_id}"
+        return "order-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)

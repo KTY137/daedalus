@@ -26,9 +26,12 @@ import hashlib
 import io
 import json
 import math
+import os
 import re
 import sqlite3
+import stat
 import struct
+import subprocess
 import threading
 import time
 import warnings
@@ -222,7 +225,7 @@ def _python_cards(repo_id: str, rel: str, source: str, revision: str) -> tuple[l
                         getattr(d.func, "id", "") == "dataclass" for d in item.decorator_list)
                 plane = "type" if is_type else "code"
                 text = f"class {item.name}({', '.join(bases)})\n{doc}\n" + "\n".join(fields)
-                card = NodeCard(_card_id(repo_id, rel, plane, item.name), repo_id, plane,
+                card = NodeCard(_card_id(repo_id, f"{rel}:{item.lineno}:{item.col_offset}", plane, item.name), repo_id, plane,
                                 "dataclass" if is_type else "class", item.name, f"{rel}:{item.lineno}",
                                 _clip(text), revision, (module_card.card_id,))
                 cards.append(card)
@@ -238,7 +241,7 @@ def _python_cards(repo_id: str, rel: str, source: str, revision: str) -> tuple[l
                     signature += " -> " + ast.unparse(item.returns)
                 owner = node.name + "." if isinstance(node, ast.ClassDef) and item is not node else ""
                 name = owner + item.name
-                card = NodeCard(_card_id(repo_id, rel, "code", name), repo_id, "code", "function", name,
+                card = NodeCard(_card_id(repo_id, f"{rel}:{item.lineno}:{item.col_offset}", "code", name, "function"), repo_id, "code", "function", name,
                                 f"{rel}:{item.lineno}", _clip(signature + "\n" + (doc[0] if doc else "")),
                                 revision, (module_card.card_id,))
                 cards.append(card)
@@ -270,14 +273,14 @@ def _js_cards(repo_id: str, rel: str, source: str, revision: str, language: str)
         for found in regex.finditer(source):
             name = found.group(1)
             line = source.count("\n", 0, found.start()) + 1
-            card = NodeCard(_card_id(repo_id, rel, "code", name), repo_id, "code", kind, name, f"{rel}:{line}",
+            card = NodeCard(_card_id(repo_id, f"{rel}:{found.start()}", "code", name, kind), repo_id, "code", kind, name, f"{rel}:{line}",
                             _clip(found.group(0).strip()), revision, (module_card.card_id,))
             cards.append(card)
             edges.append(Edge(module_card.card_id, card.card_id, "declares", f"{rel}:{line}"))
     for found in _JS_CLASS.finditer(source):
         name = found.group(1)
         line = source.count("\n", 0, found.start()) + 1
-        card = NodeCard(_card_id(repo_id, rel, "code", name), repo_id, "code", "class", name, f"{rel}:{line}",
+        card = NodeCard(_card_id(repo_id, f"{rel}:{found.start()}", "code", name, "class"), repo_id, "code", "class", name, f"{rel}:{line}",
                         _clip(found.group(0).strip()), revision, (module_card.card_id,))
         cards.append(card)
         edges.append(Edge(module_card.card_id, card.card_id, "declares", f"{rel}:{line}"))
@@ -289,7 +292,7 @@ def _js_cards(repo_id: str, rel: str, source: str, revision: str, language: str)
             line = source.count("\n", 0, found.start()) + 1
             end = source.find("\n\n", found.start())
             body = source[found.start(): end if end > 0 else found.start() + 600]
-            card = NodeCard(_card_id(repo_id, rel, "type", name), repo_id, "type", "type", name, f"{rel}:{line}",
+            card = NodeCard(_card_id(repo_id, f"{rel}:{found.start()}", "type", name, "type"), repo_id, "type", "type", name, f"{rel}:{line}",
                             _clip(body), revision, (module_card.card_id,))
             cards.append(card)
             edges.append(Edge(module_card.card_id, card.card_id, "declares", f"{rel}:{line}"))
@@ -324,7 +327,7 @@ def _data_cards(repo_id: str, rel: str, source: str, revision: str) -> tuple[lis
             block_end = source.find(";", found.end())
             block = source[found.end(): block_end if block_end > 0 else found.end() + 800]
             columns = _SQL_COLUMN.findall(block)[:60]
-            card = NodeCard(_card_id(repo_id, rel, "data", table), repo_id, "data", "table", table, rel,
+            card = NodeCard(_card_id(repo_id, f"{rel}:{found.start()}", "data", table, "table"), repo_id, "data", "table", table, rel,
                             _clip(f"table {table} columns: {', '.join(columns)}"), revision)
             cards.append(card)
     elif suffix in {".yaml", ".yml", ".toml"}:
@@ -341,10 +344,11 @@ def _knowledge_cards(repo_id: str, rel: str, source: str, revision: str) -> tupl
     heading = Path(rel).stem
     buffer: list[str] = []
     start = 1
+    has_heading = False
 
     def flush(end_line: int) -> None:
         body = "\n".join(buffer).strip()
-        if not body and not heading:
+        if not body and not has_heading:
             return
         card = NodeCard(_card_id(repo_id, rel, "knowledge", f"{heading}@{start}"), repo_id, "knowledge", "section",
                         heading, f"{rel}:{start}", _clip(f"{heading}\n{body}"), revision)
@@ -360,6 +364,7 @@ def _knowledge_cards(repo_id: str, rel: str, source: str, revision: str) -> tupl
         if found and rel.lower().endswith((".md", ".rst")):
             flush(number)
             heading = found.group(2).strip()
+            has_heading = True
             buffer = []
             start = number
             continue
@@ -369,20 +374,33 @@ def _knowledge_cards(repo_id: str, rel: str, source: str, revision: str) -> tupl
             buffer = []
             start = number + 1
     flush(0)
-    return cards[:400], edges
+    retained = cards[:400]
+    retained_ids = {card.card_id for card in retained}
+    return retained, [edge for edge in edges if edge.source in retained_ids]
 
 
-def extract_cards(root: Path, repo_id: str, revision: str) -> tuple[list[NodeCard], list[Edge]]:
+def _projection_sources(root: Path) -> tuple[list[tuple[str, str]], str]:
+    """Freeze the bounded, supported extraction inputs and their exact bytes."""
+    sources: list[tuple[str, str]] = []
+    hasher = hashlib.sha256()
+    supported = _CODE_SUFFIXES.keys() | _DATA_SUFFIXES | _KNOWLEDGE_SUFFIXES
+    for path in sorted(iter_files(root), key=lambda p: p.relative_to(root).as_posix()):
+        rel = path.relative_to(root).as_posix()
+        data = path.read_bytes()  # unreadable inputs refuse, never silently disappear
+        hasher.update(rel.encode("utf-8") + b"\0" + hashlib.sha256(data).digest())
+        if path.suffix.lower() in supported:
+            sources.append((rel, data.decode("utf-8", errors="replace")))
+    return sources, hasher.hexdigest()
+
+
+def extract_cards(root: Path, repo_id: str, revision: str, *,
+                  sources: Sequence[tuple[str, str]] | None = None) -> tuple[list[NodeCard], list[Edge]]:
     cards: list[NodeCard] = []
     edges: list[Edge] = []
-    for path in iter_files(root):
-        rel = path.relative_to(root).as_posix()
-        suffix = path.suffix.lower()
-        source = None
-        if suffix in _CODE_SUFFIXES or suffix in _DATA_SUFFIXES or suffix in _KNOWLEDGE_SUFFIXES:
-            source = _read(path)
-        if source is None:
-            continue
+    if sources is None:
+        sources, _digest = _projection_sources(root)
+    for rel, source in sources:
+        suffix = Path(rel).suffix.lower()
         if suffix == ".py":
             more_cards, more_edges = _python_cards(repo_id, rel, source, revision)
         elif suffix in _CODE_SUFFIXES:
@@ -424,26 +442,70 @@ def _plane_of_ref(reference: str) -> str:
     return {"module": "code", "type": "type", "path": "knowledge", "symbol": "code"}.get(prefix, "unknown")
 
 
-def _git_revision(root: Path) -> str:
-    head = root / ".git" / "HEAD"
+def source_tree_digest(root: Path) -> tuple[str, int]:
+    """Source identity shared with the Chef; unsupported files remain included.
+
+    This preserves the path/bytes hash format, with explicit POSIX path ordering
+    on every host. Earlier Windows evidence used Path's case-folded ordering;
+    historical hashes are retained, not silently rewritten to this ordering.
+    Dependency/build/cache directories in SKIP_DIRS are outside this identity.
+    """
+    root = Path(root)
+    if not root.is_dir():
+        raise FileNotFoundError(f"source root is not a directory: {root}")
+    files: list[tuple[str, Path]] = []
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        for path in current.iterdir():
+            if path.name in SKIP_DIRS:
+                continue
+            info = path.lstat()
+            if path.is_symlink() or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 1024):
+                raise ValueError(f"source identity cannot bind a symlink or junction: {path}")
+            if path.is_dir():
+                pending.append(path)
+            elif path.is_file():
+                files.append((path.relative_to(root).as_posix(), path))
+            else:
+                raise ValueError(f"source identity cannot bind a special file: {path}")
+    hasher = hashlib.sha256()
+    for rel, path in sorted(files):
+        hasher.update(rel.encode("utf-8") + b"\0" + hashlib.sha256(path.read_bytes()).digest())
+    return hasher.hexdigest(), len(files)
+
+
+def _git_state(root: Path) -> tuple[str | None, bool | None]:
+    """Read Git through its worktree-aware resolver without optional writes."""
+    environment = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+
+    def run(*args: str) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True,
+                              timeout=30, check=False, env=environment)
+
     try:
-        text = head.read_text(encoding="utf-8").strip()
-    except OSError:
-        return "unversioned"
-    if text.startswith("ref:"):
-        ref = root / ".git" / text[4:].strip()
-        try:
-            return ref.read_text(encoding="utf-8").strip()[:40]
-        except OSError:
-            packed = root / ".git" / "packed-refs"
-            try:
-                for line in packed.read_text(encoding="utf-8").splitlines():
-                    if line.endswith(" " + text[4:].strip()):
-                        return line.split(" ", 1)[0][:40]
-            except OSError:
-                pass
-            return "unversioned"
-    return text[:40]
+        top = run("rev-parse", "--show-toplevel")
+        # A generated directory inside another repository does not inherit HEAD.
+        if top.returncode or Path(os.fsdecode(top.stdout).strip()).resolve() != root.resolve():
+            return None, None
+        head = run("rev-parse", "--verify", "HEAD")
+        status = run("status", "--porcelain=v1", "-z", "--untracked-files=all")
+    except (OSError, subprocess.SubprocessError):
+        return None, None
+    if head.returncode or status.returncode:
+        return None, None
+    return head.stdout.decode("ascii").strip(), bool(status.stdout)
+
+
+def _validate_graph(cards: Sequence[NodeCard], edges: Sequence[Edge]) -> None:
+    ids = {card.card_id for card in cards}
+    if len(ids) != len(cards):
+        raise ValueError("duplicate card identity in extraction; existing index preserved")
+    for edge in edges:
+        if edge.source not in ids:
+            raise ValueError(f"edge source is absent from extracted cards: {edge.source}")
+        if edge.target not in ids and not edge.target.startswith(("module:", "type:", "symbol:", "path:")):
+            raise ValueError(f"edge target is absent from extracted cards: {edge.target}")
 
 
 def _license_of(root: Path) -> str | None:
@@ -506,26 +568,44 @@ class GreyMatter:
 
     # -- ingestion ----------------------------------------------------------
     def ingest_repo(self, root: Path, *, name: str | None = None, origin: str | None = None,
-                    provenance: dict[str, Any] | None = None) -> dict[str, Any]:
+                    provenance: dict[str, Any] | None = None,
+                    source_digest: str | None = None) -> dict[str, Any]:
+        """Index frozen source observations; a supplied candidate digest is verified.
+
+        Cards are a bounded projection, not a complete source tree: unsupported
+        languages/files and inputs beyond the extraction limits have no cards.
+        The supplied source digest still binds every non-excluded source byte.
+        """
         root = Path(root).resolve()
         if not root.is_dir():
             raise FileNotFoundError(f"repository root is not a directory: {root}")
-        revision = _git_revision(root)
+        if source_digest is not None:
+            if re.fullmatch(r"[0-9a-f]{64}", source_digest) is None:
+                raise ValueError("source_digest must be a lowercase SHA-256 digest")
+            if source_tree_digest(root)[0] != source_digest:
+                raise ValueError("source digest does not match the candidate tree")
+        started = time.time()
+        git_head, git_dirty = _git_state(root)
+        sources, projection_digest = _projection_sources(root)
+        revision = (f"sha256:{source_digest}" if source_digest else
+                    f"git:{git_head}:{'dirty' if git_dirty else 'clean'}:projection:{projection_digest}" if git_head else
+                    f"projection-sha256:{projection_digest}")
         repo_name = name or root.name
         repo_id = hashlib.sha256(f"{origin or root}\n{revision}".encode("utf-8")).hexdigest()[:20]
-        started = time.time()
-        cards, edges = extract_cards(root, repo_id, revision)
-        by_name: dict[str, list[NodeCard]] = {}
-        for card in cards:
-            by_name.setdefault(card.name, []).append(card)
-            by_name.setdefault(card.name.rsplit(".", 1)[-1], []).append(card)
+        cards, edges = extract_cards(root, repo_id, revision, sources=sources)
+        _validate_graph(cards, edges)
+        license_name = _license_of(root)
+        if source_digest is not None and source_tree_digest(root)[0] != source_digest:
+            raise ValueError("candidate source changed during extraction")
+        if _projection_sources(root)[1] != projection_digest or _git_state(root) != (git_head, git_dirty):
+            raise ValueError("source changed during extraction; existing index preserved")
         planes = {card.card_id: card.plane for card in cards}
         with self.db:
             self.db.execute("DELETE FROM cards WHERE repo_id=?", (repo_id,))
             self.db.execute("DELETE FROM edges WHERE repo_id=?", (repo_id,))
             self.db.execute("DELETE FROM proposals WHERE repo_id=?", (repo_id,))
             self.db.executemany(
-                "INSERT OR REPLACE INTO cards VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO cards VALUES (?,?,?,?,?,?,?,?,?,?)",
                 [(c.card_id, c.repo_id, c.plane, c.kind, c.name, c.locator, c.text, c.revision,
                   json.dumps(list(c.neighborhood)), _pack(embed(f"{c.plane} {c.kind} {c.name} {c.text}")))
                  for c in cards])
@@ -535,10 +615,14 @@ class GreyMatter:
                 rows.append((repo_id, edge.source, edge.target, edge.relation, edge.evidence,
                              planes.get(edge.source, "unknown"), target_plane))
             self.db.executemany("INSERT INTO edges VALUES (?,?,?,?,?,?,?)", rows)
-            record = {"schema": SCHEMA_VERSION, "root": str(root), "origin": origin, "revision": revision,
-                      "license": _license_of(root), "extraction": "greymatter.extract_cards/1",
+            record = {**(provenance or {}), "schema": SCHEMA_VERSION, "root": str(root), "origin": origin, "revision": revision,
+                      "license": license_name, "extraction": "greymatter.extract_cards/2",
                       "embedding": f"hashed-blake2b/{DIMENSION}", "temporal_cutoff": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                      **(provenance or {})}
+                      "git_head": git_head, "git_dirty": git_dirty, "source_tree_sha256": source_digest,
+                      "projection_inputs_sha256": projection_digest,
+                      "projection_scope": {"max_files": MAX_FILES, "max_file_bytes": MAX_FILE_BYTES,
+                                           "supported_suffixes": sorted(_CODE_SUFFIXES.keys() | _DATA_SUFFIXES | _KNOWLEDGE_SUFFIXES),
+                                           "complete_source_tree": False}}
             self.db.execute("INSERT OR REPLACE INTO repos VALUES (?,?,?,?,?,?,?,?,?,?)",
                             (repo_id, repo_name, str(root), revision, origin, record["license"], time.time(),
                              len(cards), len(rows), json.dumps(record, sort_keys=True)))
@@ -578,6 +662,7 @@ class GreyMatter:
     def propose_bindings(self, repo_id: str, threshold: float = PROPOSAL_THRESHOLD, limit: int = 3000) -> dict[str, int]:
         """Cross-plane similarity proposals; the literal verifier promotes a few."""
         rows = self.db.execute("SELECT card_id, plane, name, text, vector FROM cards WHERE repo_id=?", (repo_id,)).fetchall()
+        known_cards = {row[0]: row[1] for row in rows}
         by_plane: dict[str, list[tuple[str, str, str, list[float]]]] = {}
         for card_id, plane, name, text, blob in rows:
             by_plane.setdefault(plane, []).append((card_id, name, text, _unpack(blob)))
@@ -591,6 +676,8 @@ class GreyMatter:
                 by_short.setdefault(name.rsplit(".", 1)[-1], []).append((card_id, plane))
         mention_rows = self.db.execute("SELECT source, target FROM edges WHERE repo_id=? AND relation='mentions'", (repo_id,)).fetchall()
         for source, target in mention_rows[: limit // 2]:
+            if known_cards.get(source) != "knowledge" or not target.startswith("symbol:"):
+                continue  # retained legacy dangling edges are observations, never verified bindings
             short = target.split(":", 1)[1].rsplit(".", 1)[-1]
             for card_id, plane in by_short.get(short, [])[:3]:
                 relation = {"code": "documents", "type": "documents", "data": "describes"}[plane]
@@ -632,7 +719,8 @@ class GreyMatter:
         return {"proposed": len(proposals[:limit]), "verified": verified}
 
     # -- retrieval --------------------------------------------------------------
-    def search(self, query: str, *, k: int = 8, plane: str | None = None, repo_id: str | None = None) -> list[dict[str, Any]]:
+    def search(self, query: str, *, k: int = 8, plane: str | None = None, repo_id: str | None = None,
+               include_candidates: bool = False) -> list[dict[str, Any]]:
         vector = embed(query)
         if not any(vector):
             return []
@@ -646,12 +734,24 @@ class GreyMatter:
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
         query_terms = set(tokens(query))
         scored: list[tuple[float, tuple]] = []
+        repos: dict[str, str] = {}
+        for identity, name, raw_provenance in self.db.execute("SELECT repo_id, name, provenance FROM repos"):
+            try:
+                provenance = json.loads(raw_provenance)
+                if not isinstance(provenance, dict):
+                    continue
+            except (ValueError, TypeError):
+                continue
+            if not include_candidates and (provenance.get("candidate") or name.startswith("candidate:")):
+                continue
+            repos[identity] = name
         for row in self.db.execute(f"SELECT card_id, repo_id, plane, kind, name, locator, text, revision, vector FROM cards{where}", params):
+            if row[1] not in repos:
+                continue
             score = cosine(vector, _unpack(row[8]))
             overlap = len(query_terms & set(tokens(row[4]))) * 0.15
             scored.append((score + overlap, row[:8]))
         scored.sort(key=lambda item: item[0], reverse=True)
-        repos = {r[0]: r[1] for r in self.db.execute("SELECT repo_id, name FROM repos")}
         return [{"score": round(score, 4), "card_id": r[0], "repo_id": r[1], "repo": repos.get(r[1], r[1]),
                  "plane": r[2], "kind": r[3], "name": r[4], "locator": r[5], "text": r[6], "revision": r[7]}
                 for score, r in scored[:k]]
@@ -664,9 +764,17 @@ class GreyMatter:
     def stats(self) -> dict[str, Any]:
         repos = self.repos()
         proposals, verified = self.db.execute("SELECT COUNT(*), COALESCE(SUM(verified),0) FROM proposals").fetchone()
-        return {"schema": SCHEMA_VERSION, "path": str(self.path), "repos": len(repos), "cards": sum(r["cards"] for r in repos),
-                "edges": sum(r["edges"] for r in repos), "planes": self.plane_counts(), "proposals": int(proposals or 0),
-                "verified_bindings": int(verified or 0), "embedding": f"hashed-blake2b/{DIMENSION}"}
+        cards = self.db.execute("SELECT COUNT(*) FROM cards").fetchone()[0]
+        edges = self.db.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+        invalid_verified = self.db.execute(
+            "SELECT COUNT(*) FROM proposals p LEFT JOIN cards s ON s.card_id=p.source AND s.repo_id=p.repo_id "
+            "LEFT JOIN cards t ON t.card_id=p.target AND t.repo_id=p.repo_id "
+            "WHERE p.verified=1 AND (s.card_id IS NULL OR t.card_id IS NULL)").fetchone()[0]
+        return {"schema": SCHEMA_VERSION, "path": str(self.path), "repos": len(repos), "cards": cards,
+                "edges": edges, "planes": self.plane_counts(), "proposals": int(proposals or 0),
+                "verified_bindings": int(verified or 0) - invalid_verified,
+                "integrity": {"reported_cards": sum(r["cards"] for r in repos), "invalid_verified_bindings": invalid_verified},
+                "embedding": f"hashed-blake2b/{DIMENSION}"}
 
     def motif_context(self, query: str, *, k: int = 8) -> str:
         """Rendered retrieval for a builder prompt: references, never copies."""
@@ -680,4 +788,4 @@ class GreyMatter:
         return "\n".join(lines)
 
 
-__all__ = ["GreyMatter", "NodeCard", "Edge", "embed", "cosine", "tokens", "extract_cards", "PLANES", "DIMENSION"]
+__all__ = ["GreyMatter", "NodeCard", "Edge", "embed", "cosine", "tokens", "extract_cards", "source_tree_digest", "PLANES", "DIMENSION"]

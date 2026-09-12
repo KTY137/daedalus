@@ -43,12 +43,11 @@ class OrderLedger:
 
     def open_order(self, order_id: str, kind: str, project: str | None, text: str) -> bool:
         with self._lock, self.db:
-            existing = self.db.execute("SELECT status FROM orders WHERE order_id=?", (order_id,)).fetchone()
-            if existing and existing[0] not in TERMINAL:
-                return False
             now = time.time()
-            self.db.execute("INSERT OR REPLACE INTO orders VALUES (?,?,?,?,?,?,?,NULL)",
-                            (order_id, kind, project, text, STATUS_ACCEPTED, now, now))
+            inserted = self.db.execute("INSERT OR IGNORE INTO orders VALUES (?,?,?,?,?,?,?,NULL)",
+                                       (order_id, kind, project, text, STATUS_ACCEPTED, now, now))
+            if inserted.rowcount != 1:
+                return False  # replay returns the existing outcome, including failures
             self.db.execute("INSERT INTO events (order_id, at, level, text) VALUES (?,?,?,?)",
                             (order_id, now, "info", "order accepted"))
         return True
