@@ -1,0 +1,145 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-183",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "45bf1f14fb967d68efef770f8422d54f1bf41c3d",
+    "dependencies": "G1-EXP-TENSOR-GPU-182 bounded finding and the existing shared Boolean probe contract",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "question", "finding"]},
+      "scope": {"source_fields": ["scope", "domain"]},
+      "contracts_and_behavior": {"source_fields": ["change", "gardener_boundary"]},
+      "acceptance_matrix": {"source_fields": ["verification"]},
+      "migration_and_rollback": {"source_fields": ["branch_hygiene", "gardener_boundary"]},
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundary", "finding"]}
+    }
+  },
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-183",
+  "title": "Route typed-block profiler case admission through the shared ProbeCase contract",
+  "date": "2026-09-12",
+  "status": "closed-implementation",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "blob_sha": "49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "79a6f79bd7762e53552e678a7c9e14678acf6a33",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "45bf1f14fb967d68efef770f8422d54f1bf41c3d",
+  "implementation_commits": [
+    "ffa67b96579582053e73085881c65d3609efa3f7",
+    "4188b7510ea7ca0931c967356a079744981423d5"
+  ],
+  "verified_implementation_head": "4188b7510ea7ca0931c967356a079744981423d5",
+  "scope": {
+    "updated": [
+      "experiments/tensor_gpu/typed_block_validation_profile.py",
+      "tests/twin/test_tensor_gpu_probe.py",
+      "tests/twin/test_tensor_typed_block_validation_profile.py"
+    ],
+    "added": ["docs/work-packets/G1-EXP-TENSOR-GPU-183.json"],
+    "forbidden": [
+      "daedalus/twin/** production semantics",
+      "daedalus/kernel/**",
+      "daedalus/runtimes/**",
+      "daedalus/orchestration/**",
+      "archive/legacy-20260830",
+      "automatic promotion or merge paths"
+    ]
+  },
+  "question": "Can the typed-block profiler delete its last parallel ProbeCase collection-admission copy and reuse the existing shared owner without changing profiler-specific repetition or measurement semantics?",
+  "change": {
+    "shared_owner": "experiments.tensor_gpu.boolean_probe_contract.validate_probe_cases",
+    "profiler_change": [
+      "package and direct-script imports now resolve validate_probe_cases from the existing shared Boolean contract",
+      "run_probe replaces three local collection checks with admitted_cases = validate_probe_cases(cases)",
+      "report construction iterates the immutable admitted_cases tuple",
+      "the redundant profiler-local MAX_CASES alias import is removed"
+    ],
+    "tests": [
+      "the profiler is pinned to the exact same validate_probe_cases function object as CPU and CUDA probe arms",
+      "run_probe routing is verified by monkeypatching the shared-owner binding before any physical case execution",
+      "the profiler bounds regression now reads MAX_CASES from boolean_probe_contract rather than depending on an incidental profiler module alias"
+    ],
+    "not_changed": [
+      "MAX_PROFILE_REPEATS and _validate_profile_repeats remain profiler-local",
+      "_measure_repeated remains the existing timing-mechanics owner",
+      "CUDA one-dtype-per-run admission remains CUDA-local",
+      "no production Fourfold/Forest/Tensor semantics changed"
+    ]
+  },
+  "finding": "The remaining profiler collection-admission duplicate is removed without adding a new abstraction. One existing shared contract now owns bounded ProbeCase collection admission for CPU, CUDA, and the typed-block profiler, while profiler-only repetition and measurement policy stays local.",
+  "verification": {
+    "negative_evidence": {
+      "head": "ffa67b96579582053e73085881c65d3609efa3f7",
+      "fourfold_tensor_run_id": 34709910947,
+      "result": "failed",
+      "cause": "An existing profiler regression referenced typed_block_validation_profile.MAX_CASES. Removing the redundant alias exposed that incidental dependency; Python 3.12/hash0 reported 1 failed, 472 passed, 2 skipped, and the same contract surface failed across the matrix.",
+      "repair": "The regression now binds MAX_CASES to boolean_probe_contract and explicitly asserts that the profiler resolves the same validate_probe_cases owner. The failed run remains retained as negative evidence."
+    },
+    "accepted_head": "4188b7510ea7ca0931c967356a079744981423d5",
+    "primary_hosted_run": {
+      "id": 34709990556,
+      "name": "Fourfold, Tensor and integration contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "evidence": [
+        "integrated contract matrix succeeded for Python 3.10 and 3.12 with hash seeds 0 and 123456",
+        "isolated wheel imports succeeded",
+        "complete repository collection succeeded",
+        "public package API verification succeeded where executed",
+        "Complete suite (manual only) was skipped and is not claimed"
+      ]
+    },
+    "secondary_exact_head_runs_at_close": [
+      {"id": 34709990613, "name": "Ikarus tensor, Genesis and hopping contracts", "status": "in_progress", "conclusion": null},
+      {"id": 34709990555, "name": "Tauri Desktop", "status": "in_progress", "conclusion": null}
+    ],
+    "full_suite": "not run; Complete suite (manual only) remains outside this packet claim"
+  },
+  "gardener_boundary": {
+    "principle": "consolidation before new abstraction",
+    "removed_parallel_contract": "typed_block_validation_profile.run_probe local bounded ProbeCase collection admission",
+    "new_module": false,
+    "new_backend": false,
+    "new_registry": false,
+    "new_store": false,
+    "new_cache": false,
+    "new_scheduler": false,
+    "new_graph_authority": false,
+    "new_tensor_semantic_layer": false,
+    "rollback": "Revert only the two GPU-183 implementation commits; no Fourfold/Forest/Tensor wire format, product authority, or production semantic migration is involved."
+  },
+  "branch_hygiene": {
+    "remote_branch_created": false,
+    "canonical_line": "exp/tensor-kernel-contract-01",
+    "force_push": false,
+    "history_rewrite": false,
+    "branch_deleted": false,
+    "archive_targeted": false,
+    "archive_anchor": "archive/legacy-20260830@6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false
+  },
+  "claim_boundary": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review": false,
+    "merge": false,
+    "gate_transition": false,
+    "all_hosted_surfaces_green": false,
+    "full_suite_green": false,
+    "performance_claim": false,
+    "benchmark_superiority_claim": false,
+    "crewai_superiority_claim": false,
+    "alphaevolve_superiority_claim": false
+  }
+}
