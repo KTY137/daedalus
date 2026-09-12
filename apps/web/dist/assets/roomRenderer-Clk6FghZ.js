@@ -1,4 +1,4 @@
-import{a as a9}from"./index-BIpXDzHT.js";/**
+import{a as a9}from"./index-Odsu-8tz.js";/**
  * @license
  * Copyright 2010-2026 Three.js Authors
  * SPDX-License-Identifier: MIT
