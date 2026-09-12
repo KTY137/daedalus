@@ -202,20 +202,16 @@ def exact_reference_operation_count(
 
 
 def validate_boolean_operands(
-    left: TypedRelationBlock[bool],
-    right: TypedRelationBlock[bool],
+    left: TypedRelationBlock[bool], right: TypedRelationBlock[bool]
 ) -> None:
     """Validate the semantic contract shared by both physical probe arms."""
 
-    if not isinstance(left, TypedRelationBlock) or not isinstance(
-        right, TypedRelationBlock
-    ):
+    blocks = (left, right)
+    if not all(isinstance(block, TypedRelationBlock) for block in blocks):
         raise ValueError("Boolean probe operands must be TypedRelationBlock values")
-    if left.semiring_name != "boolean" or right.semiring_name != "boolean":
+    if any(block.semiring_name != "boolean" for block in blocks):
         raise ValueError("Boolean probes require the Boolean semiring")
-    if any(value is not True for value in left.values) or any(
-        value is not True for value in right.values
-    ):
+    if any(value is not True for block in blocks for value in block.values):
         raise ValueError("Boolean probes require canonical stored Boolean support")
     if left.subject != right.subject:
         raise ValueError("Boolean probe operands must bind the same exact Fourfold subject")
