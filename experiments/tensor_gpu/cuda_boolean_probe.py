@@ -42,6 +42,7 @@ if __package__:
         padded,
         ratio,
         same_support,
+        validate_boolean_operands,
         write_report,
     )
 else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
@@ -56,6 +57,7 @@ else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
         padded,
         ratio,
         same_support,
+        validate_boolean_operands,
         write_report,
     )
 
@@ -179,16 +181,7 @@ def _validate_gpu_operands(
     left: TypedRelationBlock[bool],
     right: TypedRelationBlock[bool],
 ) -> None:
-    if not isinstance(left, TypedRelationBlock) or not isinstance(
-        right, TypedRelationBlock
-    ):
-        raise ValueError("GPU operands must be TypedRelationBlock values")
-    if left.semiring_name != "boolean" or right.semiring_name != "boolean":
-        raise ValueError("GPU probe currently supports the Boolean semiring only")
-    if left.subject != right.subject:
-        raise ValueError("GPU operands must bind the same exact Fourfold subject")
-    if left.column_axis != right.row_axis:
-        raise ValueError("GPU matrix composition requires an exact typed middle axis")
+    validate_boolean_operands(left, right)
     if len(left.row_axis.labels) != len(left.column_axis.labels):
         raise ValueError("current probe requires a square left block")
     if len(right.row_axis.labels) != len(right.column_axis.labels):
