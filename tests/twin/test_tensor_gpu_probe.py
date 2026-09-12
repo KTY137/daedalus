@@ -23,6 +23,7 @@ build_boolean_case = _PROBE.build_boolean_case
 blocked_report = _PROBE.blocked_report
 estimate_dense_device_bytes = _PROBE.estimate_dense_device_bytes
 exact_reference_operation_count = _PROBE.exact_reference_operation_count
+validate_boolean_operands = _CONTRACT.validate_boolean_operands
 write_report = _PROBE.write_report
 BooleanSemiring = _PROBE.BooleanSemiring
 
@@ -50,6 +51,8 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
     assert cpu.ProbeCase is _CONTRACT.ProbeCase
     assert _PROBE.build_boolean_case is _CONTRACT.build_boolean_case
     assert cpu.build_boolean_case is _CONTRACT.build_boolean_case
+    assert _PROBE.validate_boolean_operands is _CONTRACT.validate_boolean_operands
+    assert cpu.validate_boolean_operands is _CONTRACT.validate_boolean_operands
     assert _PROBE.write_report is _CONTRACT.write_report
     assert cpu.write_report is _CONTRACT.write_report
 
@@ -134,6 +137,30 @@ def test_synthetic_case_is_deterministic_and_matches_reference_contract() -> Non
     assert result.subject == left.subject
     assert result.row_axis == left.row_axis
     assert result.column_axis == right.column_axis
+
+
+def test_shared_boolean_operand_contract_rejects_revision_mismatch() -> None:
+    left, _, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.25,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+    _, mismatched_right, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.5,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+
+    with pytest.raises(ValueError, match="same exact Fourfold subject"):
+        validate_boolean_operands(left, mismatched_right)
 
 
 def test_cuda_oom_is_blocked_without_hiding_unrelated_exceptions() -> None:
