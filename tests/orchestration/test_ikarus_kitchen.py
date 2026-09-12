@@ -41,6 +41,8 @@ from daedalus.orchestration.ikarus.kitchen.orders import parse_order
     ("Küche Status", orders.KIND_STATUS),
     ("/kitchen", orders.KIND_STATUS),
     ("kitchen status please", orders.KIND_STATUS),
+    ("was macht die küche gerade?", orders.KIND_STATUS),
+    ("what is the kitchen doing?", orders.KIND_STATUS),
 ])
 def test_orders_are_recognised(text: str, kind: str) -> None:
     order = parse_order(text)

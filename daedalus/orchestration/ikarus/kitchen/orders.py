@@ -84,8 +84,8 @@ _FEED_RE = re.compile(
 _STATUS_RE = re.compile(
     r"^\W*(?:/kitchen|/küche|/kueche)\b|"
     r"\b(?:küche|kueche|kitchen|bestellung(?:en)?|orders?|chefkoch|chef|kellner|waiter)\b.{0,60}?"
-    r"\b(?:status|stand|wie\s+weit|fortschritt|progress|läuft|laeuft|fertig|done|ready)\b|"
-    r"\b(?:status|stand|wie\s+weit|fortschritt|progress)\b.{0,60}?\b(?:küche|kueche|kitchen|bestellung|order|chefkoch|bau|build)\b",
+    r"\b(?:status|stand|wie\s+weit|fortschritt|progress|läuft|laeuft|fertig|done|ready|gerade|macht|tut|los|doing|up\s+to)\b|"
+    r"\b(?:status|stand|wie\s+weit|fortschritt|progress|was\s+macht|what\s+is|what's)\b.{0,60}?\b(?:küche|kueche|kitchen|bestellung|order|chefkoch|bau|build)\b",
     re.IGNORECASE,
 )
 _URL_RE = re.compile(r"(?:https?://|git@)[^\s'\"<>]+")
