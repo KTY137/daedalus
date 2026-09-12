@@ -42,6 +42,7 @@ if __package__:
         padded,
         ratio,
         same_support,
+        validate_boolean_block,
         validate_boolean_operands,
         write_report,
     )
@@ -57,6 +58,7 @@ else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
         padded,
         ratio,
         same_support,
+        validate_boolean_block,
         validate_boolean_operands,
         write_report,
     )
@@ -155,8 +157,7 @@ def _dense_from_block(
     dtype: Any,
     padded_size: int,
 ) -> Any:
-    if block.semiring_name != "boolean" or any(value is not True for value in block.values):
-        raise ValueError("CUDA probe accepts canonical Boolean relation blocks only")
+    validate_boolean_block(block)
     dense = torch.zeros(
         (padded_size, padded_size),
         dtype=dtype,
