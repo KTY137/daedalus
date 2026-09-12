@@ -206,6 +206,7 @@ _SHELL_BY_ROUTE = {
     "enqueue": SHELL_HAND,
     "chat": SHELL_VOICE,
     "error": SHELL_DETERMINISTIC,
+    "kitchen": "kitchen",
 }
 
 
@@ -466,6 +467,13 @@ def _ask_inner(project: str, message: str, provider: str | None = None,
             for event, payload in conversation_events(project, message):
                 if event == "final":
                     return payload
+        # The kitchen door: "bau mir eine App", "verbessere diese App",
+        # "füttere Ariadne mit <repo>" are ORDERS the Waiter takes and the
+        # Chef cooks; everything else falls through to the ordinary routes.
+        from .kitchen import maybe_serve
+        served = maybe_serve(project, message, conversation_id=conversation_id)
+        if served is not None:
+            return served
         if intent is None:
             intent = classify(message)
         if act is None:
@@ -3778,6 +3786,16 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     from .computer_loop import conversation_events, is_computer_command
     if is_computer_command(message):
         yield from conversation_events(project, message, cancelled=computer_cancelled)
+        return
+
+    # The kitchen door, mirrored from ``_ask_inner``: an order streams no
+    # tokens, the Waiter answers at once and the Chef cooks in the background.
+    from .kitchen import parse_order
+    if parse_order(message) is not None:
+        yield "start", {"intent": "kitchen", "shell": "kitchen", "provider_used": "kitchen"}
+        yield "final", _reconcile_final(
+            "kitchen", ask(project, message, provider, model, effort,
+                           additional_context=additional_context))
         return
 
     try:
