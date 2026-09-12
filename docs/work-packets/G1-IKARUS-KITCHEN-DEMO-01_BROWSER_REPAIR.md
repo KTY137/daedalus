@@ -50,3 +50,9 @@ reproduce the accepted source digest. A dedicated hidden local static server
 serves this preview at `http://127.0.0.1:8766`; the old 8765 server is untouched.
 This directly repaired copy is not an autonomous model-build success or a
 canonical kitchen nomination.
+
+Post-commit readback caught Git normalizing the measured verifier's CRLF bytes,
+which changed its receipt digest despite unchanged behavior. `.gitattributes`
+now preserves the exact measured verifier/report bytes. Verify the receipt
+against committed blobs as well as local files; do not silently replace its
+original digest with a normalized artifact's digest.

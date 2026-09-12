@@ -503,3 +503,8 @@ docs/evidence/G1-IKARUS-34_PLAN_PROGRESS_SHAPE/** -text
 docs/evidence/G1-IKARUS-42_PROMPT_SIZE/** -text
 docs/evidence/G1-IKARUS-43_REMOTE_PLANNER_LIVE/** -text
 docs/evidence/G1-IKARUS-45_BOUNDED_PROMPT_VIEW/** -text
+
+# DEMO-01 receipt binds the measured raw verifier/report bytes (the verifier
+# was measured with CRLF). Preserve those bytes on commit and checkout.
+docs/evidence/G1-IKARUS-KITCHEN-DEMO-01/browser-acceptance.cjs -text
+docs/evidence/G1-IKARUS-KITCHEN-DEMO-01/browser-acceptance.json -text
