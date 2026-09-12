@@ -138,3 +138,33 @@ To restart locally after closing the preview:
 This is a directly repaired experimental copy. Neither original candidates nor
 the historical index have been replaced, and the preview is not a claim that
 the kitchen generated and verified the repair autonomously.
+
+## Owner-directed integration onto main
+
+The owner subsequently instructed: "tue ikarus ignition auf main und arbeite
+darauf". This explicitly authorizes integration of the reviewed ignition
+branch; the earlier no-merge scope above records the preceding continuation
+phase. It does not change the Master Plan, promote a generated candidate or
+close the remaining kernel-admission gaps.
+
+The primary checkout was fast-forwarded onto the ignition branch at 8ba8ba04,
+and subsequent work takes place on local `main`. The bundle-attribute check
+then reproduced two failures: twelve transitive evaluator-bundle inputs lacked
+explicit `-text` declarations. The repair adds those twelve individual entries,
+without weakening the guard or adding a wildcard. Their working files were
+restored to their exact already committed LF bytes; no source content changed.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_ignition_bundle_gitattributes.py tests/test_ignition_bundle.py -q -p no:cacheprovider
+# 38 passed, 7 Python tar-extraction warnings in 140.73s
+```
+
+The combined kitchen, Sous-Chef, corpus, verifier, import, HTTP, shell, OS and
+entrypoint-registry selection was rerun in this primary checkout: **228 passed,
+1 skipped, 37 subtests passed in 48.98s**. This is the union of the two earlier
+selections, not additional unique coverage. Independent inspection of GitHub
+run `34698299251` found the same two attribute failures in all four Python/seed
+jobs (each 462 passed, 10 skipped, 2 failed); the isolated wheel passed.
+
+This measures byte-stable evaluator packaging and the existing bundle/ignition
+fixtures. It is not evidence of autonomous kitchen product acceptance.

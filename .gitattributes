@@ -492,6 +492,23 @@ daedalus/orchestration/ikarus/tool_scope.py -text
 daedalus/runtimes/computer_ariadne.py -text
 daedalus/runtimes/computer_daedalus.py -text
 
+# MEASURED 2026-09-12: the ignition closure now contains 266 files; these
+# twelve additions had no explicit byte pin. Their committed blobs are LF.
+# Normalize only matching CRLF working copies to those exact committed bytes
+# before staging, so adding -text does not accidentally commit CRLF content.
+daedalus/kernel/policy/hopping.py -text
+daedalus/orchestration/ikarus/kitchen/__init__.py -text
+daedalus/orchestration/ikarus/kitchen/builders.py -text
+daedalus/orchestration/ikarus/kitchen/chef.py -text
+daedalus/orchestration/ikarus/kitchen/greymatter.py -text
+daedalus/orchestration/ikarus/kitchen/ledger.py -text
+daedalus/orchestration/ikarus/kitchen/orders.py -text
+daedalus/orchestration/ikarus/kitchen/report.py -text
+daedalus/orchestration/ikarus/kitchen/souschef.py -text
+daedalus/orchestration/ikarus/kitchen/toolchain.py -text
+daedalus/orchestration/ikarus/kitchen/waiter.py -text
+daedalus/runtimes/computer_genesis.py -text
+
 # Evidence directories that carry a digest manifest (MANIFEST.json pins the
 # sha256 of every sibling file): the digests are over the committed LF bytes,
 # so a translating checkout would make 19/19 of them mismatch on Windows

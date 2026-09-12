@@ -77,3 +77,16 @@ Historical browser failures prompted a separate bounded repair experiment,
 admission. Source CAS, canonical Missions/leases/cancellation and independent
 product acceptance remain KITCHEN-01 blockers. System CI still must execute
 against this continuation's new commit; old PR checks cover only c4a14796.
+
+## Subsequent owner integration instruction
+
+The owner subsequently requested ignition on `main` and further work there.
+That instruction authorizes merging the reviewed branch and supersedes this
+packet's initial no-merge scope. It does not amend the Master Plan, promote a
+candidate or establish the missing kitchen runtime contracts.
+
+On the primary `main` checkout, the transitive evaluator closure exposed twelve
+missing explicit Git byte-preservation declarations. Added only those `-text`
+entries and retained exact committed source bytes. Bundle and attribute tests:
+38 passed in 140.73s, with seven Python tar-extraction warnings. The pre-fix
+attribute result (2 failed, 6 passed) remains recorded in the continuation log.
