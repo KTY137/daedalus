@@ -1,0 +1,23 @@
+﻿{
+    "schema":  "independent-browser-acceptance/1",
+    "packet":  "G1-IKARUS-KITCHEN-DEMO-01",
+    "classification":  "EXPERIMENT",
+    "accepted":  true,
+    "checks_passed":  24,
+    "checks_failed":  0,
+    "source_tree_sha256":  "2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4",
+    "source_files":  8,
+    "source_unchanged":  true,
+    "browser":  "Chromium 1234 through native CDP in a fresh profile",
+    "evaluator_path":  "C:\\Users\\Administrator\\.daedalus\\kitchen\\preview-evidence\\shopping-list-20260912-e0e6b9c4aa\\browser-acceptance.cjs",
+    "evaluator_sha256":  "52f603a8843a5c68b4b0a894d63e468982da639f6c3a9889c4d7d3706f8fd2f4",
+    "report_path":  "C:\\Users\\Administrator\\.daedalus\\kitchen\\preview-evidence\\shopping-list-20260912-e0e6b9c4aa\\browser-report.json",
+    "report_sha256":  "ee6f3bc12f38b7c4a35ddb14d6c7480d694489b77c4d0421a613e1a21cd5bc19",
+    "desktop_screenshot":  "C:\\Users\\Administrator\\.daedalus\\kitchen\\preview-evidence\\shopping-list-20260912-e0e6b9c4aa\\accepted-desktop.png",
+    "mobile_screenshot":  "C:\\Users\\Administrator\\.daedalus\\kitchen\\preview-evidence\\shopping-list-20260912-e0e6b9c4aa\\accepted-mobile-390.png",
+    "visual_inspection":  "Both screenshots inspected; controls readable and complete at 1280x800 and 390x844",
+    "baseline_server_pid_preserved":  34580,
+    "temporary_browser_and_server_closed":  true,
+    "automatic_promotion":  false,
+    "scope_limit":  "Acceptance applies to the frozen local repaired shopping-list preview; no canonical runtime admission or autonomous model-success claim"
+}

@@ -113,3 +113,28 @@ checks remain limited evidence. Live source path migration and historical
 invalid corpus observations require a separate source-bound reconciliation,
 with the original database retained. No new scientific performance claim,
 production activation, merge or candidate promotion is supported here.
+
+## Available repaired preview
+
+The isolated DEMO-01 copy now passes **24/24 independent browser checks**:
+button/Enter additions, quantity/default validation, blank-label refusal,
+single-item deletion, completion and reload persistence, clear and reload
+persistence, zero JavaScript exceptions, 390px layout and source integrity.
+
+Open `http://127.0.0.1:8766`. Source:
+`~/.daedalus/kitchen/previews/shopping-list-20260912`. A complete eight-file
+archive, frozen external browser verifier, repair and independent receipts,
+report and mobile screenshot are retained under
+`docs/evidence/G1-IKARUS-KITCHEN-DEMO-01/`.
+
+The archive reproduces source digest
+`2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4`.
+To restart locally after closing the preview:
+
+```powershell
+.\.venv\Scripts\python.exe -m http.server 8766 --bind 127.0.0.1 --directory C:\Users\Administrator\.daedalus\kitchen\previews\shopping-list-20260912
+```
+
+This is a directly repaired experimental copy. Neither original candidates nor
+the historical index have been replaced, and the preview is not a claim that
+the kitchen generated and verified the repair autonomously.

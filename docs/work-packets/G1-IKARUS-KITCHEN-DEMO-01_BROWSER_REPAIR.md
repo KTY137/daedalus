@@ -30,3 +30,23 @@ Budget: one local deterministic source repair plus bounded browser verification;
 no external spending. Serve only the new verified preview on loopback with a
 dedicated port. Stop only processes started by this packet. Expires at the
 continuation handoff; rollback stops that preview without deleting evidence.
+
+## Acceptance result
+
+The separate preview at `~/.daedalus/kitchen/previews/shopping-list-20260912`
+changes only `app.js`, `index.html` and `styles.css`. The five other files,
+including the original evaluator, are byte-identical. Its eight-file source
+digest is `2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4`.
+
+The independent Chromium/CDP verifier passes **24/24 checks**, including all
+frozen browser requirements and unchanged-source verification. Desktop and
+390px screenshots were inspected. The original six structural tests pass on
+both the broken baseline and the repair, illustrating their limited scope.
+The browser verifier and receipt remain outside the candidate.
+
+Evidence, source archive and mobile screenshot:
+`docs/evidence/G1-IKARUS-KITCHEN-DEMO-01/`. The zip's eight file contents
+reproduce the accepted source digest. A dedicated hidden local static server
+serves this preview at `http://127.0.0.1:8766`; the old 8765 server is untouched.
+This directly repaired copy is not an autonomous model-build success or a
+canonical kitchen nomination.
