@@ -26,6 +26,7 @@ estimate_dense_device_bytes = _PROBE.estimate_dense_device_bytes
 exact_reference_operation_count = _PROBE.exact_reference_operation_count
 validate_boolean_block = _CONTRACT.validate_boolean_block
 validate_boolean_operands = _CONTRACT.validate_boolean_operands
+validate_probe_cases = _CONTRACT.validate_probe_cases
 write_report = _PROBE.write_report
 BooleanSemiring = _PROBE.BooleanSemiring
 
@@ -59,8 +60,16 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
     assert cpu.validate_boolean_block is _CONTRACT.validate_boolean_block
     assert _PROBE.validate_boolean_operands is _CONTRACT.validate_boolean_operands
     assert cpu.validate_boolean_operands is _CONTRACT.validate_boolean_operands
+    assert _PROBE.validate_probe_cases is _CONTRACT.validate_probe_cases
+    assert cpu.validate_probe_cases is _CONTRACT.validate_probe_cases
     assert _CONTRACT.validate_boolean_operands.__globals__["validate_boolean_block"] is (
         _CONTRACT.validate_boolean_block
+    )
+    assert _PROBE.run_probe.__globals__["validate_probe_cases"] is (
+        _CONTRACT.validate_probe_cases
+    )
+    assert cpu.run_probe.__globals__["validate_probe_cases"] is (
+        _CONTRACT.validate_probe_cases
     )
     assert _PROBE.write_report is _CONTRACT.write_report
     assert cpu.write_report is _CONTRACT.write_report
@@ -69,6 +78,72 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
         source = path.read_text(encoding="utf-8")
         assert "import runpy" not in source
         assert "runpy.run_path" not in source
+
+
+def test_shared_probe_case_collection_admission_is_bounded_and_immutable() -> None:
+    case = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        max_device_mib=64,
+    )
+    admitted = validate_probe_cases([case])
+    assert admitted == (case,)
+    assert isinstance(admitted, tuple)
+
+    invalid_collections = (
+        "not-cases",
+        b"not-cases",
+        (),
+        (case,) * (_CONTRACT.MAX_CASES + 1),
+        (object(),),
+    )
+    for invalid in invalid_collections:
+        with pytest.raises(ValueError):
+            validate_probe_cases(invalid)
+
+
+def test_cuda_single_dtype_rule_remains_local_after_shared_collection_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        dtype_name="float16",
+        max_device_mib=64,
+    )
+    second = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        dtype_name="bfloat16",
+        max_device_mib=64,
+    )
+    seen: list[str] = []
+
+    monkeypatch.setattr(_PROBE, "_load_torch", lambda: object())
+    monkeypatch.setattr(
+        _PROBE,
+        "_device_info",
+        lambda torch, device_index, dtype_name: {
+            "device_index": device_index,
+            "free_device_bytes_at_start": 1,
+        },
+    )
+
+    def fake_run_case(case: ProbeCase, *, torch: object, device_info: dict[str, object]) -> dict[str, str]:
+        seen.append(case.dtype_name)
+        return {"status": "performance-only", "claim": "none"}
+
+    monkeypatch.setattr(_PROBE, "run_case", fake_run_case)
+
+    with pytest.raises(ValueError, match="one run must use one dtype"):
+        _PROBE.run_probe((first, second))
+    assert seen == ["float16"]
 
 
 def test_physical_packers_fail_closed_through_shared_single_block_admission() -> None:
