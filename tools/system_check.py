@@ -740,7 +740,10 @@ def _gui(sb: Sandbox) -> Result:
                       {"returncode": rc})
     ev = payload.get("evidence") or {}
     evidence = {k: ev.get(k) for k in
-                ("server_entry", "specs", "passed", "failed", "skipped",
+                # `not_run` belongs here: without it the structured list of
+                # never-executed specs is dropped from the receipt, and the
+                # detail string is the only place it survives.
+                ("server_entry", "specs", "passed", "not_run", "failed", "skipped",
                  "documented_entry_error", "browser") if k in ev}
     outcome = {"PASS": PASS, "INCOMPLETE": UNAVAILABLE}.get(payload.get("outcome"), FAIL)
     return Result("gui.a_human_can_operate_the_cockpit", outcome,
