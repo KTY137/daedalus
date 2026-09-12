@@ -120,6 +120,20 @@ jobs:
         working-directory: apps/web
         run: npm run build
 
+      - name: Verify committed cockpit bundle is current
+        shell: bash
+        run: |
+          bundle_status="$(git status --porcelain -- apps/web/dist)" || {
+            echo "::error::Unable to inspect the committed cockpit bundle."
+            exit 1
+          }
+          if [[ -n "$bundle_status" ]]; then
+            echo "::error::apps/web/dist is stale; run 'npm ci && npm run build' in apps/web and commit the generated bundle."
+            printf '%s\n' "$bundle_status"
+            git diff -- apps/web/dist
+            exit 1
+          fi
+
       # 6.22.1 fixes GHSA-9fxf-4qw3-ghmr (2026-08-15). Keep this exact:
       # packaging must not bake a known unsafe bootloader into a release.
       - name: Install Python build/test dependencies

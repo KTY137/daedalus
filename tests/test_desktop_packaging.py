@@ -391,6 +391,10 @@ def test_pull_requests_use_one_linux_desktop_job_only() -> None:
     assert "macos-latest" not in pr_job
     assert "Build Linux validation desktop bundle" in pr_job
     assert "daedalus-desktop-pr-linux-[arch]-[bundle]" in pr_job
+    assert "Verify committed cockpit bundle is current" in pr_job
+    assert 'bundle_status="$(git status --porcelain -- apps/web/dist)" || {' in pr_job
+    assert "Unable to inspect the committed cockpit bundle." in pr_job
+    assert "git diff -- apps/web/dist" in pr_job
 
     assert "if: github.event_name != 'pull_request'" in release_matrix
     for runner in ("windows-latest", "ubuntu-22.04", "macos-latest"):
