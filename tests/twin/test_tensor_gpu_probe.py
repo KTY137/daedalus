@@ -51,6 +51,8 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
     assert cpu.ProbeCase is _CONTRACT.ProbeCase
     assert _PROBE.build_boolean_case is _CONTRACT.build_boolean_case
     assert cpu.build_boolean_case is _CONTRACT.build_boolean_case
+    assert _PROBE.exact_reference_operation_count is _CONTRACT.exact_reference_operation_count
+    assert cpu.exact_reference_operation_count is _CONTRACT.exact_reference_operation_count
     assert _PROBE.validate_boolean_operands is _CONTRACT.validate_boolean_operands
     assert cpu.validate_boolean_operands is _CONTRACT.validate_boolean_operands
     assert _PROBE.write_report is _CONTRACT.write_report
@@ -161,6 +163,30 @@ def test_shared_boolean_operand_contract_rejects_revision_mismatch() -> None:
 
     with pytest.raises(ValueError, match="same exact Fourfold subject"):
         validate_boolean_operands(left, mismatched_right)
+
+
+def test_operation_count_reuses_shared_boolean_operand_admission() -> None:
+    left, _, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.25,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+    _, mismatched_right, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.5,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+
+    with pytest.raises(ValueError, match="same exact Fourfold subject"):
+        exact_reference_operation_count(left, mismatched_right)
 
 
 def test_cuda_oom_is_blocked_without_hiding_unrelated_exceptions() -> None:
