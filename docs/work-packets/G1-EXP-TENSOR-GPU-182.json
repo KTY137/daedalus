@@ -1,0 +1,164 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-182",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "3cd95350cad6c2f72df42f25c4e49bdd2479ab09",
+    "dependencies": "G1-EXP-TENSOR-GPU-181 exact-head hosted evidence and the existing shared Boolean probe contract",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": ["title", "question", "finding"]
+      },
+      "scope": {
+        "source_fields": ["scope", "domain"]
+      },
+      "contracts_and_behavior": {
+        "source_fields": ["audit", "next_bounded_change"]
+      },
+      "acceptance_matrix": {
+        "source_fields": ["verification"]
+      },
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "gardener_boundary"]
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundary", "finding"]
+      }
+    }
+  },
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-182",
+  "title": "Audit the final duplicate ProbeCase collection admission outside the shared Boolean contract",
+  "date": "2026-09-12",
+  "status": "closed-research",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "blob_sha": "49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "79a6f79bd7762e53552e678a7c9e14678acf6a33",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "3cd95350cad6c2f72df42f25c4e49bdd2479ab09",
+  "scope": {
+    "inspected": [
+      "experiments/tensor_gpu/boolean_probe_contract.py",
+      "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "experiments/tensor_gpu/typed_block_validation_profile.py",
+      "tests/twin/test_tensor_gpu_probe.py",
+      "pull request #378",
+      "campaign issue #239"
+    ],
+    "updated": [
+      "docs/work-packets/G1-EXP-TENSOR-GPU-182.json"
+    ],
+    "forbidden": [
+      "daedalus/twin/** production semantics",
+      "daedalus/kernel/**",
+      "daedalus/runtimes/**",
+      "daedalus/orchestration/**",
+      "archive/legacy-20260830",
+      "automatic promotion or merge paths"
+    ]
+  },
+  "question": "After GPU-180 centralized bounded ProbeCase collection admission for the surviving CPU and CUDA arms, does another live Tensor diagnostic still maintain a parallel copy of the same collection checks, and can the next implementation remove that copy without inventing another abstraction?",
+  "audit": {
+    "shared_owner": "experiments.tensor_gpu.boolean_probe_contract.validate_probe_cases",
+    "already_using_shared_owner": [
+      "experiments.tensor_gpu.cpu_bitset_baseline.run_probe",
+      "experiments.tensor_gpu.cuda_boolean_probe.run_probe"
+    ],
+    "remaining_duplicate": {
+      "path": "experiments/tensor_gpu/typed_block_validation_profile.py",
+      "surface": "run_probe",
+      "duplicated_rules": [
+        "reject str/bytes and non-Sequence case collections",
+        "require between 1 and MAX_CASES entries",
+        "require every entry to be ProbeCase"
+      ],
+      "why_duplicate": "These are the same collection-admission invariants now owned by validate_probe_cases; the profiler should not retain a weaker parallel copy merely because it is a diagnostic consumer."
+    },
+    "not_collapsed": [
+      "_validate_profile_repeats remains profiler-local because MAX_PROFILE_REPEATS is a profiler-specific cProfile repetition bound, not the shared ProbeCase warmup/repeat policy.",
+      "cpu_bitset_baseline._measure_repeated remains the timing-mechanics owner used by the CPU probe and typed-block profiler; this packet does not move timing mechanics into the semantic contract.",
+      "CUDA one-dtype-per-run admission remains CUDA-local."
+    ]
+  },
+  "finding": "One exact collection-admission duplicate remains in typed_block_validation_profile.run_probe. The correct Gardener move is to reuse validate_probe_cases there and leave profiler-specific repetition policy local. No new module, registry, runner abstraction, scheduler, backend, cache, store, graph authority, or Tensor semantic layer is justified.",
+  "next_bounded_change": {
+    "target": "experiments/tensor_gpu/typed_block_validation_profile.py",
+    "plan": [
+      "import validate_probe_cases from the existing boolean_probe_contract in package and direct-script import paths",
+      "replace the three local case-collection checks in run_probe with admitted_cases = validate_probe_cases(cases)",
+      "iterate admitted_cases in the report construction",
+      "add a focused regression proving the profiler resolves the same validate_probe_cases function object and rejects invalid collections through that owner",
+      "do not alter _validate_profile_repeats or measurement semantics"
+    ],
+    "expected_effect": "Delete one parallel admission implementation while preserving exactly one shared Boolean case-collection contract and a separate profiler-only repetition bound."
+  },
+  "verification": {
+    "gpu_181_exact_head": "3cd95350cad6c2f72df42f25c4e49bdd2479ab09",
+    "hosted_runs": [
+      {
+        "name": "Ikarus tensor, Genesis and hopping contracts",
+        "run_id": 34704149649,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Fourfold, Tensor and integration contracts",
+        "run_id": 34704149658,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Tauri Desktop",
+        "run_id": 34704149682,
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "research_acceptance": [
+      "current main remains 79a6f79bd7762e53552e678a7c9e14678acf6a33",
+      "Masterplan revision/version/status and active Gate verified from current main",
+      "remaining duplicate is directly observable in the live profiler source",
+      "shared owner and existing CPU/CUDA consumers are directly observable in the canonical Tensor branch"
+    ],
+    "full_suite": "not run; Complete suite (manual only) remains outside this research claim"
+  },
+  "gardener_boundary": {
+    "principle": "consolidation before new abstraction",
+    "code_change": "none in this packet",
+    "reason": "The bounded research packet identifies the exact remaining duplicate and freezes the next minimal deletion/consolidation step before mutation."
+  },
+  "branch_hygiene": {
+    "remote_branch_created": false,
+    "canonical_line": "exp/tensor-kernel-contract-01",
+    "force_push": false,
+    "history_rewrite": false,
+    "branch_deleted": false,
+    "archive_targeted": false,
+    "archive_anchor": "archive/legacy-20260830@6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false
+  },
+  "claim_boundary": {
+    "owner_approval": false,
+    "promotion": false,
+    "ready_for_review": false,
+    "merge": false,
+    "gate_transition": false,
+    "full_suite_green": false,
+    "performance_claim": false,
+    "benchmark_superiority_claim": false,
+    "crewai_superiority_claim": false,
+    "alphaevolve_superiority_claim": false
+  }
+}

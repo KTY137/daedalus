@@ -32,7 +32,6 @@ from daedalus.twin.semiring import BooleanSemiring
 
 if __package__:
     from .boolean_probe_contract import (
-        MAX_CASES,
         MAX_REPEATS,
         MAX_WARMUP,
         ProbeCase,
@@ -41,11 +40,13 @@ if __package__:
         exact_reference_operation_count,
         ratio,
         same_support,
+        validate_boolean_block,
+        validate_boolean_operands,
+        validate_probe_cases,
         write_report,
     )
 else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
     from boolean_probe_contract import (
-        MAX_CASES,
         MAX_REPEATS,
         MAX_WARMUP,
         ProbeCase,
@@ -54,6 +55,9 @@ else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
         exact_reference_operation_count,
         ratio,
         same_support,
+        validate_boolean_block,
+        validate_boolean_operands,
+        validate_probe_cases,
         write_report,
     )
 
@@ -115,33 +119,14 @@ def _measure_repeated(
     return result, tuple(samples)
 
 
-def _validate_boolean_pair(
-    left: TypedRelationBlock[bool],
-    right: TypedRelationBlock[bool],
-) -> None:
-    if not isinstance(left, TypedRelationBlock) or not isinstance(right, TypedRelationBlock):
-        raise ValueError("bitset operands must be TypedRelationBlock values")
-    if left.semiring_name != "boolean" or right.semiring_name != "boolean":
-        raise ValueError("bitset baseline supports the Boolean semiring only")
-    if any(value is not True for value in left.values + right.values):
-        raise ValueError("bitset baseline requires canonical stored Boolean support")
-    if left.subject != right.subject:
-        raise ValueError("bitset operands must bind the same exact Fourfold subject")
-    if left.column_axis != right.row_axis:
-        raise ValueError("bitset composition requires an exactly shared typed middle axis")
-
-
 def pack_rows(block: TypedRelationBlock[bool]) -> tuple[int, ...]:
     """Pack every sorted CSR row into one non-negative Python integer."""
 
-    if not isinstance(block, TypedRelationBlock) or block.semiring_name != "boolean":
-        raise ValueError("pack_rows requires one Boolean TypedRelationBlock")
+    validate_boolean_block(block)
     rows: list[int] = []
     for row in range(len(block.row_axis.labels)):
         mask = 0
         for position in range(block.row_offsets[row], block.row_offsets[row + 1]):
-            if block.values[position] is not True:
-                raise ValueError("bitset baseline requires canonical stored Boolean support")
             mask |= 1 << block.column_indices[position]
         rows.append(mask)
     return tuple(rows)
@@ -300,7 +285,7 @@ def execute_bitset(
     warmup: int,
     relation: str = "cpu_bitset_composed",
 ) -> BitsetExecution:
-    _validate_boolean_pair(left, right)
+    validate_boolean_operands(left, right)
     _validate_sampling(repeats=repeats, warmup=warmup)
 
     started = time.perf_counter_ns()
@@ -437,13 +422,8 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
 
 
 def run_probe(cases: Sequence[ProbeCase]) -> dict[str, Any]:
-    if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
-        raise ValueError("cases must be a bounded sequence")
-    if not cases or len(cases) > MAX_CASES:
-        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
-    if any(not isinstance(case, ProbeCase) for case in cases):
-        raise ValueError("cases must contain ProbeCase values")
-    results = tuple(run_case(case) for case in cases)
+    admitted_cases = validate_probe_cases(cases)
+    results = tuple(run_case(case) for case in admitted_cases)
     return {
         "schema": SCHEMA,
         "status": "completed",

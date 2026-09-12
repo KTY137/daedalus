@@ -18,11 +18,15 @@ _PROBE = importlib.import_module("experiments.tensor_gpu.cuda_boolean_probe")
 _CONTRACT = importlib.import_module("experiments.tensor_gpu.boolean_probe_contract")
 ProbeCase = _PROBE.ProbeCase
 _cuda_oom_result = _PROBE._cuda_oom_result
+_dense_from_block = _PROBE._dense_from_block
 _resident_mm = _PROBE._resident_mm
 build_boolean_case = _PROBE.build_boolean_case
 blocked_report = _PROBE.blocked_report
 estimate_dense_device_bytes = _PROBE.estimate_dense_device_bytes
 exact_reference_operation_count = _PROBE.exact_reference_operation_count
+validate_boolean_block = _CONTRACT.validate_boolean_block
+validate_boolean_operands = _CONTRACT.validate_boolean_operands
+validate_probe_cases = _CONTRACT.validate_probe_cases
 write_report = _PROBE.write_report
 BooleanSemiring = _PROBE.BooleanSemiring
 
@@ -46,10 +50,32 @@ def test_probe_module_keeps_torch_optional_at_import_time() -> None:
 
 def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
     cpu = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline")
+    profile = importlib.import_module("experiments.tensor_gpu.typed_block_validation_profile")
     assert _PROBE.ProbeCase is _CONTRACT.ProbeCase
     assert cpu.ProbeCase is _CONTRACT.ProbeCase
     assert _PROBE.build_boolean_case is _CONTRACT.build_boolean_case
     assert cpu.build_boolean_case is _CONTRACT.build_boolean_case
+    assert _PROBE.exact_reference_operation_count is _CONTRACT.exact_reference_operation_count
+    assert cpu.exact_reference_operation_count is _CONTRACT.exact_reference_operation_count
+    assert _PROBE.validate_boolean_block is _CONTRACT.validate_boolean_block
+    assert cpu.validate_boolean_block is _CONTRACT.validate_boolean_block
+    assert _PROBE.validate_boolean_operands is _CONTRACT.validate_boolean_operands
+    assert cpu.validate_boolean_operands is _CONTRACT.validate_boolean_operands
+    assert _PROBE.validate_probe_cases is _CONTRACT.validate_probe_cases
+    assert cpu.validate_probe_cases is _CONTRACT.validate_probe_cases
+    assert profile.validate_probe_cases is _CONTRACT.validate_probe_cases
+    assert _CONTRACT.validate_boolean_operands.__globals__["validate_boolean_block"] is (
+        _CONTRACT.validate_boolean_block
+    )
+    assert _PROBE.run_probe.__globals__["validate_probe_cases"] is (
+        _CONTRACT.validate_probe_cases
+    )
+    assert cpu.run_probe.__globals__["validate_probe_cases"] is (
+        _CONTRACT.validate_probe_cases
+    )
+    assert profile.run_probe.__globals__["validate_probe_cases"] is (
+        _CONTRACT.validate_probe_cases
+    )
     assert _PROBE.write_report is _CONTRACT.write_report
     assert cpu.write_report is _CONTRACT.write_report
 
@@ -57,6 +83,112 @@ def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
         source = path.read_text(encoding="utf-8")
         assert "import runpy" not in source
         assert "runpy.run_path" not in source
+
+
+def test_shared_probe_case_collection_admission_is_bounded_and_immutable() -> None:
+    case = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        max_device_mib=64,
+    )
+    admitted = validate_probe_cases([case])
+    assert admitted == (case,)
+    assert isinstance(admitted, tuple)
+
+    invalid_collections = (
+        "not-cases",
+        b"not-cases",
+        (),
+        (case,) * (_CONTRACT.MAX_CASES + 1),
+        (object(),),
+    )
+    for invalid in invalid_collections:
+        with pytest.raises(ValueError):
+            validate_probe_cases(invalid)
+
+
+def test_typed_block_profiler_routes_collection_admission_through_shared_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile = importlib.import_module("experiments.tensor_gpu.typed_block_validation_profile")
+    case = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        max_device_mib=64,
+    )
+    seen: list[object] = []
+
+    assert profile.validate_probe_cases is _CONTRACT.validate_probe_cases
+
+    def fake_validate(cases: object) -> tuple[ProbeCase, ...]:
+        seen.append(cases)
+        return ()
+
+    monkeypatch.setattr(profile, "validate_probe_cases", fake_validate)
+    report = profile.run_probe([case], profile_repeats=1)
+    assert seen == [[case]]
+    assert report["cases"] == []
+
+
+def test_cuda_single_dtype_rule_remains_local_after_shared_collection_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        dtype_name="float16",
+        max_device_mib=64,
+    )
+    second = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        dtype_name="bfloat16",
+        max_device_mib=64,
+    )
+    seen: list[str] = []
+
+    monkeypatch.setattr(_PROBE, "_load_torch", lambda: object())
+    monkeypatch.setattr(
+        _PROBE,
+        "_device_info",
+        lambda torch, device_index, dtype_name: {
+            "device_index": device_index,
+            "free_device_bytes_at_start": 1,
+        },
+    )
+
+    def fake_run_case(case: ProbeCase, *, torch: object, device_info: dict[str, object]) -> dict[str, str]:
+        seen.append(case.dtype_name)
+        return {"status": "performance-only", "claim": "none"}
+
+    monkeypatch.setattr(_PROBE, "run_case", fake_run_case)
+
+    with pytest.raises(ValueError, match="one run must use one dtype"):
+        _PROBE.run_probe((first, second))
+    assert seen == ["float16"]
+
+
+def test_physical_packers_fail_closed_through_shared_single_block_admission() -> None:
+    cpu = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline")
+
+    with pytest.raises(ValueError, match="TypedRelationBlock"):
+        cpu.pack_rows(object())
+    with pytest.raises(ValueError, match="TypedRelationBlock"):
+        _dense_from_block(
+            object(),
+            object(),
+            device="cuda:0",
+            dtype=object(),
+            padded_size=8,
+        )
 
 
 def test_probe_case_bounds_dense_input_and_execution() -> None:
@@ -134,6 +266,54 @@ def test_synthetic_case_is_deterministic_and_matches_reference_contract() -> Non
     assert result.subject == left.subject
     assert result.row_axis == left.row_axis
     assert result.column_axis == right.column_axis
+
+
+def test_shared_boolean_operand_contract_rejects_revision_mismatch() -> None:
+    left, _, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.25,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+    _, mismatched_right, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.5,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+
+    with pytest.raises(ValueError, match="same exact Fourfold subject"):
+        validate_boolean_operands(left, mismatched_right)
+
+
+def test_operation_count_reuses_shared_boolean_operand_admission() -> None:
+    left, _, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.25,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+    _, mismatched_right, _ = build_boolean_case(
+        ProbeCase(
+            size=8,
+            density=0.5,
+            repeats=1,
+            warmup=0,
+            max_device_mib=64,
+        )
+    )
+
+    with pytest.raises(ValueError, match="same exact Fourfold subject"):
+        exact_reference_operation_count(left, mismatched_right)
 
 
 def test_cuda_oom_is_blocked_without_hiding_unrelated_exceptions() -> None:

@@ -13,7 +13,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from daedalus.twin.relation_blocks import (
     MAX_BLOCK_ENTRIES,
@@ -81,6 +81,19 @@ class ProbeCase:
                 "input relation exceeds TypedRelationBlock entry limit; "
                 f"size={self.size}, row_width={width}, entries={self.size * width}"
             )
+
+
+def validate_probe_cases(cases: Sequence[ProbeCase]) -> tuple[ProbeCase, ...]:
+    """Normalize and bound the shared case collection before physical execution."""
+
+    if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
+        raise ValueError("cases must be a bounded sequence")
+    admitted = tuple(cases)
+    if not admitted or len(admitted) > MAX_CASES:
+        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
+    if any(not isinstance(case, ProbeCase) for case in admitted):
+        raise ValueError("cases must contain ProbeCase values")
+    return admitted
 
 
 def row_width(size: int, density: float) -> int:
@@ -193,12 +206,37 @@ def exact_reference_operation_count(
     left: TypedRelationBlock[bool],
     right: TypedRelationBlock[bool],
 ) -> int:
-    if left.column_axis != right.row_axis:
-        raise ValueError("operation count requires an exactly shared middle axis")
+    """Count reference CSR scalar operations after canonical operand admission."""
+
+    validate_boolean_operands(left, right)
     return sum(
         right.row_offsets[middle + 1] - right.row_offsets[middle]
         for middle in left.column_indices
     )
+
+
+def validate_boolean_block(block: TypedRelationBlock[bool]) -> None:
+    """Validate semantic admission shared by every physical Boolean packer."""
+
+    if not isinstance(block, TypedRelationBlock):
+        raise ValueError("Boolean probes require TypedRelationBlock values")
+    if block.semiring_name != "boolean":
+        raise ValueError("Boolean probes require the Boolean semiring")
+    if any(value is not True for value in block.values):
+        raise ValueError("Boolean probes require canonical stored Boolean support")
+
+
+def validate_boolean_operands(
+    left: TypedRelationBlock[bool], right: TypedRelationBlock[bool]
+) -> None:
+    """Validate the semantic contract shared by both physical probe arms."""
+
+    validate_boolean_block(left)
+    validate_boolean_block(right)
+    if left.subject != right.subject:
+        raise ValueError("Boolean probe operands must bind the same exact Fourfold subject")
+    if left.column_axis != right.row_axis:
+        raise ValueError("Boolean probe composition requires an exactly shared typed middle axis")
 
 
 def same_support(
@@ -247,5 +285,8 @@ __all__ = [
     "ratio",
     "row_width",
     "same_support",
+    "validate_boolean_block",
+    "validate_boolean_operands",
+    "validate_probe_cases",
     "write_report",
 ]

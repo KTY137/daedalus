@@ -37,11 +37,11 @@ from daedalus.twin.relation_blocks import TypedRelationBlock
 
 if __package__:
     from .boolean_probe_contract import (
-        MAX_CASES,
         MAX_REPEATS,
         MAX_WARMUP,
         ProbeCase,
         build_boolean_case,
+        validate_probe_cases,
         write_report,
     )
     from .cpu_bitset_baseline import (
@@ -53,11 +53,11 @@ if __package__:
     )
 else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.py``
     from boolean_probe_contract import (
-        MAX_CASES,
         MAX_REPEATS,
         MAX_WARMUP,
         ProbeCase,
         build_boolean_case,
+        validate_probe_cases,
         write_report,
     )
     from cpu_bitset_baseline import (
@@ -271,12 +271,7 @@ def run_probe(
     *,
     profile_repeats: int,
 ) -> dict[str, Any]:
-    if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
-        raise ValueError("cases must be a bounded sequence")
-    if not cases or len(cases) > MAX_CASES:
-        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
-    if any(not isinstance(case, ProbeCase) for case in cases):
-        raise ValueError("cases must contain ProbeCase values")
+    admitted_cases = validate_probe_cases(cases)
     profile_repeats = _validate_profile_repeats(profile_repeats)
     return {
         "schema": SCHEMA,
@@ -299,7 +294,7 @@ def run_probe(
         },
         "cases": [
             run_case(case, profile_repeats=profile_repeats)
-            for case in cases
+            for case in admitted_cases
         ],
     }
 

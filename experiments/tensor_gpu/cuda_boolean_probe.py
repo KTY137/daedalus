@@ -32,7 +32,6 @@ from daedalus.twin.semiring import BooleanSemiring
 
 if __package__:
     from .boolean_probe_contract import (
-        MAX_CASES,
         MIB,
         ProbeCase,
         SUPPORTED_DTYPES,
@@ -42,11 +41,13 @@ if __package__:
         padded,
         ratio,
         same_support,
+        validate_boolean_block,
+        validate_boolean_operands,
+        validate_probe_cases,
         write_report,
     )
 else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
     from boolean_probe_contract import (
-        MAX_CASES,
         MIB,
         ProbeCase,
         SUPPORTED_DTYPES,
@@ -56,6 +57,9 @@ else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
         padded,
         ratio,
         same_support,
+        validate_boolean_block,
+        validate_boolean_operands,
+        validate_probe_cases,
         write_report,
     )
 
@@ -153,8 +157,7 @@ def _dense_from_block(
     dtype: Any,
     padded_size: int,
 ) -> Any:
-    if block.semiring_name != "boolean" or any(value is not True for value in block.values):
-        raise ValueError("CUDA probe accepts canonical Boolean relation blocks only")
+    validate_boolean_block(block)
     dense = torch.zeros(
         (padded_size, padded_size),
         dtype=dtype,
@@ -179,16 +182,7 @@ def _validate_gpu_operands(
     left: TypedRelationBlock[bool],
     right: TypedRelationBlock[bool],
 ) -> None:
-    if not isinstance(left, TypedRelationBlock) or not isinstance(
-        right, TypedRelationBlock
-    ):
-        raise ValueError("GPU operands must be TypedRelationBlock values")
-    if left.semiring_name != "boolean" or right.semiring_name != "boolean":
-        raise ValueError("GPU probe currently supports the Boolean semiring only")
-    if left.subject != right.subject:
-        raise ValueError("GPU operands must bind the same exact Fourfold subject")
-    if left.column_axis != right.row_axis:
-        raise ValueError("GPU matrix composition requires an exact typed middle axis")
+    validate_boolean_operands(left, right)
     if len(left.row_axis.labels) != len(left.column_axis.labels):
         raise ValueError("current probe requires a square left block")
     if len(right.row_axis.labels) != len(right.column_axis.labels):
@@ -453,22 +447,17 @@ def run_probe(
     *,
     device_index: int = 0,
 ) -> dict[str, Any]:
-    if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
-        raise ValueError("cases must be a bounded sequence")
-    if not cases or len(cases) > MAX_CASES:
-        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
-    if any(not isinstance(case, ProbeCase) for case in cases):
-        raise ValueError("cases must contain ProbeCase values")
+    admitted_cases = validate_probe_cases(cases)
 
     try:
         torch = _load_torch()
-        device = _device_info(torch, device_index, cases[0].dtype_name)
+        device = _device_info(torch, device_index, admitted_cases[0].dtype_name)
     except ProbeBlocked as exc:
         return blocked_report(exc.reason, exc.detail)
 
     results: list[dict[str, Any]] = []
-    for case in cases:
-        if case.dtype_name != cases[0].dtype_name:
+    for case in admitted_cases:
+        if case.dtype_name != admitted_cases[0].dtype_name:
             raise ValueError("one run must use one dtype so device evidence is unambiguous")
         try:
             results.append(run_case(case, torch=torch, device_info=device))
