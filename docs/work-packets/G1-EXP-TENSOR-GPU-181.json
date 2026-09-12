@@ -1,0 +1,115 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-181",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "883647140d802c3bbe6f153fbba071c4caae016e",
+    "dependencies": "G1-EXP-TENSOR-GPU-180 and current main@79a6f79bd7762e53552e678a7c9e14678acf6a33"
+  },
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-181",
+  "title": "Synchronize the canonical Tensor kernel line with current main without changing Tensor semantics",
+  "date": "2026-09-12",
+  "status": "closed-integration",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "authority": "sole semantic authority"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "883647140d802c3bbe6f153fbba071c4caae016e",
+  "main_revision": "79a6f79bd7762e53552e678a7c9e14678acf6a33",
+  "integration_head": "6022f44a8c905b4184948f244734572fab4c1a16",
+  "objective": "Rebase the experiment's verification context onto current main using a normal two-parent merge while preserving the bounded Tensor/Fourfold gardening delta exactly and avoiding any parallel abstraction or history rewrite.",
+  "scope": {
+    "semantic_tensor_code_changed_by_this_packet": false,
+    "main_changes_integrated": [
+      ".gitattributes LFS metadata",
+      "Ikarus kitchen/orchestration and HTTP read changes",
+      "Ikarus continuation/evidence/work-packet documentation",
+      "contract/interface/orchestration tests",
+      "2026-09-12 session evidence"
+    ],
+    "tensor_delta_preserved": [
+      "fourfold-v2 workflow pruning",
+      "retired one-shot Tensor reintegration workflow removal",
+      "GPU-175..180 evidence",
+      "shared Boolean admission consolidation",
+      "settled CPU fanout/residency and relation-delta probe/test retirement"
+    ],
+    "forbidden": [
+      "new remote branch",
+      "archive/legacy-20260830 as a work target",
+      "force update or history rewrite",
+      "new Tensor/Fourfold semantic plane",
+      "automatic OwnerApproval, PromotionReceipt, merge, or Gate transition"
+    ]
+  },
+  "integration": {
+    "method": "normal two-parent merge commit",
+    "parents": [
+      "883647140d802c3bbe6f153fbba071c4caae016e",
+      "79a6f79bd7762e53552e678a7c9e14678acf6a33"
+    ],
+    "merge_tree": "b15d856c6d4014ff67d5d9b77591b5840b16c7a1",
+    "overlap_audit": "The branch delta from the previous merge-base touched only .github Tensor workflows, GPU work packets, experiments/tensor_gpu, and tests/twin. Current-main changes touched .gitattributes, daedalus, other docs, tests/contracts, tests/interfaces, tests/orchestration, and vault. The integration therefore preserves both disjoint change sets without choosing one semantic implementation over another."
+  },
+  "verification": {
+    "pre_integration_exact_head": {
+      "sha": "883647140d802c3bbe6f153fbba071c4caae016e",
+      "hosted_surfaces": [
+        {"workflow": "Ikarus tensor, Genesis and hopping contracts", "run_id": 34701750487, "conclusion": "success"},
+        {"workflow": "Fourfold, Tensor and integration contracts", "run_id": 34701750490, "conclusion": "success"},
+        {"workflow": "Tauri Desktop", "run_id": 34701750514, "conclusion": "success"}
+      ]
+    },
+    "post_integration_structural_acceptance": {
+      "base": "79a6f79bd7762e53552e678a7c9e14678acf6a33",
+      "head": "6022f44a8c905b4184948f244734572fab4c1a16",
+      "ahead_by": 52,
+      "behind_by": 0,
+      "merge_base_equals_current_main": true,
+      "observed_diff": "Only the pre-existing canonical Tensor gardening delta remains relative to current main."
+    },
+    "post_integration_hosted_ci_at_close": "No workflow run was yet observable for integration_head; no exact-head green claim is made.",
+    "full_repository_execution": "Complete suite remains workflow_dispatch-only and is not claimed by this packet."
+  },
+  "result": {
+    "summary": "The canonical Tensor branch now contains current main through a normal two-parent merge and is zero commits behind it while retaining the prior Tensor gardening delta.",
+    "gardener_effect": "Removes branch drift as a confounder without adding code, abstractions, compatibility shims, or archive copies.",
+    "negative_claim": "No speedup, Tensor-vs-Forest superiority, benchmark superiority, production adoption, OwnerApproval, PromotionReceipt, Ready-for-Review transition, merge-to-main, or Gate transition is established."
+  },
+  "rollback": {
+    "boundary": "Revert only the GPU-181 documentation commit if needed; the two-parent integration commit remains independently identifiable and does not rewrite earlier evidence."
+  },
+  "branch_hygiene": {
+    "canonical_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "history_rewritten": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "automatic_merge": false
+  },
+  "claim_boundary": {
+    "exact_head_green_claim": false,
+    "full_suite_green_claim": false,
+    "gpu_or_tensor_core_speedup": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge_to_main": false
+  }
+}
