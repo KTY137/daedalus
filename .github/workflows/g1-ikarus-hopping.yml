@@ -1,0 +1,88 @@
+name: Ikarus tensor, Genesis and hopping contracts
+
+# Read-only regression matrix. No candidate activation, publication or repository writes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/g1-ikarus-hopping.yml'
+      - 'daedalus/ariadne/**'
+      - 'daedalus/kernel/**'
+      - 'daedalus/spine/**'
+      - 'daedalus/twin/**'
+      - 'daedalus/runtimes/computer*'
+      - 'daedalus/orchestration/ikarus/**'
+      - 'daedalus/orchestration/genesis/**'
+      - 'daedalus/interfaces/http/web_api.py'
+      - 'tests/**'
+  pull_request:
+    paths:
+      - 'daedalus/**'
+      - 'tests/**'
+      - '.github/workflows/g1-ikarus-hopping.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hopping-contracts-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONHASHSEED: "0"
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e ".[test]"
+      - name: Portable contracts and existing regressions
+        shell: python
+        run: |
+          import subprocess, sys, os
+          paths = ['tests/twin/test_tensor_kernel.py', 'tests/twin/test_relation_contractions.py',
+            'tests/twin/test_wiki_reference.py', 'tests/twin/test_runtime_projection.py',
+            'tests/test_ariadne_owner_evaluator.py', 'tests/test_hopping_admission.py',
+            'tests/test_ikarus_hopping_dispatch.py', 'tests/runtimes/test_computer_genesis.py',
+            'tests/runtimes/test_computer_ariadne.py', 'tests/test_ikarus_computer_loop_ariadne.py',
+            'tests/kernel/test_computer_policy.py', 'tests/runtimes/test_computer_daedalus.py',
+            'tests/test_ikarus_computer_dispatch.py', 'tests/test_ikarus_computer_loop.py',
+            'tests/test_ikarus_computer_loop_adversarial.py', 'tests/interfaces/test_computer_configuration.py',
+            'tests/contracts/test_import_scc_hierarchy.py', 'tests/kernel/test_genesis_contracts.py',
+            'tests/kernel/test_genesis_effect_lease.py', 'tests/orchestration/test_genesis_materializer.py',
+            'tests/orchestration/test_genesis_service.py::test_legacy_item_collection_identity_and_evaluator_remain_frozen']
+          args = [sys.executable, '-m', 'pytest', '-q', *paths, '--tb=short', '--junitxml=portable.xml']
+          if os.name != 'nt':
+              args += ['-k', 'not real_campaign_through']
+          subprocess.run(args, check=True)
+      - name: Native Windows builder, failure, replay and file-effect regressions
+        if: runner.os == 'Windows'
+        shell: python
+        run: |
+          import subprocess, sys
+          subprocess.run([sys.executable, '-m', 'pytest', '-q',
+            'tests/orchestration/test_genesis_service.py',
+            'tests/orchestration/test_genesis_source_archive.py',
+            'tests/interfaces/test_genesis_cli.py', 'tests/interfaces/test_http_genesis.py',
+            'tests/runtimes/test_computer_service.py', 'tests/runtimes/test_computer_service_effect_state.py',
+            'tests/test_ariadne_leakage_boundary.py', 'tests/test_ariadne_test_evaluator.py',
+            '--tb=short', '--junitxml=native.xml'], check=True)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hopping-verification-${{ matrix.os }}
+          path: |
+            portable.xml
+            native.xml
+          retention-days: 7
+          if-no-files-found: warn

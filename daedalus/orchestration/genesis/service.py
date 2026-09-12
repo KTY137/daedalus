@@ -24,7 +24,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from daedalus.atomic import ExclusiveFileLock, FileLockUnavailable
 from daedalus.kernel.artifacts import ArtifactRef
@@ -86,6 +86,7 @@ from daedalus.spine.picker import resolve_spine_db_path
 from daedalus.storage import ArtifactStore, ArtifactStoreError
 from daedalus.twin.contracts import FourfoldSnapshot
 from daedalus.twin.reference_compiler import compile_reference_project
+from daedalus.twin.runtime_projection import compile_runtime_projection
 
 from .admission import (
     GENESIS_MAX_BYTES,
@@ -428,12 +429,17 @@ def _strict_report(payload: bytes) -> dict[str, Any]:
     return value
 
 
-def _evaluator_sha256(blueprint: str) -> str:
+def _evaluator_sha256(blueprint: str, *, tensor_kernel: bool = True) -> str:
     if blueprint == ITEM_COLLECTION_BLUEPRINT:
-        return _EVALUATOR_SHA256
-    if blueprint == KANBAN_BOARD_BLUEPRINT:
-        return _KANBAN_EVALUATOR_SHA256
-    raise GenesisError(f"unsupported persisted Genesis blueprint: {blueprint!r}")
+        base = _EVALUATOR_SHA256
+    elif blueprint == KANBAN_BOARD_BLUEPRINT:
+        base = _KANBAN_EVALUATOR_SHA256
+    else:
+        raise GenesisError(f"unsupported persisted Genesis blueprint: {blueprint!r}")
+    # Historical reports retain their old evaluator identity and never acquire
+    # a tensor claim through replay. New reports bind the additional evaluator.
+    return canonical_sha({"base_evaluator_sha256": base,
+                          "tensor_projection": "daedalus-runtime-tensor-projection/1"}) if tensor_kernel else base
 
 
 def _persisted_blueprint(
@@ -938,7 +944,9 @@ def _verify_terminal_genesis_chain(
         raise GenesisError("green Genesis report lacks Fourfold/round-trip artifacts")
 
     persisted_blueprint = _persisted_blueprint(policy, product)
-    expected_evaluator_sha256 = _evaluator_sha256(persisted_blueprint)
+    expected_evaluator_sha256 = _evaluator_sha256(
+        persisted_blueprint, tensor_kernel=round_trip is not None and "tensor_kernel" in round_trip.checks
+    )
 
     lineage = request.lineage_id
     if any(
@@ -1291,10 +1299,24 @@ def _run_command(
     workspace: Path,
     switch: KillSwitch,
     timeout_s: float,
+    caller_checkpoint: Callable[[], None] | None = None,
 ) -> _CommandObservation:
     from daedalus.orchestration.execution.attempts import command_gate
 
     switch.checkpoint()
+    if caller_checkpoint is not None:
+        caller_checkpoint()
+
+    def should_stop() -> bool:
+        if switch.should_stop():
+            return True
+        try:
+            if caller_checkpoint is not None:
+                caller_checkpoint()
+        except Exception:
+            return True  # A broken/cancelled policy probe is fail-closed.
+        return False
+
     displayed = tuple(str(part) for part in argv)
     actual = resolve_python_argv(displayed)
     interpreter = (
@@ -1321,7 +1343,7 @@ def _run_command(
             branch=f"genesis/{task_id}",
             base_revision=candidate_tree_sha256,
             task=task,
-            is_cancelled=switch.should_stop,
+            is_cancelled=should_stop,
         )
     )
     raw_output = result.output.encode("utf-8", errors="replace")
@@ -1362,7 +1384,10 @@ def _evidence_item(
     certified_template = observation.name == "certified_template_conformance"
     kanban_template = observation.name == "kanban_template_conformance"
     cli_black_box = observation.name == "cli_black_box"
-    if kanban_template:
+    if observation.name == "tensor_kernel":
+        body["schema"] = "daedalus-genesis-tensor-observation/1"
+        body["kernel_owned"] = True
+    elif kanban_template:
         body["schema"] = "daedalus-genesis-kanban-template-conformance-observation/1"
         body["kernel_owned"] = True
     elif certified_template:
@@ -2106,8 +2131,14 @@ def _genesis_operation_sha(
     request: GenesisRequest,
     bound: BoundGenesisPlan,
     files: Mapping[str, bytes],
+    *,
+    tensor_kernel: bool = False,
 ) -> str:
-    """Bind a lease to stable operation material, never invocation timestamps."""
+    """Bind stable operation material; keep the historical profile reproducible.
+
+    Actual new runs explicitly select tensor_kernel=True. The default preserves
+    the frozen pre-tensor operation identity for retained evidence and tooling.
+    """
 
     toolchain = bound.toolchain
     rendered_files = [
@@ -2135,7 +2166,7 @@ def _genesis_operation_sha(
                 "rendered_files": rendered_files,
                 "commands": commands,
                 "python_version": toolchain.versions["python"],
-                "evaluator_sha256": _EVALUATOR_SHA256,
+                "evaluator_sha256": _evaluator_sha256(ITEM_COLLECTION_BLUEPRINT, tensor_kernel=tensor_kernel),
                 "max_command_output_bytes": MAX_COMMAND_OUTPUT_BYTES,
                 "max_report_bytes": MAX_REPORT_BYTES,
                 "timeout_s": GENESIS_TIMEOUT_S,
@@ -2156,7 +2187,7 @@ def _genesis_operation_sha(
             "rendered_files": rendered_files,
             "commands": commands,
             "python_version": toolchain.versions["python"],
-            "evaluator_sha256": _KANBAN_EVALUATOR_SHA256,
+            "evaluator_sha256": _evaluator_sha256(KANBAN_BOARD_BLUEPRINT, tensor_kernel=tensor_kernel),
             "max_command_output_bytes": MAX_COMMAND_OUTPUT_BYTES,
             "max_report_bytes": MAX_REPORT_BYTES,
             "timeout_s": GENESIS_TIMEOUT_S,
@@ -2210,9 +2241,14 @@ def run_genesis(
     stack: object | None = None,
     request_key: object | None = None,
     repo_root: str | os.PathLike[str] | None = None,
+    caller_checkpoint: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Build one isolated, evidenced candidate or return a structured refusal."""
 
+    if caller_checkpoint is not None:
+        if not callable(caller_checkpoint):
+            raise ValueError("caller_checkpoint must be callable")
+        caller_checkpoint()
     request = normalize_genesis_request(
         prompt,
         target=target,
@@ -2256,7 +2292,7 @@ def run_genesis(
         python_version=".".join(str(part) for part in sys.version_info[:3]),
         created_at=created_at,
     )
-    operation_sha = _genesis_operation_sha(request, bound, files)
+    operation_sha = _genesis_operation_sha(request, bound, files, tensor_kernel=True)
 
     try:
         genesis_control = _ensure_genesis_switch(paths.repo_root, request.run_id)
@@ -2501,6 +2537,7 @@ def run_genesis(
                     workspace=gate_workspace,
                     switch=switch,
                     timeout_s=30,
+                    caller_checkpoint=caller_checkpoint,
                 )
             )
 
@@ -2526,6 +2563,7 @@ def run_genesis(
                     workspace=cli_workspace,
                     switch=switch,
                     timeout_s=30,
+                    caller_checkpoint=caller_checkpoint,
                 )
             )
 
@@ -2579,6 +2617,34 @@ def run_genesis(
         except Exception as exc:  # retained as negative evidence below
             compile_error = f"{type(exc).__name__}: {exc}"
 
+        tensor_started = time.monotonic()
+        tensor_projection = None
+        tensor_error = compile_error
+        if compiled is not None:
+            try:
+                switch.checkpoint()
+                if caller_checkpoint is not None:
+                    caller_checkpoint()
+                tensor_projection = compile_runtime_projection(
+                    compiled, candidate_tree_sha256=candidate_tree.ref.sha256,
+                )
+            except Exception as exc:
+                tensor_error = f"{type(exc).__name__}: tensor projection refused"
+        tensor_observation = _CommandObservation(
+            name="tensor_kernel", candidate_tree_sha256=candidate_tree.ref.sha256,
+            argv=("kernel", "compile_relation_blocks", "boolean"),
+            returncode=0 if tensor_projection is not None else 1,
+            output=canonical_json(tensor_projection) if tensor_projection is not None else str(tensor_error),
+            output_truncated=False, timed_out=False, cancelled=False,
+            wall_time_ms=max(0, round((time.monotonic() - tensor_started) * 1000)),
+            containment={"contained": True, "mechanism": "in-process read-only tensor evaluator"},
+        )
+        observations = (*observations, tensor_observation)
+        command_items = (*command_items, _evidence_item(
+            tensor_observation, request=request, candidate=candidate_tree.ref,
+            store=artifact_store, collected_at=collected_at,
+        ))
+        wall_time_ms = max(0, int(round((time.monotonic() - started) * 1000)))
         all_commands_passed = all(item.verdict == "passed" for item in command_items)
         if compiled is not None and all_commands_passed:
             packet = assemble_fourfold_evidence_packet(
@@ -2670,6 +2736,7 @@ def run_genesis(
                 ),
                 "test": observation_by_name["test"].passed,
                 "type": compiled.snapshot.plane_map["type"].status == "complete",
+                "tensor_kernel": tensor_projection is not None,
             }
             if request.target == "cli":
                 checks["cli_black_box"] = observation_by_name["cli_black_box"].passed
@@ -2817,6 +2884,8 @@ def run_genesis(
                 "automatic_promotion": False,
             },
         }
+        if caller_checkpoint is not None:
+            caller_checkpoint()
         report_ref = _persist_report(source_store, result)
         ledger.complete(
             prepared.begin.start,

@@ -1045,7 +1045,11 @@ _ARIADNE_GRANT_FACTS_DE = (
     "ein, Invariante 1); das Ergebnis ist eine Nominierung mit Hashes, die nie angewendet wird — anwenden bleibt "
     "deine versiegelte Entscheidung (Invariante 5). Der Evaluator ist der eingefrorene Exakt-Vergleich aus "
     "G1-SELF-01: eine Nominierung beweist Isolation, Provenienz, Budgetgleichheit und Nichtanwendung, nicht "
-    "dass die Änderung besser ist. Pfade innerhalb der Leakage-Grenze (Spine, Kernel-Policy, Plan, "
+    "dass die Änderung besser ist. Optional `evaluation=owner-tests` verwendet nur das explizit von dir "
+    "außerhalb des Checkouts abgelegte Testprofil; der Planner darf den Testbefehl nicht wählen. Dabei läuft "
+    "Kandidatencode im Prüfprozess: Selbstbericht, kein Netzwerksandbox-Nachweis, Umgebung nur per Denylist "
+    "bereinigt. Das Profil verlangt eine gesonderte Risiko-Bestätigung; ohne Profil wird verweigert. "
+    "Pfade innerhalb der Leakage-Grenze (Spine, Kernel-Policy, Plan, "
     "Amendment-Kette, AGENTS.md, die Kampagne selbst) werden vor jeder Wirkung verweigert. Jede Ausführung "
     "wird wie jedes Werkzeug geleast und belegt; ein Subjekt, das ein verlinkter Git-Worktree ist, wird von "
     "der Kampagne verweigert.")
@@ -1273,6 +1277,22 @@ def campaign_runner():
     return _CAMPAIGN_RUNNER_FACTORY()
 
 
+_GENESIS_RUNNER_FACTORY: Any = None
+
+
+def register_genesis_runner(factory: Any) -> None:
+    global _GENESIS_RUNNER_FACTORY
+    if factory is not None and not callable(factory):
+        raise ComputerLoopRefused("Genesis runner factory must be callable")
+    if factory is not None and _GENESIS_RUNNER_FACTORY is not None and factory is not _GENESIS_RUNNER_FACTORY:
+        raise ComputerLoopRefused("a Genesis runner factory is already registered; unregister it first")
+    _GENESIS_RUNNER_FACTORY = factory
+
+
+def genesis_runner():
+    return _GENESIS_RUNNER_FACTORY() if _GENESIS_RUNNER_FACTORY is not None else None
+
+
 def head_revision(repo_root: str) -> str:
     """The subject's exact HEAD through a bounded, read-only ``git rev-parse``."""
     import subprocess
@@ -1303,12 +1323,12 @@ def project_readers():
 
 
 def _run_objective(project: str | None, root: Path, objective: str,
-                   cancelled: Callable[[], bool] | None) -> Iterator[tuple[str, dict[str, Any]]]:
+                   cancelled: Callable[[], bool] | None, *, hopping: bool = False) -> Iterator[tuple[str, dict[str, Any]]]:
     """Execute one objective through the loop; the only place a service is built for a task."""
     from ... import core
     from ...runtimes.computer import ComputerService
     service = ComputerService(root, project=project, project_readers=project_readers(),
-                              campaign_runner=campaign_runner())
+                              campaign_runner=campaign_runner(), genesis_runner=genesis_runner(), hopping=hopping)
     try:
         for event, payload in computer_events(root, objective, service=service, cancelled=cancelled):
             if event == "final":
@@ -1338,6 +1358,51 @@ def conversation_events(project: str | None, message: str, *,
                 raise ComputerLoopRefused("Use /computer run <objective>")
             yield from _run_objective(project, root, objective, cancelled)
             return
+        if verb.casefold() == "hop":
+            if not argument.strip() or project is None:
+                raise ComputerLoopRefused("Use /computer hop <objective> from a registered project conversation")
+            objective = ("Mirrored self-Renovation: " + argument.strip() +
+                         " Observe the registered project, propose a bounded Ariadne repair with evaluation=owner-tests, "
+                         "and report the candidate and hopping blockers. Never change the live checkout, evaluator, "
+                         "policy or promotion mechanism. Stop after a nomination or a refusal; do not claim activation.")
+            yield from _run_objective(project, root, objective, cancelled, hopping=True)
+            return
+        if verb.casefold() in {"enable", "disable"} and [w.casefold() for w in argument.split()[:1]] == ["genesis"]:
+            from ...interfaces.computer_configuration import configure_computer
+            from ...kernel.policy.computer import GENESIS_TOOLS
+            from ...runtimes.computer import computer_status
+            words = argument.split()
+            confirmed = "confirm-builds" in words
+            if [w.casefold() for w in words if w != "confirm-builds"] != ["genesis"]:
+                raise ComputerLoopRefused("Use /computer enable genesis confirm-builds or /computer disable genesis")
+            caps = computer_status(root, project=project, project_readers=project_readers(),
+                                   campaign_runner=campaign_runner(), genesis_runner=genesis_runner())
+            current, digest = caps.get("configuration"), caps.get("policy_sha256")
+            if not isinstance(current, dict) or not digest:
+                raise ComputerLoopRefused("configure /computer setup first")
+            enabling = verb.casefold() == "enable"
+            if enabling and not confirmed:
+                yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
+                    assistant=("Genesis baut isolierte Kandidaten aus unterstützten Blueprints und führt Build-, Test-, "
+                               "Runtime- und Tensor-Prüfungen aus. Es veröffentlicht nichts und ersetzt nicht die laufende "
+                               "Installation. Freigabe: `/computer enable genesis confirm-builds`. Nichts wurde geändert."),
+                    computer={"genesis_tools_change": "confirmation_required", "expected_policy_sha256": digest})
+                return
+            present = all(t in current.get("tools", []) for t in GENESIS_TOOLS)
+            if enabling == present:
+                configured = {"policy_sha256": digest}
+                change = "unchanged"
+            else:
+                payload = dict(current)
+                payload["tools"] = [t for t in current.get("tools", []) if t not in GENESIS_TOOLS]
+                if enabling:
+                    payload["tools"].extend(GENESIS_TOOLS)
+                configured = configure_computer(root, payload, owner_confirmed=True, expected_policy_sha256=digest)
+                change = "applied"
+            yield "final", core.envelope(project, intent="computer", shell="hand", provider_used="deterministic",
+                assistant=f"Genesis-Werkzeug: {'freigegeben' if enabling else 'gesperrt'} ({change}); keine Veröffentlichung oder Selbstaktivierung.",
+                computer={**configured, "genesis_tools": enabling, "genesis_tools_change": change})
+            return
         if verb.casefold() in {"enable", "disable"} and [w.casefold() for w in argument.split()[:1]] == ["ariadne"]:
             # G1-IKARUS-47: grant or revoke the campaign door. Its own one-use
             # confirmation: once granted, model-authored edits are EXECUTED by
@@ -1355,7 +1420,7 @@ def conversation_events(project: str | None, message: str, *,
             if [word.casefold() for word in words] != ["ariadne"]:
                 raise ComputerLoopRefused("Use /computer enable ariadne [confirm-campaigns] or /computer disable ariadne")
             caps = computer_status(root, project=project, project_readers=project_readers(),
-                                   campaign_runner=campaign_runner())
+                                   campaign_runner=campaign_runner(), genesis_runner=genesis_runner())
             current, digest = caps.get("configuration"), caps.get("policy_sha256")
             if not isinstance(current, dict) or not digest:
                 raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
@@ -1408,7 +1473,7 @@ def conversation_events(project: str | None, message: str, *,
             if [word.casefold() for word in words] != ["daedalus"]:
                 raise ComputerLoopRefused("Use /computer enable daedalus [confirm-remote] or /computer disable daedalus")
             caps = computer_status(root, project=project, project_readers=project_readers(),
-                                   campaign_runner=campaign_runner())
+                                   campaign_runner=campaign_runner(), genesis_runner=genesis_runner())
             current, digest = caps.get("configuration"), caps.get("policy_sha256")
             if not isinstance(current, dict) or not digest:
                 raise ComputerLoopRefused("computer assistance needs an owner-configured policy first (/computer setup)")
@@ -1616,7 +1681,7 @@ def conversation_events(project: str | None, message: str, *,
         if objective.casefold() in {"status", "help"}:
             from ...runtimes.computer import computer_status
             caps = computer_status(root, project=project, project_readers=project_readers(),
-                                   campaign_runner=campaign_runner())
+                                   campaign_runner=campaign_runner(), genesis_runner=genesis_runner())
             enabled = caps.get("enabled") is True
             summary = ("Computer assistance is configured. Use /computer followed by your task."
                        if enabled else
@@ -1650,7 +1715,8 @@ def conversation_events(project: str | None, message: str, *,
                         "`/computer schedule <ISO8601> <task>`, `/computer scheduled`, `/computer run-due`, "
                         "`/computer planner <provider> [model] [confirm-remote]`, "
                         "`/computer run <objective>`, `/computer enable daedalus`, `/computer disable daedalus`, "
-                        "`/computer enable ariadne confirm-campaigns`, `/computer disable ariadne`.")
+                        "`/computer enable ariadne confirm-campaigns`, `/computer disable ariadne`, "
+                        "`/computer enable genesis confirm-builds`, `/computer disable genesis`, `/computer hop <objective>`.")
             yield "final", core.envelope(project, intent="computer", shell="hand", assistant=summary,
                                          provider_used="deterministic", computer={"capabilities": caps})
             return

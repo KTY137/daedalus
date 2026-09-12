@@ -40,11 +40,13 @@ DAEDALUS_TOOLS = ("daedalus.status", "daedalus.structure", "daedalus.slice",
 # ``daedalus.runtimes.computer_ariadne``; the grant needs its own one-use
 # confirmation (``/computer enable ariadne confirm-campaigns``).
 ARIADNE_TOOLS = ("daedalus.ariadne_campaign",)
+# Separate owner build grant, never part of the read-only Daedalus family.
+GENESIS_TOOLS = ("daedalus.genesis",)
 #: Which arguments the lexical path rule of ``ComputerPolicy.admit`` applies to.
 _DEFAULT_PATH_ARGUMENT_KEYS = ("path", "source", "destination", "template", "before", "after")
 _PATH_ARGUMENT_KEYS = {"daedalus.ariadne_campaign": ("target_path",)}
 ALL_COMPUTER_TOOLS = frozenset(FILE_TOOLS + VISION_TOOLS + DESKTOP_TOOLS + BROWSER_TOOLS + DAEDALUS_TOOLS
-                               + ARIADNE_TOOLS)
+                               + ARIADNE_TOOLS + GENESIS_TOOLS)
 # v0.1.6 release fence.  ``Path.resolve`` plus a later pathname operation is
 # not a write-root boundary: another process can replace a checked ancestor
 # with a symlink/junction between those two operations.  G1-IKARUS-24/25

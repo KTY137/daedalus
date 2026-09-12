@@ -217,7 +217,7 @@ CURRENT_COMPONENTS_SHA256 = (
 # ``configuration``. It joins no non-trivial SCC: the component count, the
 # maximum component size and the component digest asserted below are all
 # unchanged, which is the claim that matters.
-CENSUS_MODULES = 522  # re-measured 2026-09-10 (G1-SETTINGS-01)
+CENSUS_MODULES = 526  # re-measured 2026-09-11 (G1-IKARUS-HOPPING-01)
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -543,7 +543,10 @@ CENSUS_MODULES = 522  # re-measured 2026-09-10 (G1-SETTINGS-01)
 # are all unchanged, which is the claim that matters -- the projection is a
 # leaf that imports downward and is imported by nothing in production, so
 # none of the three edges can close a cycle.
-CENSUS_EDGES = 2110  # re-measured 2026-09-11 (G1-SETTINGS-02)
+# G1-IKARUS-HOPPING-01: four leaf adapters/projections, +18 resolved imports.
+# Measured 526 modules, 2128 edges; fourteen components, maximum nineteen,
+# and CURRENT_COMPONENTS_SHA256 remain byte-identical. No cycle is accepted.
+CENSUS_EDGES = 2128  # re-measured 2026-09-11 (G1-IKARUS-HOPPING-01)
 
 
 def _module_name(path: str) -> str:

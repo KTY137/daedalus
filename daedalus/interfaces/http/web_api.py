@@ -230,11 +230,12 @@ def _campaign_runner():
 
     from ...ariadne import run_campaign
     from ...ariadne.campaign import protected_prefix_for
+    from ...ariadne.owner_evaluator import load_owner_test_profile
     from ...orchestration.ikarus.computer_loop import head_revision
     from ...runtimes.computer_ariadne import CampaignRunner
 
     return CampaignRunner(run_campaign=run_campaign, head_revision=head_revision,
-                          protected_prefix_for=protected_prefix_for)
+                          protected_prefix_for=protected_prefix_for, load_test_profile=load_owner_test_profile)
 
 
 def _register_campaign_runner() -> None:
@@ -244,6 +245,20 @@ def _register_campaign_runner() -> None:
 
 
 _register_campaign_runner()
+
+
+def _genesis_computer_runner():
+    from ...orchestration.genesis.service import run_genesis
+    from ...runtimes.computer_genesis import GenesisRunner
+    return GenesisRunner(run_genesis=run_genesis)
+
+
+def _register_genesis_computer_runner() -> None:
+    from ...orchestration.ikarus import computer_loop
+    computer_loop.register_genesis_runner(_genesis_computer_runner)
+
+
+_register_genesis_computer_runner()
 
 
 def _project_list() -> dict[str, Any]:
