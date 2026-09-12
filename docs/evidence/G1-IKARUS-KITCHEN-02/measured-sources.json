@@ -1,0 +1,58 @@
+﻿{
+    "base_revision":  "c4a147969fcad94e5481c48ff48cb6b22efee9c0",
+    "scope":  "local builder verification; no release or canonical runtime admission",
+    "files":  [
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/__main__.py",
+                      "sha256":  "456b4cec5ef27256a4f680d374946b2646eee52b8520d4e46c5983a27dca2a16"
+                  },
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/chef.py",
+                      "sha256":  "e4af2513649c3da8c4906d176d7e38f71a2beed719776f067976a4e275f82816"
+                  },
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/greymatter.py",
+                      "sha256":  "23a06befd650444fbaf27ba6e223f95a4f2c86e321052455e47a8e17d9cce9b8"
+                  },
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/ledger.py",
+                      "sha256":  "64cb007e41e51253c30396d29d3ea6a7180795a5a23d39c12934bf48aacfb673"
+                  },
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/orders.py",
+                      "sha256":  "0554f1e2566b3423fac60ba958a216013a0a603b84427f4220919bdb3f6d01ca"
+                  },
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/souschef.py",
+                      "sha256":  "781fa6f9bfd23076a5e564b73c7c233f43ee433ef2fc1b2e2e638d45f9e3bca0"
+                  },
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/toolchain.py",
+                      "sha256":  "7f1c72c66afbc2d20a4fde6ddcfc9856d959ccc70fa8f2f6c77918da6ab452f5"
+                  },
+                  {
+                      "path":  "daedalus/orchestration/ikarus/kitchen/waiter.py",
+                      "sha256":  "457746b80660b191d4ac50a2580807fdd4ea1a7fa9df17fbaa95ad200190b422"
+                  },
+                  {
+                      "path":  "tests/orchestration/test_ikarus_greymatter_integrity.py",
+                      "sha256":  "45cf962212958d042707b5acae7ba35fe1b21b7c73223690406385cf41f05575"
+                  },
+                  {
+                      "path":  "tests/orchestration/test_ikarus_kitchen.py",
+                      "sha256":  "a5a3a9b7a890928801ac67e87275bb38f6988e127a03dc965902ff9ee706b70c"
+                  },
+                  {
+                      "path":  "tests/orchestration/test_ikarus_kitchen_retention.py",
+                      "sha256":  "1541d74220a212c1557ac161bb9d677029acd12932b009029c318ece8ff5ee07"
+                  },
+                  {
+                      "path":  "tests/orchestration/test_ikarus_kitchen_toolchain_integrity.py",
+                      "sha256":  "8fa9de737cbaff3320783336a70291553968ea98b42b3d7bfd74b23200576269"
+                  },
+                  {
+                      "path":  "tests/orchestration/test_ikarus_souschef.py",
+                      "sha256":  "1d40ec3248ae6eb88ec5f3672eb7faa5cd1a6f15dde84223732f5ba67787161b"
+                  }
+              ]
+}

@@ -1,0 +1,473 @@
+{
+  "startedAt": "2026-09-12T13:44:57.508Z",
+  "tool": "native Chromium CDP; fresh temporary profile",
+  "candidate": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\improved-reconstructed",
+  "checks": [
+    {
+      "name": "requested_preview_serves_app",
+      "passed": false,
+      "details": {
+        "title": "Directory listing for /",
+        "text": "Directory listing for /",
+        "inputs": 0,
+        "buttons": 0
+      }
+    },
+    {
+      "name": "fresh_storage",
+      "passed": true,
+      "details": []
+    },
+    {
+      "name": "initial_list_empty",
+      "passed": true,
+      "details": "Shopping List\n  Add Item Clear List"
+    },
+    {
+      "name": "add_button",
+      "passed": true,
+      "details": "Shopping List\n  Add Item Clear List\nCDP Test Apples x 3"
+    },
+    {
+      "name": "quantity_default_after_add",
+      "passed": false,
+      "details": {
+        "quantityInput": "",
+        "items": [
+          "CDP Test Apples x 3"
+        ]
+      }
+    },
+    {
+      "name": "add_enter",
+      "passed": true,
+      "details": [
+        "CDP Test Apples x 3",
+        "CDP Test Bread x "
+      ]
+    },
+    {
+      "name": "mark_completed",
+      "passed": true,
+      "details": "[{\"text\":\"CDP Test Apples x 3\",\"completed\":true},{\"text\":\"CDP Test Bread x \",\"completed\":false}]"
+    },
+    {
+      "name": "reload_persists_items_and_completion",
+      "passed": true,
+      "details": "[{\"text\":\"CDP Test Apples x 3\",\"completed\":true},{\"text\":\"CDP Test Bread x \",\"completed\":false}]"
+    },
+    {
+      "name": "delete_control_available",
+      "passed": false,
+      "details": [
+        {
+          "tag": "INPUT",
+          "id": "item-input",
+          "type": "text",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "INPUT",
+          "id": "quantity-input",
+          "type": "number",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Add Item",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Clear List",
+          "aria": null
+        }
+      ]
+    },
+    {
+      "name": "quantity_control_available",
+      "passed": true,
+      "details": [
+        {
+          "tag": "INPUT",
+          "id": "item-input",
+          "type": "text",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "INPUT",
+          "id": "quantity-input",
+          "type": "number",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Add Item",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Clear List",
+          "aria": null
+        }
+      ]
+    },
+    {
+      "name": "clear_list_control_available",
+      "passed": true,
+      "details": [
+        {
+          "tag": "INPUT",
+          "id": "item-input",
+          "type": "text",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "INPUT",
+          "id": "quantity-input",
+          "type": "number",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Add Item",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Clear List",
+          "aria": null
+        }
+      ]
+    },
+    {
+      "name": "mobile_no_horizontal_overflow",
+      "passed": true,
+      "details": {
+        "scrollWidth": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "name": "clear_list",
+      "passed": true,
+      "details": "[]"
+    },
+    {
+      "name": "clear_persists_after_reload",
+      "passed": true,
+      "details": "[]"
+    },
+    {
+      "name": "javascript_runtime_errors",
+      "passed": false,
+      "details": [
+        {
+          "exceptionId": 1,
+          "text": "Uncaught",
+          "lineNumber": 15,
+          "columnNumber": 45,
+          "scriptId": "7",
+          "url": "http://127.0.0.1:51355/app.js",
+          "stackTrace": {
+            "callFrames": [
+              {
+                "functionName": "",
+                "scriptId": "7",
+                "url": "http://127.0.0.1:51355/app.js",
+                "lineNumber": 15,
+                "columnNumber": 45
+              }
+            ]
+          },
+          "exception": {
+            "type": "object",
+            "subtype": "error",
+            "className": "TypeError",
+            "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+            "objectId": "2335754455102004348.3.1",
+            "preview": {
+              "type": "object",
+              "subtype": "error",
+              "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+              "overflow": false,
+              "properties": [
+                {
+                  "name": "stack",
+                  "type": "string",
+                  "value": "TypeError: Cannot read properties of null (reading…<anonymous> (http://127.0.0.1:51355/app.js:16:46)"
+                },
+                {
+                  "name": "message",
+                  "type": "string",
+                  "value": "Cannot read properties of null (reading 'addEventListener')"
+                }
+              ]
+            }
+          },
+          "executionContextId": 3
+        },
+        {
+          "exceptionId": 2,
+          "text": "Uncaught",
+          "lineNumber": 15,
+          "columnNumber": 45,
+          "scriptId": "7",
+          "url": "http://127.0.0.1:51355/app.js",
+          "stackTrace": {
+            "callFrames": [
+              {
+                "functionName": "",
+                "scriptId": "7",
+                "url": "http://127.0.0.1:51355/app.js",
+                "lineNumber": 15,
+                "columnNumber": 45
+              }
+            ]
+          },
+          "exception": {
+            "type": "object",
+            "subtype": "error",
+            "className": "TypeError",
+            "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+            "objectId": "2335754455102004348.4.1",
+            "preview": {
+              "type": "object",
+              "subtype": "error",
+              "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+              "overflow": false,
+              "properties": [
+                {
+                  "name": "stack",
+                  "type": "string",
+                  "value": "TypeError: Cannot read properties of null (reading…<anonymous> (http://127.0.0.1:51355/app.js:16:46)"
+                },
+                {
+                  "name": "message",
+                  "type": "string",
+                  "value": "Cannot read properties of null (reading 'addEventListener')"
+                }
+              ]
+            }
+          },
+          "executionContextId": 4
+        },
+        {
+          "exceptionId": 3,
+          "text": "Uncaught",
+          "lineNumber": 15,
+          "columnNumber": 45,
+          "scriptId": "7",
+          "url": "http://127.0.0.1:51355/app.js",
+          "stackTrace": {
+            "callFrames": [
+              {
+                "functionName": "",
+                "scriptId": "7",
+                "url": "http://127.0.0.1:51355/app.js",
+                "lineNumber": 15,
+                "columnNumber": 45
+              }
+            ]
+          },
+          "exception": {
+            "type": "object",
+            "subtype": "error",
+            "className": "TypeError",
+            "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+            "objectId": "2335754455102004348.5.1",
+            "preview": {
+              "type": "object",
+              "subtype": "error",
+              "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+              "overflow": false,
+              "properties": [
+                {
+                  "name": "stack",
+                  "type": "string",
+                  "value": "TypeError: Cannot read properties of null (reading…<anonymous> (http://127.0.0.1:51355/app.js:16:46)"
+                },
+                {
+                  "name": "message",
+                  "type": "string",
+                  "value": "Cannot read properties of null (reading 'addEventListener')"
+                }
+              ]
+            }
+          },
+          "executionContextId": 5
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "exceptionId": 1,
+      "text": "Uncaught",
+      "lineNumber": 15,
+      "columnNumber": 45,
+      "scriptId": "7",
+      "url": "http://127.0.0.1:51355/app.js",
+      "stackTrace": {
+        "callFrames": [
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:51355/app.js",
+            "lineNumber": 15,
+            "columnNumber": 45
+          }
+        ]
+      },
+      "exception": {
+        "type": "object",
+        "subtype": "error",
+        "className": "TypeError",
+        "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+        "objectId": "2335754455102004348.3.1",
+        "preview": {
+          "type": "object",
+          "subtype": "error",
+          "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+          "overflow": false,
+          "properties": [
+            {
+              "name": "stack",
+              "type": "string",
+              "value": "TypeError: Cannot read properties of null (reading…<anonymous> (http://127.0.0.1:51355/app.js:16:46)"
+            },
+            {
+              "name": "message",
+              "type": "string",
+              "value": "Cannot read properties of null (reading 'addEventListener')"
+            }
+          ]
+        }
+      },
+      "executionContextId": 3
+    },
+    {
+      "exceptionId": 2,
+      "text": "Uncaught",
+      "lineNumber": 15,
+      "columnNumber": 45,
+      "scriptId": "7",
+      "url": "http://127.0.0.1:51355/app.js",
+      "stackTrace": {
+        "callFrames": [
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:51355/app.js",
+            "lineNumber": 15,
+            "columnNumber": 45
+          }
+        ]
+      },
+      "exception": {
+        "type": "object",
+        "subtype": "error",
+        "className": "TypeError",
+        "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+        "objectId": "2335754455102004348.4.1",
+        "preview": {
+          "type": "object",
+          "subtype": "error",
+          "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+          "overflow": false,
+          "properties": [
+            {
+              "name": "stack",
+              "type": "string",
+              "value": "TypeError: Cannot read properties of null (reading…<anonymous> (http://127.0.0.1:51355/app.js:16:46)"
+            },
+            {
+              "name": "message",
+              "type": "string",
+              "value": "Cannot read properties of null (reading 'addEventListener')"
+            }
+          ]
+        }
+      },
+      "executionContextId": 4
+    },
+    {
+      "exceptionId": 3,
+      "text": "Uncaught",
+      "lineNumber": 15,
+      "columnNumber": 45,
+      "scriptId": "7",
+      "url": "http://127.0.0.1:51355/app.js",
+      "stackTrace": {
+        "callFrames": [
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:51355/app.js",
+            "lineNumber": 15,
+            "columnNumber": 45
+          }
+        ]
+      },
+      "exception": {
+        "type": "object",
+        "subtype": "error",
+        "className": "TypeError",
+        "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+        "objectId": "2335754455102004348.5.1",
+        "preview": {
+          "type": "object",
+          "subtype": "error",
+          "description": "TypeError: Cannot read properties of null (reading 'addEventListener')\n    at HTMLDocument.<anonymous> (http://127.0.0.1:51355/app.js:16:46)",
+          "overflow": false,
+          "properties": [
+            {
+              "name": "stack",
+              "type": "string",
+              "value": "TypeError: Cannot read properties of null (reading…<anonymous> (http://127.0.0.1:51355/app.js:16:46)"
+            },
+            {
+              "name": "message",
+              "type": "string",
+              "value": "Cannot read properties of null (reading 'addEventListener')"
+            }
+          ]
+        }
+      },
+      "executionContextId": 5
+    }
+  ],
+  "screenshots": [
+    "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\improved-browser-v2\\01-existing-preview-port8765.png",
+    "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\improved-browser-v2\\02-candidate-after-reload.png",
+    "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\improved-browser-v2\\03-candidate-mobile.png",
+    "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\improved-browser-v2\\04-after-clear.png"
+  ],
+  "requestedUrl": "http://127.0.0.1:8765",
+  "isolatedCandidateUrl": "http://127.0.0.1:51355/",
+  "sourceHashes": {
+    "index.html": "fd17200140cd428f7f8fd7175f8e10aea79c2ba310403864a664bfccfbf68271",
+    "app.js": "fdd2e9811638ca33e2ab2ba2526172eae31254103c68d3b5a4602bcf8613b283",
+    "styles.css": "583f86629ea4274908e353b746ddd9aca9170a25330183c6982e3a82994d4384",
+    "daedalus-candidate.json": "d745ee040ce37456f1dc32abf6817791cacfe0ff5fe59e79c53375288d3a650e"
+  },
+  "finishedAt": "2026-09-12T13:44:58.204Z"
+}

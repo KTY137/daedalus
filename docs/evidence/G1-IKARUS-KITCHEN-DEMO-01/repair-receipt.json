@@ -1,0 +1,133 @@
+{
+  "schema": "daedalus-kitchen-demo-repair/1",
+  "classification": "EXPERIMENT",
+  "packet": "G1-IKARUS-KITCHEN-DEMO-01",
+  "measured_at_utc": "2026-09-12T13:58:29.267077+00:00",
+  "implementation": "direct deterministic source repair by continuation agent; no model worker execution",
+  "input": {
+    "source_path": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\improved-reconstructed",
+    "source_files": {
+      "app.js": "fdd2e9811638ca33e2ab2ba2526172eae31254103c68d3b5a4602bcf8613b283",
+      "daedalus-candidate.json": "d745ee040ce37456f1dc32abf6817791cacfe0ff5fe59e79c53375288d3a650e",
+      "data.js": "9e6d69b6d9f3e8486150a993f67ace7ca680ebdac31ef27fe7b8b9269fa2086a",
+      "index.html": "fd17200140cd428f7f8fd7175f8e10aea79c2ba310403864a664bfccfbf68271",
+      "README.md": "2d026691bc22129c14255e6247aa2439cfb5ccded39e21d202822f0e31ada64d",
+      "styles.css": "583f86629ea4274908e353b746ddd9aca9170a25330183c6982e3a82994d4384",
+      "tests/test_app.py": "b458d74a66a965ba1d16670a526c6595a41ac48f2f6ae12985d1bfde77fe7919",
+      "utils.js": "7a83ee158354d29615ebd959b9c23b94eb26b57193ab06c43f2e0aaa56bba526"
+    },
+    "source_digest": "76e80073d7c5454f873c7273762d822dd8f2b614901d9377e61b4c69b21d55fa",
+    "source_digest_algorithm": "sha256(sorted POSIX relative path UTF-8 + NUL + raw per-file sha256 digest)",
+    "files": 8,
+    "base_revision": "1df621c5ff45603e7a640d4a4671c8632de09974",
+    "base_revision_authority": "frozen packet and independent browser reconstruction",
+    "patch_path": "C:\\Users\\Administrator\\.daedalus\\kitchen\\orders\\order-85c455029188cda8.patch",
+    "patch_sha256": "a0056d27856039dc7c94b0ba07685bc7142a0052ca6609b9e51fec3b52a54db0",
+    "historical_order": "order-85c455029188cda8",
+    "original_candidate_recovered": false,
+    "missing_original_file": "ninth bookkeeping file not present in reconstruction"
+  },
+  "output": {
+    "source_path": "C:\\Users\\Administrator\\.daedalus\\kitchen\\previews\\shopping-list-20260912",
+    "source_files": {
+      "app.js": "eefc643b50a5b2d27ac0a02c191991cfbc112e76c1a78e151aa8bc801e2ed50b",
+      "daedalus-candidate.json": "d745ee040ce37456f1dc32abf6817791cacfe0ff5fe59e79c53375288d3a650e",
+      "data.js": "9e6d69b6d9f3e8486150a993f67ace7ca680ebdac31ef27fe7b8b9269fa2086a",
+      "index.html": "07d9f82caf52b074bbc7f1bc06fb7d4633dc8b6a6a8b19a43cf5ff530763a1ef",
+      "README.md": "2d026691bc22129c14255e6247aa2439cfb5ccded39e21d202822f0e31ada64d",
+      "styles.css": "3d484dace6faa97aa86bcf2172b0a21f2aba31a64f15975da7c85c8738904d92",
+      "tests/test_app.py": "b458d74a66a965ba1d16670a526c6595a41ac48f2f6ae12985d1bfde77fe7919",
+      "utils.js": "7a83ee158354d29615ebd959b9c23b94eb26b57193ab06c43f2e0aaa56bba526"
+    },
+    "source_digest": "2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4",
+    "files": 8,
+    "changed_files": [
+      "app.js",
+      "index.html",
+      "styles.css"
+    ],
+    "evaluator_unchanged": true,
+    "evaluator_sha256": "b458d74a66a965ba1d16670a526c6595a41ac48f2f6ae12985d1bfde77fe7919",
+    "other_files_unchanged": [
+      "README.md",
+      "daedalus-candidate.json",
+      "data.js",
+      "tests/test_app.py",
+      "utils.js"
+    ]
+  },
+  "validation": {
+    "static_tests": {
+      "reconstruction_baseline": [
+        {
+          "name": "test_index_is_a_complete_html_document",
+          "status": "passed"
+        },
+        {
+          "name": "test_referenced_assets_exist_and_are_local",
+          "status": "passed"
+        },
+        {
+          "name": "test_app_script_uses_local_storage_and_has_no_network_calls",
+          "status": "passed"
+        },
+        {
+          "name": "test_shared_contract_ids_are_present",
+          "status": "passed"
+        },
+        {
+          "name": "test_shared_contract_functions_are_defined",
+          "status": "passed"
+        },
+        {
+          "name": "test_readme_explains_how_to_run",
+          "status": "passed"
+        }
+      ],
+      "repaired_preview": [
+        {
+          "name": "test_index_is_a_complete_html_document",
+          "status": "passed"
+        },
+        {
+          "name": "test_referenced_assets_exist_and_are_local",
+          "status": "passed"
+        },
+        {
+          "name": "test_app_script_uses_local_storage_and_has_no_network_calls",
+          "status": "passed"
+        },
+        {
+          "name": "test_shared_contract_ids_are_present",
+          "status": "passed"
+        },
+        {
+          "name": "test_shared_contract_functions_are_defined",
+          "status": "passed"
+        },
+        {
+          "name": "test_readme_explains_how_to_run",
+          "status": "passed"
+        }
+      ]
+    },
+    "javascript_syntax": {
+      "command": [
+        "C:\\Users\\Administrator\\AppData\\Local\\hermes\\node\\node.EXE",
+        "--check",
+        "C:\\Users\\Administrator\\.daedalus\\kitchen\\previews\\shopping-list-20260912\\app.js"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "browser_acceptance": "pending independent browser review; static tests are not behavior proof"
+  },
+  "runtime": {
+    "preview_server_started": false,
+    "live_database_writes": false,
+    "corpus_ingestion": false,
+    "automatic_promotion": false,
+    "git_commit": false
+  }
+}

@@ -1,0 +1,333 @@
+{
+  "source_read_only": true,
+  "source_sha256": "1cb2b6fbe28228bc8fb6277d7d229148fd20281c60efc73ff979a0161afbb459",
+  "stats": {
+    "schema": "grey-matter/1",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\daedalus-kitchen-continuation-66370d6ae4fc443195d435dd257588b2\\greymatter-snapshot.db",
+    "repos": 64,
+    "cards": 205044,
+    "edges": 408647,
+    "planes": {
+      "code": 151247,
+      "type": 6662,
+      "data": 2589,
+      "knowledge": 44546
+    },
+    "proposals": 16524,
+    "verified_bindings": 16059,
+    "integrity": {
+      "reported_cards": 210031,
+      "invalid_verified_bindings": 94
+    },
+    "embedding": "hashed-blake2b/256"
+  },
+  "queries": [
+    {
+      "query": "shopping list localStorage item quantity",
+      "seconds": 3.094,
+      "hits": [
+        {
+          "score": 0.669,
+          "card_id": "3fa20ffb3bcf35a639c318ef",
+          "repo_id": "5c6e25b399330be41297",
+          "repo": "hono-2bc0f0f2",
+          "plane": "type",
+          "kind": "type",
+          "name": "AsyncLocalStorageClass",
+          "locator": "src/jsx/context.ts:22",
+          "text": "type AsyncLocalStorageClass = new <T>() => AsyncLocalStorageLike<T>\ntype AsyncHooksModule = { AsyncLocalStorage?: AsyncLocalStorageClass }",
+          "revision": "edd138ee3049749190de3dcd7e32d7bcbf224e41"
+        },
+        {
+          "score": 0.6171,
+          "card_id": "20c75f3d3bad3dd37d25b339",
+          "repo_id": "5c6e25b399330be41297",
+          "repo": "hono-2bc0f0f2",
+          "plane": "type",
+          "kind": "type",
+          "name": "AsyncLocalStorageLike",
+          "locator": "src/jsx/context.ts:17",
+          "text": "type AsyncLocalStorageLike<T> = {\n  getStore(): T | undefined\n  run<R>(store: T, callback: () => R): R\n}\ntype AsyncLocalStorageClass = new <T>() => AsyncLocalStorageLike<T>\ntype AsyncHooksModule = { AsyncLocalStorage?: AsyncLocalStorageClass }",
+          "revision": "edd138ee3049749190de3dcd7e32d7bcbf224e41"
+        },
+        {
+          "score": 0.5897,
+          "card_id": "17102c1955157381b37b3111",
+          "repo_id": "9ddbc9d2bb84d01aa043",
+          "repo": "koa-3ab12e9c",
+          "plane": "code",
+          "kind": "function",
+          "name": "getAsyncLocalStorage",
+          "locator": "lib/application.js:58",
+          "text": "function getAsyncLocalStorage",
+          "revision": "571938d1b42d5bbfbc4f203202e1095a63003f7e"
+        },
+        {
+          "score": 0.5759,
+          "card_id": "059d318a34eedc6ba7d248a1",
+          "repo_id": "194f2c9a30909c533e44",
+          "repo": "rich-0385377b",
+          "plane": "code",
+          "kind": "class",
+          "name": "ListItem",
+          "locator": "rich/markdown.py:372",
+          "text": "class ListItem(TextElement)\nAn item in a list.",
+          "revision": "9d8f9a372cc5916fd4781fec207ced7ddac2f08f"
+        },
+        {
+          "score": 0.5632,
+          "card_id": "26a2556696bb8e983c0ae86d",
+          "repo_id": "ce9bb1b40348f717d239",
+          "repo": "preact-4e6143a1",
+          "plane": "code",
+          "kind": "function",
+          "name": "ListItem",
+          "locator": "test/browser/focus.test.jsx:94",
+          "text": "const ListItem = ({ children }) =>",
+          "revision": "8101ff821690817c7786739c317af215c62a0cff"
+        },
+        {
+          "score": 0.5632,
+          "card_id": "fe0f6196ac1b67ec3ad760c6",
+          "repo_id": "ce9bb1b40348f717d239",
+          "repo": "preact-4e6143a1",
+          "plane": "code",
+          "kind": "function",
+          "name": "ListItem",
+          "locator": "debug/test/browser/debug.test.jsx:326",
+          "text": "const ListItem = props =>",
+          "revision": "8101ff821690817c7786739c317af215c62a0cff"
+        },
+        {
+          "score": 0.5507,
+          "card_id": "835e7cb38fa79874d97f272d",
+          "repo_id": "9ddbc9d2bb84d01aa043",
+          "repo": "koa-3ab12e9c",
+          "plane": "knowledge",
+          "kind": "section",
+          "name": "AsyncLocalStorage Support",
+          "locator": "docs/migration-v2-to-v3.md:84",
+          "text": "AsyncLocalStorage Support\nKoa v3 adds support for [AsyncLocalStorage](https://nodejs.org/api/async_context.html#class-asynclocalstorage), which allows you to access the current context from anywhere in your application:\n\n```js\n// Enable AsyncLocalStorage\nconst app = new Koa({ asyncLocalStorage: true })\n\napp.use(async (ctx, next) => {\n  callSomeFunction()\n  await next()\n})\n\nfunction callSomeFunction() {\n  // Access the current context\n  const ctx = app.currentContext\n  // Do something with ctx\n}\n```\n\nYou can also pass your own AsyncLocalStorage instance:\n\n```js\nconst { AsyncLocalStorage } = require('async_hooks')\nconst asyncLocalStorage = new AsyncLocalStorage()\nconst app = new Koa({ asyncLocalStorage })\n\napp.use(async (ctx, next) => {\n  callSomeFunction()\n  await next()\n})\n\nfunction callSomeFunction() {\n  // Access the current context\n  const ctx = asyncLocalStorage.getStore()\n  // Do something with ctx\n}\n```",
+          "revision": "571938d1b42d5bbfbc4f203202e1095a63003f7e"
+        },
+        {
+          "score": 0.5321,
+          "card_id": "094379434a5c4006dc6322e0",
+          "repo_id": "ce9bb1b40348f717d239",
+          "repo": "preact-4e6143a1",
+          "plane": "code",
+          "kind": "function",
+          "name": "ListItem",
+          "locator": "test/browser/hydrate.test.jsx:21",
+          "text": "const ListItem = ({ children, onClick = null }) =>",
+          "revision": "8101ff821690817c7786739c317af215c62a0cff"
+        }
+      ]
+    },
+    {
+      "query": "Python command line arguments",
+      "seconds": 3.078,
+      "hits": [
+        {
+          "score": 0.7536,
+          "card_id": "2162896cc20aaf443100e674",
+          "repo_id": "9c3bbfde6804400bce6a",
+          "repo": "click-59f828ed",
+          "plane": "knowledge",
+          "kind": "section",
+          "name": "command-line-reference",
+          "locator": "docs/command-line-reference.md:1",
+          "text": "command-line-reference",
+          "revision": "6aabf099bfdd4c1e75fe8d0e0d4241372b988ab1"
+        },
+        {
+          "score": 0.7536,
+          "card_id": "9c0f0d316bbb6bbddc5ae881",
+          "repo_id": "5a44003a0e7c0253c4c5",
+          "repo": "vitest-9e1c0f60",
+          "plane": "knowledge",
+          "kind": "section",
+          "name": "Command Line Interface",
+          "locator": "docs/guide/cli.md:6",
+          "text": "Command Line Interface",
+          "revision": "2ce29d5fa758046e5453bd92b8ed6c9da9709bb5"
+        },
+        {
+          "score": 0.7156,
+          "card_id": "d83ff3aff869d00af862588e",
+          "repo_id": "f1df9faef3fc5c3fae75",
+          "repo": "alembic-4a7f016a",
+          "plane": "code",
+          "kind": "class",
+          "name": "CommandLine",
+          "locator": "alembic/config.py:682",
+          "text": "class CommandLine()\nProvides the command line interface to Alembic.\n_POSITIONAL_TRANSLATIONS: dict[Any, dict[str, str]]",
+          "revision": "6f93f9cffd4ba4aa4cb5b3bc020fb937a3cd1312"
+        },
+        {
+          "score": 0.7097,
+          "card_id": "59e4243117be7bb42c5a5709",
+          "repo_id": "17620c07bf61ea42afa2",
+          "repo": "uvicorn-5a627fe4",
+          "plane": "knowledge",
+          "kind": "section",
+          "name": "Command line options",
+          "locator": "docs/index.md:109",
+          "text": "Command line options\nRun `uvicorn --help` to see the full set of command line options.\n\nFor more information, see the [settings documentation](settings.md).",
+          "revision": "63971ed952090438896e6eba7d07178b616d97cc"
+        },
+        {
+          "score": 0.6568,
+          "card_id": "dd5b6c06cf8091ec2c9642d3",
+          "repo_id": "f1df9faef3fc5c3fae75",
+          "repo": "alembic-4a7f016a",
+          "plane": "code",
+          "kind": "function",
+          "name": "CommandLine.main",
+          "locator": "alembic/config.py:1014",
+          "text": "def main(self, argv: Sequence[str] | None=None) -> None\nExecutes the command line with the provided arguments.",
+          "revision": "6f93f9cffd4ba4aa4cb5b3bc020fb937a3cd1312"
+        },
+        {
+          "score": 0.6026,
+          "card_id": "3dbff6a54f179c418e4493a6",
+          "repo_id": "f1df9faef3fc5c3fae75",
+          "repo": "alembic-4a7f016a",
+          "plane": "code",
+          "kind": "class",
+          "name": "CommandLineTest",
+          "locator": "tests/test_command.py:1209",
+          "text": "class CommandLineTest(TestBase)",
+          "revision": "6f93f9cffd4ba4aa4cb5b3bc020fb937a3cd1312"
+        },
+        {
+          "score": 0.6026,
+          "card_id": "58cb009f2c99d2b9a664a4f7",
+          "repo_id": "f1df9faef3fc5c3fae75",
+          "repo": "alembic-4a7f016a",
+          "plane": "code",
+          "kind": "class",
+          "name": "CommandLineTest",
+          "locator": "tests/test_config.py:737",
+          "text": "class CommandLineTest(TestBase)",
+          "revision": "6f93f9cffd4ba4aa4cb5b3bc020fb937a3cd1312"
+        },
+        {
+          "score": 0.5757,
+          "card_id": "d0b7b01e48717d5986b25dce",
+          "repo_id": "9c3bbfde6804400bce6a",
+          "repo": "click-59f828ed",
+          "plane": "knowledge",
+          "kind": "section",
+          "name": "General Command Line Topics",
+          "locator": "docs/command-line-reference.md:1",
+          "text": "General Command Line Topics\n```{currentmodule} click\n```\n\n```{contents}\n---\ndepth: 1\nlocal: true\n---\n```\n\n(exit-codes)=",
+          "revision": "6aabf099bfdd4c1e75fe8d0e0d4241372b988ab1"
+        }
+      ]
+    },
+    {
+      "query": "HTTP JSON request routing",
+      "seconds": 3.156,
+      "hits": [
+        {
+          "score": 0.6859,
+          "card_id": "6e941c537b087dffdbf7143a",
+          "repo_id": "a47c297c51f6c7173457",
+          "repo": "litestar-891164bf",
+          "plane": "code",
+          "kind": "function",
+          "name": "Request.json",
+          "locator": "litestar/connection/request.py:133",
+          "text": "def json(self) -> Any\nRetrieve the json request body from the request.",
+          "revision": "4cf3dafab7c15b8aa84b7b93a0dac7faec118f71"
+        },
+        {
+          "score": 0.675,
+          "card_id": "ff40483a3b376aea46c5e626",
+          "repo_id": "5e0e5743865c2d57662c",
+          "repo": "sanic-13fdc05b",
+          "plane": "code",
+          "kind": "function",
+          "name": "Http.create_empty_request",
+          "locator": "sanic/http/http1.py:445",
+          "text": "def create_empty_request(self) -> None\nCreate an empty request object for error handling use.",
+          "revision": "5ffc7b3710838eaf016d2f9612a86a08626915e5"
+        },
+        {
+          "score": 0.6705,
+          "card_id": "bddfd5497b21a7e3a7b89167",
+          "repo_id": "11adf5a197f4e4b0226e",
+          "repo": "flask-bb69cc12",
+          "plane": "code",
+          "kind": "function",
+          "name": "test_json_request_and_response",
+          "locator": "tests/test_testing.py:265",
+          "text": "def test_json_request_and_response(app, client)",
+          "revision": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35"
+        },
+        {
+          "score": 0.6438,
+          "card_id": "8c34aed8430d554b7fc66774",
+          "repo_id": "cddd4dc4de3dfcb1af70",
+          "repo": "httpx-c9226c2f",
+          "plane": "code",
+          "kind": "function",
+          "name": "request_context",
+          "locator": "httpx/_exceptions.py:365",
+          "text": "def request_context(request: Request | None=None) -> typing.Iterator[None]\nA context manager that can be used to attach the given request context",
+          "revision": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+        },
+        {
+          "score": 0.629,
+          "card_id": "061f2adcbe673fb5629706d7",
+          "repo_id": "cddd4dc4de3dfcb1af70",
+          "repo": "httpx-c9226c2f",
+          "plane": "code",
+          "kind": "function",
+          "name": "HTTPError.request",
+          "locator": "httpx/_exceptions.py:103",
+          "text": "def request(self, request: Request) -> None",
+          "revision": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+        },
+        {
+          "score": 0.6194,
+          "card_id": "d334ceb17907337569c64b97",
+          "repo_id": "f782b8ff880ccd1933fd",
+          "repo": "daedalus-github-kollaboration",
+          "plane": "code",
+          "kind": "function",
+          "name": "_http_json",
+          "locator": "daedalus/health.py:834",
+          "text": "def _http_json(url: str, timeout: float, payload: dict | None=None)",
+          "revision": "unversioned"
+        },
+        {
+          "score": 0.6194,
+          "card_id": "7fccfab2fbcf74412acbc501",
+          "repo_id": "40af206e1e14922c0ec9",
+          "repo": "bottle-a2c79207",
+          "plane": "code",
+          "kind": "function",
+          "name": "BaseRequest.json",
+          "locator": "bottle.py:1244",
+          "text": "def json(self)\nIf the ``Content-Type`` header is ``application/json`` or",
+          "revision": "457a8fa82f2c96d18c6f5934288387ad83ac12fa"
+        },
+        {
+          "score": 0.6145,
+          "card_id": "f73d2abd97f951040cef9522",
+          "repo_id": "a47c297c51f6c7173457",
+          "repo": "litestar-891164bf",
+          "plane": "type",
+          "kind": "dataclass",
+          "name": "HTTPRequestEvent",
+          "locator": "litestar/types/asgi_types.py:169",
+          "text": "class HTTPRequestEvent(TypedDict)\nASGI `http.request` event.\ntype: Literal['http.request']\nbody: bytes\nmore_body: bool",
+          "revision": "4cf3dafab7c15b8aa84b7b93a0dac7faec118f71"
+        }
+      ]
+    }
+  ],
+  "source_unchanged": true
+}
