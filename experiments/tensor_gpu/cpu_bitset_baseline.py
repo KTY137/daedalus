@@ -41,6 +41,7 @@ if __package__:
         exact_reference_operation_count,
         ratio,
         same_support,
+        validate_boolean_operands,
         write_report,
     )
 else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
@@ -54,6 +55,7 @@ else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
         exact_reference_operation_count,
         ratio,
         same_support,
+        validate_boolean_operands,
         write_report,
     )
 
@@ -113,22 +115,6 @@ def _measure_repeated(
     if result is None:  # repeats is bounded to >= 1; keep the invariant local.
         raise AssertionError("repeated measurement produced no result")
     return result, tuple(samples)
-
-
-def _validate_boolean_pair(
-    left: TypedRelationBlock[bool],
-    right: TypedRelationBlock[bool],
-) -> None:
-    if not isinstance(left, TypedRelationBlock) or not isinstance(right, TypedRelationBlock):
-        raise ValueError("bitset operands must be TypedRelationBlock values")
-    if left.semiring_name != "boolean" or right.semiring_name != "boolean":
-        raise ValueError("bitset baseline supports the Boolean semiring only")
-    if any(value is not True for value in left.values + right.values):
-        raise ValueError("bitset baseline requires canonical stored Boolean support")
-    if left.subject != right.subject:
-        raise ValueError("bitset operands must bind the same exact Fourfold subject")
-    if left.column_axis != right.row_axis:
-        raise ValueError("bitset composition requires an exactly shared typed middle axis")
 
 
 def pack_rows(block: TypedRelationBlock[bool]) -> tuple[int, ...]:
@@ -300,7 +286,7 @@ def execute_bitset(
     warmup: int,
     relation: str = "cpu_bitset_composed",
 ) -> BitsetExecution:
-    _validate_boolean_pair(left, right)
+    validate_boolean_operands(left, right)
     _validate_sampling(repeats=repeats, warmup=warmup)
 
     started = time.perf_counter_ns()
