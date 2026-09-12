@@ -4,6 +4,7 @@ import importlib
 
 import pytest
 
+_CONTRACT = importlib.import_module("experiments.tensor_gpu.boolean_probe_contract")
 _PROFILE = importlib.import_module("experiments.tensor_gpu.typed_block_validation_profile")
 ProbeCase = _PROFILE.ProbeCase
 
@@ -142,7 +143,8 @@ def test_profile_repeat_bound_is_strict_and_rejects_bool() -> None:
 
 def test_probe_bounds_case_collection_without_parallel_harness() -> None:
     case = _case()
-    for cases in ((), (case,) * (_PROFILE.MAX_CASES + 1)):
+    assert _PROFILE.validate_probe_cases is _CONTRACT.validate_probe_cases
+    for cases in ((), (case,) * (_CONTRACT.MAX_CASES + 1)):
         with pytest.raises(ValueError, match="cases must contain"):
             _PROFILE.run_probe(cases, profile_repeats=1)
 
