@@ -1,0 +1,164 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-178",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "0dc5df7f2df4c68255209318aa3b1b6a1cf33bb0",
+    "dependencies": "G1-EXP-TENSOR-GPU-177 residual single-block Boolean admission audit",
+    "sections": {
+      "primary_acceptance_claim": {
+        "source_fields": ["title", "question", "finding"]
+      },
+      "scope": {
+        "source_fields": ["scope", "domain"]
+      },
+      "contracts_and_behavior": {
+        "source_fields": ["implementation", "preserved_boundaries"]
+      },
+      "acceptance_matrix": {
+        "source_fields": ["verification"]
+      },
+      "migration_and_rollback": {
+        "source_fields": ["branch_hygiene", "gardener_boundary"],
+        "projection_note": "Rollback reverts only the shared admission refactor, its focused regression, and this evidence record; no production Tensor/Fourfold authority changes."
+      },
+      "evidence_expected_failures_and_review": {
+        "source_fields": ["verification", "claim_boundary", "finding"]
+      }
+    }
+  },
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-178",
+  "title": "Consolidate single-block Boolean admission across CPU and CUDA physical packers",
+  "date": "2026-09-12",
+  "status": "closed-implementation",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "blob_sha": "49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "bac411306c0e53f41d11602d8b65f99ced76fe58",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "0dc5df7f2df4c68255209318aa3b1b6a1cf33bb0",
+  "implementation_head": "e124984eb7997d38901e1cf04f8c0f60835906dc",
+  "scope": {
+    "modified": [
+      "experiments/tensor_gpu/boolean_probe_contract.py",
+      "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "tests/twin/test_tensor_gpu_probe.py"
+    ],
+    "added": ["docs/work-packets/G1-EXP-TENSOR-GPU-178.json"],
+    "forbidden": [
+      "daedalus/twin/** production semantics",
+      "daedalus/kernel/**",
+      "daedalus/runtimes/**",
+      "daedalus/orchestration/**",
+      "archive/legacy-20260830",
+      "automatic promotion or merge paths"
+    ]
+  },
+  "question": "Can the residual CPU/CUDA single-block semantic admission duplication identified by GPU-177 be removed without adding another abstraction or moving physical backend constraints into Fourfold semantics?",
+  "implementation": {
+    "shared_owner": "boolean_probe_contract.validate_boolean_block now solely owns single-block TypedRelationBlock, Boolean-semiring and canonical-True-support admission.",
+    "pair_composition": "validate_boolean_operands composes validate_boolean_block for both operands and retains only pair-level exact Fourfold subject and exact typed middle-axis requirements.",
+    "cpu": "cpu_bitset_baseline.pack_rows delegates semantic block admission to validate_boolean_block and retains only Python-int bit packing locally.",
+    "cuda": "cuda_boolean_probe._dense_from_block delegates semantic block admission to validate_boolean_block and retains dense CUDA allocation/scatter locally.",
+    "focused_regression": "tests pin both physical modules to the exact shared validator object, pin pair admission to that same owner, and prove direct CPU/CUDA packer calls fail closed before physical work for a non-TypedRelationBlock value."
+  },
+  "preserved_boundaries": {
+    "cpu_local": [
+      "packed-row integer sequence validation",
+      "packed bitset composition",
+      "support decoding and physical timing"
+    ],
+    "cuda_local": [
+      "square-shape restrictions",
+      "device-memory admission",
+      "runtime CUDA capability and OOM handling",
+      "dense allocation/scatter and timing"
+    ],
+    "semantic_authority": "TypedRelationBlock/Fourfold semantics remain authoritative; this experiment contract is only shared diagnostic admission for the two physical probe arms."
+  },
+  "gardener_boundary": {
+    "production_runtime_changed": false,
+    "new_module_added": false,
+    "parallel_abstraction_added": false,
+    "public_product_concept_added": false,
+    "wire_schema_changed": false,
+    "semantic_plane_added": false,
+    "graph_authority_added": false,
+    "backend_added": false,
+    "cache_added": false,
+    "registry_added": false,
+    "store_added": false,
+    "scheduler_added": false,
+    "runtime_dependency_added": false,
+    "workflow_changed": false,
+    "duplicate_semantic_admission_removed": true
+  },
+  "verification": {
+    "implementation_head": "e124984eb7997d38901e1cf04f8c0f60835906dc",
+    "source_delta_from_gpu_177": {
+      "commits": 4,
+      "files": 4,
+      "additions": 43,
+      "deletions": 14
+    },
+    "primary_hosted_run": {
+      "workflow": "Fourfold, Tensor and integration contracts",
+      "run_id": 34695416066,
+      "status": "completed",
+      "conclusion": "success",
+      "evidence": "All integrated contract matrix arms and isolated-wheel import completed successfully for the exact implementation head."
+    },
+    "additional_exact_head_runs": [
+      {
+        "workflow": "Ikarus tensor, Genesis and hopping contracts",
+        "run_id": 34695416049,
+        "status_at_close": "in_progress",
+        "claim": "none"
+      },
+      {
+        "workflow": "Tauri Desktop",
+        "run_id": 34695416045,
+        "status_at_close": "in_progress",
+        "claim": "none"
+      }
+    ],
+    "full_repository_execution": "Complete suite remains workflow_dispatch-only and is not part of the PR-triggered green claim."
+  },
+  "finding": {
+    "summary": "The residual single-block semantic admission duplication is removed with one existing-module helper rather than a new layer. Pair-level Fourfold composition rules remain centralized, while CPU/CUDA retain only their physical representation and device constraints.",
+    "negative_result": "This packet establishes no GPU speedup, Tensor-Core use, production Tensor adoption, Tensor-vs-Forest superiority, benchmark superiority, or Gate progress."
+  },
+  "branch_hygiene": {
+    "canonical_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "history_rewritten": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false
+  },
+  "claim_boundary": {
+    "full_suite_green_claim": false,
+    "gpu_or_tensor_core_speedup": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}
