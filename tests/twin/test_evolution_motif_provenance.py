@@ -54,20 +54,19 @@ def _provenance(inputs: tuple[str, ...]) -> ContractProvenance:
     )
 
 
-def _motif(*, alignment_status: str = "verified") -> MotifProvenance:
-    supports = (
-        _support("alpha-repo", "1", "1"),
-        _support("beta-repo", "2", "5"),
-    )
-    alignment = _alignment(supports, status=alignment_status)
+def _motif_from_parts(
+    supports: tuple[MotifSupport, ...],
+    alignments: tuple[CrossRepositoryAlignment, ...],
+) -> MotifProvenance:
     invariants = (_sha("b"),)
     negatives = (_sha("c"),)
     evaluators = (_sha("d"),)
+    ordered_alignments = tuple(sorted(alignments, key=lambda item: item.digest))
     inputs = tuple(
         sorted(
             (
                 *(item.digest for item in supports),
-                alignment.digest,
+                *(item.digest for item in ordered_alignments),
                 *invariants,
                 *negatives,
                 *evaluators,
@@ -77,11 +76,22 @@ def _motif(*, alignment_status: str = "verified") -> MotifProvenance:
     return MotifProvenance(
         motif_id="revision-bound-repair",
         supports=supports,
-        alignments=(alignment,),
+        alignments=ordered_alignments,
         invariant_sha256s=invariants,
         negative_example_sha256s=negatives,
         evaluator_evidence_sha256s=evaluators,
         provenance=_provenance(inputs),
+    )
+
+
+def _motif(*, alignment_status: str = "verified") -> MotifProvenance:
+    supports = (
+        _support("alpha-repo", "1", "1"),
+        _support("beta-repo", "2", "5"),
+    )
+    return _motif_from_parts(
+        supports,
+        (_alignment(supports, status=alignment_status),),
     )
 
 
@@ -105,6 +115,43 @@ def test_rejected_alignment_retains_negative_evidence_without_gate_claim() -> No
     )
     assert motif.alignments[0].evidence_sha256 is None
     assert motif.alignments[0].limitation
+
+
+def test_verified_alignment_graph_must_connect_all_supports() -> None:
+    supports = (
+        _support("alpha-repo", "1", "1"),
+        _support("beta-repo", "2", "5"),
+        _support("gamma-repo", "3", "9"),
+        _support("theta-repo", "4", "a"),
+    )
+    motif = _motif_from_parts(
+        supports,
+        (
+            _alignment((supports[0], supports[1])),
+            _alignment((supports[2], supports[3])),
+        ),
+    )
+
+    assert motif.evidence_gaps == ("verified-alignment-graph-disconnected",)
+
+
+def test_verified_alignment_chain_connects_all_supports() -> None:
+    supports = (
+        _support("alpha-repo", "1", "1"),
+        _support("beta-repo", "2", "5"),
+        _support("gamma-repo", "3", "9"),
+        _support("theta-repo", "4", "a"),
+    )
+    motif = _motif_from_parts(
+        supports,
+        (
+            _alignment((supports[0], supports[1])),
+            _alignment((supports[1], supports[2])),
+            _alignment((supports[2], supports[3])),
+        ),
+    )
+
+    assert motif.evidence_gaps == ()
 
 
 def test_motif_provenance_must_bind_all_referenced_evidence() -> None:

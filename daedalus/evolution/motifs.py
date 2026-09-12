@@ -212,6 +212,28 @@ class MotifProvenance(CanonicalContract):
         for support in self.supports:
             if support.digest not in participating:
                 gaps.add(f"support-{support.repository_id}-unaligned")
+
+        if verified and len(participating) == len(self.supports):
+            adjacency = {support.digest: set() for support in self.supports}
+            for alignment in verified:
+                adjacency[alignment.left_support_sha256].add(
+                    alignment.right_support_sha256
+                )
+                adjacency[alignment.right_support_sha256].add(
+                    alignment.left_support_sha256
+                )
+
+            pending = [self.supports[0].digest]
+            reached: set[str] = set()
+            while pending:
+                digest = pending.pop()
+                if digest in reached:
+                    continue
+                reached.add(digest)
+                pending.extend(adjacency[digest] - reached)
+            if len(reached) != len(self.supports):
+                gaps.add("verified-alignment-graph-disconnected")
+
         return tuple(sorted(gaps))
 
     def to_dict(self) -> dict[str, Any]:
