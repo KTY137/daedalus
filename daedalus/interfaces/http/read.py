@@ -595,6 +595,20 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
             self._send_json(core.envelope(None, results=hits, query=query))
         except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=500)
+    elif path == "/api/kitchen" or path.startswith("/api/kitchen/"):
+        # Read-only projection of the Ikarus kitchen: orders, their events and
+        # Grey Matter statistics. Orders are placed through the chat door.
+        project = (qs.get("project") or [None])[0]
+        order_id = path[len("/api/kitchen/"):].strip("/") or None
+        if order_id and not re.fullmatch(r"order-[0-9a-f]{16}", order_id):
+            self._send_json({"ok": False, "error": "invalid order id"}, status=400)
+            return
+        try:
+            from ...orchestration.ikarus.kitchen import order_status
+
+            self._send_json(core.envelope(project, **order_status(project, order_id)))
+        except Exception as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=500)
     elif path == "/api/events/memory":
         try:
             limit = int((qs.get("limit") or ["50"])[0])

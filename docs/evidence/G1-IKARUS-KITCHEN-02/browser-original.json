@@ -1,0 +1,138 @@
+{
+  "startedAt": "2026-09-12T13:42:48.317Z",
+  "tool": "native Chromium CDP; fresh temporary profile",
+  "candidate": "C:\\Users\\Administrator\\.daedalus\\kitchen\\candidates\\bau-mir-nh-app-eine-einkaufslisten-app-l-42e4f4ed",
+  "checks": [
+    {
+      "name": "requested_preview_serves_app",
+      "passed": false,
+      "details": {
+        "title": "Directory listing for /",
+        "text": "Directory listing for /",
+        "inputs": 0,
+        "buttons": 0
+      }
+    },
+    {
+      "name": "fresh_storage",
+      "passed": true,
+      "details": []
+    },
+    {
+      "name": "initial_list_empty",
+      "passed": true,
+      "details": "Shopping List\n Add Item"
+    },
+    {
+      "name": "add_button",
+      "passed": true,
+      "details": "Shopping List\n Add Item\nCDP Test Apples"
+    },
+    {
+      "name": "add_enter",
+      "passed": true,
+      "details": [
+        "CDP Test Apples",
+        "CDP Test Bread"
+      ]
+    },
+    {
+      "name": "mark_completed",
+      "passed": true,
+      "details": "[{\"text\":\"CDP Test Apples\",\"completed\":true},{\"text\":\"CDP Test Bread\",\"completed\":false}]"
+    },
+    {
+      "name": "reload_persists_items_and_completion",
+      "passed": true,
+      "details": "[{\"text\":\"CDP Test Apples\",\"completed\":true},{\"text\":\"CDP Test Bread\",\"completed\":false}]"
+    },
+    {
+      "name": "delete_control_available",
+      "passed": false,
+      "details": [
+        {
+          "tag": "INPUT",
+          "id": "item-input",
+          "type": "text",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Add Item",
+          "aria": null
+        }
+      ]
+    },
+    {
+      "name": "quantity_control_available",
+      "passed": false,
+      "details": [
+        {
+          "tag": "INPUT",
+          "id": "item-input",
+          "type": "text",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Add Item",
+          "aria": null
+        }
+      ]
+    },
+    {
+      "name": "clear_list_control_available",
+      "passed": false,
+      "details": [
+        {
+          "tag": "INPUT",
+          "id": "item-input",
+          "type": "text",
+          "text": "",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "type": "submit",
+          "text": "Add Item",
+          "aria": null
+        }
+      ]
+    },
+    {
+      "name": "mobile_no_horizontal_overflow",
+      "passed": true,
+      "details": {
+        "scrollWidth": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "name": "javascript_runtime_errors",
+      "passed": true,
+      "details": []
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\01-existing-preview-port8765.png",
+    "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\02-candidate-after-reload.png",
+    "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\daedalus-shopping-browser-db987cae1a5845f9a11f00ddbefaed7c\\03-candidate-mobile.png"
+  ],
+  "requestedUrl": "http://127.0.0.1:8765",
+  "isolatedCandidateUrl": "http://127.0.0.1:65009/",
+  "sourceHashes": {
+    "index.html": "0ea54f2088a0e1519636e06b431babbb15ebe3749728b49296cf712922282105",
+    "app.js": "255677cbac24ba0f6001676560e3cd83044d95c6c743717733cc41c8d39e48c0",
+    "styles.css": "583f86629ea4274908e353b746ddd9aca9170a25330183c6982e3a82994d4384",
+    "daedalus-candidate.json": "d745ee040ce37456f1dc32abf6817791cacfe0ff5fe59e79c53375288d3a650e"
+  },
+  "finishedAt": "2026-09-12T13:42:49.311Z"
+}

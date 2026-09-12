@@ -47,10 +47,14 @@ WIRE_LITERAL_CONTRACTS = {
     # four added literals are the bounded error/code/status wire shape.
     # G1-GENESIS-03 adds a same-origin-only archive read bound to the exact
     # candidate digest, with attachment headers and no preview capability reuse.
+    # G1-IKARUS-KITCHEN-01 adds the read-only ``/api/kitchen[/<order-id>]``
+    # projection (orders, events, Grey Matter stats): eighteen literals for the
+    # path prefix, the strict order-id shape and its 400/500 refusals. Orders
+    # are placed only through the chat door; this GET performs no effect.
     "read": (
         ("handle_get",),
-        740,
-        "fff96cbdbe9fce8d5ac91658581ebbdc0e90733d6de1035b7e50424977a1a395",
+        758,
+        "8dd7ac17afb8210184d0ab763f88c11edc8f5644bf7effb78e0f123636d1aa3e",
     ),
     # G1-INTEGRATION-01 adds only six dispatch identity literals: schema,
     # version, project, objective and two lane references. Existing guards stay.

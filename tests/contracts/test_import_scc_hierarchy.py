@@ -217,7 +217,7 @@ CURRENT_COMPONENTS_SHA256 = (
 # ``configuration``. It joins no non-trivial SCC: the component count, the
 # maximum component size and the component digest asserted below are all
 # unchanged, which is the claim that matters.
-CENSUS_MODULES = 526  # re-measured 2026-09-11 (G1-IKARUS-HOPPING-01)
+CENSUS_MODULES = 537  # re-measured 2026-09-12 (G1-IKARUS-KITCHEN-01)
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -546,7 +546,13 @@ CENSUS_MODULES = 526  # re-measured 2026-09-11 (G1-IKARUS-HOPPING-01)
 # G1-IKARUS-HOPPING-01: four leaf adapters/projections, +18 resolved imports.
 # Measured 526 modules, 2128 edges; fourteen components, maximum nineteen,
 # and CURRENT_COMPONENTS_SHA256 remain byte-identical. No cycle is accepted.
-CENSUS_EDGES = 2128  # re-measured 2026-09-11 (G1-IKARUS-HOPPING-01)
+# G1-IKARUS-KITCHEN-01: the Ikarus kitchen package (Waiter, Chef, Sous-Chef,
+# Grey Matter, toolchain, ledger, orders, report; 11 modules incl. __main__)
+# adds +21 resolved imports. ``waiter`` deliberately spells the chat envelope
+# instead of importing ``daedalus.core``, and ``chef`` names its sibling
+# modules instead of ``from . import``, so the package joins no SCC: fourteen
+# components, maximum nineteen, CURRENT_COMPONENTS_SHA256 byte-identical.
+CENSUS_EDGES = 2149  # re-measured 2026-09-12 (G1-IKARUS-KITCHEN-01)
 
 
 def _module_name(path: str) -> str:

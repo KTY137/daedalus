@@ -1,0 +1,414 @@
+{
+  "startedAt": "2026-09-12T14:01:06.188Z",
+  "tool": "native Chromium CDP; fresh temporary profile",
+  "candidate": "C:\\Users\\Administrator\\.daedalus\\kitchen\\previews\\shopping-list-20260912",
+  "checks": [
+    {
+      "name": "frozen_source_identity",
+      "passed": true,
+      "details": {
+        "sha256": "2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4",
+        "files": 8
+      }
+    },
+    {
+      "name": "fresh_storage",
+      "passed": true,
+      "details": []
+    },
+    {
+      "name": "initial_default_quantity_one",
+      "passed": true,
+      "details": "1"
+    },
+    {
+      "name": "initial_list_empty",
+      "passed": true,
+      "details": []
+    },
+    {
+      "name": "add_button_positive_integer",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Apples x 3"
+        }
+      ]
+    },
+    {
+      "name": "default_one_after_add",
+      "passed": true,
+      "details": "1"
+    },
+    {
+      "name": "add_enter_default_one",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Apples x 3"
+        },
+        {
+          "name": "CDP Test Bread",
+          "quantity": 1,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Bread x 1"
+        }
+      ]
+    },
+    {
+      "name": "reject_blank_label",
+      "passed": true,
+      "details": {
+        "items": [
+          {
+            "name": "CDP Test Apples",
+            "quantity": 3,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Apples x 3"
+          },
+          {
+            "name": "CDP Test Bread",
+            "quantity": 1,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Bread x 1"
+          }
+        ],
+        "message": "Fülle dieses Feld aus."
+      }
+    },
+    {
+      "name": "reject_whitespace_label",
+      "passed": true,
+      "details": {
+        "items": [
+          {
+            "name": "CDP Test Apples",
+            "quantity": 3,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Apples x 3"
+          },
+          {
+            "name": "CDP Test Bread",
+            "quantity": 1,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Bread x 1"
+          }
+        ],
+        "message": "Enter an item name."
+      }
+    },
+    {
+      "name": "reject_quantity_blank",
+      "passed": true,
+      "details": {
+        "quantity": "",
+        "items": [
+          {
+            "name": "CDP Test Apples",
+            "quantity": 3,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Apples x 3"
+          },
+          {
+            "name": "CDP Test Bread",
+            "quantity": 1,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Bread x 1"
+          }
+        ],
+        "message": "Fülle dieses Feld aus."
+      }
+    },
+    {
+      "name": "reject_quantity_0",
+      "passed": true,
+      "details": {
+        "quantity": "0",
+        "items": [
+          {
+            "name": "CDP Test Apples",
+            "quantity": 3,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Apples x 3"
+          },
+          {
+            "name": "CDP Test Bread",
+            "quantity": 1,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Bread x 1"
+          }
+        ],
+        "message": "Wert muss größer als oder gleich 1 sein."
+      }
+    },
+    {
+      "name": "reject_quantity_-1",
+      "passed": true,
+      "details": {
+        "quantity": "-1",
+        "items": [
+          {
+            "name": "CDP Test Apples",
+            "quantity": 3,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Apples x 3"
+          },
+          {
+            "name": "CDP Test Bread",
+            "quantity": 1,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Bread x 1"
+          }
+        ],
+        "message": "Wert muss größer als oder gleich 1 sein."
+      }
+    },
+    {
+      "name": "reject_quantity_1.5",
+      "passed": true,
+      "details": {
+        "quantity": "1.5",
+        "items": [
+          {
+            "name": "CDP Test Apples",
+            "quantity": 3,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Apples x 3"
+          },
+          {
+            "name": "CDP Test Bread",
+            "quantity": 1,
+            "completed": false,
+            "checked": false,
+            "text": "CDP Test Bread x 1"
+          }
+        ],
+        "message": "Gib einen gültigen Wert ein. Die zwei nächstliegenden gültigen Werte sind 1 und 2."
+      }
+    },
+    {
+      "name": "recovery_after_invalid_input",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Apples x 3"
+        },
+        {
+          "name": "CDP Test Bread",
+          "quantity": 1,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Bread x 1"
+        },
+        {
+          "name": "CDP Test Oranges",
+          "quantity": 2,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Oranges x 2"
+        }
+      ]
+    },
+    {
+      "name": "checkbox_marks_complete",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": true,
+          "checked": true,
+          "text": "CDP Test Apples x 3"
+        },
+        {
+          "name": "CDP Test Bread",
+          "quantity": 1,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Bread x 1"
+        },
+        {
+          "name": "CDP Test Oranges",
+          "quantity": 2,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Oranges x 2"
+        }
+      ]
+    },
+    {
+      "name": "label_toggles_once",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Apples x 3"
+        },
+        {
+          "name": "CDP Test Bread",
+          "quantity": 1,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Bread x 1"
+        },
+        {
+          "name": "CDP Test Oranges",
+          "quantity": 2,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Oranges x 2"
+        }
+      ]
+    },
+    {
+      "name": "checkbox_marks_complete_again",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": true,
+          "checked": true,
+          "text": "CDP Test Apples x 3"
+        },
+        {
+          "name": "CDP Test Bread",
+          "quantity": 1,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Bread x 1"
+        },
+        {
+          "name": "CDP Test Oranges",
+          "quantity": 2,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Oranges x 2"
+        }
+      ]
+    },
+    {
+      "name": "delete_only_selected_item",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": true,
+          "checked": true,
+          "text": "CDP Test Apples x 3"
+        },
+        {
+          "name": "CDP Test Oranges",
+          "quantity": 2,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Oranges x 2"
+        }
+      ]
+    },
+    {
+      "name": "reload_persists_names_quantities_completion_and_deletion",
+      "passed": true,
+      "details": [
+        {
+          "name": "CDP Test Apples",
+          "quantity": 3,
+          "completed": true,
+          "checked": true,
+          "text": "CDP Test Apples x 3"
+        },
+        {
+          "name": "CDP Test Oranges",
+          "quantity": 2,
+          "completed": false,
+          "checked": false,
+          "text": "CDP Test Oranges x 2"
+        }
+      ]
+    },
+    {
+      "name": "mobile_390_no_horizontal_overflow",
+      "passed": true,
+      "details": {
+        "width": 390,
+        "scrollWidth": 390
+      }
+    },
+    {
+      "name": "clear_list",
+      "passed": true,
+      "details": []
+    },
+    {
+      "name": "clear_list_persists_after_reload",
+      "passed": true,
+      "details": "[]"
+    },
+    {
+      "name": "no_javascript_exceptions",
+      "passed": true,
+      "details": []
+    },
+    {
+      "name": "source_unchanged",
+      "passed": true,
+      "details": {
+        "sha256": "2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4",
+        "files": 8
+      }
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    "C:\\Users\\Administrator\\.daedalus\\kitchen\\preview-evidence\\shopping-list-20260912-e0e6b9c4aa\\accepted-desktop.png",
+    "C:\\Users\\Administrator\\.daedalus\\kitchen\\preview-evidence\\shopping-list-20260912-e0e6b9c4aa\\accepted-mobile-390.png"
+  ],
+  "isolatedCandidateUrl": "http://127.0.0.1:50902/",
+  "sourceHashes": {
+    "index.html": "07d9f82caf52b074bbc7f1bc06fb7d4633dc8b6a6a8b19a43cf5ff530763a1ef",
+    "app.js": "eefc643b50a5b2d27ac0a02c191991cfbc112e76c1a78e151aa8bc801e2ed50b",
+    "styles.css": "3d484dace6faa97aa86bcf2172b0a21f2aba31a64f15975da7c85c8738904d92",
+    "daedalus-candidate.json": "d745ee040ce37456f1dc32abf6817791cacfe0ff5fe59e79c53375288d3a650e"
+  },
+  "sourceTreeBefore": {
+    "sha256": "2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4",
+    "files": 8
+  },
+  "sourceTreeAfter": {
+    "sha256": "2b4d1ecc57cf098f57ae15f32a508f73a6bb209925110849ccb4b214f425c8b4",
+    "files": 8
+  },
+  "accepted": true,
+  "packet": "G1-IKARUS-KITCHEN-DEMO-01",
+  "classification": "EXPERIMENT",
+  "original_candidate_recovered": false,
+  "finishedAt": "2026-09-12T14:01:06.807Z"
+}
