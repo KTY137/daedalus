@@ -1,0 +1,136 @@
+{
+  "registry_contract": {
+    "packet_id": "G1-EXP-TENSOR-GPU-180",
+    "artifact_role": "primary",
+    "active_gate": 1,
+    "classification": "EXPERIMENT",
+    "owner": "repository owner",
+    "base_revision": "7647dd46e762b2153a7797f127ca18fbd649bfdf",
+    "dependencies": "G1-EXP-TENSOR-GPU-179 probe-case admission audit",
+    "sections": {
+      "primary_acceptance_claim": {"source_fields": ["title", "objective", "result"]},
+      "scope": {"source_fields": ["scope", "domain"]},
+      "contracts_and_behavior": {"source_fields": ["implementation", "preserved_boundaries"]},
+      "acceptance_matrix": {"source_fields": ["verification"]},
+      "migration_and_rollback": {"source_fields": ["branch_hygiene", "rollback"]},
+      "evidence_expected_failures_and_review": {"source_fields": ["verification", "claim_boundary", "result"]}
+    }
+  },
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-180",
+  "title": "Consolidate shared probe-case collection admission across CPU and CUDA Tensor diagnostics",
+  "date": "2026-09-12",
+  "status": "closed-implementation",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 13,
+    "version": "2.4.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation, owner-directed Genesis and general computer assistance",
+    "blob_sha": "49e54f15cc5019ce63f1fddb2e9e31b7c85a459b",
+    "authority": "sole semantic authority"
+  },
+  "activation_main_revision": "79a6f79bd7762e53552e678a7c9e14678acf6a33",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "7647dd46e762b2153a7797f127ca18fbd649bfdf",
+  "implementation_head": "124b9bc310c8e881c78f455af2cebe471193e340",
+  "objective": "Remove the verbatim bounded ProbeCase collection admission duplicated by CPU and CUDA run_probe without adding another Tensor abstraction or moving backend-specific policy into shared Fourfold semantics.",
+  "scope": {
+    "changed": [
+      "experiments/tensor_gpu/boolean_probe_contract.py",
+      "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "tests/twin/test_tensor_gpu_probe.py",
+      "docs/work-packets/G1-EXP-TENSOR-GPU-180.json"
+    ],
+    "production_runtime_changed": false,
+    "forbidden": [
+      "daedalus/twin/** production semantics",
+      "daedalus/kernel/**",
+      "daedalus/runtimes/**",
+      "daedalus/orchestration/**",
+      "archive/legacy-20260830",
+      "automatic promotion or merge paths"
+    ]
+  },
+  "implementation": {
+    "shared_owner": "boolean_probe_contract.validate_probe_cases",
+    "shared_rules": [
+      "reject str/bytes and non-Sequence collections",
+      "require 1..MAX_CASES entries",
+      "require every entry to be ProbeCase",
+      "normalize the admitted bounded collection to an immutable tuple"
+    ],
+    "cpu": "cpu_bitset_baseline.run_probe now composes the shared validator and contains no duplicate collection admission.",
+    "cuda": "cuda_boolean_probe.run_probe now composes the shared validator; one-dtype-per-run remains CUDA-local after shared admission.",
+    "tests": [
+      "pin CPU and CUDA imports and run_probe globals to the same validate_probe_cases function object",
+      "prove str/bytes, empty, over-bound and non-ProbeCase collections fail through the shared owner",
+      "prove accepted mutable sequence input normalizes to an immutable tuple",
+      "prove mixed-dtype rejection remains local to CUDA after common admission"
+    ]
+  },
+  "preserved_boundaries": {
+    "semantic_authority": "The revision-bound Fourfold Project Twin/Forest and TypedRelationBlock remain authoritative; probe-case admission is diagnostic input validation only.",
+    "physical_arms": "CPU execution/sampling and CUDA device/dtype/memory/OOM policy remain separate physical concerns.",
+    "no_parallel_abstraction": "No new module, backend, registry, store, cache, scheduler, graph authority, public concept or semantic plane was added.",
+    "evidence": "Blocked/negative CUDA outcomes remain first-class evidence and cannot be converted to success by shared admission."
+  },
+  "verification": {
+    "exact_implementation_head": "124b9bc310c8e881c78f455af2cebe471193e340",
+    "primary_acceptance": {
+      "workflow": "Fourfold, Tensor and integration contracts",
+      "run_id": 34701297230,
+      "status": "completed",
+      "conclusion": "success",
+      "coverage": "Python 3.10/3.12 hash-seed matrix, integrated tests/twin contract surface, isolated wheel import, repository collection and configured Fourfold/Tensor diagnostics"
+    },
+    "additional_surfaces": [
+      {
+        "workflow": "Ikarus tensor, Genesis and hopping contracts",
+        "run_id": 34701297229,
+        "status_at_close": "in_progress",
+        "conclusion_at_close": null
+      },
+      {
+        "workflow": "Tauri Desktop",
+        "run_id": 34701297228,
+        "status_at_close": "in_progress",
+        "conclusion_at_close": null
+      }
+    ],
+    "full_repository_execution": "Complete suite remains workflow_dispatch-only and is not claimed by this packet."
+  },
+  "result": {
+    "summary": "CPU and CUDA Tensor diagnostics now have one bounded collection-admission owner in the existing shared contract while backend-specific policy stays local.",
+    "gardener_effect": "Removes duplicated validation logic and unused MAX_CASES imports from the physical arms instead of adding a second runner abstraction.",
+    "negative_claim": "No speedup, Tensor-Core use, production Tensor adoption, Tensor-vs-Forest superiority, benchmark superiority, Gate progress, OwnerApproval or promotion is established."
+  },
+  "rollback": {
+    "boundary": "Revert the GPU-180 implementation commits and this packet only; no production semantic migration or archive mutation is involved."
+  },
+  "branch_hygiene": {
+    "canonical_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "history_rewritten": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "automatic_merge": false
+  },
+  "claim_boundary": {
+    "full_suite_green_claim": false,
+    "gpu_or_tensor_core_speedup": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}
