@@ -32,7 +32,6 @@ from daedalus.twin.semiring import BooleanSemiring
 
 if __package__:
     from .boolean_probe_contract import (
-        MAX_CASES,
         MIB,
         ProbeCase,
         SUPPORTED_DTYPES,
@@ -44,11 +43,11 @@ if __package__:
         same_support,
         validate_boolean_block,
         validate_boolean_operands,
+        validate_probe_cases,
         write_report,
     )
 else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
     from boolean_probe_contract import (
-        MAX_CASES,
         MIB,
         ProbeCase,
         SUPPORTED_DTYPES,
@@ -60,6 +59,7 @@ else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
         same_support,
         validate_boolean_block,
         validate_boolean_operands,
+        validate_probe_cases,
         write_report,
     )
 
@@ -447,22 +447,17 @@ def run_probe(
     *,
     device_index: int = 0,
 ) -> dict[str, Any]:
-    if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
-        raise ValueError("cases must be a bounded sequence")
-    if not cases or len(cases) > MAX_CASES:
-        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
-    if any(not isinstance(case, ProbeCase) for case in cases):
-        raise ValueError("cases must contain ProbeCase values")
+    admitted_cases = validate_probe_cases(cases)
 
     try:
         torch = _load_torch()
-        device = _device_info(torch, device_index, cases[0].dtype_name)
+        device = _device_info(torch, device_index, admitted_cases[0].dtype_name)
     except ProbeBlocked as exc:
         return blocked_report(exc.reason, exc.detail)
 
     results: list[dict[str, Any]] = []
-    for case in cases:
-        if case.dtype_name != cases[0].dtype_name:
+    for case in admitted_cases:
+        if case.dtype_name != admitted_cases[0].dtype_name:
             raise ValueError("one run must use one dtype so device evidence is unambiguous")
         try:
             results.append(run_case(case, torch=torch, device_info=device))
