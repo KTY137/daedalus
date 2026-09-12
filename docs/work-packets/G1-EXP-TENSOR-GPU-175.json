@@ -66,7 +66,7 @@
   "main_revision": "bac411306c0e53f41d11602d8b65f99ced76fe58",
   "branch": "exp/tensor-kernel-contract-01",
   "pre_head": "06814d0065b4663d7005c0f5f367e2137226c3c5",
-  "implementation_commit": "cb49089fd0228663d2d5b69f19aa7bde9dc23967",
+  "implementation_commit": "4048667f575b3e0e54f36dea56e4e08702648c3c",
   "scope": {
     "updated": [
       "experiments/tensor_gpu/boolean_probe_contract.py",
