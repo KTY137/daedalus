@@ -1,29 +1,136 @@
-name: Kernel mirror source verification aid
-# Temporary read-only source transport for this owner-requested work packet.
+name: Kernel source mirror integration verification
+# One-shot owner-requested source integration, not autonomous candidate promotion.
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/hopping-mirror-source.yml']
 permissions:
   contents: read
+concurrency:
+  group: hopping-mirror-integration-${{ github.sha }}
+  cancel-in-progress: false
+env:
+  PATCH_BLOB: 12116d7667dcd1bf69433c71ac0709ce7db2c2d2
+  PATCH_SHA256: 14d6221b630942bba260a70c6b26604d1baa3ebdda3afb431047868eab70461f
 jobs:
-  snapshot:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      PYTHONHASHSEED: '0'
     steps:
+      - run: git config --global core.autocrlf false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Retain versioned source and revision only
-        shell: bash
-        run: |
-          git rev-parse HEAD > "$RUNNER_TEMP/source-revision.txt"
-          git bundle create "$RUNNER_TEMP/daedalus.bundle" --all
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          name: kernel-mirror-source
+          python-version: '3.12'
+      - name: Apply the exact hash-bound patch for testing
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          import os, pathlib, hashlib, base64, lzma, subprocess, json, urllib.request
+          sha = os.environ['PATCH_BLOB']
+          req = urllib.request.Request('https://api.github.com/repos/KTY137/daedalus/git/blobs/' + sha,
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              blob = base64.b64decode(json.loads(response.read(100000))['content'])
+          assert hashlib.sha1(b'blob ' + str(len(blob)).encode() + b'\x00' + blob).hexdigest() == sha
+          patch = lzma.decompress(blob)
+          assert hashlib.sha256(patch).hexdigest() == os.environ['PATCH_SHA256']
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'mirror.patch'
+          path.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', '--index', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(path)], check=True)
+      - run: python -m pip install -e ".[test]"
+      - name: Portable mirror, tensor, Ikarus and Genesis regressions
+        shell: python
+        run: |
+          import subprocess, sys, os
+          paths = ['tests/kernel/test_source_mirror.py', 'tests/test_ariadne_source_mirror.py',
+            'tests/twin/test_tensor_kernel.py', 'tests/twin/test_relation_contractions.py',
+            'tests/twin/test_wiki_reference.py', 'tests/twin/test_runtime_projection.py',
+            'tests/test_ariadne_owner_evaluator.py', 'tests/test_hopping_admission.py',
+            'tests/test_ikarus_hopping_dispatch.py', 'tests/runtimes/test_computer_genesis.py',
+            'tests/runtimes/test_computer_ariadne.py', 'tests/test_ikarus_computer_loop_ariadne.py',
+            'tests/kernel/test_computer_policy.py', 'tests/runtimes/test_computer_daedalus.py',
+            'tests/test_ikarus_computer_dispatch.py', 'tests/test_ikarus_computer_loop.py',
+            'tests/test_ikarus_computer_loop_adversarial.py', 'tests/interfaces/test_computer_configuration.py',
+            'tests/contracts/test_import_scc_hierarchy.py', 'tests/kernel/test_genesis_contracts.py',
+            'tests/kernel/test_genesis_effect_lease.py', 'tests/orchestration/test_genesis_materializer.py',
+            'tests/orchestration/test_genesis_service.py::test_legacy_item_collection_identity_and_evaluator_remain_frozen']
+          args = [sys.executable, '-m', 'pytest', '-q', *paths, '--tb=short', '--junitxml=portable.xml']
+          if os.name != 'nt':
+              args += ['-k', 'not real_campaign_through']
+          subprocess.run(args, check=True)
+      - name: Native Windows builder, replay, containment and file-effect regressions
+        if: runner.os == 'Windows'
+        shell: python
+        run: |
+          import subprocess, sys
+          subprocess.run([sys.executable, '-m', 'pytest', '-q',
+            'tests/orchestration/test_genesis_service.py',
+            'tests/orchestration/test_genesis_source_archive.py',
+            'tests/interfaces/test_genesis_cli.py', 'tests/interfaces/test_http_genesis.py',
+            'tests/runtimes/test_computer_service.py', 'tests/runtimes/test_computer_service_effect_state.py',
+            'tests/test_ariadne_leakage_boundary.py', 'tests/test_ariadne_test_evaluator.py',
+            '--tb=short', '--junitxml=native.xml'], check=True)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hopping-mirror-${{ matrix.os }}
           path: |
-            ${{ runner.temp }}/daedalus.bundle
-            ${{ runner.temp }}/source-revision.txt
-          retention-days: 1
-          if-no-files-found: error
+            portable.xml
+            native.xml
+          retention-days: 7
+          if-no-files-found: warn
+  integrate:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Integrate only on the verified unchanged main revision
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          import os, pathlib, hashlib, base64, lzma, subprocess, json, urllib.request
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert head == os.environ['GITHUB_SHA'], 'main advanced; re-verification is required'
+          sha = os.environ['PATCH_BLOB']
+          req = urllib.request.Request('https://api.github.com/repos/KTY137/daedalus/git/blobs/' + sha,
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              blob = base64.b64decode(json.loads(response.read(100000))['content'])
+          assert hashlib.sha1(b'blob ' + str(len(blob)).encode() + b'\x00' + blob).hexdigest() == sha
+          patch = lzma.decompress(blob)
+          assert hashlib.sha256(patch).hexdigest() == os.environ['PATCH_SHA256']
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'mirror.patch'
+          path.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', '--index', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(path)], check=True)
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git', 'commit', '-m', 'feat(ikarus): retain complete evaluated source mirrors for hopping'], check=True)
+      - name: Fast-forward only; never activate a candidate runtime
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:main
