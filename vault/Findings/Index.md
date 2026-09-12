@@ -33,4 +33,6 @@ autoritativen Artefakt im Repo. Nie kopieren — `docs/` bleibt die Quelle.
 
 - [[Remote-Planner-Owner-Choice-20260906]] — G1-IKARUS-43: Owner-Freigabe für den Remote-Planner umgesetzt (transiente Bestätigung, Secret-Floor auf Beobachtung und Prompt, Planner-Zeile im Status)
 
+- [[Web-Bundle-Platform-Drift-20260912]] - Vite erzeugt plattformabhaengige JS-Chunk-Hashes; der Linux-PR-Build ist die kanonische Dist-Drift-Pruefung (PR #382)
+
 Neue Findings: Template [[../Templates/Finding|Finding]] nutzen.
